@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Sequence
+from dataclasses import asdict
 
 from apex.backtesting.contracts import (
     BacktestConfig,
     BacktestOutcome,
     BacktestReport,
+    BacktestRequest,
     BacktestSignal,
+    BacktestStudy,
     SimulatedTrade,
 )
 from apex.domain.models import Candle
@@ -74,7 +79,7 @@ def simulate_trade(
     if not entered:
         return SimulatedTrade(
             signal=signal,
-            outcome=BacktestOutcome.EXPIRED,
+            outcome=BacktestOutcome.MISSED_ENTRY,
             exit_time=final.close_time,
             exit_price=final.close,
             gross_pnl=0.0,
@@ -84,6 +89,32 @@ def simulate_trade(
             holding_candles=max_candles,
         )
     return _trade(signal, BacktestOutcome.EXPIRED, final, max_candles, entry, final.close, config)
+
+
+class HistoricalBacktestRunner:
+    """Run a deterministic chronological study from precomputed signals."""
+
+    def run(self, request: BacktestRequest) -> BacktestStudy:
+        trades: list[SimulatedTrade] = []
+        skipped = 0
+        for signal in request.signals:
+            future = _future_candles(request, signal)
+            if not future:
+                skipped += 1
+                continue
+            trades.append(simulate_trade(signal, future, config=request.config))
+
+        report = summarize_trades(trades)
+        return BacktestStudy(
+            request=request,
+            report=report,
+            dataset_hash=_dataset_hash(request),
+            config_hash=_config_hash(request.config),
+            code_hash=_hash_json({"code_version": request.code_version}),
+            generated_signal_count=len(request.signals),
+            simulated_trade_count=len(trades),
+            skipped_signal_count=skipped,
+        )
 
 
 def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
@@ -140,6 +171,65 @@ def _target_hit(signal: BacktestSignal, candle: Candle, target: float) -> bool:
     return (
         candle.high >= target if signal.direction is TradeDirection.LONG else candle.low <= target
     )
+
+
+def _future_candles(
+    request: BacktestRequest,
+    signal: BacktestSignal,
+) -> tuple[Candle, ...]:
+    candles = request.candles_by_symbol.get(signal.symbol, ())
+    return tuple(
+        candle for candle in candles if candle.open_time >= signal.generated_at and candle.is_closed
+    )
+
+
+def _dataset_hash(request: BacktestRequest) -> str:
+    payload = {
+        "dataset_id": request.dataset_id,
+        "signals": [
+            {
+                "symbol": signal.symbol,
+                "strategy": signal.strategy.value,
+                "direction": signal.direction.value,
+                "generated_at": signal.generated_at.isoformat(),
+                "entry_price": signal.entry_price,
+                "stop_price": signal.stop_price,
+                "target_price": signal.target_price,
+                "quantity": signal.quantity,
+                "risk_amount": signal.risk_amount,
+                "confidence_score": signal.confidence_score,
+            }
+            for signal in request.signals
+        ],
+        "candles": {
+            symbol: [
+                {
+                    "open_time": candle.open_time.isoformat(),
+                    "close_time": candle.close_time.isoformat(),
+                    "open": candle.open,
+                    "high": candle.high,
+                    "low": candle.low,
+                    "close": candle.close,
+                    "volume": candle.volume,
+                    "is_closed": candle.is_closed,
+                    "source": candle.source,
+                    "timeframe": candle.timeframe,
+                }
+                for candle in candles
+            ]
+            for symbol, candles in sorted(request.candles_by_symbol.items())
+        },
+    }
+    return _hash_json(payload)
+
+
+def _config_hash(config: BacktestConfig) -> str:
+    return _hash_json(asdict(config))
+
+
+def _hash_json(payload: object) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _slipped_entry(signal: BacktestSignal, config: BacktestConfig) -> float:

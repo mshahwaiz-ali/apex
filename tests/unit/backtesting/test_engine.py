@@ -5,7 +5,9 @@ import pytest
 from apex.backtesting import (
     BacktestConfig,
     BacktestOutcome,
+    BacktestRequest,
     BacktestSignal,
+    HistoricalBacktestRunner,
     simulate_trade,
     summarize_trades,
 )
@@ -106,5 +108,70 @@ def test_unentered_trade_expires_at_last_allowed_candle() -> None:
         config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0, maximum_holding_candles=2),
     )
 
-    assert trade.outcome is BacktestOutcome.EXPIRED
+    assert trade.outcome is BacktestOutcome.MISSED_ENTRY
     assert trade.holding_candles == 2
+
+
+def test_historical_runner_uses_only_future_candles_without_lookahead() -> None:
+    signal = _signal()
+    request = BacktestRequest(
+        signals=(signal,),
+        candles_by_symbol={
+            "BTC/USDT": (
+                _candle(high=110.0, low=97.0, index=-1),
+                _candle(high=103.0, low=99.0, close=101.0, index=0),
+                _candle(high=105.0, low=100.0, close=104.0, index=1),
+            )
+        },
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+        dataset_id="unit",
+        code_version="test",
+    )
+
+    study = HistoricalBacktestRunner().run(request)
+
+    assert study.report.total_trades == 1
+    assert study.report.trades[0].outcome is BacktestOutcome.TARGET
+    assert study.report.trades[0].holding_candles == 2
+    assert study.skipped_signal_count == 0
+    assert len(study.dataset_hash) == 64
+    assert len(study.config_hash) == 64
+    assert len(study.code_hash) == 64
+
+
+def test_historical_runner_skips_signal_without_future_data() -> None:
+    signal = _signal()
+    request = BacktestRequest(
+        signals=(signal,),
+        candles_by_symbol={"BTC/USDT": (_candle(high=110.0, low=97.0, index=-1),)},
+        dataset_id="unit",
+    )
+
+    study = HistoricalBacktestRunner().run(request)
+
+    assert study.generated_signal_count == 1
+    assert study.simulated_trade_count == 0
+    assert study.skipped_signal_count == 1
+    assert study.report.total_trades == 0
+
+
+def test_backtest_request_requires_chronological_signals() -> None:
+    later = _signal()
+    earlier = BacktestSignal(
+        symbol="BTC/USDT",
+        strategy=StrategyType.TREND_PULLBACK,
+        direction=TradeDirection.LONG,
+        generated_at=NOW - timedelta(minutes=5),
+        entry_price=100.0,
+        stop_price=98.0,
+        target_price=104.0,
+        quantity=10.0,
+        risk_amount=20.0,
+        confidence_score=80.0,
+    )
+
+    with pytest.raises(ValueError, match="chronological"):
+        BacktestRequest(
+            signals=(later, earlier),
+            candles_by_symbol={"BTC/USDT": ()},
+        )

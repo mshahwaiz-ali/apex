@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 
+from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
 
@@ -14,6 +17,7 @@ class BacktestOutcome(StrEnum):
     TARGET = "target"
     STOP = "stop"
     EXPIRED = "expired"
+    MISSED_ENTRY = "missed_entry"
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,3 +137,53 @@ class BacktestReport:
             value = getattr(self, name)
             if not math.isfinite(value) or not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name.replace('_', ' ')} must be in the unit interval")
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestRequest:
+    """Chronological study request using precomputed deterministic signals."""
+
+    signals: tuple[BacktestSignal, ...]
+    candles_by_symbol: Mapping[str, tuple[Candle, ...]]
+    config: BacktestConfig = field(default_factory=BacktestConfig)
+    dataset_id: str = "local"
+    code_version: str = "local-worktree"
+
+    def __post_init__(self) -> None:
+        if not self.dataset_id.strip() or not self.code_version.strip():
+            raise ValueError("dataset and code identifiers cannot be empty")
+        expected = tuple(sorted(self.signals, key=lambda item: (item.generated_at, item.symbol)))
+        if expected != self.signals:
+            raise ValueError("backtest signals must be chronological")
+        normalized = {symbol: tuple(candles) for symbol, candles in self.candles_by_symbol.items()}
+        if any(not symbol.strip() for symbol in normalized):
+            raise ValueError("candle symbol keys cannot be empty")
+        object.__setattr__(self, "candles_by_symbol", MappingProxyType(normalized))
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestStudy:
+    """Reproducible chronological backtest study."""
+
+    request: BacktestRequest
+    report: BacktestReport
+    dataset_hash: str
+    config_hash: str
+    code_hash: str
+    generated_signal_count: int
+    simulated_trade_count: int
+    skipped_signal_count: int
+
+    def __post_init__(self) -> None:
+        for name in ("dataset_hash", "config_hash", "code_hash"):
+            value = getattr(self, name)
+            if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+                raise ValueError(f"{name.replace('_', ' ')} must be a SHA-256 hex digest")
+        if self.generated_signal_count != len(self.request.signals):
+            raise ValueError("generated signal count must match request signals")
+        if self.simulated_trade_count != self.report.total_trades:
+            raise ValueError("simulated trade count must match report trades")
+        if self.skipped_signal_count < 0:
+            raise ValueError("skipped signal count cannot be negative")
+        if self.generated_signal_count != self.simulated_trade_count + self.skipped_signal_count:
+            raise ValueError("generated signals must equal simulated plus skipped signals")
