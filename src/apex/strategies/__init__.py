@@ -21,6 +21,7 @@ from apex.strategies.contracts import (
     TradeDirection,
 )
 from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
     "EntryMode",
@@ -41,5 +42,6 @@ __all__ = [
     "TimeframeRole",
     "TradeCandidate",
     "TradeDirection",
+    "generate_trend_pullback_candidates",
     "select_entry_zone",
 ]
