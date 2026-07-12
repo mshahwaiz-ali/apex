@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from apex.domain.models import Candle
-from apex.features.validation import ActiveCandlePolicy
+from apex.features.validation import ActiveCandlePolicy, prepare_candles
 from apex.liquidity.contracts import LiquiditySweep, LiquidityZone, TrapEvent
 from apex.liquidity.sweeps import detect_liquidity_sweeps
 from apex.liquidity.traps import detect_traps
@@ -21,11 +21,28 @@ class LiquidityAnalysisResult:
     traps: tuple[TrapEvent, ...]
 
     def __post_init__(self) -> None:
-        if tuple(sorted(self.zones, key=lambda item: (item.representative_price, item.side.value))) != self.zones:
+        expected_zones = tuple(
+            sorted(
+                self.zones,
+                key=lambda item: (
+                    item.representative_price,
+                    item.side.value,
+                    item.kind.value,
+                    item.created_index,
+                ),
+            )
+        )
+        if expected_zones != self.zones:
             raise ValueError("liquidity zones must use deterministic ordering")
-        if tuple(sorted(self.sweeps, key=lambda item: item.candle_index)) != self.sweeps:
+        expected_sweeps = tuple(
+            sorted(self.sweeps, key=lambda item: (item.candle_index, item.zone.side.value))
+        )
+        if expected_sweeps != self.sweeps:
             raise ValueError("liquidity sweeps must use chronological ordering")
-        if tuple(sorted(self.traps, key=lambda item: item.candle_index)) != self.traps:
+        expected_traps = tuple(
+            sorted(self.traps, key=lambda item: (item.candle_index, item.kind.value))
+        )
+        if expected_traps != self.traps:
             raise ValueError("trap events must use chronological ordering")
 
 
@@ -34,18 +51,31 @@ def analyze_liquidity(
     structure: StructureAnalysisResult,
     *,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
+    zone_tolerance: float = 0.002,
 ) -> LiquidityAnalysisResult:
     """Run zones, sweeps, and traps in a fixed explainable order."""
 
-    zones = derive_liquidity_zones(structure.swings, structure.ranges, candles)
+    usable = prepare_candles(
+        candles,
+        minimum_candles=1,
+        active_candle_policy=active_candle_policy,
+    )
+    zones = derive_liquidity_zones(
+        structure.swings,
+        current_index=len(usable) - 1,
+        tolerance=zone_tolerance,
+        ranges=structure.ranges,
+    )
     sweeps = detect_liquidity_sweeps(
         candles,
         zones,
         active_candle_policy=active_candle_policy,
     )
-    traps = detect_traps(candles, sweeps)
+    traps = detect_traps(usable, sweeps)
     return LiquidityAnalysisResult(
-        zones=tuple(sorted(zones, key=lambda item: (item.representative_price, item.side.value))),
-        sweeps=tuple(sorted(sweeps, key=lambda item: item.candle_index)),
-        traps=tuple(sorted(traps, key=lambda item: item.candle_index)),
+        zones=zones,
+        sweeps=tuple(
+            sorted(sweeps, key=lambda item: (item.candle_index, item.zone.side.value))
+        ),
+        traps=tuple(sorted(traps, key=lambda item: (item.candle_index, item.kind.value))),
     )
