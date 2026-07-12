@@ -19,7 +19,51 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy src
-      - run: pytest --cov=apex --cov-report=term-missing
+
+      - id: ruff_check
+        continue-on-error: true
+        run: ruff check . 2>&1 | tee ruff-check.txt
+      - id: ruff_format
+        continue-on-error: true
+        run: ruff format --check . 2>&1 | tee ruff-format.txt
+      - id: mypy
+        continue-on-error: true
+        run: mypy src 2>&1 | tee mypy.txt
+      - id: pytest
+        continue-on-error: true
+        run: pytest --cov=apex --cov-report=term-missing 2>&1 | tee pytest.txt
+      - id: diff_check
+        continue-on-error: true
+        run: git diff --check 2>&1 | tee git-diff-check.txt
+
+      - name: Upload quality-gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate-logs
+          path: |
+            ruff-check.txt
+            ruff-format.txt
+            mypy.txt
+            pytest.txt
+            git-diff-check.txt
+
+      - name: Enforce quality gate
+        if: always()
+        env:
+          RUFF_CHECK: ${{ steps.ruff_check.outcome }}
+          RUFF_FORMAT: ${{ steps.ruff_format.outcome }}
+          MYPY: ${{ steps.mypy.outcome }}
+          PYTEST: ${{ steps.pytest.outcome }}
+          DIFF_CHECK: ${{ steps.diff_check.outcome }}
+        run: |
+          printf 'ruff check: %s\n' "$RUFF_CHECK"
+          printf 'ruff format: %s\n' "$RUFF_FORMAT"
+          printf 'mypy: %s\n' "$MYPY"
+          printf 'pytest: %s\n' "$PYTEST"
+          printf 'git diff --check: %s\n' "$DIFF_CHECK"
+          test "$RUFF_CHECK" = success
+          test "$RUFF_FORMAT" = success
+          test "$MYPY" = success
+          test "$PYTEST" = success
+          test "$DIFF_CHECK" = success
