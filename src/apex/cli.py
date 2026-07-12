@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import NoReturn
 
 import typer
 
@@ -49,7 +50,7 @@ def smoke() -> None:
     )
 
 
-def _exit_for_provider_error(prefix: str, error: MarketDataProviderError) -> None:
+def _exit_for_provider_error(prefix: str, error: MarketDataProviderError) -> NoReturn:
     typer.echo(f"{prefix}: {error}", err=True)
     raise typer.Exit(code=1) from error
 
