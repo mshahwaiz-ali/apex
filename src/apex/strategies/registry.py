@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
+from typing import Protocol
 
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.context import StrategyContext
@@ -13,7 +13,17 @@ from apex.strategies.momentum_continuation import generate_momentum_continuation
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
-StrategyGenerator = Callable[..., tuple[TradeCandidate, ...]]
+
+class StrategyGenerator(Protocol):
+    """Typed callable boundary shared by all Phase 4 generators."""
+
+    def __call__(
+        self,
+        context: StrategyContext,
+        *,
+        decision_time: datetime,
+    ) -> tuple[TradeCandidate, ...]: ...
+
 
 STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
     (StrategyType.TREND_PULLBACK, generate_trend_pullback_candidates),
