@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -80,8 +81,9 @@ def volume_spike(
 ) -> FeatureResult:
     """Return ``1.0`` when relative volume reaches the configured threshold."""
 
-    if threshold <= 0:
-        raise ValueError("threshold must be greater than zero")
+    validate_period(period)
+    if not math.isfinite(threshold) or threshold <= 0:
+        raise ValueError("threshold must be a positive finite value")
     relative = relative_volume(
         candles,
         period,
