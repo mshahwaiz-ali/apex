@@ -29,7 +29,10 @@ def detect_liquidity_sweeps(
 
     if not math.isfinite(minimum_penetration) or minimum_penetration < 0:
         raise ValueError("minimum_penetration must be finite and non-negative")
-    if not math.isfinite(volume_confirmation_threshold) or volume_confirmation_threshold <= 0:
+    if (
+        not math.isfinite(volume_confirmation_threshold)
+        or volume_confirmation_threshold <= 0
+    ):
         raise ValueError("volume_confirmation_threshold must be positive and finite")
     volumes = _prepare_relative_volume(relative_volume, len(candles))
     usable = prepare_candles(
@@ -48,13 +51,17 @@ def detect_liquidity_sweeps(
                 index,
                 zone,
                 minimum_penetration,
-                relative_volume=(usable_volumes[index] if usable_volumes is not None else None),
+                relative_volume=(
+                    usable_volumes[index] if usable_volumes is not None else None
+                ),
                 volume_confirmation_threshold=volume_confirmation_threshold,
             )
             if event is not None:
                 events.append(event)
                 break
-    return tuple(sorted(events, key=lambda item: (item.candle_index, item.zone.side.value)))
+    return tuple(
+        sorted(events, key=lambda item: (item.candle_index, item.zone.side.value))
+    )
 
 
 def _prepare_relative_volume(
@@ -109,7 +116,9 @@ def _classify_breach(
             else SweepClassification.CONFIRMED_SWEEP
         )
         confirmation = (
-            ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.CONFIRMED
+            ConfirmationStatus.DEVELOPING
+            if is_active
+            else ConfirmationStatus.CONFIRMED
         )
         evidence = ["price breached liquidity and closed back inside the zone"]
     elif is_active:
@@ -126,12 +135,14 @@ def _classify_breach(
         warnings.append("active candle result is provisional")
     if relative_volume is not None:
         if relative_volume >= volume_confirmation_threshold:
-            evidence.append("relative volume confirmed participation at the liquidity event")
+            evidence.append(
+                "relative volume confirmed participation at the liquidity event"
+            )
         elif classification in {
             SweepClassification.CONFIRMED_SWEEP,
             SweepClassification.SIMPLE_BREAKOUT,
         }:
-            warnings.append("liquidity event lacks relative-volume confirmation")
+            warnings.append("lacks relative-volume confirmation")
 
     return LiquiditySweep(
         zone=zone,
