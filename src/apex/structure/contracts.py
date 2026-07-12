@@ -84,6 +84,11 @@ def _require_positive(name: str, value: float) -> None:
         raise ValueError(f"{name} must be greater than zero")
 
 
+def _require_aware(name: str, value: datetime) -> None:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{name} must be timezone-aware")
+
+
 @dataclass(frozen=True, slots=True)
 class SwingPoint:
     index: int
@@ -97,6 +102,7 @@ class SwingPoint:
     def __post_init__(self) -> None:
         if self.index < 0:
             raise ValueError("swing index cannot be negative")
+        _require_aware("swing time", self.time)
         _require_positive("swing price", self.price)
         if self.left_window < 1 or self.right_window < 1:
             raise ValueError("swing windows must be at least 1")
@@ -157,8 +163,9 @@ class StructureBreak:
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.candle_index < 0:
-            raise ValueError("break candle index cannot be negative")
+        if self.candle_index <= self.broken_swing.index:
+            raise ValueError("break candle must occur after the broken swing")
+        _require_aware("break candle time", self.candle_time)
         _require_positive("broken level", self.broken_level)
         _require_finite("close distance", self.close_distance)
         _require_finite("wick penetration", self.wick_penetration)
@@ -195,8 +202,10 @@ class StructureLevel:
             raise ValueError("representative price must lie inside the level")
         if self.touches < 1 or self.touches != len(self.pivot_indices):
             raise ValueError("touch count must match pivot indices")
-        if self.last_touch_index < 0:
-            raise ValueError("last touch index cannot be negative")
+        if tuple(sorted(set(self.pivot_indices))) != self.pivot_indices:
+            raise ValueError("pivot indices must be unique and sorted")
+        if self.last_touch_index != self.pivot_indices[-1]:
+            raise ValueError("last touch index must match the final pivot index")
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,10 +240,23 @@ class RangeStructure:
             _require_finite(name, value)
         if self.low >= self.high or self.width <= 0:
             raise ValueError("range must have positive width")
+        if not math.isclose(self.width, self.high - self.low, rel_tol=1e-12, abs_tol=1e-12):
+            raise ValueError("range width must equal high minus low")
+        if not math.isclose(
+            self.midpoint,
+            (self.high + self.low) / 2,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("range midpoint is inconsistent with boundaries")
         if self.start_index < 0 or self.end_index < self.start_index:
             raise ValueError("invalid range indices")
         if self.upper_tests < 0 or self.lower_tests < 0:
             raise ValueError("range test counts cannot be negative")
+        if tuple(sorted(set(self.false_break_indices))) != self.false_break_indices:
+            raise ValueError("false-break indices must be unique and sorted")
+        if any(index < self.start_index or index > self.end_index for index in self.false_break_indices):
+            raise ValueError("false-break indices must lie inside the range interval")
         if not 0 <= self.current_position <= 1:
             raise ValueError("current position must be between 0 and 1")
         if not 0 <= self.quality <= 1:
@@ -253,5 +275,18 @@ class StructureAnalysisResult:
     def __post_init__(self) -> None:
         if tuple(sorted(self.swings, key=lambda item: (item.index, item.kind.value))) != self.swings:
             raise ValueError("swings must use deterministic chronological ordering")
-        if tuple(sorted(self.breaks, key=lambda item: item.candle_index)) != self.breaks:
-            raise ValueError("breaks must use chronological ordering")
+        if tuple(sorted(self.breaks, key=lambda item: (item.candle_index, item.direction.value))) != self.breaks:
+            raise ValueError("breaks must use deterministic chronological ordering")
+        if tuple(sorted(self.ranges, key=lambda item: (item.start_index, item.end_index))) != self.ranges:
+            raise ValueError("ranges must use chronological ordering")
+        if tuple(
+            sorted(
+                self.levels,
+                key=lambda item: (
+                    item.representative_price,
+                    item.role.value,
+                    item.last_touch_index,
+                ),
+            )
+        ) != self.levels:
+            raise ValueError("levels must use deterministic ordering")
