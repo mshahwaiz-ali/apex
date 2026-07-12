@@ -60,7 +60,9 @@ class RiskConfig:
         ):
             _positive(name.replace("_", " "), getattr(self, name))
         if self.minimum_stop_distance_pct >= self.maximum_stop_distance_pct:
-            raise ValueError("minimum stop distance must be below maximum stop distance")
+            raise ValueError(
+                "minimum stop distance must be below maximum stop distance"
+            )
         if self.maximum_leverage < 1.0:
             raise ValueError("maximum leverage cannot be below one")
         if self.maximum_concurrent_trades < 1:
@@ -95,7 +97,9 @@ class ExposureState:
         ):
             value = getattr(self, name)
             if not math.isfinite(value) or value < 0.0:
-                raise ValueError(f"{name.replace('_', ' ')} must be finite and non-negative")
+                raise ValueError(
+                    f"{name.replace('_', ' ')} must be finite and non-negative"
+                )
         if self.same_direction_risk_amount > self.open_risk_amount:
             raise ValueError("same-direction risk cannot exceed total open risk")
         if self.correlated_risk_amount > self.open_risk_amount:
