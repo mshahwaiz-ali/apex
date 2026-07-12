@@ -9,7 +9,7 @@ from apex.risk import (
     RiskRejectionCode,
     analyze_phase6,
 )
-from apex.scoring import analyze_phase5
+from apex.scoring import Phase5AnalysisResult, analyze_phase5
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -34,6 +34,8 @@ def _candidate(
     *,
     direction: TradeDirection = TradeDirection.LONG,
     current_price: float = 100.0,
+    entry_lower: float = 99.0,
+    entry_upper: float = 101.0,
     invalidation: float | None = None,
     target: float | None = None,
     extended: bool = False,
@@ -42,18 +44,19 @@ def _candidate(
         invalidation = 98.0 if direction is TradeDirection.LONG else 102.0
     if target is None:
         target = 105.0 if direction is TradeDirection.LONG else 95.0
+    preferred = (entry_lower + entry_upper) / 2.0
     return TradeCandidate(
         symbol="BTC/USDT",
         strategy=StrategyType.TREND_PULLBACK,
         direction=direction,
         decision_time=NOW,
         entry=EntryZone(
-            lower=99.0,
-            upper=101.0,
-            preferred=100.0,
+            lower=entry_lower,
+            upper=entry_upper,
+            preferred=preferred,
             current_price=current_price,
-            distance_from_current=abs(current_price - 100.0),
-            atr_distance=abs(current_price - 100.0),
+            distance_from_current=abs(current_price - preferred),
+            atr_distance=abs(current_price - preferred),
             estimated_move_missed=0.0,
             location_quality=0.9,
             mode=EntryMode.MARKET_NEAR,
@@ -89,7 +92,7 @@ def _candidate(
     )
 
 
-def _phase5(candidate: TradeCandidate | None = None):  # type: ignore[no-untyped-def]
+def _phase5(candidate: TradeCandidate | None = None) -> Phase5AnalysisResult:
     phase4 = Phase4AnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
@@ -106,6 +109,7 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
     assert result.setup.stop_loss.price < result.setup.entry.lower
     assert result.setup.take_profits[0].price > result.setup.entry.upper
     assert result.setup.position_size.risk_amount == pytest.approx(50.0)
+    assert result.setup.position_size.required_leverage <= result.setup.leverage.maximum
     assert result.setup.leverage.liquidation_price_at_maximum < result.setup.stop_loss.price
 
 
@@ -129,7 +133,15 @@ def test_extended_entry_is_rejected() -> None:
 
 
 def test_stop_outside_configured_bounds_is_rejected() -> None:
-    tight = analyze_phase6(_phase5(_candidate(invalidation=99.95)))
+    tight = analyze_phase6(
+        _phase5(
+            _candidate(
+                entry_lower=99.92,
+                entry_upper=100.08,
+                invalidation=99.91,
+            )
+        )
+    )
     wide = analyze_phase6(_phase5(_candidate(invalidation=90.0)))
     assert tight.rejection_codes == (RiskRejectionCode.STOP_TOO_TIGHT,)
     assert wide.rejection_codes == (RiskRejectionCode.STOP_TOO_WIDE,)
@@ -149,6 +161,18 @@ def test_position_size_never_exceeds_configured_account_risk() -> None:
     assert modeled_loss == pytest.approx(50.0)
 
 
+def test_required_leverage_above_safe_maximum_is_rejected() -> None:
+    config = RiskConfig(
+        risk_per_trade_pct=10.0,
+        maximum_leverage=2.0,
+        maximum_open_risk_pct=20.0,
+        maximum_directional_risk_pct=20.0,
+        maximum_correlated_risk_pct=20.0,
+    )
+    result = analyze_phase6(_phase5(_candidate()), config=config)
+    assert result.rejection_codes == (RiskRejectionCode.LEVERAGE_UNSAFE,)
+
+
 def test_exposure_limits_reject_new_trade() -> None:
     result = analyze_phase6(
         _phase5(_candidate()),
@@ -157,7 +181,20 @@ def test_exposure_limits_reject_new_trade() -> None:
     assert RiskRejectionCode.MAX_CONCURRENT_TRADES in result.rejection_codes
 
 
+def test_correlated_exposure_limit_rejects_new_trade() -> None:
+    result = analyze_phase6(
+        _phase5(_candidate()),
+        exposure=ExposureState(open_risk_amount=60.0, correlated_risk_amount=60.0),
+    )
+    assert result.rejection_codes == (RiskRejectionCode.MAX_CORRELATED_RISK,)
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
 def test_configuration_rejects_non_finite_values(value: float) -> None:
     with pytest.raises(ValueError):
         RiskConfig(account_equity=value)
+
+
+def test_exposure_rejects_correlated_risk_above_total_risk() -> None:
+    with pytest.raises(ValueError):
+        ExposureState(open_risk_amount=10.0, correlated_risk_amount=11.0)
