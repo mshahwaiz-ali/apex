@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
-from apex.liquidity.contracts import LiquidityAnalysisResult
+from apex.liquidity.analysis import LiquidityAnalysisResult
 from apex.structure.contracts import StructureAnalysisResult, TrendDirection
 
 
