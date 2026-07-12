@@ -11,6 +11,7 @@ import typer
 
 from apex import __version__
 from apex.application import (
+    SymbolAnalysis,
     analyze_symbol,
     bootstrap,
     create_market_data_services,
@@ -26,6 +27,25 @@ from apex.application import (
 from apex.backtesting import BacktestConfig, signal_from_setup, simulate_trade, summarize_trades
 from apex.config import load_settings
 from apex.data.providers.errors import MarketDataProviderError
+from apex.execution import (
+    ExecutionConfig,
+    KillSwitchState,
+    intent_from_setup,
+    load_duplicate_keys,
+    preview_execution,
+    submit_testnet_order,
+)
+from apex.intelligence import disabled_intelligence_metadata
+from apex.optimization import (
+    CandidateParameterSet,
+    OptimizationGroup,
+    OptimizationRunConfig,
+    compare_performance,
+    evaluate_performance,
+    load_performance_report,
+    result_to_payload,
+    save_optimization_result,
+)
 from apex.paper_trading import (
     PaperTrade,
     PaperTradeConfig,
@@ -37,7 +57,18 @@ from apex.paper_trading import (
 
 app = typer.Typer(help="Apex Trading Agent command line interface.", no_args_is_help=True)
 paper_app = typer.Typer(help="Local paper-trading commands.", no_args_is_help=True)
+optimize_app = typer.Typer(help="Framework-first optimization commands.", no_args_is_help=True)
+intelligence_app = typer.Typer(
+    help="Optional deterministic market-intelligence commands.",
+    no_args_is_help=True,
+)
+execute_app = typer.Typer(help="Testnet-only execution commands.", no_args_is_help=True)
+kill_switch_app = typer.Typer(help="Execution kill-switch commands.", no_args_is_help=True)
 app.add_typer(paper_app, name="paper")
+app.add_typer(optimize_app, name="optimize")
+app.add_typer(intelligence_app, name="intelligence")
+app.add_typer(execute_app, name="execute")
+execute_app.add_typer(kill_switch_app, name="kill-switch")
 
 
 @app.command()
@@ -353,6 +384,226 @@ def paper_report(
 
 def _paper_store(data_dir: Path) -> PaperTradeStore:
     return PaperTradeStore(data_dir / "paper_trading" / "trades.json")
+
+
+@optimize_app.command("evaluate")
+def optimize_evaluate(
+    input_path: Path = typer.Option(  # noqa: B008
+        ...,
+        "--input",
+        exists=True,
+        dir_okay=False,
+    ),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Evaluate one performance report without changing config."""
+
+    context = bootstrap()
+    summary = load_performance_report(input_path)
+    result = evaluate_performance(
+        summary,
+        run_config=OptimizationRunConfig(
+            identifier="cli-evaluate",
+            variable_group=OptimizationGroup.SCORING_THRESHOLDS,
+        ),
+    )
+    report_path = context.settings.data_dir / "optimization" / "latest-evaluate.json"
+    save_optimization_result(result, report_path)
+    payload = result_to_payload(result) | {"report_path": str(report_path)}
+    _emit_output(
+        payload,
+        f"OPTIMIZE_EVALUATE | decision={result.decision.value} | report={report_path}",
+        output,
+    )
+
+
+@optimize_app.command("compare")
+def optimize_compare(
+    baseline: Path = typer.Option(  # noqa: B008
+        ...,
+        "--baseline",
+        exists=True,
+        dir_okay=False,
+    ),
+    candidate: Path = typer.Option(  # noqa: B008
+        ...,
+        "--candidate",
+        exists=True,
+        dir_okay=False,
+    ),
+    group: str = typer.Option(OptimizationGroup.SCORING_THRESHOLDS.value, "--group"),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Compare baseline and candidate performance reports."""
+
+    context = bootstrap()
+    group_value = OptimizationGroup(group)
+    result = compare_performance(
+        load_performance_report(baseline),
+        load_performance_report(candidate),
+        run_config=OptimizationRunConfig(
+            identifier="cli-compare",
+            variable_group=group_value,
+        ),
+        parameter_set=CandidateParameterSet(
+            identifier="candidate-report",
+            group=group_value,
+            parameters={"source": str(candidate)},
+        ),
+    )
+    report_path = context.settings.data_dir / "optimization" / "latest-compare.json"
+    save_optimization_result(result, report_path)
+    payload = result_to_payload(result) | {"report_path": str(report_path)}
+    _emit_output(
+        payload,
+        f"OPTIMIZE_COMPARE | decision={result.decision.value} | report={report_path}",
+        output,
+    )
+
+
+@intelligence_app.command("summary")
+def intelligence_summary(
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Show optional intelligence status without changing trade decisions."""
+
+    context = bootstrap()
+    enabled = context.settings.advanced_intelligence_enabled
+    payload = (
+        {
+            "enabled": True,
+            "funding_enabled": context.settings.intelligence_funding_enabled,
+            "open_interest_enabled": context.settings.intelligence_open_interest_enabled,
+            "correlation_enabled": context.settings.intelligence_correlation_enabled,
+            "warnings": [],
+        }
+        if enabled
+        else disabled_intelligence_metadata()
+    )
+    text = f"INTELLIGENCE_SUMMARY | enabled={str(enabled).lower()}"
+    _emit_output(payload, text, output)
+
+
+@execute_app.command("preview")
+def execute_preview(
+    symbol: str = typer.Argument(..., help="Trading pair, for example BTC/USDT."),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+    candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+) -> None:
+    """Preview testnet execution intent without submitting anything."""
+
+    analysis = _analysis_for_execution(symbol, candle_limit)
+    if analysis.assessment.setup is None:
+        _emit_output(
+            {"symbol": symbol, "decision": "NO_EXECUTION", "reasons": analysis.assessment.reasons},
+            f"{symbol}: NO_EXECUTION | no approved setup",
+            output,
+        )
+        return
+    result = preview_execution(intent_from_setup(analysis.assessment.setup))
+    payload = _jsonable(asdict(result))
+    _emit_output(payload, f"EXECUTE_PREVIEW | state={result.state.value}", output)
+
+
+@execute_app.command("testnet")
+def execute_testnet(
+    symbol: str = typer.Argument(..., help="Trading pair, for example BTC/USDT."),
+    confirm: bool = typer.Option(False, "--confirm", help="Required for testnet submit."),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+    candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+) -> None:
+    """Record a simulated testnet order after explicit confirmation."""
+
+    context = bootstrap()
+    analysis = _analysis_for_execution(symbol, candle_limit)
+    if analysis.assessment.setup is None:
+        _emit_output(
+            {"symbol": symbol, "decision": "NO_EXECUTION", "reasons": analysis.assessment.reasons},
+            f"{symbol}: NO_EXECUTION | no approved setup",
+            output,
+        )
+        return
+    audit_log = _execution_audit_log(context.settings.data_dir)
+    result = submit_testnet_order(
+        intent_from_setup(analysis.assessment.setup),
+        config=ExecutionConfig(enabled=confirm, testnet=True),
+        audit_log=audit_log,
+        kill_switch=_read_kill_switch(context.settings.data_dir),
+        confirmed=confirm,
+        existing_duplicate_keys=load_duplicate_keys(audit_log),
+    )
+    _emit_output(
+        _jsonable(asdict(result)),
+        f"EXECUTE_TESTNET | state={result.state.value}",
+        output,
+    )
+
+
+@execute_app.command("status")
+def execute_status(
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Show local execution safety status."""
+
+    context = bootstrap()
+    audit_log = _execution_audit_log(context.settings.data_dir)
+    payload = {
+        "mode": "testnet_only",
+        "enabled_by_default": False,
+        "kill_switch": _read_kill_switch(context.settings.data_dir).value,
+        "duplicate_keys": len(load_duplicate_keys(audit_log)),
+        "audit_log": str(audit_log),
+    }
+    _emit_output(
+        payload,
+        f"EXECUTE_STATUS | mode=testnet_only | kill_switch={payload['kill_switch']}",
+        output,
+    )
+
+
+@kill_switch_app.command("enable")
+def execute_kill_switch_enable() -> None:
+    """Enable the local execution kill switch."""
+
+    context = bootstrap()
+    _execution_kill_switch_path(context.settings.data_dir).write_text("enabled\n", encoding="utf-8")
+    typer.echo("EXECUTION_KILL_SWITCH | enabled")
+
+
+def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
+    try:
+        context = bootstrap()
+        risk_config = load_default_risk_config()
+        with create_market_data_services(context.settings) as services:
+            return analyze_symbol(
+                symbol,
+                services.candles,
+                timeframes=context.settings.analysis_timeframes,
+                candle_limit=candle_limit,
+                risk_config=risk_config,
+            )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except MarketDataProviderError as exc:
+        _exit_for_provider_error("Execution market-data request failed", exc)
+
+
+def _execution_audit_log(data_dir: Path) -> Path:
+    return data_dir / "execution" / "audit.jsonl"
+
+
+def _execution_kill_switch_path(data_dir: Path) -> Path:
+    path = data_dir / "execution" / "kill_switch.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _read_kill_switch(data_dir: Path) -> KillSwitchState:
+    try:
+        value = _execution_kill_switch_path(data_dir).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return KillSwitchState.DISABLED
+    return KillSwitchState.ENABLED if value == "enabled" else KillSwitchState.DISABLED
 
 
 def _emit_output(payload: object, text: str, output: str) -> None:

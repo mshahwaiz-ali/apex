@@ -3,6 +3,10 @@ log_level: INFO
 data_dir: data
 log_dir: logs
 cache_enabled: true
+advanced_intelligence_enabled: false
+intelligence_funding_enabled: false
+intelligence_open_interest_enabled: false
+intelligence_correlation_enabled: false
 analysis_timeframes:
   - 1m
   - 3m

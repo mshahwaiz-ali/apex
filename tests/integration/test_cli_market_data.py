@@ -181,3 +181,107 @@ def test_paper_report_command_emits_metrics(monkeypatch, tmp_path) -> None:
 
     assert result.exit_code == 0
     assert "PAPER_REPORT | total=0" in result.output
+
+
+def test_optimize_evaluate_command_writes_report(monkeypatch, tmp_path) -> None:
+    report = tmp_path / "backtest.json"
+    report.write_text(
+        '{"metrics":{"total_trades":1,"win_rate":1.0,"expectancy":2.0,'
+        '"profit_factor":2.0,"maximum_drawdown":0.0,"net_profit":2.0}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(cli.app, ["optimize", "evaluate", "--input", str(report)])
+
+    assert result.exit_code == 0
+    assert "OPTIMIZE_EVALUATE | decision=accepted" in result.output
+    assert (tmp_path / "optimization" / "latest-evaluate.json").exists()
+
+
+def test_optimize_compare_command_emits_json(monkeypatch, tmp_path) -> None:
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    baseline.write_text(
+        '{"metrics":{"total_trades":2,"win_rate":0.5,"expectancy":1.0,'
+        '"profit_factor":1.0,"maximum_drawdown":1.0,"net_profit":2.0}}',
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        '{"metrics":{"total_trades":2,"win_rate":0.5,"expectancy":2.0,'
+        '"profit_factor":1.2,"maximum_drawdown":1.0,"net_profit":4.0}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "optimize",
+            "compare",
+            "--baseline",
+            str(baseline),
+            "--candidate",
+            str(candidate),
+            "--output",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"decision": "accepted"' in result.output
+
+
+def test_intelligence_summary_is_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(
+            settings=SimpleNamespace(
+                advanced_intelligence_enabled=False,
+                intelligence_funding_enabled=False,
+                intelligence_open_interest_enabled=False,
+                intelligence_correlation_enabled=False,
+            )
+        ),
+    )
+
+    result = runner.invoke(cli.app, ["intelligence", "summary", "--output", "json"])
+
+    assert result.exit_code == 0
+    assert '"enabled": false' in result.output
+
+
+def test_execute_status_reports_testnet_only(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(cli.app, ["execute", "status"])
+
+    assert result.exit_code == 0
+    assert "EXECUTE_STATUS | mode=testnet_only" in result.output
+
+
+def test_execute_kill_switch_enable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(cli.app, ["execute", "kill-switch", "enable"])
+
+    assert result.exit_code == 0
+    assert "EXECUTION_KILL_SWITCH | enabled" in result.output
+    assert (tmp_path / "execution" / "kill_switch.txt").read_text(encoding="utf-8") == "enabled\n"

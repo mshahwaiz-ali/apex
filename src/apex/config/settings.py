@@ -21,6 +21,10 @@ class FileSettings(BaseModel):
     log_dir: Path = Path("logs")
     cache_enabled: bool = True
     analysis_timeframes: list[str] = Field(default_factory=list)
+    advanced_intelligence_enabled: bool = False
+    intelligence_funding_enabled: bool = False
+    intelligence_open_interest_enabled: bool = False
+    intelligence_correlation_enabled: bool = False
 
 
 class EnvironmentSettings(BaseSettings):
