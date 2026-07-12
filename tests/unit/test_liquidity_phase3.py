@@ -132,6 +132,33 @@ def test_confirmed_buy_side_sweep_with_bearish_follow_through_is_bull_trap() -> 
     assert traps[0].kind is TrapType.BULL_TRAP
 
 
+def test_breakout_returning_inside_zone_is_failed_breakout() -> None:
+    candles = (
+        _candle(0, open_price=99.0, high=99.5, low=98.5, close=99.0),
+        _candle(1, open_price=99.0, high=100.0, low=98.8, close=99.6),
+        _candle(2, open_price=100.0, high=102.0, low=99.8, close=101.0),
+        _candle(3, open_price=100.8, high=101.0, low=98.5, close=99.5),
+    )
+    sweeps = detect_liquidity_sweeps(candles, (_zone(LiquiditySide.BUY_SIDE),))
+
+    traps = detect_traps(candles, sweeps)
+
+    assert any(item.kind is TrapType.FAILED_BREAKOUT for item in traps)
+
+
+def test_extended_breakout_is_marked_as_late_chase_risk() -> None:
+    candles = (
+        _candle(0, open_price=99.0, high=99.5, low=98.5, close=99.0),
+        _candle(1, open_price=99.0, high=100.0, low=98.8, close=99.6),
+        _candle(2, open_price=100.0, high=104.0, low=99.8, close=103.0),
+    )
+    sweeps = detect_liquidity_sweeps(candles, (_zone(LiquiditySide.BUY_SIDE),))
+
+    traps = detect_traps(candles, sweeps, maximum_chase_distance=0.01)
+
+    assert any(item.kind is TrapType.LATE_CHASE_RISK for item in traps)
+
+
 def test_liquidity_registry_names_are_stable() -> None:
     registry = create_default_liquidity_registry()
 
