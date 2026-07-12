@@ -90,3 +90,81 @@ def test_ticker_does_not_mask_programming_error(monkeypatch) -> None:
     assert result.exit_code == 1
     assert isinstance(result.exception, RuntimeError)
     assert "Ticker request failed" not in result.output
+
+
+def test_analyze_command_emits_text_result(monkeypatch) -> None:
+    fake_analysis = object()
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_market_data_services",
+        lambda settings: FakeServices(candles=object(), ticker=object()),
+    )
+    monkeypatch.setattr(cli, "load_default_risk_config", lambda: object())
+    monkeypatch.setattr(cli, "analyze_symbol", lambda *args, **kwargs: fake_analysis)
+    monkeypatch.setattr(cli, "serialize_symbol_analysis", lambda analysis: {"decision": "NO_TRADE"})
+    monkeypatch.setattr(cli, "format_symbol_text", lambda analysis: "BTC/USDT: NO_TRADE")
+
+    result = runner.invoke(cli.app, ["analyze", "BTC/USDT"])
+
+    assert result.exit_code == 0
+    assert "BTC/USDT: NO_TRADE" in result.output
+
+
+def test_scan_command_emits_json_result(monkeypatch, tmp_path) -> None:
+    symbols = tmp_path / "symbols.yaml"
+    symbols.write_text("symbols:\n  - BTC/USDT\n", encoding="utf-8")
+    fake_scan = object()
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_market_data_services",
+        lambda settings: FakeServices(candles=object(), ticker=object()),
+    )
+    monkeypatch.setattr(cli, "load_default_risk_config", lambda: object())
+    monkeypatch.setattr(cli, "scan_symbols", lambda *args, **kwargs: fake_scan)
+    monkeypatch.setattr(
+        cli,
+        "serialize_scan_result",
+        lambda result: {"best_overall": None, "failures": {}},
+    )
+    monkeypatch.setattr(cli, "format_scan_text", lambda result: "scan text")
+
+    result = runner.invoke(cli.app, ["scan", "--symbols-file", str(symbols), "--output", "json"])
+
+    assert result.exit_code == 0
+    assert '"best_overall": null' in result.output
+
+
+def test_backtest_command_returns_no_backtest_without_setup(monkeypatch) -> None:
+    analysis = SimpleNamespace(
+        assessment=SimpleNamespace(
+            setup=None,
+            reasons=("Phase 5 selected no trade candidate",),
+        )
+    )
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_market_data_services",
+        lambda settings: FakeServices(candles=object(), ticker=object()),
+    )
+    monkeypatch.setattr(cli, "load_default_risk_config", lambda: object())
+    monkeypatch.setattr(cli, "analyze_symbol", lambda *args, **kwargs: analysis)
+
+    result = runner.invoke(cli.app, ["backtest", "BTC/USDT"])
+
+    assert result.exit_code == 0
+    assert "BTC/USDT: NO_BACKTEST" in result.output

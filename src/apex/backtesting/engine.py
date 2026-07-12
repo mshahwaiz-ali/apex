@@ -1,0 +1,211 @@
+"""Deterministic Phase 8 backtesting engine."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from apex.backtesting.contracts import (
+    BacktestConfig,
+    BacktestOutcome,
+    BacktestReport,
+    BacktestSignal,
+    SimulatedTrade,
+)
+from apex.domain.models import Candle
+from apex.risk.contracts import RiskApprovedSetup
+from apex.strategies import TradeDirection
+
+
+def signal_from_setup(setup: RiskApprovedSetup) -> BacktestSignal:
+    """Convert a risk-approved setup to the first-target replay signal."""
+
+    first_target = setup.take_profits[0]
+    return BacktestSignal(
+        symbol=setup.symbol,
+        strategy=setup.strategy,
+        direction=setup.direction,
+        generated_at=setup.decision_time,
+        entry_price=setup.entry.preferred,
+        stop_price=setup.stop_loss.price,
+        target_price=first_target.price,
+        quantity=setup.position_size.quantity,
+        risk_amount=setup.position_size.risk_amount,
+        confidence_score=setup.confidence_score,
+    )
+
+
+def simulate_trade(
+    signal: BacktestSignal,
+    candles: Sequence[Candle],
+    *,
+    config: BacktestConfig | None = None,
+) -> SimulatedTrade:
+    """Replay one signal over future candles without assuming profitable ambiguity."""
+
+    if config is None:
+        config = BacktestConfig()
+    if not candles:
+        raise ValueError("simulation requires future candles")
+    entry = _slipped_entry(signal, config)
+    stop = signal.stop_price
+    target = signal.target_price
+    max_candles = min(len(candles), config.maximum_holding_candles)
+
+    entered = False
+    for index, candle in enumerate(candles[:max_candles], start=1):
+        if not entered:
+            entered = _entry_touched(signal, candle)
+            if not entered:
+                continue
+        stop_hit = _stop_hit(signal, candle, stop)
+        target_hit = _target_hit(signal, candle, target)
+        if stop_hit and target_hit:
+            outcome = (
+                BacktestOutcome.STOP if config.conservative_intrabar else BacktestOutcome.TARGET
+            )
+            exit_price = stop if outcome is BacktestOutcome.STOP else target
+            return _trade(signal, outcome, candle, index, entry, exit_price, config)
+        if stop_hit:
+            return _trade(signal, BacktestOutcome.STOP, candle, index, entry, stop, config)
+        if target_hit:
+            return _trade(signal, BacktestOutcome.TARGET, candle, index, entry, target, config)
+
+    final = candles[max_candles - 1]
+    if not entered:
+        return SimulatedTrade(
+            signal=signal,
+            outcome=BacktestOutcome.EXPIRED,
+            exit_time=final.close_time,
+            exit_price=final.close,
+            gross_pnl=0.0,
+            fees=0.0,
+            net_pnl=0.0,
+            realized_r_multiple=0.0,
+            holding_candles=max_candles,
+        )
+    return _trade(signal, BacktestOutcome.EXPIRED, final, max_candles, entry, final.close, config)
+
+
+def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
+    """Aggregate deterministic backtest metrics."""
+
+    trade_tuple = tuple(trades)
+    wins = tuple(trade for trade in trade_tuple if trade.net_pnl > 0.0)
+    losses = tuple(trade for trade in trade_tuple if trade.net_pnl < 0.0)
+    breakeven = tuple(trade for trade in trade_tuple if trade.net_pnl == 0.0)
+    total = len(trade_tuple)
+    gross_profit = sum(trade.net_pnl for trade in wins)
+    gross_loss = abs(sum(trade.net_pnl for trade in losses))
+    net_profit = sum(trade.net_pnl for trade in trade_tuple)
+    equity = 0.0
+    peak = 0.0
+    maximum_drawdown = 0.0
+    for trade in trade_tuple:
+        equity += trade.net_pnl
+        peak = max(peak, equity)
+        maximum_drawdown = max(maximum_drawdown, peak - equity)
+    return BacktestReport(
+        trades=trade_tuple,
+        total_trades=total,
+        win_rate=len(wins) / total if total else 0.0,
+        loss_rate=len(losses) / total if total else 0.0,
+        breakeven_rate=len(breakeven) / total if total else 0.0,
+        gross_profit=gross_profit,
+        gross_loss=gross_loss,
+        net_profit=net_profit,
+        profit_factor=None if gross_loss == 0.0 else gross_profit / gross_loss,
+        average_win=gross_profit / len(wins) if wins else 0.0,
+        average_loss=-(gross_loss / len(losses)) if losses else 0.0,
+        average_risk_reward=(
+            sum(trade.realized_r_multiple for trade in trade_tuple) / total if total else 0.0
+        ),
+        expectancy=net_profit / total if total else 0.0,
+        maximum_drawdown=maximum_drawdown,
+        consecutive_wins=_max_streak(trade_tuple, profitable=True),
+        consecutive_losses=_max_streak(trade_tuple, profitable=False),
+        by_symbol=_count_by_symbol(trade_tuple),
+        by_strategy=_count_by_strategy(trade_tuple),
+    )
+
+
+def _entry_touched(signal: BacktestSignal, candle: Candle) -> bool:
+    return candle.low <= signal.entry_price <= candle.high
+
+
+def _stop_hit(signal: BacktestSignal, candle: Candle, stop: float) -> bool:
+    return candle.low <= stop if signal.direction is TradeDirection.LONG else candle.high >= stop
+
+
+def _target_hit(signal: BacktestSignal, candle: Candle, target: float) -> bool:
+    return (
+        candle.high >= target if signal.direction is TradeDirection.LONG else candle.low <= target
+    )
+
+
+def _slipped_entry(signal: BacktestSignal, config: BacktestConfig) -> float:
+    slippage = signal.entry_price * config.slippage_pct / 100.0
+    return (
+        signal.entry_price + slippage
+        if signal.direction is TradeDirection.LONG
+        else signal.entry_price - slippage
+    )
+
+
+def _slipped_exit(signal: BacktestSignal, price: float, config: BacktestConfig) -> float:
+    slippage = price * config.slippage_pct / 100.0
+    return price - slippage if signal.direction is TradeDirection.LONG else price + slippage
+
+
+def _trade(
+    signal: BacktestSignal,
+    outcome: BacktestOutcome,
+    candle: Candle,
+    holding_candles: int,
+    entry: float,
+    exit_price: float,
+    config: BacktestConfig,
+) -> SimulatedTrade:
+    exit_with_slippage = _slipped_exit(signal, exit_price, config)
+    gross = (
+        (exit_with_slippage - entry) * signal.quantity
+        if signal.direction is TradeDirection.LONG
+        else (entry - exit_with_slippage) * signal.quantity
+    )
+    fees = (entry + exit_with_slippage) * signal.quantity * config.fee_pct / 100.0
+    net = gross - fees
+    return SimulatedTrade(
+        signal=signal,
+        outcome=outcome,
+        exit_time=candle.close_time,
+        exit_price=exit_with_slippage,
+        gross_pnl=gross,
+        fees=fees,
+        net_pnl=net,
+        realized_r_multiple=net / signal.risk_amount,
+        holding_candles=holding_candles,
+    )
+
+
+def _max_streak(trades: Sequence[SimulatedTrade], *, profitable: bool) -> int:
+    longest = 0
+    current = 0
+    for trade in trades:
+        matches = trade.net_pnl > 0.0 if profitable else trade.net_pnl < 0.0
+        current = current + 1 if matches else 0
+        longest = max(longest, current)
+    return longest
+
+
+def _count_by_symbol(trades: Sequence[SimulatedTrade]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for trade in trades:
+        counts[trade.signal.symbol] = counts.get(trade.signal.symbol, 0) + 1
+    return counts
+
+
+def _count_by_strategy(trades: Sequence[SimulatedTrade]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for trade in trades:
+        strategy = trade.signal.strategy.value
+        counts[strategy] = counts.get(strategy, 0) + 1
+    return counts
