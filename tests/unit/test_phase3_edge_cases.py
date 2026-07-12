@@ -14,12 +14,15 @@ from apex.liquidity import (
     detect_liquidity_sweeps,
 )
 from apex.structure import (
+    BreakDirection,
+    ConfirmationStatus,
     PivotStatus,
     SwingPoint,
     SwingType,
     TrendDirection,
     classify_trend,
     detect_range,
+    detect_structure_breaks,
     detect_swings,
 )
 
@@ -110,6 +113,38 @@ def test_clean_lower_high_lower_low_sequence_is_strong_bearish() -> None:
     assert result.evidence.lower_lows == 2
 
 
+def test_configurable_thresholds_expose_weak_bullish_state() -> None:
+    swings = (
+        _swing(1, 100.0, SwingType.HIGH),
+        _swing(2, 95.0, SwingType.LOW),
+        _swing(3, 105.0, SwingType.HIGH),
+        _swing(4, 94.0, SwingType.LOW),
+        _swing(5, 110.0, SwingType.HIGH),
+    )
+
+    result = classify_trend(
+        swings,
+        minimum_pairs=2,
+        weak_persistence=0.8,
+        strong_persistence=0.95,
+    )
+
+    assert result.direction is TrendDirection.WEAK_BULLISH
+
+
+def test_balanced_conflicting_structure_is_transition() -> None:
+    swings = (
+        _swing(1, 100.0, SwingType.HIGH),
+        _swing(2, 95.0, SwingType.LOW),
+        _swing(3, 105.0, SwingType.HIGH),
+        _swing(4, 90.0, SwingType.LOW),
+    )
+
+    result = classify_trend(swings)
+
+    assert result.direction is TrendDirection.TRANSITION
+
+
 def test_active_sell_side_recovery_is_developing_sweep() -> None:
     candles = (
         _candle(0, high=102.0, low=101.0, close=101.5),
@@ -143,6 +178,39 @@ def test_zero_relative_volume_is_valid_but_not_confirmation() -> None:
 
     assert events[0].classification is SweepClassification.CONFIRMED_SWEEP
     assert "lacks relative-volume confirmation" in events[0].warnings
+
+
+def test_close_confirmed_bearish_break() -> None:
+    candles = (
+        _candle(0, high=105.0, low=101.0, close=104.0),
+        _candle(1, high=104.0, low=100.0, close=103.0),
+        _candle(2, high=102.0, low=97.0, close=98.0),
+    )
+
+    event = detect_structure_breaks(
+        candles,
+        (_swing(1, 100.0, SwingType.LOW),),
+    )[0]
+
+    assert event.direction is BreakDirection.BEARISH
+    assert event.confirmation is ConfirmationStatus.CONFIRMED
+
+
+def test_active_bearish_break_remains_developing() -> None:
+    candles = (
+        _candle(0, high=105.0, low=101.0, close=104.0),
+        _candle(1, high=104.0, low=100.0, close=103.0),
+        _candle(2, high=102.0, low=97.0, close=98.0, is_closed=False),
+    )
+
+    event = detect_structure_breaks(
+        candles,
+        (_swing(1, 100.0, SwingType.LOW),),
+        active_candle_policy=ActiveCandlePolicy.ALLOW_FINAL,
+    )[0]
+
+    assert event.direction is BreakDirection.BEARISH
+    assert event.confirmation is ConfirmationStatus.DEVELOPING
 
 
 def test_future_pivot_is_rejected_from_liquidity_derivation() -> None:
