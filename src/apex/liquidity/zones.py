@@ -25,14 +25,18 @@ def derive_liquidity_zones(
     *,
     current_index: int,
     tolerance: float = 0.002,
+    equal_tolerance: float = 0.0005,
     ranges: Sequence[RangeStructure] = (),
 ) -> tuple[LiquidityZone, ...]:
     """Cluster confirmed pivots into deterministic buy-side and sell-side zones."""
 
     if current_index < 0:
         raise ValueError("current_index cannot be negative")
-    if not math.isfinite(tolerance) or tolerance < 0:
-        raise ValueError("tolerance must be finite and non-negative")
+    for name, value in (("tolerance", tolerance), ("equal_tolerance", equal_tolerance)):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative")
+    if equal_tolerance > tolerance:
+        raise ValueError("equal_tolerance cannot exceed clustering tolerance")
 
     zones: list[LiquidityZone] = []
     confirmed = tuple(item for item in swings if item.status is PivotStatus.CONFIRMED)
@@ -47,18 +51,12 @@ def derive_liquidity_zones(
             prices = tuple(item.price for item in cluster)
             representative = sum(prices) / len(prices)
             side = LiquiditySide.BUY_SIDE if kind is SwingType.HIGH else LiquiditySide.SELL_SIDE
-            if len(cluster) >= 2:
-                zone_type = (
-                    LiquidityZoneType.EQUAL_HIGHS
-                    if kind is SwingType.HIGH
-                    else LiquidityZoneType.EQUAL_LOWS
-                )
-            else:
-                zone_type = (
-                    LiquidityZoneType.PIVOT_HIGH
-                    if kind is SwingType.HIGH
-                    else LiquidityZoneType.PIVOT_LOW
-                )
+            zone_type = _zone_type(
+                kind,
+                prices,
+                representative=representative,
+                equal_tolerance=equal_tolerance,
+            )
             indices = tuple(sorted(item.index for item in cluster))
             age = current_index - max(indices)
             strength = min(1.0, 0.35 + 0.2 * len(cluster) + 0.45 / (1 + age))
@@ -92,6 +90,33 @@ def derive_liquidity_zones(
                 item.created_index,
             ),
         )
+    )
+
+
+def _zone_type(
+    kind: SwingType,
+    prices: tuple[float, ...],
+    *,
+    representative: float,
+    equal_tolerance: float,
+) -> LiquidityZoneType:
+    if len(prices) == 1:
+        return (
+            LiquidityZoneType.PIVOT_HIGH
+            if kind is SwingType.HIGH
+            else LiquidityZoneType.PIVOT_LOW
+        )
+    spread = (max(prices) - min(prices)) / representative
+    if spread <= equal_tolerance:
+        return (
+            LiquidityZoneType.EQUAL_HIGHS
+            if kind is SwingType.HIGH
+            else LiquidityZoneType.EQUAL_LOWS
+        )
+    return (
+        LiquidityZoneType.CLUSTERED_HIGHS
+        if kind is SwingType.HIGH
+        else LiquidityZoneType.CLUSTERED_LOWS
     )
 
 
