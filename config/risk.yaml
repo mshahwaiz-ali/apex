@@ -1,0 +1,6 @@
+profile: controlled
+account_equity: 10000.0
+risk_per_trade_pct: 0.5
+minimum_risk_reward: 1.5
+maximum_leverage: 5.0
+maximum_concurrent_trades: 3
