@@ -2,6 +2,34 @@
 
 ## Finalized Project Plan
 
+## Development Priority Decision
+
+The first production strategy profile will prioritize high-accuracy, high-reward setups rather than ultra-fast scalping.
+
+Initial operating profile:
+
+* Expected trade duration: approximately 30 minutes to 2 hours
+* Primary context timeframes: 15m, 30m, and 1h
+* Entry refinement timeframe: 5m
+* Higher-timeframe confirmation: 4h when relevant
+* Fewer but stronger setups
+* Minimum preferred risk-to-reward: 1:2
+* Strong setups should target 1:3 or better when market structure supports it
+* Entries should remain reasonably close to the current market price
+* Trades must not use unrealistic targets merely to inflate risk-to-reward
+
+The aggressive short-duration profile will be added later as a separate configurable mode built on the same analysis engine.
+
+Development order:
+
+1. Build and validate the normal high-accuracy profile
+2. Establish backtesting and paper-trading performance
+3. Add aggressive mode with different timeframe weights and thresholds
+4. Compare both profiles independently
+
+---
+
+
 ## 1. Project Overview
 
 **Apex Trading Agent** is a separate Python-based crypto market analysis system designed to identify aggressive, high-risk, high-reward trading opportunities near the current market price.

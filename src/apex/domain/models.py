@@ -42,6 +42,39 @@ class Candle(BaseModel):
         return self
 
 
+class TickerSnapshot(BaseModel):
+    """Normalized current-market ticker information."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    last_price: float = Field(gt=0)
+    bid_price: float = Field(gt=0)
+    ask_price: float = Field(gt=0)
+    quote_volume_24h: float = Field(ge=0)
+    captured_at: datetime
+    source: str
+
+    @model_validator(mode="after")
+    def validate_prices(self) -> TickerSnapshot:
+        if self.bid_price > self.ask_price:
+            raise ValueError("bid price cannot exceed ask price")
+        return self
+
+    @property
+    def spread(self) -> float:
+        """Return the absolute bid/ask spread."""
+
+        return self.ask_price - self.bid_price
+
+    @property
+    def spread_percentage(self) -> float:
+        """Return spread as a percentage of the midpoint price."""
+
+        midpoint = (self.bid_price + self.ask_price) / 2
+        return (self.spread / midpoint) * 100
+
+
 class EntryZone(BaseModel):
     model_config = ConfigDict(frozen=True)
     low: float = Field(gt=0)
