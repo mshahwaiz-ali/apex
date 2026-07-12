@@ -115,14 +115,18 @@ def _candidate_for_direction(
     }
     supporting = [
         f"{frame.timeframe} range quality is {detected_range.quality:.3f}",
-        "price is located near the lower range boundary"
-        if bullish
-        else "price is located near the upper range boundary",
+        (
+            "price is located near the lower range boundary"
+            if bullish
+            else "price is located near the upper range boundary"
+        ),
         "range geometry provides space for mean reversion",
         "entry remains inside the volatility-aware near-CMP limit",
     ]
     if false_break:
-        supporting.append("confirmed false-break state supports rejection back into the range")
+        supporting.append(
+            "confirmed false-break state supports rejection back into the range"
+        )
 
     return TradeCandidate(
         symbol=context.symbol,
