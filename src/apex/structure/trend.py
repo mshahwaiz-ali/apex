@@ -113,10 +113,6 @@ def _direction(
         return TrendDirection.RANGE if equal > 0 or bullish == 0 else TrendDirection.TRANSITION
 
     conflict = min(bullish, bearish) > 0
-    near_balanced_conflict = conflict and abs(bullish - bearish) == 1
-    if near_balanced_conflict and persistence < weak_threshold:
-        return TrendDirection.TRANSITION
-
     if bullish > bearish:
         if persistence >= strong_threshold and not conflict:
             return TrendDirection.STRONG_BULLISH
