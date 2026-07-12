@@ -42,7 +42,7 @@ def detect_structure_breaks(
     volume_confirmation_threshold: float = 1.2,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
 ) -> tuple[StructureBreak, ...]:
-    """Detect the first meaningful breach of each confirmed pivot level."""
+    """Detect the first meaningful close break of each confirmed pivot level."""
 
     if not math.isfinite(minimum_close_distance) or not math.isfinite(
         strong_close_distance
@@ -63,7 +63,13 @@ def detect_structure_breaks(
     events: list[StructureBreak] = []
 
     for swing in swings:
-        if swing.status is not PivotStatus.CONFIRMED or swing.index >= len(usable) - 1:
+        if swing.status is not PivotStatus.CONFIRMED:
+            continue
+        if swing.index >= len(usable):
+            raise ValueError("swing index cannot exceed the usable candle sequence")
+        if usable[swing.index].open_time != swing.time:
+            raise ValueError("swing timestamp does not match its candle index")
+        if swing.index >= len(usable) - 1:
             continue
         event = _first_break(
             usable,
@@ -80,7 +86,12 @@ def detect_structure_breaks(
     for event in events:
         key = (event.candle_index, event.direction, event.broken_level)
         unique.setdefault(key, event)
-    return tuple(sorted(unique.values(), key=lambda item: (item.candle_index, item.direction.value)))
+    return tuple(
+        sorted(
+            unique.values(),
+            key=lambda item: (item.candle_index, item.direction.value),
+        )
+    )
 
 
 def detect_changes_of_character(
@@ -142,6 +153,7 @@ def _first_break(
     bullish = swing.kind is SwingType.HIGH
     direction = BreakDirection.BULLISH if bullish else BreakDirection.BEARISH
     level = swing.price
+    first_rejected: StructureBreak | None = None
 
     for index in range(swing.index + 1, len(candles)):
         candle = candles[index]
@@ -156,45 +168,117 @@ def _first_break(
         is_active = not candle.is_closed
 
         if not closed_beyond:
-            quality = BreakQuality.WICK_ONLY
-            confirmation = ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.REJECTED
-            evidence = ["wick breached level but close did not sustain beyond it"]
-        elif close_distance < minimum_close_distance:
-            quality = BreakQuality.WEAK
-            confirmation = ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.REJECTED
-            evidence = ["close penetration was below the configured threshold"]
-        else:
-            quality = (
-                BreakQuality.STRONG
-                if close_distance >= strong_close_distance
-                else BreakQuality.VALID
+            event = _build_break(
+                swing=swing,
+                candle=candle,
+                candle_index=index,
+                direction=direction,
+                level=level,
+                close_distance=close_distance,
+                wick_penetration=wick_penetration,
+                quality=BreakQuality.WICK_ONLY,
+                confirmation=(
+                    ConfirmationStatus.DEVELOPING
+                    if is_active
+                    else ConfirmationStatus.REJECTED
+                ),
+                evidence=["wick breached level but close did not sustain beyond it"],
+                relative_volume=relative_volume,
+                volume_confirmation_threshold=volume_confirmation_threshold,
             )
-            confirmation = (
-                ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.CONFIRMED
+            if is_active:
+                return event
+            if first_rejected is None:
+                first_rejected = event
+            continue
+
+        if close_distance < minimum_close_distance:
+            event = _build_break(
+                swing=swing,
+                candle=candle,
+                candle_index=index,
+                direction=direction,
+                level=level,
+                close_distance=close_distance,
+                wick_penetration=wick_penetration,
+                quality=BreakQuality.WEAK,
+                confirmation=(
+                    ConfirmationStatus.DEVELOPING
+                    if is_active
+                    else ConfirmationStatus.REJECTED
+                ),
+                evidence=["close penetration was below the configured threshold"],
+                relative_volume=relative_volume,
+                volume_confirmation_threshold=volume_confirmation_threshold,
             )
-            evidence = ["candle closed beyond a confirmed structural pivot"]
+            if is_active:
+                return event
+            if first_rejected is None:
+                first_rejected = event
+            continue
 
-        warnings: list[str] = []
-        if is_active:
-            warnings.append("active candle result is provisional")
-        volume = relative_volume[index] if relative_volume is not None else None
-        if volume is not None:
-            if volume >= volume_confirmation_threshold:
-                evidence.append("relative volume confirmed participation in the break")
-            elif quality in {BreakQuality.VALID, BreakQuality.STRONG}:
-                warnings.append("break lacks relative-volume confirmation")
-
-        return StructureBreak(
-            direction=direction,
-            broken_swing=swing,
+        quality = (
+            BreakQuality.STRONG
+            if close_distance >= strong_close_distance
+            else BreakQuality.VALID
+        )
+        return _build_break(
+            swing=swing,
+            candle=candle,
             candle_index=index,
-            candle_time=candle.open_time,
-            broken_level=level,
+            direction=direction,
+            level=level,
             close_distance=close_distance,
             wick_penetration=wick_penetration,
             quality=quality,
-            confirmation=confirmation,
-            evidence=tuple(evidence),
-            warnings=tuple(warnings),
+            confirmation=(
+                ConfirmationStatus.DEVELOPING
+                if is_active
+                else ConfirmationStatus.CONFIRMED
+            ),
+            evidence=["candle closed beyond a confirmed structural pivot"],
+            relative_volume=relative_volume,
+            volume_confirmation_threshold=volume_confirmation_threshold,
         )
-    return None
+
+    return first_rejected
+
+
+def _build_break(
+    *,
+    swing: SwingPoint,
+    candle: Candle,
+    candle_index: int,
+    direction: BreakDirection,
+    level: float,
+    close_distance: float,
+    wick_penetration: float,
+    quality: BreakQuality,
+    confirmation: ConfirmationStatus,
+    evidence: list[str],
+    relative_volume: Sequence[float | None] | None,
+    volume_confirmation_threshold: float,
+) -> StructureBreak:
+    warnings: list[str] = []
+    if not candle.is_closed:
+        warnings.append("active candle result is provisional")
+    volume = relative_volume[candle_index] if relative_volume is not None else None
+    if volume is not None:
+        if volume >= volume_confirmation_threshold:
+            evidence.append("relative volume confirmed participation in the break")
+        elif quality in {BreakQuality.VALID, BreakQuality.STRONG}:
+            warnings.append("break lacks relative-volume confirmation")
+
+    return StructureBreak(
+        direction=direction,
+        broken_swing=swing,
+        candle_index=candle_index,
+        candle_time=candle.open_time,
+        broken_level=level,
+        close_distance=close_distance,
+        wick_penetration=wick_penetration,
+        quality=quality,
+        confirmation=confirmation,
+        evidence=tuple(evidence),
+        warnings=tuple(warnings),
+    )
