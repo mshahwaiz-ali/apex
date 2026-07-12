@@ -35,6 +35,7 @@ class RiskConfig:
     maximum_concurrent_trades: int = 3
     maximum_open_risk_pct: float = 2.0
     maximum_directional_risk_pct: float = 1.5
+    maximum_correlated_risk_pct: float = 1.0
     maximum_daily_loss_pct: float = 3.0
     maximum_consecutive_losses: int = 4
 
@@ -54,6 +55,7 @@ class RiskConfig:
             "liquidation_buffer_ratio",
             "maximum_open_risk_pct",
             "maximum_directional_risk_pct",
+            "maximum_correlated_risk_pct",
             "maximum_daily_loss_pct",
         ):
             _positive(name.replace("_", " "), getattr(self, name))
@@ -69,6 +71,8 @@ class RiskConfig:
             raise ValueError("per-trade risk cannot exceed maximum open risk")
         if self.risk_per_trade_pct > self.maximum_directional_risk_pct:
             raise ValueError("per-trade risk cannot exceed maximum directional risk")
+        if self.risk_per_trade_pct > self.maximum_correlated_risk_pct:
+            raise ValueError("per-trade risk cannot exceed maximum correlated risk")
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +80,7 @@ class ExposureState:
     open_trades: int = 0
     open_risk_amount: float = 0.0
     same_direction_risk_amount: float = 0.0
+    correlated_risk_amount: float = 0.0
     daily_realized_loss: float = 0.0
     consecutive_losses: int = 0
 
@@ -85,6 +90,7 @@ class ExposureState:
         for name in (
             "open_risk_amount",
             "same_direction_risk_amount",
+            "correlated_risk_amount",
             "daily_realized_loss",
         ):
             value = getattr(self, name)
@@ -92,6 +98,8 @@ class ExposureState:
                 raise ValueError(f"{name.replace('_', ' ')} must be finite and non-negative")
         if self.same_direction_risk_amount > self.open_risk_amount:
             raise ValueError("same-direction risk cannot exceed total open risk")
+        if self.correlated_risk_amount > self.open_risk_amount:
+            raise ValueError("correlated risk cannot exceed total open risk")
 
 
 DEFAULT_RISK_CONFIG = RiskConfig()
