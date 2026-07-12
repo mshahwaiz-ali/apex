@@ -23,7 +23,7 @@ def _swing(index: int, price: float, kind: SwingType) -> SwingPoint:
     )
 
 
-def _candle(index: int, close: float) -> Candle:
+def _candle(index: int, close: float, *, high: float | None = None, low: float | None = None) -> Candle:
     opened = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=index)
     return Candle(
         symbol="BTC/USDT",
@@ -31,8 +31,8 @@ def _candle(index: int, close: float) -> Candle:
         open_time=opened,
         close_time=opened + timedelta(minutes=1),
         open=close,
-        high=close + 1,
-        low=close - 1,
+        high=high if high is not None else close + 1,
+        low=low if low is not None else close - 1,
         close=close,
         volume=10.0,
         is_closed=True,
@@ -56,7 +56,7 @@ def test_levels_cluster_same_role_pivots_only() -> None:
     assert support.pivot_indices == (3,)
 
 
-def test_resistance_flips_to_support_after_close_above() -> None:
+def test_close_beyond_resistance_marks_level_broken_before_retest() -> None:
     swings = (
         _swing(1, 100.0, SwingType.HIGH),
         _swing(3, 100.1, SwingType.HIGH),
@@ -64,15 +64,31 @@ def test_resistance_flips_to_support_after_close_above() -> None:
 
     levels = derive_structure_levels(swings, (_candle(4, 102.0),), tolerance=0.002)
 
+    assert levels[0].role is LevelRole.RESISTANCE
+    assert levels[0].status is LevelStatus.BROKEN
+
+
+def test_resistance_flips_to_support_after_successful_retest() -> None:
+    swings = (
+        _swing(1, 100.0, SwingType.HIGH),
+        _swing(3, 100.1, SwingType.HIGH),
+    )
+    candles = (
+        _candle(4, 102.0),
+        _candle(5, 100.5, high=101.0, low=99.8),
+    )
+
+    levels = derive_structure_levels(swings, candles, tolerance=0.002)
+
     assert levels[0].role is LevelRole.SUPPORT
     assert levels[0].status is LevelStatus.FLIPPED
 
 
 def test_level_sorting_is_deterministic() -> None:
     swings = (
-        _swing(5, 110.0, SwingType.HIGH),
         _swing(1, 90.0, SwingType.LOW),
         _swing(3, 100.0, SwingType.HIGH),
+        _swing(5, 110.0, SwingType.HIGH),
     )
 
     first = derive_structure_levels(swings, (_candle(6, 100.0),))
