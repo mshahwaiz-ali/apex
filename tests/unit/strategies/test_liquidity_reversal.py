@@ -51,11 +51,7 @@ def _zone(*, bullish: bool) -> LiquidityZone:
     )
 
 
-def _sweep(
-    *,
-    bullish: bool,
-    confirmed: bool = True,
-) -> LiquiditySweep:
+def _sweep(*, bullish: bool, confirmed: bool = True) -> LiquiditySweep:
     zone = _zone(bullish=bullish)
     return LiquiditySweep(
         zone=zone,
@@ -140,16 +136,25 @@ def _context(
     sweep_confirmed: bool = True,
     trap_confirmed: bool = True,
     active: bool = False,
+    sparse_features: bool = False,
+    contradictory_momentum: bool = False,
 ) -> StrategyContext:
     sweep = _sweep(bullish=bullish, confirmed=sweep_confirmed)
     trap = _trap(bullish=bullish, sweep=sweep, confirmed=trap_confirmed)
-    features = FeatureSnapshot(
-        atr=2.0,
-        rsi=42.0 if bullish else 58.0,
-        rsi_slope=0.3 if bullish else -0.3,
-        macd_histogram=0.2 if bullish else -0.2,
-        rate_of_change=0.1 if bullish else -0.1,
-        relative_volume=1.4,
+    sign = 1.0 if bullish else -1.0
+    if contradictory_momentum:
+        sign *= -1.0
+    features = (
+        FeatureSnapshot(atr=2.0)
+        if sparse_features
+        else FeatureSnapshot(
+            atr=2.0,
+            rsi=42.0 if bullish else 58.0,
+            rsi_slope=0.3 * sign,
+            macd_histogram=0.2 * sign,
+            rate_of_change=0.1 * sign,
+            relative_volume=1.4,
+        )
     )
     return StrategyContext(
         symbol="BTC/USDT",
@@ -183,6 +188,7 @@ def test_generates_long_after_confirmed_sell_side_sweep() -> None:
     assert candidate.entry.preferred == 99.0
     assert candidate.invalidation.price < candidate.entry.lower
     assert candidate.targets.levels[0].price == 106.0
+    assert candidate.targets.levels[0].price > candidate.entry.upper
 
 
 def test_generates_short_after_confirmed_buy_side_sweep() -> None:
@@ -197,6 +203,7 @@ def test_generates_short_after_confirmed_buy_side_sweep() -> None:
     assert candidate.entry.preferred == 101.0
     assert candidate.invalidation.price > candidate.entry.upper
     assert candidate.targets.levels[0].price == 94.0
+    assert candidate.targets.levels[0].price < candidate.entry.lower
 
 
 def test_rejects_developing_sweep() -> None:
@@ -217,6 +224,25 @@ def test_rejects_unconfirmed_trap() -> None:
     assert candidates == ()
 
 
+def test_allows_missing_optional_indicators() -> None:
+    candidate = generate_liquidity_reversal_candidates(
+        _context(bullish=True, sparse_features=True),
+        decision_time=NOW,
+    )[0]
+
+    assert candidate.quality.momentum_quality == 0.5
+    assert candidate.quality.volume_quality == 0.5
+
+
+def test_rejects_fully_contradictory_momentum() -> None:
+    candidates = generate_liquidity_reversal_candidates(
+        _context(bullish=True, contradictory_momentum=True),
+        decision_time=NOW,
+    )
+
+    assert candidates == ()
+
+
 def test_marks_active_candle_candidate_provisional() -> None:
     candidate = generate_liquidity_reversal_candidates(
         _context(bullish=True, active=True),
@@ -225,3 +251,12 @@ def test_marks_active_candle_candidate_provisional() -> None:
 
     assert candidate.provisional is True
     assert "active-candle evidence is provisional" in candidate.evidence.warnings
+
+
+def test_output_is_deterministic() -> None:
+    context = _context(bullish=True)
+
+    first = generate_liquidity_reversal_candidates(context, decision_time=NOW)
+    second = generate_liquidity_reversal_candidates(context, decision_time=NOW)
+
+    assert first == second
