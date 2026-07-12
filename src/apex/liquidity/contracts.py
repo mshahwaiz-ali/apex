@@ -53,6 +53,11 @@ def _finite(name: str, value: float) -> None:
         raise ValueError(f"{name} must be finite")
 
 
+def _aware(name: str, value: datetime) -> None:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{name} must be timezone-aware")
+
+
 @dataclass(frozen=True, slots=True)
 class LiquidityZone:
     side: LiquiditySide
@@ -83,8 +88,14 @@ class LiquidityZone:
             raise ValueError("representative price must lie inside the zone")
         if self.touch_count < 1 or self.touch_count != len(self.source_pivot_indices):
             raise ValueError("touch count must match source pivots")
-        if self.created_index < 0 or self.last_touch_index < self.created_index or self.age < 0:
-            raise ValueError("invalid liquidity-zone indices")
+        if tuple(sorted(set(self.source_pivot_indices))) != self.source_pivot_indices:
+            raise ValueError("source pivot indices must be unique and sorted")
+        if self.created_index != self.source_pivot_indices[0]:
+            raise ValueError("created index must match the first source pivot")
+        if self.last_touch_index != self.source_pivot_indices[-1]:
+            raise ValueError("last touch index must match the final source pivot")
+        if self.age < 0:
+            raise ValueError("liquidity-zone age cannot be negative")
         _finite("zone strength", self.strength)
         if not 0 <= self.strength <= 1:
             raise ValueError("zone strength must be between 0 and 1")
@@ -104,12 +115,20 @@ class LiquiditySweep:
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.candle_index < 0:
-            raise ValueError("sweep candle index cannot be negative")
+        if self.candle_index <= self.zone.last_touch_index:
+            raise ValueError("sweep candle must occur after the zone's last touch")
+        _aware("sweep candle time", self.candle_time)
         _finite("sweep penetration", self.penetration)
         _finite("close recovery", self.close_recovery)
         if self.penetration < 0:
             raise ValueError("sweep penetration cannot be negative")
+        expected_direction = (
+            BreakDirection.BULLISH
+            if self.zone.side is LiquiditySide.BUY_SIDE
+            else BreakDirection.BEARISH
+        )
+        if self.direction is not expected_direction:
+            raise ValueError("sweep direction does not match liquidity side")
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,3 +145,15 @@ class TrapEvent:
     def __post_init__(self) -> None:
         if self.candle_index < 0:
             raise ValueError("trap candle index cannot be negative")
+        _aware("trap candle time", self.candle_time)
+        if self.sweep is not None:
+            if self.candle_index != self.sweep.candle_index:
+                raise ValueError("trap candle index must match its sweep")
+            if self.candle_time != self.sweep.candle_time:
+                raise ValueError("trap candle time must match its sweep")
+            if self.zone != self.sweep.zone:
+                raise ValueError("trap zone must match its sweep zone")
+        if not self.evidence:
+            raise ValueError("trap evidence cannot be empty")
+        if not self.invalidation:
+            raise ValueError("trap invalidation cannot be empty")
