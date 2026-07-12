@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from apex.structure.contracts import (
@@ -26,6 +27,11 @@ def classify_trend(
 
     if minimum_pairs < 1:
         raise ValueError("minimum_pairs must be at least 1")
+    if not all(
+        math.isfinite(value)
+        for value in (strong_persistence, weak_persistence, equality_tolerance)
+    ):
+        raise ValueError("trend thresholds must be finite")
     if not 0 <= weak_persistence <= strong_persistence <= 1:
         raise ValueError("persistence thresholds must satisfy 0 <= weak <= strong <= 1")
     if equality_tolerance < 0:
