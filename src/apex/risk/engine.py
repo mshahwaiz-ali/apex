@@ -49,7 +49,9 @@ def _entry(candidate: TradeCandidate, config: RiskConfig) -> ActionableEntry:
         current_price=candidate.entry.current_price,
         maximum_chase_price=maximum_chase,
         current_price_inside_zone=(
-            candidate.entry.lower <= candidate.entry.current_price <= candidate.entry.upper
+            candidate.entry.lower
+            <= candidate.entry.current_price
+            <= candidate.entry.upper
         ),
     )
 
@@ -67,7 +69,10 @@ def _stop(candidate: TradeCandidate, config: RiskConfig) -> StopLoss:
         price=price,
         distance=distance,
         distance_pct=distance / preferred * 100.0,
-        rationale=(*candidate.invalidation.rationale, "buffer beyond thesis invalidation"),
+        rationale=(
+            *candidate.invalidation.rationale,
+            "buffer beyond thesis invalidation",
+        ),
     )
 
 
@@ -85,7 +90,9 @@ def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...
     )
 
 
-def _position_size(config: RiskConfig, entry: ActionableEntry, stop: StopLoss) -> PositionSize:
+def _position_size(
+    config: RiskConfig, entry: ActionableEntry, stop: StopLoss
+) -> PositionSize:
     risk_amount = config.account_equity * config.risk_per_trade_pct / 100.0
     quantity = risk_amount / stop.distance
     notional_value = quantity * entry.preferred
@@ -106,7 +113,9 @@ def _leverage(
 ) -> LeverageRange | None:
     stop_fraction = stop.distance_pct / 100.0
     maintenance_fraction = config.maintenance_margin_pct / 100.0
-    required_liquidation_distance = stop_fraction * (1.0 + config.liquidation_buffer_ratio)
+    required_liquidation_distance = stop_fraction * (
+        1.0 + config.liquidation_buffer_ratio
+    )
     denominator = required_liquidation_distance + maintenance_fraction
     if denominator <= 0.0:
         return None
@@ -150,16 +159,27 @@ def _exposure_rejections(
     equity = config.account_equity
     if exposure.open_trades >= config.maximum_concurrent_trades:
         rejected.append(
-            (RiskRejectionCode.MAX_CONCURRENT_TRADES, "maximum concurrent trades reached")
+            (
+                RiskRejectionCode.MAX_CONCURRENT_TRADES,
+                "maximum concurrent trades reached",
+            )
         )
-    if exposure.open_risk_amount + risk_amount > equity * config.maximum_open_risk_pct / 100.0:
-        rejected.append((RiskRejectionCode.MAX_OPEN_RISK, "maximum aggregate open risk exceeded"))
+    if (
+        exposure.open_risk_amount + risk_amount
+        > equity * config.maximum_open_risk_pct / 100.0
+    ):
+        rejected.append(
+            (RiskRejectionCode.MAX_OPEN_RISK, "maximum aggregate open risk exceeded")
+        )
     if (
         exposure.same_direction_risk_amount + risk_amount
         > equity * config.maximum_directional_risk_pct / 100.0
     ):
         rejected.append(
-            (RiskRejectionCode.MAX_DIRECTIONAL_RISK, "maximum same-direction risk exceeded")
+            (
+                RiskRejectionCode.MAX_DIRECTIONAL_RISK,
+                "maximum same-direction risk exceeded",
+            )
         )
     if (
         exposure.correlated_risk_amount + risk_amount
@@ -169,7 +189,9 @@ def _exposure_rejections(
             (RiskRejectionCode.MAX_CORRELATED_RISK, "maximum correlated risk exceeded")
         )
     if exposure.daily_realized_loss >= equity * config.maximum_daily_loss_pct / 100.0:
-        rejected.append((RiskRejectionCode.DAILY_LOSS_LIMIT, "daily loss limit reached"))
+        rejected.append(
+            (RiskRejectionCode.DAILY_LOSS_LIMIT, "daily loss limit reached")
+        )
     if exposure.consecutive_losses >= config.maximum_consecutive_losses:
         rejected.append(
             (RiskRejectionCode.CONSECUTIVE_LOSS_LIMIT, "consecutive loss limit reached")
@@ -194,7 +216,10 @@ def analyze_phase6(
         return _reject(
             phase5,
             config,
-            (RiskRejectionCode.NO_SELECTED_CANDIDATE, "Phase 5 selected no trade candidate"),
+            (
+                RiskRejectionCode.NO_SELECTED_CANDIDATE,
+                "Phase 5 selected no trade candidate",
+            ),
         )
 
     candidate = _candidate_from(selected)
@@ -208,7 +233,10 @@ def analyze_phase6(
         return _reject(
             phase5,
             config,
-            (RiskRejectionCode.ENTRY_TOO_EXTENDED, "current price is beyond the maximum chase price"),
+            (
+                RiskRejectionCode.ENTRY_TOO_EXTENDED,
+                "current price is beyond the maximum chase price",
+            ),
         )
 
     stop = _stop(candidate, config)
@@ -216,13 +244,19 @@ def analyze_phase6(
         return _reject(
             phase5,
             config,
-            (RiskRejectionCode.STOP_TOO_TIGHT, "stop is inside the configured noise floor"),
+            (
+                RiskRejectionCode.STOP_TOO_TIGHT,
+                "stop is inside the configured noise floor",
+            ),
         )
     if stop.distance_pct > config.maximum_stop_distance_pct:
         return _reject(
             phase5,
             config,
-            (RiskRejectionCode.STOP_TOO_WIDE, "stop exceeds the configured risk boundary"),
+            (
+                RiskRejectionCode.STOP_TOO_WIDE,
+                "stop exceeds the configured risk boundary",
+            ),
         )
 
     targets = _targets(candidate, stop)
