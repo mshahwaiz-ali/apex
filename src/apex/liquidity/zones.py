@@ -11,7 +11,13 @@ from apex.liquidity.contracts import (
     LiquidityZoneStatus,
     LiquidityZoneType,
 )
-from apex.structure.contracts import PivotStatus, RangeStructure, SwingPoint, SwingType
+from apex.structure.contracts import (
+    PivotStatus,
+    RangeBreakoutState,
+    RangeStructure,
+    SwingPoint,
+    SwingType,
+)
 
 
 def derive_liquidity_zones(
@@ -93,7 +99,8 @@ def _cluster_pivots(
             (
                 cluster
                 for cluster in clusters
-                if abs(pivot.price - _mean(cluster)) <= max(pivot.price, _mean(cluster)) * tolerance
+                if abs(pivot.price - _mean(cluster))
+                <= max(pivot.price, _mean(cluster)) * tolerance
             ),
             None,
         )
@@ -108,13 +115,20 @@ def _mean(cluster: Sequence[SwingPoint]) -> float:
     return sum(item.price for item in cluster) / len(cluster)
 
 
-def _range_zones(detected_range: RangeStructure, current_index: int) -> tuple[LiquidityZone, ...]:
-    age = max(0, current_index - detected_range.end_index)
+def _range_zones(
+    detected_range: RangeStructure,
+    current_index: int,
+) -> tuple[LiquidityZone, ...]:
+    has_trigger_candle = detected_range.breakout_state is not RangeBreakoutState.NONE
+    boundary_end = detected_range.end_index - 1 if has_trigger_candle else detected_range.end_index
+    if boundary_end <= detected_range.start_index:
+        raise ValueError("range must contain boundary history before a trigger candle")
+    age = max(0, current_index - boundary_end)
     common = {
-        "source_pivot_indices": (detected_range.start_index, detected_range.end_index),
+        "source_pivot_indices": (detected_range.start_index, boundary_end),
         "touch_count": 2,
         "created_index": detected_range.start_index,
-        "last_touch_index": detected_range.end_index,
+        "last_touch_index": boundary_end,
         "age": age,
         "status": LiquidityZoneStatus.ACTIVE,
         "strength": detected_range.quality,
