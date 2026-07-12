@@ -1,14 +1,14 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
-from apex.domain.models import Candle
 from apex.features.price_location import (
     bollinger_position,
     distance_from_recent_extremes,
     recent_range_position,
     vwap,
 )
+
+from apex.domain.models import Candle
 from apex.features.trend import (
     ema_relationship,
     ema_slope,

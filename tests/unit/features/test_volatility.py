@@ -58,10 +58,10 @@ def test_atr_percentage_is_aligned() -> None:
 
 
 def test_bollinger_bands_use_population_deviation() -> None:
-    bands = bollinger_bands(make_candles([1, 2, 3]), period=3, standard_deviations=2)
-    assert bands.middle.values == (None, None, 2.0)
-    assert bands.upper.latest == pytest.approx(2 + 2 * (2 / 3) ** 0.5)
-    assert bands.lower.latest == pytest.approx(2 - 2 * (2 / 3) ** 0.5)
+    bands = bollinger_bands(make_candles([101, 102, 103]), period=3, standard_deviations=2)
+    assert bands.middle.values == (None, None, 102.0)
+    assert bands.upper.latest == pytest.approx(102 + 2 * (2 / 3) ** 0.5)
+    assert bands.lower.latest == pytest.approx(102 - 2 * (2 / 3) ** 0.5)
     assert bands.width.latest is not None
 
 
@@ -93,4 +93,4 @@ def test_allow_policy_keeps_active_final_candle() -> None:
 
 def test_rejects_invalid_bollinger_multiplier() -> None:
     with pytest.raises(ValueError, match="positive finite"):
-        bollinger_bands(make_candles([1, 2, 3]), period=3, standard_deviations=0)
+        bollinger_bands(make_candles([101, 102, 103]), period=3, standard_deviations=0)

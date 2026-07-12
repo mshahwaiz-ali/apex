@@ -22,19 +22,19 @@ jobs:
 
       - id: ruff_check
         continue-on-error: true
-        run: ruff check . 2>&1 | tee ruff-check.txt
+        run: bash -o pipefail -c 'ruff check . 2>&1 | tee ruff-check.txt'
       - id: ruff_format
         continue-on-error: true
-        run: ruff format --check . 2>&1 | tee ruff-format.txt
+        run: bash -o pipefail -c 'ruff format --check . 2>&1 | tee ruff-format.txt'
       - id: mypy
         continue-on-error: true
-        run: mypy src 2>&1 | tee mypy.txt
+        run: bash -o pipefail -c 'mypy src 2>&1 | tee mypy.txt'
       - id: pytest
         continue-on-error: true
-        run: pytest --cov=apex --cov-report=term-missing 2>&1 | tee pytest.txt
+        run: bash -o pipefail -c 'pytest --cov=apex --cov-report=term-missing 2>&1 | tee pytest.txt'
       - id: diff_check
         continue-on-error: true
-        run: git diff --check 2>&1 | tee git-diff-check.txt
+        run: bash -o pipefail -c 'git diff --check 2>&1 | tee git-diff-check.txt'
 
       - name: Upload quality-gate logs
         if: always()

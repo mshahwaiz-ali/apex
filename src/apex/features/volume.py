@@ -88,8 +88,7 @@ def volume_spike(
         active_candle_policy=active_candle_policy,
     )
     values = tuple(
-        None if value is None else 1.0 if value >= threshold else 0.0
-        for value in relative.values
+        None if value is None else 1.0 if value >= threshold else 0.0 for value in relative.values
     )
     return FeatureResult(
         spec=_series_spec(f"volume_spike_{period}", period, active_candle_policy),
