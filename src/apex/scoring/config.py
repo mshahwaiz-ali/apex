@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Mapping
 
 from apex.strategies.contracts import StrategyType
 
@@ -98,9 +98,7 @@ _DEFAULT_PROFILES: Mapping[StrategyType, StrategyProfile] = MappingProxyType(
         StrategyType.LIQUIDITY_REVERSAL: StrategyProfile(
             neutral_metrics=frozenset({"volume_quality"})
         ),
-        StrategyType.RANGE_REVERSAL: StrategyProfile(
-            neutral_metrics=frozenset({"volume_quality"})
-        ),
+        StrategyType.RANGE_REVERSAL: StrategyProfile(neutral_metrics=frozenset({"volume_quality"})),
         StrategyType.MOMENTUM_CONTINUATION: StrategyProfile(
             neutral_metrics=frozenset({"liquidity_quality"})
         ),

@@ -203,9 +203,7 @@ def test_clear_long_winner_is_selected() -> None:
 
 
 def test_clear_short_winner_is_selected() -> None:
-    result = analyze_phase5(
-        _phase4(_candidate(direction=TradeDirection.SHORT, quality=0.9))
-    )
+    result = analyze_phase5(_phase4(_candidate(direction=TradeDirection.SHORT, quality=0.9)))
     assert result.selected_direction is TradeDirection.SHORT
 
 

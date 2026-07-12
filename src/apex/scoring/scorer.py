@@ -54,8 +54,7 @@ def score_candidate(
         "higher_timeframe_contradiction": contradiction,
     }
     penalty_points = {
-        name: value * config.penalties.as_mapping()[name]
-        for name, value in penalty_inputs.items()
+        name: value * config.penalties.as_mapping()[name] for name, value in penalty_inputs.items()
     }
     total_penalty = sum(penalty_points.values())
     final_score = min(100.0, max(0.0, base_score - total_penalty))

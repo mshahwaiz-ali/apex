@@ -17,7 +17,9 @@ def _relative_difference(left: float, right: float) -> float:
 def _entry_overlap(left: RankedCandidate, right: RankedCandidate) -> float:
     left_entry = left.candidate.entry
     right_entry = right.candidate.entry
-    overlap = max(0.0, min(left_entry.upper, right_entry.upper) - max(left_entry.lower, right_entry.lower))
+    overlap = max(
+        0.0, min(left_entry.upper, right_entry.upper) - max(left_entry.lower, right_entry.lower)
+    )
     smaller_width = min(
         max(left_entry.upper - left_entry.lower, 1e-12),
         max(right_entry.upper - right_entry.lower, 1e-12),
@@ -47,15 +49,21 @@ def are_duplicate_theses(
         return False
     if _entry_overlap(left, right) < config.duplicate_entry_overlap:
         return False
-    if _relative_difference(
-        left.candidate.invalidation.price,
-        right.candidate.invalidation.price,
-    ) > config.duplicate_price_tolerance:
+    if (
+        _relative_difference(
+            left.candidate.invalidation.price,
+            right.candidate.invalidation.price,
+        )
+        > config.duplicate_price_tolerance
+    ):
         return False
-    if _relative_difference(
-        left.candidate.targets.levels[0].price,
-        right.candidate.targets.levels[0].price,
-    ) > config.duplicate_price_tolerance:
+    if (
+        _relative_difference(
+            left.candidate.targets.levels[0].price,
+            right.candidate.targets.levels[0].price,
+        )
+        > config.duplicate_price_tolerance
+    ):
         return False
     return _shared_references(left, right)
 

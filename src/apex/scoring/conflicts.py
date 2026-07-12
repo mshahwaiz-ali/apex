@@ -49,8 +49,7 @@ def resolve_conflicts(
     unresolved_directional_conflict = (
         best_long is not None
         and best_short is not None
-        and abs(best_long.final_score - best_short.final_score)
-        <= config.unresolved_conflict_margin
+        and abs(best_long.final_score - best_short.final_score) <= config.unresolved_conflict_margin
     )
     if unresolved_directional_conflict:
         warnings.append("opposing directions remain within the unresolved conflict margin")
@@ -72,18 +71,14 @@ def resolve_conflicts(
                 f"{config.warning_accept_score:.2f}"
             )
         elif (
-            item.scored.breakdown.penalty_points.get(
-                "higher_timeframe_contradiction", 0.0
-            )
+            item.scored.breakdown.penalty_points.get("higher_timeframe_contradiction", 0.0)
             >= config.penalties.higher_timeframe_contradiction
         ):
             outcome = CandidateOutcome.REJECTED_CONTRADICTION
             reasons.append("major higher-timeframe contradiction invalidates selection")
         elif unresolved_directional_conflict:
             direction_leader = (
-                best_long
-                if item.candidate.direction is TradeDirection.LONG
-                else best_short
+                best_long if item.candidate.direction is TradeDirection.LONG else best_short
             )
             if direction_leader is item:
                 outcome = CandidateOutcome.DOWNGRADED

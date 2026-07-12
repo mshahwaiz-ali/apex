@@ -25,9 +25,7 @@ def analyze_phase5(
     )
     ranked, conflict_summary = resolve_conflicts(initially_ranked, config=config)
     selected = select_candidate(ranked, config=config)
-    rejected = tuple(
-        item for item in ranked if item.outcome.value.startswith("rejected")
-    )
+    rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
     return Phase5AnalysisResult(
         symbol=phase4.symbol,
         decision_time=phase4.decision_time,
