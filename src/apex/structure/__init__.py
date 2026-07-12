@@ -24,6 +24,7 @@ from apex.structure.contracts import (
 )
 from apex.structure.levels import derive_structure_levels
 from apex.structure.ranges import detect_range
+from apex.structure.registry import StructureRegistry, create_default_structure_registry
 from apex.structure.swings import detect_swings
 from apex.structure.trend import classify_trend
 
@@ -41,6 +42,7 @@ __all__ = [
     "StructureAnalysisResult",
     "StructureBreak",
     "StructureLevel",
+    "StructureRegistry",
     "SwingPoint",
     "SwingType",
     "TrendAnalysis",
@@ -48,6 +50,7 @@ __all__ = [
     "TrendEvidence",
     "analyze_structure",
     "classify_trend",
+    "create_default_structure_registry",
     "derive_structure_levels",
     "detect_changes_of_character",
     "detect_range",
