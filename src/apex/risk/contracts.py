@@ -134,13 +134,18 @@ class LeverageRange:
             ("maximum leverage", self.maximum),
             ("modeled maximum leverage", self.modeled_maximum),
             ("liquidation price", self.liquidation_price_at_maximum),
-            ("stop to liquidation buffer percentage", self.stop_to_liquidation_buffer_pct),
+            (
+                "stop to liquidation buffer percentage",
+                self.stop_to_liquidation_buffer_pct,
+            ),
         ):
             _positive(name, value)
         if self.minimum > self.maximum:
             raise ValueError("minimum leverage cannot exceed maximum leverage")
         if self.maximum > self.modeled_maximum:
-            raise ValueError("recommended leverage cannot exceed modeled maximum leverage")
+            raise ValueError(
+                "recommended leverage cannot exceed modeled maximum leverage"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +210,9 @@ class RiskAssessment:
             raise ValueError("rejection codes must be unique")
         if self.decision is RiskDecision.APPROVED:
             if self.setup is None or self.rejection_codes or self.reasons:
-                raise ValueError("approved assessment must contain only an approved setup")
+                raise ValueError(
+                    "approved assessment must contain only an approved setup"
+                )
         elif self.setup is not None or not self.rejection_codes or not self.reasons:
             raise ValueError("rejected assessment requires rejection codes and reasons")
         if len(self.rejection_codes) != len(self.reasons):
