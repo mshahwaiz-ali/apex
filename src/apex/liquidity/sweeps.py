@@ -21,27 +21,55 @@ def detect_liquidity_sweeps(
     zones: Sequence[LiquidityZone],
     *,
     minimum_penetration: float = 0.0,
+    relative_volume: Sequence[float | None] | None = None,
+    volume_confirmation_threshold: float = 1.2,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
 ) -> tuple[LiquiditySweep, ...]:
     """Classify the first post-zone breach as sweep, breakout, or unresolved."""
 
     if not math.isfinite(minimum_penetration) or minimum_penetration < 0:
         raise ValueError("minimum_penetration must be finite and non-negative")
+    if not math.isfinite(volume_confirmation_threshold) or volume_confirmation_threshold <= 0:
+        raise ValueError("volume_confirmation_threshold must be positive and finite")
+    volumes = _prepare_relative_volume(relative_volume, len(candles))
     usable = prepare_candles(
         candles,
         minimum_candles=1,
         active_candle_policy=active_candle_policy,
     )
+    usable_volumes = volumes[: len(usable)] if volumes is not None else None
     events: list[LiquiditySweep] = []
     for zone in zones:
         start = zone.last_touch_index + 1
         for index in range(start, len(usable)):
             candle = usable[index]
-            event = _classify_breach(candle, index, zone, minimum_penetration)
+            event = _classify_breach(
+                candle,
+                index,
+                zone,
+                minimum_penetration,
+                relative_volume=(usable_volumes[index] if usable_volumes is not None else None),
+                volume_confirmation_threshold=volume_confirmation_threshold,
+            )
             if event is not None:
                 events.append(event)
                 break
     return tuple(sorted(events, key=lambda item: (item.candle_index, item.zone.side.value)))
+
+
+def _prepare_relative_volume(
+    values: Sequence[float | None] | None,
+    candle_count: int,
+) -> tuple[float | None, ...] | None:
+    if values is None:
+        return None
+    normalized = tuple(values)
+    if len(normalized) != candle_count:
+        raise ValueError("relative_volume length must match candle count")
+    for value in normalized:
+        if value is not None and (not math.isfinite(value) or value < 0):
+            raise ValueError("relative_volume values must be finite and non-negative")
+    return normalized
 
 
 def _classify_breach(
@@ -49,6 +77,9 @@ def _classify_breach(
     index: int,
     zone: LiquidityZone,
     minimum_penetration: float,
+    *,
+    relative_volume: float | None,
+    volume_confirmation_threshold: float,
 ) -> LiquiditySweep | None:
     buy_side = zone.side is LiquiditySide.BUY_SIDE
     boundary = zone.high if buy_side else zone.low
@@ -70,7 +101,7 @@ def _classify_breach(
     if penetration < minimum_penetration:
         classification = SweepClassification.UNRESOLVED_BREACH
         confirmation = ConfirmationStatus.REJECTED
-        evidence = ("zone penetration was below the configured threshold",)
+        evidence = ["zone penetration was below the configured threshold"]
     elif close_inside:
         classification = (
             SweepClassification.DEVELOPING_SWEEP
@@ -80,15 +111,27 @@ def _classify_breach(
         confirmation = (
             ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.CONFIRMED
         )
-        evidence = ("price breached liquidity and closed back inside the zone",)
+        evidence = ["price breached liquidity and closed back inside the zone"]
     elif is_active:
         classification = SweepClassification.UNRESOLVED_BREACH
         confirmation = ConfirmationStatus.DEVELOPING
-        evidence = ("active candle remains beyond the liquidity zone",)
+        evidence = ["active candle remains beyond the liquidity zone"]
     else:
         classification = SweepClassification.SIMPLE_BREAKOUT
         confirmation = ConfirmationStatus.CONFIRMED
-        evidence = ("closed candle sustained beyond the liquidity zone",)
+        evidence = ["closed candle sustained beyond the liquidity zone"]
+
+    warnings: list[str] = []
+    if is_active:
+        warnings.append("active candle result is provisional")
+    if relative_volume is not None:
+        if relative_volume >= volume_confirmation_threshold:
+            evidence.append("relative volume confirmed participation at the liquidity event")
+        elif classification in {
+            SweepClassification.CONFIRMED_SWEEP,
+            SweepClassification.SIMPLE_BREAKOUT,
+        }:
+            warnings.append("liquidity event lacks relative-volume confirmation")
 
     return LiquiditySweep(
         zone=zone,
@@ -99,6 +142,6 @@ def _classify_breach(
         close_recovery=close_recovery,
         classification=classification,
         confirmation=confirmation,
-        evidence=evidence,
-        warnings=("active candle result is provisional",) if is_active else (),
+        evidence=tuple(evidence),
+        warnings=tuple(warnings),
     )
