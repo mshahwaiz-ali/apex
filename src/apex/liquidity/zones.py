@@ -25,7 +25,7 @@ def derive_liquidity_zones(
     *,
     current_index: int,
     tolerance: float = 0.002,
-    equal_tolerance: float = 0.0005,
+    equal_tolerance: float = 0.001,
     ranges: Sequence[RangeStructure] = (),
 ) -> tuple[LiquidityZone, ...]:
     """Cluster confirmed pivots into deterministic buy-side and sell-side zones."""
