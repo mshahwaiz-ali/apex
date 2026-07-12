@@ -1,5 +1,6 @@
 """Deterministic strategy candidate generation."""
 
+from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.context import (
     FeatureSnapshot,
     StrategyContext,
@@ -42,6 +43,7 @@ __all__ = [
     "TimeframeRole",
     "TradeCandidate",
     "TradeDirection",
+    "generate_breakout_continuation_candidates",
     "generate_trend_pullback_candidates",
     "select_entry_zone",
 ]
