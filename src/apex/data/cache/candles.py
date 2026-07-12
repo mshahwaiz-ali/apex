@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +15,16 @@ from typing import Any
 from pydantic import ValidationError
 
 from apex.domain.models import Candle
+
+TIMEFRAME_INTERVALS: dict[str, timedelta] = {
+    "1m": timedelta(minutes=1),
+    "3m": timedelta(minutes=3),
+    "5m": timedelta(minutes=5),
+    "15m": timedelta(minutes=15),
+    "30m": timedelta(minutes=30),
+    "1h": timedelta(hours=1),
+    "4h": timedelta(hours=4),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +69,46 @@ class CandleCacheResult:
     saved_at: datetime
 
 
+def validate_candle_series(
+    candles: tuple[Candle, ...],
+    *,
+    now: datetime | None = None,
+    enforce_market_age: bool = True,
+) -> None:
+    """Validate ordering, intervals, duplicates, and active-candle placement."""
+
+    if not candles:
+        raise ValueError("candle series cannot be empty")
+
+    timeframe = candles[0].timeframe.lower().strip()
+    try:
+        interval = TIMEFRAME_INTERVALS[timeframe]
+    except KeyError as exc:
+        raise ValueError(f"unsupported candle timeframe: {timeframe}") from exc
+
+    active_indexes = [index for index, candle in enumerate(candles) if not candle.is_closed]
+    if len(active_indexes) > 1:
+        raise ValueError("candle series cannot contain multiple active candles")
+    if active_indexes and active_indexes[0] != len(candles) - 1:
+        raise ValueError("active candle must be the final candle")
+
+    for previous, current in zip(candles, candles[1:], strict=False):
+        if current.open_time == previous.open_time:
+            raise ValueError("candle series contains duplicate timestamps")
+        if current.open_time < previous.open_time:
+            raise ValueError("candle series must be ordered by open time")
+        if current.open_time - previous.open_time != interval:
+            raise ValueError("candle series contains a missing or inconsistent interval")
+
+    if enforce_market_age:
+        reference_time = now or datetime.now(UTC)
+        if reference_time.tzinfo is None:
+            raise ValueError("validation clock must be timezone-aware")
+        latest = candles[-1]
+        if latest.is_closed and reference_time.astimezone(UTC) - latest.close_time > interval:
+            raise ValueError("candle series is stale")
+
+
 class FileCandleCache:
     """Store normalized candle responses as local JSON files."""
 
@@ -92,10 +144,8 @@ class FileCandleCache:
 
         if not isinstance(payload, dict):
             return None
-
         if payload.get("schema_version") != self.SCHEMA_VERSION:
             return None
-
         if payload.get("key") != self._serialized_key(key):
             return None
 
@@ -105,7 +155,6 @@ class FileCandleCache:
 
         now = self._normalized_now()
         age = now - saved_at
-
         if age < timedelta(0) or age > max_age:
             return None
 
@@ -117,37 +166,32 @@ class FileCandleCache:
             candles = tuple(
                 Candle.model_validate(candle_payload) for candle_payload in candle_payloads
             )
-        except (ValidationError, TypeError):
+            if not self._candles_match_key(candles, key):
+                return None
+            validate_candle_series(candles, now=now, enforce_market_age=False)
+        except (ValidationError, TypeError, ValueError):
             return None
 
-        if not self._candles_match_key(candles, key):
-            return None
-
-        return CandleCacheResult(
-            candles=candles,
-            saved_at=saved_at,
-        )
+        return CandleCacheResult(candles=candles, saved_at=saved_at)
 
     def save(
         self,
         key: CandleCacheKey,
         candles: list[Candle] | tuple[Candle, ...],
     ) -> Path:
-        """Atomically save a validated candle series."""
+        """Atomically save a structurally validated candle series."""
 
         normalized_candles = tuple(candles)
-
-        if not normalized_candles:
-            raise ValueError("cannot cache an empty candle series")
-
         if not self._candles_match_key(normalized_candles, key):
             raise ValueError("candles do not match the cache key")
+        validate_candle_series(
+            normalized_candles,
+            now=self._normalized_now(),
+            enforce_market_age=False,
+        )
 
         self._directory.mkdir(parents=True, exist_ok=True)
-
         path = self._path_for(key)
-        temporary_path = path.with_suffix(".tmp")
-
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "key": self._serialized_key(key),
@@ -155,11 +199,27 @@ class FileCandleCache:
             "candles": [candle.model_dump(mode="json") for candle in normalized_candles],
         }
 
-        temporary_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        temporary_path.replace(path)
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self._directory,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                temporary_path = Path(handle.name)
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary_path.replace(path)
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
         return path
 
@@ -168,10 +228,8 @@ class FileCandleCache:
 
     def _normalized_now(self) -> datetime:
         now = self._now()
-
         if now.tzinfo is None:
             raise ValueError("cache clock must return a timezone-aware datetime")
-
         return now.astimezone(UTC)
 
     @staticmethod
@@ -187,15 +245,12 @@ class FileCandleCache:
     def _parse_datetime(value: Any) -> datetime | None:
         if not isinstance(value, str):
             return None
-
         try:
             parsed = datetime.fromisoformat(value)
         except ValueError:
             return None
-
         if parsed.tzinfo is None:
             return None
-
         return parsed.astimezone(UTC)
 
     @staticmethod
@@ -203,11 +258,14 @@ class FileCandleCache:
         candles: tuple[Candle, ...],
         key: CandleCacheKey,
     ) -> bool:
+        if not candles or len(candles) > key.limit:
+            return False
+
         expected_provider = key.provider.lower().strip()
         expected_symbol = key.symbol.upper().strip()
         expected_timeframe = key.timeframe.lower().strip()
 
-        return len(candles) <= key.limit and all(
+        return all(
             candle.source.lower().strip() == expected_provider
             and candle.symbol.upper().strip() == expected_symbol
             and candle.timeframe.lower().strip() == expected_timeframe
