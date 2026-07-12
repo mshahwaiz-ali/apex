@@ -20,8 +20,9 @@ def detect_swings(
 ) -> tuple[SwingPoint, ...]:
     """Return stable chronological pivots without lookahead leakage.
 
-    Confirmed pivots require the complete right-side window. Developing pivots
-    are optional and are emitted only for edge candidates lacking that window.
+    Confirmed pivots require a complete right-side window made entirely of
+    closed candles. Developing pivots are optional and never masquerade as
+    confirmed when the active candle participates in their right-side window.
     """
 
     if left_window < 1 or right_window < 1:
@@ -36,20 +37,31 @@ def detect_swings(
 
     for index in range(left_window, len(usable)):
         available_right = len(usable) - index - 1
-        confirmed = available_right >= right_window
+        right_size = min(right_window, available_right)
+        left = usable[index - left_window : index]
+        right = usable[index + 1 : index + 1 + right_size]
+        has_complete_right_window = available_right >= right_window
+        has_only_closed_confirmation = all(candle.is_closed for candle in right)
+        confirmed = has_complete_right_window and has_only_closed_confirmation
         if not confirmed and not include_developing:
             continue
-
-        right_size = right_window if confirmed else available_right
         if right_size == 0 and not include_developing:
             continue
 
-        left = usable[index - left_window : index]
-        right = usable[index + 1 : index + 1 + right_size]
         candidate = usable[index]
         status = PivotStatus.CONFIRMED if confirmed else PivotStatus.DEVELOPING
+        right_highs = tuple(item.high for item in right)
+        right_lows = tuple(item.low for item in right)
+        left_highs = tuple(item.high for item in left)
+        left_lows = tuple(item.low for item in left)
 
-        if _is_extreme(candidate.high, tuple(item.high for item in left), tuple(item.high for item in right), True, comparison_policy):
+        if _is_extreme(
+            candidate.high,
+            left_highs,
+            right_highs,
+            True,
+            comparison_policy,
+        ):
             results.append(
                 SwingPoint(
                     index=index,
@@ -62,7 +74,13 @@ def detect_swings(
                 )
             )
 
-        if _is_extreme(candidate.low, tuple(item.low for item in left), tuple(item.low for item in right), False, comparison_policy):
+        if _is_extreme(
+            candidate.low,
+            left_lows,
+            right_lows,
+            False,
+            comparison_policy,
+        ):
             results.append(
                 SwingPoint(
                     index=index,
@@ -90,10 +108,18 @@ def _is_extreme(
         return False
 
     if policy is ComparisonPolicy.STRICT:
-        comparator = (lambda value: candidate > value) if is_high else (lambda value: candidate < value)
+        comparator = (
+            (lambda value: candidate > value)
+            if is_high
+            else (lambda value: candidate < value)
+        )
         return all(comparator(value) for value in neighbours)
 
-    comparator = (lambda value: candidate >= value) if is_high else (lambda value: candidate <= value)
+    comparator = (
+        (lambda value: candidate >= value)
+        if is_high
+        else (lambda value: candidate <= value)
+    )
     if not all(comparator(value) for value in neighbours):
         return False
 
