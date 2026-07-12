@@ -110,7 +110,10 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
     assert result.setup.take_profits[0].price > result.setup.entry.upper
     assert result.setup.position_size.risk_amount == pytest.approx(50.0)
     assert result.setup.position_size.required_leverage <= result.setup.leverage.maximum
-    assert result.setup.leverage.liquidation_price_at_maximum < result.setup.stop_loss.price
+    assert (
+        result.setup.leverage.liquidation_price_at_maximum
+        < result.setup.stop_loss.price
+    )
 
 
 def test_short_candidate_is_directionally_symmetric() -> None:
@@ -118,7 +121,10 @@ def test_short_candidate_is_directionally_symmetric() -> None:
     assert result.setup is not None
     assert result.setup.stop_loss.price > result.setup.entry.upper
     assert result.setup.take_profits[0].price < result.setup.entry.lower
-    assert result.setup.leverage.liquidation_price_at_maximum > result.setup.stop_loss.price
+    assert (
+        result.setup.leverage.liquidation_price_at_maximum
+        > result.setup.stop_loss.price
+    )
 
 
 def test_no_selected_candidate_remains_no_trade() -> None:
