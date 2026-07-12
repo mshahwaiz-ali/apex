@@ -36,6 +36,11 @@ def derive_liquidity_zones(
 
     zones: list[LiquidityZone] = []
     confirmed = tuple(item for item in swings if item.status is PivotStatus.CONFIRMED)
+    if any(item.index > current_index for item in confirmed):
+        raise ValueError("confirmed swing cannot occur after current_index")
+    if any(item.end_index > current_index for item in ranges):
+        raise ValueError("range cannot end after current_index")
+
     for kind in (SwingType.HIGH, SwingType.LOW):
         pivots = tuple(item for item in confirmed if item.kind is kind)
         for cluster in _cluster_pivots(pivots, tolerance):
@@ -55,7 +60,7 @@ def derive_liquidity_zones(
                     else LiquidityZoneType.PIVOT_LOW
                 )
             indices = tuple(sorted(item.index for item in cluster))
-            age = max(0, current_index - max(indices))
+            age = current_index - max(indices)
             strength = min(1.0, 0.35 + 0.2 * len(cluster) + 0.45 / (1 + age))
             zones.append(
                 LiquidityZone(
@@ -123,7 +128,7 @@ def _range_zones(
     boundary_end = detected_range.end_index - 1 if has_trigger_candle else detected_range.end_index
     if boundary_end <= detected_range.start_index:
         raise ValueError("range must contain boundary history before a trigger candle")
-    age = max(0, current_index - boundary_end)
+    age = current_index - boundary_end
     common = {
         "source_pivot_indices": (detected_range.start_index, boundary_end),
         "touch_count": 2,
