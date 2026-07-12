@@ -143,9 +143,7 @@ class LeverageRange:
         if self.minimum > self.maximum:
             raise ValueError("minimum leverage cannot exceed maximum leverage")
         if self.maximum > self.modeled_maximum:
-            raise ValueError(
-                "recommended leverage cannot exceed modeled maximum leverage"
-            )
+            raise ValueError("recommended leverage cannot exceed modeled maximum leverage")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,7 +173,12 @@ class RiskApprovedSetup:
             raise ValueError("approved setup requires at least one target")
         if self.position_size.required_leverage > self.leverage.maximum:
             raise ValueError("position sizing cannot require unsafe leverage")
+        inside_zone = self.entry.lower <= self.entry.current_price <= self.entry.upper
+        if self.entry.current_price_inside_zone is not inside_zone:
+            raise ValueError("entry inside-zone flag must match entry bounds")
         if self.direction is TradeDirection.LONG:
+            if self.entry.maximum_chase_price < self.entry.upper:
+                raise ValueError("long chase price must not be below the entry zone")
             if self.stop_loss.price >= self.entry.lower:
                 raise ValueError("long stop must be below the entry zone")
             if any(target.price <= self.entry.upper for target in self.take_profits):
@@ -183,6 +186,8 @@ class RiskApprovedSetup:
             if self.leverage.liquidation_price_at_maximum >= self.stop_loss.price:
                 raise ValueError("long liquidation must remain below the stop")
         else:
+            if self.entry.maximum_chase_price > self.entry.lower:
+                raise ValueError("short chase price must not be above the entry zone")
             if self.stop_loss.price <= self.entry.upper:
                 raise ValueError("short stop must be above the entry zone")
             if any(target.price >= self.entry.lower for target in self.take_profits):
@@ -210,9 +215,7 @@ class RiskAssessment:
             raise ValueError("rejection codes must be unique")
         if self.decision is RiskDecision.APPROVED:
             if self.setup is None or self.rejection_codes or self.reasons:
-                raise ValueError(
-                    "approved assessment must contain only an approved setup"
-                )
+                raise ValueError("approved assessment must contain only an approved setup")
         elif self.setup is not None or not self.rejection_codes or not self.reasons:
             raise ValueError("rejected assessment requires rejection codes and reasons")
         if len(self.rejection_codes) != len(self.reasons):

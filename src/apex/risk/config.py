@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import StrEnum
+from pathlib import Path
+from typing import Any, Self
+
+import yaml
 
 
 class RiskProfile(StrEnum):
@@ -39,9 +43,24 @@ class RiskConfig:
     maximum_daily_loss_pct: float = 3.0
     maximum_consecutive_losses: int = 4
 
+    @classmethod
+    def from_mapping(cls, values: dict[str, Any]) -> Self:
+        """Build validated risk configuration from parsed configuration data."""
+
+        values = dict(values)
+        if "profile" in values:
+            values["profile"] = RiskProfile(values["profile"])
+        allowed = {field.name for field in fields(cls)}
+        unknown = set(values) - allowed
+        if unknown:
+            raise ValueError(f"unknown risk configuration fields: {sorted(unknown)}")
+        return cls(**values)
+
     def __post_init__(self) -> None:
         if not self.identifier.strip():
             raise ValueError("risk configuration identifier cannot be empty")
+        if not isinstance(self.profile, RiskProfile):
+            raise ValueError("risk profile must be a valid RiskProfile")
         for name in (
             "account_equity",
             "risk_per_trade_pct",
@@ -60,9 +79,7 @@ class RiskConfig:
         ):
             _positive(name.replace("_", " "), getattr(self, name))
         if self.minimum_stop_distance_pct >= self.maximum_stop_distance_pct:
-            raise ValueError(
-                "minimum stop distance must be below maximum stop distance"
-            )
+            raise ValueError("minimum stop distance must be below maximum stop distance")
         if self.maximum_leverage < 1.0:
             raise ValueError("maximum leverage cannot be below one")
         if self.maximum_concurrent_trades < 1:
@@ -97,9 +114,7 @@ class ExposureState:
         ):
             value = getattr(self, name)
             if not math.isfinite(value) or value < 0.0:
-                raise ValueError(
-                    f"{name.replace('_', ' ')} must be finite and non-negative"
-                )
+                raise ValueError(f"{name.replace('_', ' ')} must be finite and non-negative")
         if self.same_direction_risk_amount > self.open_risk_amount:
             raise ValueError("same-direction risk cannot exceed total open risk")
         if self.correlated_risk_amount > self.open_risk_amount:
@@ -107,3 +122,14 @@ class ExposureState:
 
 
 DEFAULT_RISK_CONFIG = RiskConfig()
+
+
+def load_risk_config(path: str | Path) -> RiskConfig:
+    """Load and validate Phase 6 risk configuration from YAML."""
+
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError("risk configuration file must contain a mapping")
+    return RiskConfig.from_mapping(raw)

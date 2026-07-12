@@ -1,6 +1,12 @@
 """Public Phase 6 risk-engine API."""
 
-from apex.risk.config import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig, RiskProfile
+from apex.risk.config import (
+    DEFAULT_RISK_CONFIG,
+    ExposureState,
+    RiskConfig,
+    RiskProfile,
+    load_risk_config,
+)
 from apex.risk.contracts import (
     ActionableEntry,
     LeverageRange,
@@ -29,4 +35,5 @@ __all__ = [
     "StopLoss",
     "TakeProfit",
     "analyze_phase6",
+    "load_risk_config",
 ]

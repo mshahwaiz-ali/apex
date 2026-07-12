@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime
 
 import pytest
@@ -8,8 +9,18 @@ from apex.risk import (
     RiskDecision,
     RiskRejectionCode,
     analyze_phase6,
+    load_risk_config,
 )
-from apex.scoring import Phase5AnalysisResult, analyze_phase5
+from apex.scoring import (
+    CandidateOutcome,
+    ConflictSummary,
+    DirectionalConsensus,
+    Phase5AnalysisResult,
+    RankedCandidate,
+    ScoreBreakdown,
+    ScoredCandidate,
+    analyze_phase5,
+)
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -102,6 +113,31 @@ def _phase5(candidate: TradeCandidate | None = None) -> Phase5AnalysisResult:
     return analyze_phase5(phase4)
 
 
+def _scored(candidate_id: str, candidate: TradeCandidate) -> ScoredCandidate:
+    return ScoredCandidate(
+        candidate_id=candidate_id,
+        candidate=candidate,
+        breakdown=ScoreBreakdown(
+            quality_points={"base": 85.0},
+            penalty_points={},
+            base_score=85.0,
+            total_penalty=0.0,
+            final_score=85.0,
+        ),
+        normalized_metrics={"quality": 0.85},
+    )
+
+
+def _ranked(candidate_id: str, candidate: TradeCandidate, rank: int) -> RankedCandidate:
+    return RankedCandidate(
+        scored=_scored(candidate_id, candidate),
+        rank=rank,
+        outcome=CandidateOutcome.ACCEPTED,
+        reasons=(),
+        tie_break=(candidate_id,),
+    )
+
+
 def test_long_candidate_receives_controlled_risk_setup() -> None:
     result = analyze_phase6(_phase5(_candidate()))
     assert result.decision is RiskDecision.APPROVED
@@ -110,10 +146,7 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
     assert result.setup.take_profits[0].price > result.setup.entry.upper
     assert result.setup.position_size.risk_amount == pytest.approx(50.0)
     assert result.setup.position_size.required_leverage <= result.setup.leverage.maximum
-    assert (
-        result.setup.leverage.liquidation_price_at_maximum
-        < result.setup.stop_loss.price
-    )
+    assert result.setup.leverage.liquidation_price_at_maximum < result.setup.stop_loss.price
 
 
 def test_short_candidate_is_directionally_symmetric() -> None:
@@ -121,20 +154,28 @@ def test_short_candidate_is_directionally_symmetric() -> None:
     assert result.setup is not None
     assert result.setup.stop_loss.price > result.setup.entry.upper
     assert result.setup.take_profits[0].price < result.setup.entry.lower
-    assert (
-        result.setup.leverage.liquidation_price_at_maximum
-        > result.setup.stop_loss.price
-    )
+    assert result.setup.leverage.liquidation_price_at_maximum > result.setup.stop_loss.price
 
 
 def test_no_selected_candidate_remains_no_trade() -> None:
     result = analyze_phase6(_phase5())
     assert result.decision is RiskDecision.REJECTED
     assert result.rejection_codes == (RiskRejectionCode.NO_SELECTED_CANDIDATE,)
+    assert result.reasons == ("Phase 5 selected no trade candidate",)
 
 
 def test_extended_entry_is_rejected() -> None:
     result = analyze_phase6(_phase5(_candidate(extended=True)))
+    assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
+
+
+def test_long_current_price_above_chase_boundary_is_rejected() -> None:
+    result = analyze_phase6(_phase5(_candidate(current_price=102.0)))
+    assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
+
+
+def test_short_current_price_below_chase_boundary_is_rejected() -> None:
+    result = analyze_phase6(_phase5(_candidate(direction=TradeDirection.SHORT, current_price=98.0)))
     assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
 
 
@@ -187,6 +228,28 @@ def test_exposure_limits_reject_new_trade() -> None:
     assert RiskRejectionCode.MAX_CONCURRENT_TRADES in result.rejection_codes
 
 
+def test_all_applicable_exposure_limits_are_reported() -> None:
+    result = analyze_phase6(
+        _phase5(_candidate()),
+        exposure=ExposureState(
+            open_trades=3,
+            open_risk_amount=160.0,
+            same_direction_risk_amount=110.0,
+            correlated_risk_amount=60.0,
+            daily_realized_loss=300.0,
+            consecutive_losses=4,
+        ),
+    )
+    assert result.rejection_codes == (
+        RiskRejectionCode.MAX_CONCURRENT_TRADES,
+        RiskRejectionCode.MAX_OPEN_RISK,
+        RiskRejectionCode.MAX_DIRECTIONAL_RISK,
+        RiskRejectionCode.MAX_CORRELATED_RISK,
+        RiskRejectionCode.DAILY_LOSS_LIMIT,
+        RiskRejectionCode.CONSECUTIVE_LOSS_LIMIT,
+    )
+
+
 def test_correlated_exposure_limit_rejects_new_trade() -> None:
     result = analyze_phase6(
         _phase5(_candidate()),
@@ -204,3 +267,82 @@ def test_configuration_rejects_non_finite_values(value: float) -> None:
 def test_exposure_rejects_correlated_risk_above_total_risk() -> None:
     with pytest.raises(ValueError):
         ExposureState(open_risk_amount=10.0, correlated_risk_amount=11.0)
+
+
+def test_phase6_uses_only_selected_phase5_candidate() -> None:
+    selected = _ranked("selected", _candidate(), 1)
+    unselected_extended = _ranked("unselected", _candidate(extended=True), 2)
+    phase5 = Phase5AnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        all_scored_candidates=(selected.scored, unselected_extended.scored),
+        ranked_candidates=(selected, unselected_extended),
+        rejected_candidates=(),
+        conflict_summary=ConflictSummary(
+            directional_consensus=DirectionalConsensus.LONG,
+            long_count=2,
+            short_count=0,
+            duplicate_groups=(),
+            warnings=(),
+        ),
+        directional_consensus=DirectionalConsensus.LONG,
+        selected_candidate=selected,
+        no_trade_reason=None,
+        evaluated_strategy_order=ORDER,
+        configuration_id="test",
+        metadata={},
+    )
+
+    result = analyze_phase6(phase5)
+
+    assert result.decision is RiskDecision.APPROVED
+    assert result.setup is not None
+    assert result.setup.candidate_id == "selected"
+
+
+def test_approved_setup_rejects_inconsistent_entry_flags() -> None:
+    result = analyze_phase6(_phase5(_candidate()))
+    assert result.setup is not None
+
+    with pytest.raises(ValueError, match="inside-zone flag"):
+        replace(
+            result.setup,
+            entry=replace(result.setup.entry, current_price_inside_zone=False),
+        )
+
+
+def test_approved_setup_rejects_directionally_invalid_chase_price() -> None:
+    result = analyze_phase6(_phase5(_candidate()))
+    assert result.setup is not None
+
+    with pytest.raises(ValueError, match="long chase price"):
+        replace(
+            result.setup,
+            entry=replace(
+                result.setup.entry,
+                maximum_chase_price=result.setup.entry.upper - 0.01,
+            ),
+        )
+
+
+def test_risk_contracts_are_frozen() -> None:
+    result = analyze_phase6(_phase5(_candidate()))
+    assert result.setup is not None
+
+    with pytest.raises(FrozenInstanceError):
+        result.setup.position_size.risk_amount = 1.0
+
+
+def test_risk_config_loads_checked_in_yaml() -> None:
+    config = load_risk_config("config/risk.yaml")
+    assert config.profile.value == "controlled"
+    assert config.account_equity == pytest.approx(10_000.0)
+    assert config.maximum_leverage == pytest.approx(5.0)
+
+
+def test_risk_config_loader_rejects_unknown_fields(tmp_path) -> None:
+    path = tmp_path / "risk.yaml"
+    path.write_text("unknown: 1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown risk configuration fields"):
+        load_risk_config(path)
