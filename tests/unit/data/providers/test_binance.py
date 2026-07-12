@@ -268,3 +268,185 @@ def test_fetch_candles_normalizes_non_retryable_http_error() -> None:
     assert error.retryable is False
 
     client.close()
+
+
+def test_fetch_ticker_normalizes_missing_required_field() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v3/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json={
+                    "bidPrice": "100",
+                    "askPrice": "101",
+                },
+                request=request,
+            )
+
+        return httpx.Response(
+            200,
+            json={
+                "quoteVolume": "1000000",
+            },
+            request=request,
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    ) as client:
+        provider = BinanceMarketDataProvider(client=client)
+
+        with pytest.raises(
+            ProviderResponseError,
+            match="Invalid Binance ticker response fields",
+        ) as exc_info:
+            provider.fetch_ticker("BTC/USDT")
+
+    error = exc_info.value
+    assert error.provider == "binance"
+    assert error.operation == "parse ticker"
+    assert isinstance(error.__cause__, KeyError)
+
+
+def test_fetch_ticker_normalizes_non_numeric_field() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v3/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json={
+                    "bidPrice": "not-a-number",
+                    "askPrice": "101",
+                },
+                request=request,
+            )
+
+        return httpx.Response(
+            200,
+            json={
+                "lastPrice": "100.5",
+                "quoteVolume": "1000000",
+            },
+            request=request,
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    ) as client:
+        provider = BinanceMarketDataProvider(client=client)
+
+        with pytest.raises(
+            ProviderResponseError,
+            match="Invalid Binance ticker response fields",
+        ) as exc_info:
+            provider.fetch_ticker("BTC/USDT")
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        "not-a-number",
+        None,
+    ],
+)
+def test_fetch_candles_normalizes_invalid_numeric_values(
+    invalid_value: object,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    1_700_000_000_000,
+                    invalid_value,
+                    "110.0",
+                    "95.0",
+                    "105.0",
+                    "123.45",
+                    1_700_000_899_999,
+                ]
+            ],
+            request=request,
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    ) as client:
+        provider = BinanceMarketDataProvider(client=client)
+
+        with pytest.raises(
+            ProviderResponseError,
+            match="Invalid Binance candle values",
+        ) as exc_info:
+            provider.fetch_candles("BTC/USDT", "15m", limit=1)
+
+    error = exc_info.value
+    assert error.provider == "binance"
+    assert error.operation == "parse candles"
+
+
+def test_fetch_candles_normalizes_invalid_ohlc_relationship() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    1_700_000_000_000,
+                    "100.0",
+                    "90.0",
+                    "95.0",
+                    "105.0",
+                    "123.45",
+                    1_700_000_899_999,
+                ]
+            ],
+            request=request,
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    ) as client:
+        provider = BinanceMarketDataProvider(client=client)
+
+        with pytest.raises(
+            ProviderResponseError,
+            match="Invalid Binance candle values",
+        ):
+            provider.fetch_candles("BTC/USDT", "15m", limit=1)
+
+
+def test_fetch_candles_normalizes_out_of_range_timestamp() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    10**100,
+                    "100.0",
+                    "110.0",
+                    "95.0",
+                    "105.0",
+                    "123.45",
+                    10**100,
+                ]
+            ],
+            request=request,
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    ) as client:
+        provider = BinanceMarketDataProvider(client=client)
+
+        with pytest.raises(
+            ProviderResponseError,
+            match="Invalid Binance timestamp",
+        ) as exc_info:
+            provider.fetch_candles("BTC/USDT", "15m", limit=1)
+
+    assert exc_info.value.operation == "parse candles"

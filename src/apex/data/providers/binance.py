@@ -160,15 +160,22 @@ class BinanceMarketDataProvider:
                 operation="fetch 24h ticker",
             )
 
-        return TickerSnapshot(
-            symbol=symbol.upper(),
-            last_price=float(stats_payload["lastPrice"]),
-            bid_price=float(book_payload["bidPrice"]),
-            ask_price=float(book_payload["askPrice"]),
-            quote_volume_24h=float(stats_payload["quoteVolume"]),
-            captured_at=datetime.now(UTC),
-            source=self.name,
-        )
+        try:
+            return TickerSnapshot(
+                symbol=symbol.upper(),
+                last_price=float(stats_payload["lastPrice"]),
+                bid_price=float(book_payload["bidPrice"]),
+                ask_price=float(book_payload["askPrice"]),
+                quote_volume_24h=float(stats_payload["quoteVolume"]),
+                captured_at=datetime.now(UTC),
+                source=self.name,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderResponseError(
+                "Invalid Binance ticker response fields",
+                provider=self.name,
+                operation="parse ticker",
+            ) from exc
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
@@ -192,32 +199,40 @@ class BinanceMarketDataProvider:
                 operation="parse candles",
             )
 
-        open_time = self._milliseconds_to_datetime(row[0])
-        close_time = self._milliseconds_to_datetime(row[6])
+        try:
+            open_time = self._milliseconds_to_datetime(row[0])
+            close_time = self._milliseconds_to_datetime(row[6])
 
-        return Candle(
-            symbol=display_symbol,
-            timeframe=timeframe,
-            open_time=open_time,
-            close_time=close_time,
-            open=float(row[1]),
-            high=float(row[2]),
-            low=float(row[3]),
-            close=float(row[4]),
-            volume=float(row[5]),
-            is_closed=close_time <= now,
-            source=self.name,
-        )
+            return Candle(
+                symbol=display_symbol,
+                timeframe=timeframe,
+                open_time=open_time,
+                close_time=close_time,
+                open=float(row[1]),
+                high=float(row[2]),
+                low=float(row[3]),
+                close=float(row[4]),
+                volume=float(row[5]),
+                is_closed=close_time <= now,
+                source=self.name,
+            )
+        except ProviderResponseError:
+            raise
+        except (IndexError, TypeError, ValueError) as exc:
+            raise ProviderResponseError(
+                "Invalid Binance candle values",
+                provider=self.name,
+                operation="parse candles",
+            ) from exc
 
     @staticmethod
     def _milliseconds_to_datetime(value: Any) -> datetime:
         try:
             milliseconds = int(value)
-        except (TypeError, ValueError) as exc:
+            return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)
+        except (OSError, OverflowError, TypeError, ValueError) as exc:
             raise ProviderResponseError(
                 f"Invalid Binance timestamp: {value!r}",
                 provider="binance",
                 operation="parse candles",
             ) from exc
-
-        return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)

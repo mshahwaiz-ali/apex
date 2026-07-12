@@ -3,7 +3,7 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from apex.data.providers.errors import ProviderRequestError
+from apex.data.providers.errors import ProviderRequestError, ProviderResponseError
 from apex.data.providers.http import RetryPolicy, request_json
 
 
@@ -263,7 +263,7 @@ def test_normalizes_invalid_json_response() -> None:
     with (
         make_client(handler) as client,
         pytest.raises(
-            ProviderRequestError,
+            ProviderResponseError,
             match="returned invalid JSON",
         ) as exc_info,
     ):
@@ -276,7 +276,8 @@ def test_normalizes_invalid_json_response() -> None:
             retry_policy=RetryPolicy(max_attempts=1),
         )
 
-    assert exc_info.value.retryable is False
+    assert exc_info.value.provider == "test"
+    assert exc_info.value.operation == "fetch market data"
 
 
 @pytest.mark.parametrize(

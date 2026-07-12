@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from apex.data.providers.errors import ProviderRequestError
+from apex.data.providers.errors import ProviderRequestError, ProviderResponseError
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
@@ -111,12 +111,10 @@ def request_json(
         try:
             return response.json()
         except ValueError as exc:
-            raise ProviderRequestError(
+            raise ProviderResponseError(
                 f"{provider} returned invalid JSON during {operation}",
                 provider=provider,
                 operation=operation,
-                retryable=False,
-                status_code=status_code,
             ) from exc
 
     raise AssertionError("request retry loop exited unexpectedly")
