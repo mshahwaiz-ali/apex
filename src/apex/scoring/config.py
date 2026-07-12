@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from types import MappingProxyType
 
 from apex.strategies.contracts import StrategyType
@@ -146,6 +148,34 @@ class ScoringConfig:
         if set(profiles) != set(StrategyType):
             raise ValueError("strategy profiles must cover every registered strategy type")
         object.__setattr__(self, "strategy_profiles", MappingProxyType(profiles))
+
+    def fingerprint(self) -> str:
+        """Return a stable hash for reproducible scoring reports."""
+
+        payload = {
+            "identifier": self.identifier,
+            "weights": asdict(self.weights),
+            "penalties": asdict(self.penalties),
+            "strategy_profiles": {
+                strategy.value: {
+                    "neutral_metrics": sorted(profile.neutral_metrics),
+                    "neutral_value": profile.neutral_value,
+                }
+                for strategy, profile in sorted(
+                    self.strategy_profiles.items(),
+                    key=lambda item: item[0].value,
+                )
+            },
+            "minimum_accept_score": self.minimum_accept_score,
+            "warning_accept_score": self.warning_accept_score,
+            "unresolved_conflict_margin": self.unresolved_conflict_margin,
+            "consensus_bonus_per_supporter": self.consensus_bonus_per_supporter,
+            "maximum_consensus_bonus": self.maximum_consensus_bonus,
+            "duplicate_entry_overlap": self.duplicate_entry_overlap,
+            "duplicate_price_tolerance": self.duplicate_price_tolerance,
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()
 
 
 DEFAULT_SCORING_CONFIG = ScoringConfig()

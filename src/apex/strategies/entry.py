@@ -32,6 +32,7 @@ class EntrySelectionConfig:
     max_atr_distance: float = 0.8
     scaled_half_width_atr: float = 0.06
     minimum_risk_reward_improvement: float = 0.15
+    default_expiry_seconds: int = 900
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -44,6 +45,8 @@ class EntrySelectionConfig:
                 raise ValueError(f"{name} must be finite and non-negative")
         if self.max_percentage_distance == 0 and self.max_atr_distance == 0:
             raise ValueError("at least one entry-distance limit must be positive")
+        if self.default_expiry_seconds <= 0:
+            raise ValueError("default expiry must be positive")
 
 
 DEFAULT_ENTRY_SELECTION_CONFIG = EntrySelectionConfig()
@@ -72,6 +75,7 @@ def select_entry_zone(
         current_price=current_price,
         preferred=current_price,
         atr=atr,
+        direction=direction,
         mode=EntryMode.MARKET_NEAR,
         rationale=("current price is technically valid and immediately actionable",),
         scaled=False,
@@ -102,6 +106,7 @@ def select_entry_zone(
             current_price=current_price,
             preferred=reference.price,
             atr=atr,
+            direction=direction,
             mode=EntryMode.SCALED_ENTRY if reference.scaled else reference.mode,
             rationale=reference.rationale,
             scaled=reference.scaled,
@@ -140,6 +145,7 @@ def _build_zone(
     current_price: float,
     preferred: float,
     atr: float,
+    direction: TradeDirection,
     mode: EntryMode,
     rationale: tuple[str, ...],
     scaled: bool,
@@ -151,6 +157,11 @@ def _build_zone(
     allowed_distance = max(
         current_price * config.max_percentage_distance,
         atr * config.max_atr_distance,
+    )
+    max_chase_price = (
+        current_price + allowed_distance
+        if direction is TradeDirection.LONG
+        else current_price - allowed_distance
     )
     location_quality = max(0.0, 1.0 - distance / allowed_distance)
     half_width = atr * config.scaled_half_width_atr if scaled else 0.0
@@ -166,6 +177,8 @@ def _build_zone(
         mode=mode,
         rationale=rationale,
         is_extended=atr_distance > config.max_atr_distance,
+        max_chase_price=max_chase_price,
+        expires_after_seconds=config.default_expiry_seconds,
     )
 
 

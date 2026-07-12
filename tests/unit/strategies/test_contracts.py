@@ -4,6 +4,8 @@ from types import MappingProxyType
 import pytest
 
 from apex.strategies import (
+    CandidateLifecycle,
+    CandidateLifecycleStatus,
     EntryMode,
     EntryZone,
     InvalidationConcept,
@@ -189,6 +191,25 @@ def test_candidate_metadata_is_immutable_and_copied() -> None:
     assert candidate.metadata["timeframe"] == "5m"
     with pytest.raises(TypeError):
         candidate.metadata["timeframe"] = "15m"  # type: ignore[index]
+
+
+def test_candidate_lifecycle_defaults_from_trade_geometry() -> None:
+    candidate = _candidate()
+
+    assert candidate.lifecycle is not None
+    assert candidate.lifecycle.status is CandidateLifecycleStatus.ACTIVE
+    assert candidate.lifecycle.cooldown_key == "BTC/USDT:trend_pullback:long:100.0"
+    assert candidate.lifecycle.expires_after_seconds == 900
+    assert candidate.lifecycle.invalidation_price == pytest.approx(98.0)
+
+
+def test_invalidated_lifecycle_requires_reason() -> None:
+    with pytest.raises(ValueError, match="invalidation reason"):
+        CandidateLifecycle(
+            status=CandidateLifecycleStatus.INVALIDATED,
+            invalidation_price=98.0,
+            invalidation_reason="",
+        )
 
 
 def test_repeated_candidate_construction_is_deterministic() -> None:

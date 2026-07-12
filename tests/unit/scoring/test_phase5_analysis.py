@@ -157,6 +157,15 @@ def test_scoring_does_not_mutate_raw_candidate() -> None:
     assert first == second
 
 
+def test_scoring_config_fingerprint_is_stable_and_sensitive() -> None:
+    base = ScoringConfig()
+    same = ScoringConfig()
+    changed = ScoringConfig(minimum_accept_score=60.0)
+
+    assert base.fingerprint() == same.fingerprint()
+    assert base.fingerprint() != changed.fingerprint()
+
+
 def test_ranking_is_input_order_independent() -> None:
     stronger = _candidate(strategy=StrategyType.BREAKOUT_CONTINUATION, quality=0.9)
     weaker = _candidate(strategy=StrategyType.TREND_PULLBACK, quality=0.7)
@@ -236,6 +245,9 @@ def test_duplicate_thesis_is_grouped_not_double_selected() -> None:
         )
     )
     assert len(result.conflict_summary.duplicate_groups) == 1
+    assert result.metadata["duplicate_cluster_count"] == 1
+    assert isinstance(result.metadata["config_hash"], str)
+    assert len(result.metadata["config_hash"]) == 64
     assert len(result.rejected_candidates) == 1
     assert result.rejected_candidates[0].outcome is CandidateOutcome.REJECTED_DUPLICATE
 

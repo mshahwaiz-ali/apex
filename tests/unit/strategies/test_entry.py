@@ -27,6 +27,8 @@ def test_cmp_preferred_when_waiting_improves_too_little() -> None:
 
     assert zone.preferred == 100.0
     assert zone.mode is EntryMode.MARKET_NEAR
+    assert zone.max_chase_price == pytest.approx(101.6)
+    assert zone.expires_after_seconds == 900
 
 
 def test_nearby_pullback_preferred_when_risk_reward_materially_improves() -> None:
@@ -157,6 +159,7 @@ def test_short_geometry_is_symmetric() -> None:
     )
 
     assert zone.preferred == 101.0
+    assert zone.max_chase_price == pytest.approx(98.4)
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf")])

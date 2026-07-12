@@ -47,6 +47,13 @@ class TargetType(StrEnum):
     PARTIAL = "partial"
 
 
+class CandidateLifecycleStatus(StrEnum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    INVALIDATED = "invalidated"
+    COOLDOWN = "cooldown"
+
+
 def _finite(name: str, value: float) -> None:
     if not math.isfinite(value):
         raise ValueError(f"{name} must be finite")
@@ -82,6 +89,8 @@ class EntryZone:
     mode: EntryMode
     rationale: tuple[str, ...]
     is_extended: bool = False
+    max_chase_price: float | None = None
+    expires_after_seconds: int | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -106,6 +115,10 @@ class EntryZone:
         _unit_interval("location quality", self.location_quality)
         if not self.rationale:
             raise ValueError("entry rationale cannot be empty")
+        if self.max_chase_price is not None:
+            _positive("maximum chase price", self.max_chase_price)
+        if self.expires_after_seconds is not None and self.expires_after_seconds <= 0:
+            raise ValueError("entry expiry must be positive when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +185,23 @@ class StrategyEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateLifecycle:
+    status: CandidateLifecycleStatus = CandidateLifecycleStatus.ACTIVE
+    cooldown_key: str = ""
+    expires_after_seconds: int = 900
+    invalidation_price: float | None = None
+    invalidation_reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.expires_after_seconds <= 0:
+            raise ValueError("candidate expiry must be positive")
+        if self.invalidation_price is not None:
+            _positive("candidate lifecycle invalidation price", self.invalidation_price)
+        if self.status is CandidateLifecycleStatus.INVALIDATED and not self.invalidation_reason:
+            raise ValueError("invalidated lifecycle requires an invalidation reason")
+
+
+@dataclass(frozen=True, slots=True)
 class RawQualityMetrics:
     trend_alignment: float
     structure_quality: float
@@ -210,6 +240,7 @@ class TradeCandidate:
     quality: RawQualityMetrics
     evidence: StrategyEvidence
     metadata: Mapping[str, str | int | float | bool]
+    lifecycle: CandidateLifecycle | None = None
     provisional: bool = False
 
     def __post_init__(self) -> None:
@@ -233,3 +264,17 @@ class TradeCandidate:
             if isinstance(value, float):
                 _finite(f"metadata {key}", value)
         object.__setattr__(self, "metadata", MappingProxyType(metadata))
+        if self.lifecycle is None:
+            object.__setattr__(
+                self,
+                "lifecycle",
+                CandidateLifecycle(
+                    cooldown_key=(
+                        f"{self.symbol}:{self.strategy.value}:{self.direction.value}:"
+                        f"{round(self.entry.preferred, 8)}"
+                    ),
+                    expires_after_seconds=self.entry.expires_after_seconds or 900,
+                    invalidation_price=self.invalidation.price,
+                    invalidation_reason="candidate invalidation price is breached",
+                ),
+            )

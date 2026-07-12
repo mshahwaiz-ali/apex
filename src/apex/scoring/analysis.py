@@ -42,6 +42,11 @@ def analyze_phase5(
             "candidate_count": len(scored),
             "rejected_count": len(rejected),
             "selected": selected is not None,
+            "config_hash": config.fingerprint(),
+            "duplicate_cluster_count": len(conflict_summary.duplicate_groups),
+            "decision_regime": phase4.decision_regime.value,
+            "eligible_strategy_count": len(phase4.eligible_strategies or ()),
+            "skipped_strategy_count": len(phase4.skipped_strategies or {}),
             "accepted_count": sum(
                 item.outcome
                 in {

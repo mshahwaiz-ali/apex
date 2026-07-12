@@ -10,6 +10,8 @@ from apex.strategies.context import (
     timeframe_role_sort_key,
 )
 from apex.strategies.contracts import (
+    CandidateLifecycle,
+    CandidateLifecycleStatus,
     EntryMode,
     EntryZone,
     InvalidationConcept,
@@ -32,6 +34,8 @@ from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
     "STRATEGY_REGISTRY",
+    "CandidateLifecycle",
+    "CandidateLifecycleStatus",
     "EntryMode",
     "EntryReference",
     "EntrySelectionConfig",
