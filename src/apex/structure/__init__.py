@@ -24,6 +24,15 @@ from apex.structure.contracts import (
 )
 from apex.structure.levels import derive_structure_levels
 from apex.structure.ranges import detect_range
+from apex.structure.regime import (
+    MarketRegime,
+    RangeBoundary,
+    RangeBoundarySide,
+    TrendStrength,
+    classify_market_regime,
+    range_boundaries,
+    trend_strength_band,
+)
 from apex.structure.registry import StructureRegistry, create_default_structure_registry
 from apex.structure.swings import detect_swings
 from apex.structure.trend import classify_trend
@@ -36,7 +45,10 @@ __all__ = [
     "ConfirmationStatus",
     "LevelRole",
     "LevelStatus",
+    "MarketRegime",
     "PivotStatus",
+    "RangeBoundary",
+    "RangeBoundarySide",
     "RangeBreakoutState",
     "RangeStructure",
     "StructureAnalysisResult",
@@ -48,7 +60,9 @@ __all__ = [
     "TrendAnalysis",
     "TrendDirection",
     "TrendEvidence",
+    "TrendStrength",
     "analyze_structure",
+    "classify_market_regime",
     "classify_trend",
     "create_default_structure_registry",
     "derive_structure_levels",
@@ -56,4 +70,6 @@ __all__ = [
     "detect_range",
     "detect_structure_breaks",
     "detect_swings",
+    "range_boundaries",
+    "trend_strength_band",
 ]
