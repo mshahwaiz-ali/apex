@@ -206,3 +206,86 @@ def test_rejects_invalid_cache_keys(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         CandleCacheKey(**kwargs)
+
+
+def test_load_treats_duplicate_candle_series_as_cache_miss(
+    tmp_path: Path,
+) -> None:
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    key = make_key()
+    path = cache.save(key, [make_candle()])
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["candles"].append(payload["candles"][0])
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert cache.load(key, max_age=timedelta(minutes=5)) is None
+
+
+def test_load_treats_out_of_order_candle_series_as_cache_miss(
+    tmp_path: Path,
+) -> None:
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    key = make_key()
+    first = make_candle()
+    second = first.model_copy(
+        update={
+            "open_time": datetime(2026, 7, 12, 11, 15, tzinfo=UTC),
+            "close_time": datetime(2026, 7, 12, 11, 30, tzinfo=UTC),
+        }
+    )
+
+    path = cache._path_for(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": cache.SCHEMA_VERSION,
+                "key": cache._serialized_key(key),
+                "saved_at": NOW.isoformat(),
+                "candles": [
+                    first.model_dump(mode="json"),
+                    second.model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert cache.load(key, max_age=timedelta(minutes=5)) is None
+
+
+def test_save_rejects_invalid_candle_series(tmp_path: Path) -> None:
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    candle = make_candle()
+
+    with pytest.raises(
+        ValueError,
+        match="cannot cache invalid candle series",
+    ):
+        cache.save(make_key(), [candle, candle])
+
+
+def test_atomic_save_leaves_no_temporary_files(tmp_path: Path) -> None:
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+
+    path = cache.save(make_key(), [make_candle()])
+
+    assert path.exists()
+    assert list(tmp_path.glob("*.tmp")) == []
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
+def test_repeated_writes_to_same_key_remain_readable(tmp_path: Path) -> None:
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    key = make_key()
+
+    for _ in range(10):
+        cache.save(key, [make_candle()])
+
+    result = cache.load(key, max_age=timedelta(minutes=5))
+
+    assert result is not None
+    assert result.candles == (make_candle(),)
+    assert len(list(tmp_path.glob("*.json"))) == 1
+    assert list(tmp_path.glob(".*.tmp")) == []

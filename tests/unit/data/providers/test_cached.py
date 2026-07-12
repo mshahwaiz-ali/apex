@@ -138,3 +138,50 @@ def test_default_cache_freshness_rules() -> None:
     assert policy.max_age_for("1h") == timedelta(minutes=5)
     assert policy.max_age_for("4h") == timedelta(minutes=15)
     assert policy.max_age_for("1d") is None
+
+
+def test_cache_write_oserror_does_not_discard_live_candles(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    provider = FakeMarketDataProvider()
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    cached_provider = CachedMarketDataProvider(provider, cache)
+
+    def fail_save(*args, **kwargs) -> None:
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(cache, "save", fail_save)
+
+    candles = cached_provider.fetch_candles(
+        "BTC/USDT",
+        "15m",
+        limit=1,
+    )
+
+    assert len(candles) == 1
+    assert provider.candle_calls == 1
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_cache_validation_error_is_not_suppressed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    provider = FakeMarketDataProvider()
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    cached_provider = CachedMarketDataProvider(provider, cache)
+
+    def fail_save(*args, **kwargs) -> None:
+        raise ValueError("invalid candle series")
+
+    monkeypatch.setattr(cache, "save", fail_save)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="invalid candle series"):
+        cached_provider.fetch_candles(
+            "BTC/USDT",
+            "15m",
+            limit=1,
+        )

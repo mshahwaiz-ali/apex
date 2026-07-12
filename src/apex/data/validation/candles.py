@@ -32,7 +32,7 @@ def validate_candle_series(
     *,
     expected_timeframe: str,
     now: datetime,
-    max_staleness_intervals: int = 2,
+    max_staleness_intervals: int | None = 2,
 ) -> CandleSeriesValidationResult:
     """Validate ordering, continuity, consistency, and freshness."""
 
@@ -98,7 +98,10 @@ def validate_candle_series(
 
     if latest_closed is None:
         warnings.append("series contains no closed candles")
-    else:
+    elif max_staleness_intervals is not None:
+        if max_staleness_intervals < 0:
+            raise ValueError("max_staleness_intervals cannot be negative")
+
         staleness_limit = interval * max_staleness_intervals
         if now - latest_closed.close_time > staleness_limit:
             errors.append("latest closed candle is stale")
