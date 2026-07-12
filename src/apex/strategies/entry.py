@@ -117,9 +117,9 @@ def select_entry_zone(
     return min(
         eligible,
         key=lambda item: (
-            -item[0].location_quality,
             -item[1],
             item[0].distance_from_current,
+            -item[0].location_quality,
             item[0].mode.value,
         ),
     )[0]
