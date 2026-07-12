@@ -32,20 +32,23 @@ def derive_structure_levels(
 
     confirmed = tuple(item for item in swings if item.status is PivotStatus.CONFIRMED)
     clusters: list[list[SwingPoint]] = []
-    for pivot in sorted(confirmed, key=lambda item: (item.price, item.index, item.kind.value)):
-        matching = next(
-            (
-                cluster
-                for cluster in clusters
-                if abs(pivot.price - _mean_price(cluster))
-                <= max(pivot.price, _mean_price(cluster)) * tolerance
-            ),
-            None,
-        )
-        if matching is None:
-            clusters.append([pivot])
-        else:
-            matching.append(pivot)
+    for kind in (SwingType.HIGH, SwingType.LOW):
+        kind_pivots = tuple(item for item in confirmed if item.kind is kind)
+        for pivot in sorted(kind_pivots, key=lambda item: (item.price, item.index)):
+            matching = next(
+                (
+                    cluster
+                    for cluster in clusters
+                    if cluster[0].kind is kind
+                    and abs(pivot.price - _mean_price(cluster))
+                    <= max(pivot.price, _mean_price(cluster)) * tolerance
+                ),
+                None,
+            )
+            if matching is None:
+                clusters.append([pivot])
+            else:
+                matching.append(pivot)
 
     latest_close = candles[-1].close if candles else None
     levels: list[StructureLevel] = []
@@ -54,12 +57,8 @@ def derive_structure_levels(
             continue
         prices = tuple(item.price for item in cluster)
         representative = sum(prices) / len(prices)
-        latest_pivot = max(cluster, key=lambda item: item.index)
-        role = (
-            LevelRole.RESISTANCE
-            if latest_pivot.kind is SwingType.HIGH
-            else LevelRole.SUPPORT
-        )
+        source_kind = cluster[0].kind
+        role = LevelRole.RESISTANCE if source_kind is SwingType.HIGH else LevelRole.SUPPORT
         status = LevelStatus.ACTIVE
         if latest_close is not None:
             if role is LevelRole.RESISTANCE and latest_close > max(prices):
