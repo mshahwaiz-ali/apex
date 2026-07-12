@@ -26,7 +26,7 @@ from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_e
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
-from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGeneratorRegistration
+from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGenerator
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
@@ -42,7 +42,7 @@ __all__ = [
     "STRATEGY_REGISTRY",
     "StrategyContext",
     "StrategyEvidence",
-    "StrategyGeneratorRegistration",
+    "StrategyGenerator",
     "StrategyType",
     "TargetConcept",
     "TargetLevel",
