@@ -9,6 +9,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from apex.data.timeframes import timeframe_delta
+
 _VALID_TIMEFRAME_ROLES = {
     "long_term_macro",
     "swing",
@@ -48,6 +50,33 @@ DEFAULT_TIMEFRAME_ROLES: dict[str, str] = {
     "1m": "timing",
 }
 
+DEFAULT_TIMEFRAME_RESAMPLING_SOURCES: dict[str, str] = {
+    "1W": "4h",
+    "3D": "4h",
+    "1D": "4h",
+    "12h": "4h",
+    "8h": "4h",
+    "6h": "1h",
+    "2h": "1h",
+}
+
+DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS: dict[str, int] = {
+    "1m": 180,
+    "3m": 360,
+    "5m": 600,
+    "15m": 1_800,
+    "30m": 3_600,
+    "1h": 7_200,
+    "2h": 14_400,
+    "4h": 28_800,
+    "6h": 43_200,
+    "8h": 57_600,
+    "12h": 86_400,
+    "1D": 259_200,
+    "3D": 604_800,
+    "1W": 1_209_600,
+}
+
 
 class FileSettings(BaseModel):
     """Validated settings loaded from the default YAML file."""
@@ -61,6 +90,12 @@ class FileSettings(BaseModel):
     cache_enabled: bool = True
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))
+    timeframe_resampling_sources: dict[str, str] = Field(
+        default_factory=lambda: dict(DEFAULT_TIMEFRAME_RESAMPLING_SOURCES)
+    )
+    timeframe_max_staleness_seconds: dict[str, int] = Field(
+        default_factory=lambda: dict(DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS)
+    )
     advanced_intelligence_enabled: bool = False
     intelligence_funding_enabled: bool = False
     intelligence_open_interest_enabled: bool = False
@@ -90,6 +125,37 @@ class FileSettings(BaseModel):
             raise ValueError("timeframe role keys must be unique after normalization")
         return normalized
 
+    @field_validator("timeframe_resampling_sources")
+    @classmethod
+    def _validate_timeframe_resampling_sources(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for target, source in value.items():
+            clean_target = target.strip()
+            clean_source = source.strip()
+            if not clean_target or not clean_source:
+                raise ValueError("resampling timeframe keys and values cannot be empty")
+            if clean_target == clean_source:
+                raise ValueError("resampling source must differ from target timeframe")
+            normalized[clean_target] = clean_source
+        if len(normalized) != len(value):
+            raise ValueError("resampling target keys must be unique after normalization")
+        return normalized
+
+    @field_validator("timeframe_max_staleness_seconds")
+    @classmethod
+    def _validate_timeframe_max_staleness_seconds(cls, value: dict[str, int]) -> dict[str, int]:
+        normalized: dict[str, int] = {}
+        for timeframe, seconds in value.items():
+            clean_timeframe = timeframe.strip()
+            if not clean_timeframe:
+                raise ValueError("staleness timeframe keys cannot be empty")
+            if seconds < 0:
+                raise ValueError(f"staleness seconds cannot be negative for {clean_timeframe}")
+            normalized[clean_timeframe] = seconds
+        if len(normalized) != len(value):
+            raise ValueError("staleness timeframe keys must be unique after normalization")
+        return normalized
+
     @model_validator(mode="after")
     def _validate_enabled_timeframe_roles(self) -> Self:
         missing = [
@@ -105,6 +171,19 @@ class FileSettings(BaseModel):
             raise ValueError("enabled analysis timeframes must map to unique roles")
         if enabled_roles and not any(role in _THESIS_TIMEFRAME_ROLES for role in enabled_roles):
             raise ValueError("enabled analysis timeframes must include a thesis role")
+        for target, source in self.timeframe_resampling_sources.items():
+            if target not in self.timeframe_roles:
+                raise ValueError(f"resampling target lacks role configuration: {target}")
+            if timeframe_delta(target) <= timeframe_delta(source):
+                raise ValueError(f"resampling target must be higher than source: {target}")
+        missing_staleness = [
+            timeframe
+            for timeframe in self.analysis_timeframes
+            if timeframe not in self.timeframe_max_staleness_seconds
+        ]
+        if missing_staleness:
+            joined = ", ".join(missing_staleness)
+            raise ValueError(f"analysis timeframes missing staleness configuration: {joined}")
         return self
 
 

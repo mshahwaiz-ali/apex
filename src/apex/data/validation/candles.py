@@ -3,19 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
+from apex.data.timeframes import TIMEFRAME_DELTAS
 from apex.domain.models import Candle
-
-TIMEFRAME_DELTAS: dict[str, timedelta] = {
-    "1m": timedelta(minutes=1),
-    "3m": timedelta(minutes=3),
-    "5m": timedelta(minutes=5),
-    "15m": timedelta(minutes=15),
-    "30m": timedelta(minutes=30),
-    "1h": timedelta(hours=1),
-    "4h": timedelta(hours=4),
-}
 
 
 @dataclass(frozen=True)
@@ -39,6 +30,9 @@ def validate_candle_series(
     errors: list[str] = []
     warnings: list[str] = []
 
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("validation clock must be timezone-aware")
+
     if not candles:
         return CandleSeriesValidationResult(
             is_valid=False,
@@ -57,6 +51,16 @@ def validate_candle_series(
     seen_open_times: set[datetime] = set()
 
     for index, candle in enumerate(candles):
+        if candle.open_time.tzinfo is None or candle.open_time.utcoffset() is None:
+            errors.append(f"candle {index} open_time must be timezone-aware")
+        if candle.close_time.tzinfo is None or candle.close_time.utcoffset() is None:
+            errors.append(f"candle {index} close_time must be timezone-aware")
+        if candle.open_time > now:
+            errors.append(f"candle {index} open_time is in the future")
+        if candle.is_closed and candle.close_time > now:
+            errors.append(f"candle {index} is marked closed before close_time")
+        if not candle.is_closed and candle.close_time <= now:
+            errors.append(f"candle {index} is marked active after close_time")
         if candle.timeframe != expected_timeframe:
             errors.append(
                 f"candle {index} timeframe mismatch: {candle.timeframe} != {expected_timeframe}"

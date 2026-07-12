@@ -23,12 +23,16 @@ def _trend(direction: TrendDirection, strength: float) -> TrendAnalysis:
 
 
 def _range() -> RangeStructure:
+    return _range_with_width(width_percentage=0.1)
+
+
+def _range_with_width(width_percentage: float) -> RangeStructure:
     return RangeStructure(
         low=95.0,
         high=105.0,
         midpoint=100.0,
         width=10.0,
-        width_percentage=0.1,
+        width_percentage=width_percentage,
         start_index=0,
         end_index=20,
         upper_tests=3,
@@ -46,7 +50,16 @@ def test_strong_structural_trend_maps_to_strong_regime() -> None:
     )
 
     assert trend_strength_band(result.trend) is TrendStrength.STRONG
-    assert classify_market_regime(result) is MarketRegime.STRONG_TREND
+    assert classify_market_regime(result) is MarketRegime.STRONG_UPTREND
+
+
+def test_bearish_trend_maps_to_directional_downtrend_regime() -> None:
+    result = StructureAnalysisResult(
+        swings=(),
+        trend=_trend(TrendDirection.BEARISH, 0.6),
+    )
+
+    assert classify_market_regime(result) is MarketRegime.WEAK_DOWNTREND
 
 
 def test_validated_range_takes_range_regime() -> None:
@@ -56,7 +69,27 @@ def test_validated_range_takes_range_regime() -> None:
         ranges=(_range(),),
     )
 
-    assert classify_market_regime(result) is MarketRegime.RANGE
+    assert classify_market_regime(result) is MarketRegime.STABLE_RANGE
+
+
+def test_wide_range_maps_to_volatile_range_regime() -> None:
+    result = StructureAnalysisResult(
+        swings=(),
+        trend=_trend(TrendDirection.RANGE, 0.0),
+        ranges=(_range_with_width(0.2),),
+    )
+
+    assert classify_market_regime(result) is MarketRegime.VOLATILE_RANGE
+
+
+def test_tight_range_maps_to_compression_regime() -> None:
+    result = StructureAnalysisResult(
+        swings=(),
+        trend=_trend(TrendDirection.RANGE, 0.0),
+        ranges=(_range_with_width(0.02),),
+    )
+
+    assert classify_market_regime(result) is MarketRegime.COMPRESSION
 
 
 def test_transition_trend_maps_to_reversal_transition() -> None:

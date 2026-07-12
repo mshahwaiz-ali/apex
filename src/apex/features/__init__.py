@@ -24,7 +24,11 @@ from apex.features.price_location import (
     recent_range_position,
     vwap,
 )
-from apex.features.registry import FeatureRegistry, create_default_feature_registry
+from apex.features.registry import (
+    FeatureAuditEntry,
+    FeatureRegistry,
+    create_default_feature_registry,
+)
 from apex.features.trend import (
     EmaRelationshipResult,
     ema_relationship,
@@ -55,6 +59,7 @@ __all__ = [
     "ActiveCandlePolicy",
     "BollingerBandsResult",
     "EmaRelationshipResult",
+    "FeatureAuditEntry",
     "FeatureOutputShape",
     "FeatureRegistry",
     "FeatureResult",

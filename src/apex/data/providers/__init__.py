@@ -6,10 +6,12 @@ from apex.data.providers.cached import (
     CachedMarketDataProvider,
     CandleCachePolicy,
 )
+from apex.data.providers.resampled import ResamplingMarketDataProvider
 
 __all__ = [
     "BinanceMarketDataProvider",
     "CachedMarketDataProvider",
     "CandleCachePolicy",
     "MarketDataProvider",
+    "ResamplingMarketDataProvider",
 ]

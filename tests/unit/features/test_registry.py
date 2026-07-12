@@ -3,7 +3,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from apex.domain.models import Candle
-from apex.features.registry import FeatureRegistry, create_default_feature_registry
+from apex.features import FeatureOutputShape
+from apex.features.registry import (
+    FeatureAuditEntry,
+    FeatureRegistry,
+    create_default_feature_registry,
+)
 
 START = datetime(2026, 7, 12, 0, 0, tzinfo=UTC)
 
@@ -51,3 +56,20 @@ def test_default_registry_is_ordered_and_deterministic() -> None:
     assert first == second
     assert first["macd"][2].spec.name == "macd_histogram_12_26_9"
     assert first["bollinger_20"][3].spec.name == "bollinger_width_20"
+
+
+def test_registry_audit_exposes_feature_contract_metadata() -> None:
+    registry = create_default_feature_registry()
+    first = registry.audit(make_candles())
+    second = registry.audit(make_candles())
+
+    assert first == second
+    assert all(isinstance(entry, FeatureAuditEntry) for entry in first)
+    assert any(
+        entry.group_name == "atr_14"
+        and entry.feature_name == "atr_14"
+        and entry.minimum_candles == 14
+        and entry.output_shape is FeatureOutputShape.SERIES
+        for entry in first
+    )
+    assert all(entry.finite_values + entry.missing_values == entry.output_length for entry in first)

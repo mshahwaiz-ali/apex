@@ -4,7 +4,7 @@ import pytest
 
 from apex.application.market_data import create_market_data_services
 from apex.config import FileSettings
-from apex.data.providers import CachedMarketDataProvider
+from apex.data.providers import CachedMarketDataProvider, ResamplingMarketDataProvider
 from apex.domain.models import Candle, TickerSnapshot
 
 
@@ -34,6 +34,7 @@ def make_settings(tmp_path: Path, *, cache_enabled: bool) -> FileSettings:
         data_dir=tmp_path,
         log_dir=tmp_path / "logs",
         cache_enabled=cache_enabled,
+        timeframe_resampling_sources={},
     )
 
 
@@ -64,6 +65,27 @@ def test_disabling_cache_reuses_live_provider(tmp_path: Path) -> None:
         assert services.candles is provider
         assert services.ticker is provider
 
+    assert provider.closed is True
+
+
+def test_builds_resampling_candles_when_configured(tmp_path: Path) -> None:
+    provider = FakeProvider()
+
+    services = create_market_data_services(
+        FileSettings(
+            data_dir=tmp_path,
+            log_dir=tmp_path / "logs",
+            cache_enabled=False,
+            timeframe_resampling_sources={"1D": "4h"},
+        ),
+        provider_name="fake",
+        provider_builders={"fake": lambda: provider},
+    )
+
+    assert isinstance(services.candles, ResamplingMarketDataProvider)
+    assert services.ticker is provider
+
+    services.close()
     assert provider.closed is True
 
 

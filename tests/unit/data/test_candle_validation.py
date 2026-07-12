@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from apex.data.validation import validate_candle_series
 from apex.domain.models import Candle
 
@@ -117,3 +119,40 @@ def test_active_candle_must_be_last() -> None:
 
     assert result.is_valid is False
     assert "active candle must be the final candle" in result.errors
+
+
+def test_validation_clock_must_be_timezone_aware() -> None:
+    start = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        validate_candle_series(
+            [make_candle(open_time=start)],
+            expected_timeframe="15m",
+            now=datetime(2026, 7, 12, 12, 20),
+        )
+
+
+def test_future_closed_candle_is_rejected() -> None:
+    start = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
+
+    result = validate_candle_series(
+        [make_candle(open_time=start)],
+        expected_timeframe="15m",
+        now=start + timedelta(minutes=5),
+    )
+
+    assert result.is_valid is False
+    assert "candle 0 is marked closed before close_time" in result.errors
+
+
+def test_expired_active_candle_is_rejected() -> None:
+    start = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
+
+    result = validate_candle_series(
+        [make_candle(open_time=start, is_closed=False)],
+        expected_timeframe="15m",
+        now=start + timedelta(minutes=20),
+    )
+
+    assert result.is_valid is False
+    assert "candle 0 is marked active after close_time" in result.errors

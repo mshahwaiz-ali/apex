@@ -27,8 +27,18 @@ class MarketRegime(StrEnum):
     STRONG_TREND = "strong_trend"
     WEAK_TREND = "weak_trend"
     RANGE = "range"
+    STRONG_UPTREND = "strong_uptrend"
+    WEAK_UPTREND = "weak_uptrend"
+    STRONG_DOWNTREND = "strong_downtrend"
+    WEAK_DOWNTREND = "weak_downtrend"
+    STABLE_RANGE = "stable_range"
+    VOLATILE_RANGE = "volatile_range"
+    COMPRESSION = "compression"
     BREAKOUT_EXPANSION = "breakout_expansion"
     REVERSAL_TRANSITION = "reversal_transition"
+    HIGH_VOLATILITY_CHAOS = "high_volatility_chaos"
+    LOW_VOLATILITY_STAGNATION = "low_volatility_stagnation"
+    LOW_LIQUIDITY = "low_liquidity"
     UNCERTAIN = "uncertain"
 
 
@@ -81,14 +91,40 @@ def classify_market_regime(result: StructureAnalysisResult) -> MarketRegime:
     if result.changes_of_character or result.trend.direction is TrendDirection.TRANSITION:
         return MarketRegime.REVERSAL_TRANSITION
     if result.ranges or result.trend.direction is TrendDirection.RANGE:
-        return MarketRegime.RANGE
+        return _range_regime(result.ranges[-1] if result.ranges else None)
 
     strength = trend_strength_band(result.trend)
     if strength is TrendStrength.STRONG:
-        return MarketRegime.STRONG_TREND
+        return (
+            MarketRegime.STRONG_DOWNTREND
+            if _is_bearish(result.trend.direction)
+            else MarketRegime.STRONG_UPTREND
+        )
     if strength in {TrendStrength.WEAK, TrendStrength.MODERATE}:
-        return MarketRegime.WEAK_TREND
+        return (
+            MarketRegime.WEAK_DOWNTREND
+            if _is_bearish(result.trend.direction)
+            else MarketRegime.WEAK_UPTREND
+        )
     return MarketRegime.UNCERTAIN
+
+
+def _is_bearish(direction: TrendDirection) -> bool:
+    return direction in {
+        TrendDirection.STRONG_BEARISH,
+        TrendDirection.BEARISH,
+        TrendDirection.WEAK_BEARISH,
+    }
+
+
+def _range_regime(detected_range: RangeStructure | None) -> MarketRegime:
+    if detected_range is None:
+        return MarketRegime.STABLE_RANGE
+    if detected_range.width_percentage >= 0.12:
+        return MarketRegime.VOLATILE_RANGE
+    if detected_range.width_percentage <= 0.025:
+        return MarketRegime.COMPRESSION
+    return MarketRegime.STABLE_RANGE
 
 
 def range_boundaries(

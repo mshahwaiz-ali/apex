@@ -39,6 +39,33 @@ from apex.features.volume import average_volume, relative_volume, volume_pressur
 FeatureCalculator = Callable[[Sequence[Candle]], tuple[FeatureResult, ...]]
 
 
+@dataclass(frozen=True, slots=True)
+class FeatureAuditEntry:
+    """Inspectable runtime contract metadata for one calculated feature result."""
+
+    group_name: str
+    feature_name: str
+    minimum_candles: int
+    accepts_active_candle: bool
+    output_shape: FeatureOutputShape
+    missing_data_policy: MissingDataPolicy
+    output_length: int
+    finite_values: int
+    missing_values: int
+
+    def __post_init__(self) -> None:
+        if not self.group_name.strip() or not self.feature_name.strip():
+            raise ValueError("feature audit names cannot be empty")
+        if self.minimum_candles < 1:
+            raise ValueError("feature audit minimum candles must be at least one")
+        if self.output_length < 1:
+            raise ValueError("feature audit output length must be at least one")
+        if self.finite_values < 0 or self.missing_values < 0:
+            raise ValueError("feature audit counts cannot be negative")
+        if self.finite_values + self.missing_values != self.output_length:
+            raise ValueError("feature audit counts must equal output length")
+
+
 @dataclass(slots=True)
 class FeatureRegistry:
     """Register named deterministic calculations and evaluate them in order."""
@@ -72,6 +99,29 @@ class FeatureRegistry:
         """Evaluate all groups in deterministic registration order."""
 
         return {name: calculator(candles) for name, calculator in self._calculators.items()}
+
+    def audit(self, candles: Sequence[Candle]) -> tuple[FeatureAuditEntry, ...]:
+        """Return deterministic feature contract metadata from one evaluation pass."""
+
+        entries: list[FeatureAuditEntry] = []
+        for group_name, results in self.calculate_all(candles).items():
+            for result in results:
+                finite_count = sum(value is not None for value in result.values)
+                missing_count = len(result.values) - finite_count
+                entries.append(
+                    FeatureAuditEntry(
+                        group_name=group_name,
+                        feature_name=result.spec.name,
+                        minimum_candles=result.spec.minimum_candles,
+                        accepts_active_candle=result.spec.accepts_active_candle,
+                        output_shape=result.spec.output_shape,
+                        missing_data_policy=result.spec.missing_data_policy,
+                        output_length=len(result.values),
+                        finite_values=finite_count,
+                        missing_values=missing_count,
+                    )
+                )
+        return tuple(entries)
 
 
 def create_default_feature_registry() -> FeatureRegistry:

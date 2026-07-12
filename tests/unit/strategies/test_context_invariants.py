@@ -119,3 +119,30 @@ def test_repeated_context_construction_is_deterministic() -> None:
     )
 
     assert first == second
+
+
+def test_frame_rejects_invalid_price_metadata() -> None:
+    with pytest.raises(ValueError, match="analysis price"):
+        TimeframeContext(
+            timeframe="5m",
+            role=TimeframeRole.ENTRY,
+            current_price=100.0,
+            latest_closed_price=100.0,
+            analysis_price=0.0,
+            features=FeatureSnapshot(atr=2.0),
+            structure=_structure(),
+            liquidity=LiquidityAnalysisResult(zones=(), sweeps=(), traps=()),
+        )
+
+
+def test_frame_rejects_invalid_staleness_metadata() -> None:
+    with pytest.raises(ValueError, match="staleness seconds"):
+        TimeframeContext(
+            timeframe="5m",
+            role=TimeframeRole.ENTRY,
+            current_price=100.0,
+            staleness_seconds=-1.0,
+            features=FeatureSnapshot(atr=2.0),
+            structure=_structure(),
+            liquidity=LiquidityAnalysisResult(zones=(), sweeps=(), traps=()),
+        )

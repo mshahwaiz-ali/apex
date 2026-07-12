@@ -30,3 +30,26 @@ timeframe_roles:
   5m: entry
   3m: refinement
   1m: timing
+timeframe_resampling_sources:
+  1W: 4h
+  3D: 4h
+  1D: 4h
+  12h: 4h
+  8h: 4h
+  6h: 1h
+  2h: 1h
+timeframe_max_staleness_seconds:
+  1m: 180
+  3m: 360
+  5m: 600
+  15m: 1800
+  30m: 3600
+  1h: 7200
+  2h: 14400
+  4h: 28800
+  6h: 43200
+  8h: 57600
+  12h: 86400
+  1D: 259200
+  3D: 604800
+  1W: 1209600

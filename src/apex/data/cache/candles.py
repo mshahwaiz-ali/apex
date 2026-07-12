@@ -16,17 +16,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from apex.data.timeframes import TIMEFRAME_DELTAS as TIMEFRAME_INTERVALS
 from apex.domain.models import Candle
-
-TIMEFRAME_INTERVALS: dict[str, timedelta] = {
-    "1m": timedelta(minutes=1),
-    "3m": timedelta(minutes=3),
-    "5m": timedelta(minutes=5),
-    "15m": timedelta(minutes=15),
-    "30m": timedelta(minutes=30),
-    "1h": timedelta(hours=1),
-    "4h": timedelta(hours=4),
-}
 
 
 @dataclass(frozen=True, slots=True)

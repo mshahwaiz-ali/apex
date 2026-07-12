@@ -8,7 +8,11 @@ from typing import Protocol
 
 from apex.config import FileSettings
 from apex.data.cache.candles import FileCandleCache
-from apex.data.providers import BinanceMarketDataProvider, CachedMarketDataProvider
+from apex.data.providers import (
+    BinanceMarketDataProvider,
+    CachedMarketDataProvider,
+    ResamplingMarketDataProvider,
+)
 from apex.data.providers.base import MarketDataProvider
 
 
@@ -65,6 +69,11 @@ def create_market_data_services(
     if settings.cache_enabled:
         cache = FileCandleCache(settings.data_dir / "cache" / "candles")
         candle_provider = CachedMarketDataProvider(live_provider, cache)
+    if settings.timeframe_resampling_sources:
+        candle_provider = ResamplingMarketDataProvider(
+            candle_provider,
+            resampling_sources=settings.timeframe_resampling_sources,
+        )
 
     return MarketDataServices(
         candles=candle_provider,

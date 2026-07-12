@@ -179,6 +179,11 @@ def analyze(
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
                 timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                timeframe_max_staleness_seconds=getattr(
+                    context.settings,
+                    "timeframe_max_staleness_seconds",
+                    None,
+                ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -219,6 +224,11 @@ def scan(
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
                 timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                timeframe_max_staleness_seconds=getattr(
+                    context.settings,
+                    "timeframe_max_staleness_seconds",
+                    None,
+                ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -251,6 +261,11 @@ def backtest(
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
                 timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                timeframe_max_staleness_seconds=getattr(
+                    context.settings,
+                    "timeframe_max_staleness_seconds",
+                    None,
+                ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -306,6 +321,11 @@ def paper_record(
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
                 timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                timeframe_max_staleness_seconds=getattr(
+                    context.settings,
+                    "timeframe_max_staleness_seconds",
+                    None,
+                ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -585,6 +605,11 @@ def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
                 timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                timeframe_max_staleness_seconds=getattr(
+                    context.settings,
+                    "timeframe_max_staleness_seconds",
+                    None,
+                ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )

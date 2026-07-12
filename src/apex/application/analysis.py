@@ -13,8 +13,9 @@ from typing import Any
 import yaml
 
 from apex.config import DEFAULT_TIMEFRAME_ROLES
+from apex.config.settings import DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
 from apex.data.providers.base import MarketDataProvider
-from apex.domain.models import Candle
+from apex.domain.models import Candle, TickerSnapshot
 from apex.features.registry import create_default_feature_registry
 from apex.phase3 import analyze_phase3
 from apex.risk import (
@@ -48,6 +49,7 @@ class SymbolAnalysis:
     candidate_count: int
     evaluated_timeframes: tuple[str, ...]
     regime_by_timeframe: Mapping[str, str]
+    data_quality_by_timeframe: Mapping[str, Mapping[str, Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +87,7 @@ def analyze_symbol(
     *,
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
+    timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
@@ -100,7 +103,9 @@ def analyze_symbol(
         provider,
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
+        timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
         candle_limit=candle_limit,
+        received_at=decision_time,
     )
     phase4 = analyze_phase4(context, decision_time=decision_time)
     phase5 = analyze_phase5(phase4)
@@ -116,6 +121,9 @@ def analyze_symbol(
         candidate_count=len(phase4.candidates),
         evaluated_timeframes=tuple(frame.timeframe for frame in context.frames),
         regime_by_timeframe=regimes,
+        data_quality_by_timeframe={
+            frame.timeframe: _frame_data_quality_payload(frame) for frame in context.frames
+        },
     )
 
 
@@ -126,10 +134,15 @@ def build_strategy_context(
     timeframes: Sequence[str],
     candle_limit: int,
     timeframe_roles: Mapping[str, str] | None = None,
+    timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    received_at: datetime | None = None,
 ) -> tuple[StrategyContext, Mapping[str, str]]:
     """Fetch candles and build a strategy context in deterministic role order."""
 
     role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
+    staleness_config = timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
+    timestamp = received_at or datetime.now(UTC)
+    ticker_price = _fetch_ticker_price(provider, symbol)
     frames: list[TimeframeContext] = []
     regimes: dict[str, str] = {}
     for timeframe in timeframes:
@@ -138,7 +151,15 @@ def build_strategy_context(
         if role is None:
             continue
         candles = tuple(provider.fetch_candles(symbol, timeframe, limit=candle_limit))
-        frame, regime = _frame_from_candles(symbol, timeframe, role, candles)
+        frame, regime = _frame_from_candles(
+            symbol,
+            timeframe,
+            role,
+            candles,
+            received_at=timestamp,
+            max_staleness_seconds=staleness_config.get(timeframe),
+            ticker_price=ticker_price,
+        )
         frames.append(frame)
         regimes[timeframe] = regime
 
@@ -159,6 +180,7 @@ def scan_symbols(
     *,
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
+    timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
@@ -176,6 +198,7 @@ def scan_symbols(
                     provider,
                     timeframes=timeframes,
                     timeframe_roles=timeframe_roles,
+                    timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
                     candle_limit=candle_limit,
                     risk_config=risk_config,
                     generated_at=timestamp,
@@ -218,6 +241,10 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             "candidate_count": analysis.candidate_count,
             "evaluated_timeframes": list(analysis.evaluated_timeframes),
             "market_regime": dict(analysis.regime_by_timeframe),
+            "timeframe_data_quality": {
+                timeframe: dict(payload)
+                for timeframe, payload in analysis.data_quality_by_timeframe.items()
+            },
             "configuration_id": assessment.configuration_id,
         }
     )
@@ -290,6 +317,10 @@ def _frame_from_candles(
     timeframe: str,
     role: TimeframeRole,
     candles: Sequence[Candle],
+    *,
+    received_at: datetime,
+    max_staleness_seconds: int | None,
+    ticker_price: float | None,
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
@@ -298,6 +329,16 @@ def _frame_from_candles(
     relative_volume_for_phase3 = relative_volume if len(relative_volume) == len(candles) else None
     phase3 = analyze_phase3(candles, relative_volume=relative_volume_for_phase3)
     latest_closed = candles[-2] if not candles[-1].is_closed and len(candles) > 1 else candles[-1]
+    active_candle_price = candles[-1].close if not candles[-1].is_closed else None
+    live_price, live_price_source = _select_current_price(
+        ticker_price=ticker_price,
+        active_candle_price=active_candle_price,
+        latest_closed_price=latest_closed.close,
+    )
+    staleness_seconds = max(0.0, (received_at - latest_closed.close_time).total_seconds())
+    is_stale = max_staleness_seconds is not None and staleness_seconds > float(
+        max_staleness_seconds
+    )
     snapshot = FeatureSnapshot(
         atr=_required_latest(features_by_name["atr_14"][0], "ATR"),
         ema_fast=_latest(features_by_name["ema_20"][0]),
@@ -316,7 +357,17 @@ def _frame_from_candles(
         TimeframeContext(
             timeframe=timeframe,
             role=role,
-            current_price=latest_closed.close,
+            current_price=live_price,
+            latest_closed_price=latest_closed.close,
+            active_candle_price=active_candle_price,
+            ticker_price=ticker_price,
+            analysis_price=latest_closed.close,
+            last_closed_at=latest_closed.close_time,
+            last_received_at=received_at,
+            staleness_seconds=staleness_seconds,
+            is_stale=is_stale,
+            data_confidence=0.5 if is_stale else 1.0,
+            current_price_source=live_price_source,
             features=snapshot,
             structure=phase3.structure,
             liquidity=phase3.liquidity,
@@ -342,6 +393,49 @@ def _unit_or_none(value: float | None) -> float | None:
     if value is None:
         return None
     return max(0.0, min(1.0, value))
+
+
+def _fetch_ticker_price(provider: MarketDataProvider, symbol: str) -> float | None:
+    fetch_ticker = getattr(provider, "fetch_ticker", None)
+    if not callable(fetch_ticker):
+        return None
+    try:
+        snapshot = fetch_ticker(symbol)
+    except Exception:
+        return None
+    if not isinstance(snapshot, TickerSnapshot):
+        return None
+    return snapshot.last_price
+
+
+def _select_current_price(
+    *,
+    ticker_price: float | None,
+    active_candle_price: float | None,
+    latest_closed_price: float,
+) -> tuple[float, str]:
+    if ticker_price is not None:
+        return ticker_price, "ticker_price"
+    if active_candle_price is not None:
+        return active_candle_price, "active_candle_price"
+    return latest_closed_price, "latest_closed_price"
+
+
+def _frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
+    return {
+        "latest_closed_price": frame.latest_closed_price,
+        "active_candle_price": frame.active_candle_price,
+        "ticker_price": frame.ticker_price,
+        "mark_price": frame.mark_price,
+        "index_price": frame.index_price,
+        "analysis_price": frame.analysis_price,
+        "last_closed_at": frame.last_closed_at.isoformat() if frame.last_closed_at else None,
+        "last_received_at": frame.last_received_at.isoformat() if frame.last_received_at else None,
+        "staleness_seconds": frame.staleness_seconds,
+        "is_stale": frame.is_stale,
+        "data_confidence": frame.data_confidence,
+        "current_price_source": frame.current_price_source,
+    }
 
 
 def _approved_payload(setup: RiskApprovedSetup) -> dict[str, Any]:
