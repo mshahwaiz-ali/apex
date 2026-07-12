@@ -8,13 +8,9 @@ from pathlib import Path
 import typer
 
 from apex import __version__
-from apex.application import bootstrap
+from apex.application import bootstrap, create_market_data_services
 from apex.config import load_settings
-from apex.data.cache.candles import FileCandleCache
-from apex.data.providers import (
-    BinanceMarketDataProvider,
-    CachedMarketDataProvider,
-)
+from apex.data.providers.errors import MarketDataProviderError
 
 app = typer.Typer(help="Apex Trading Agent command line interface.", no_args_is_help=True)
 
@@ -53,33 +49,31 @@ def smoke() -> None:
     )
 
 
+def _exit_for_provider_error(prefix: str, error: MarketDataProviderError) -> None:
+    typer.echo(f"{prefix}: {error}", err=True)
+    raise typer.Exit(code=1) from error
+
+
 @app.command("fetch")
 def fetch_candles(
     symbol: str = typer.Argument(..., help="Trading pair, for example BTC/USDT."),
     timeframe: str = typer.Option("15m", "--timeframe", "-t"),
     limit: int = typer.Option(10, "--limit", "-l", min=1, max=1000),
 ) -> None:
-    """Fetch live public OHLCV candles from Binance."""
+    """Fetch live public OHLCV candles from the configured provider."""
 
     try:
         context = bootstrap()
-        cache = FileCandleCache(context.settings.data_dir / "cache" / "candles")
-
-        with BinanceMarketDataProvider() as live_provider:
-            provider = CachedMarketDataProvider(
-                live_provider,
-                cache,
-            )
-            candles = provider.fetch_candles(
+        with create_market_data_services(context.settings) as services:
+            candles = services.candles.fetch_candles(
                 symbol=symbol,
                 timeframe=timeframe,
                 limit=limit,
             )
-    except (ValueError, OSError) as exc:
+    except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    except Exception as exc:
-        typer.echo(f"Market-data request failed: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
+    except MarketDataProviderError as exc:
+        _exit_for_provider_error("Market-data request failed", exc)
 
     typer.echo(
         json.dumps(
@@ -93,16 +87,16 @@ def fetch_candles(
 def ticker(
     symbol: str = typer.Argument(..., help="Trading pair, for example BTC/USDT."),
 ) -> None:
-    """Fetch the current public market ticker from Binance."""
+    """Fetch the current public market ticker from the configured provider."""
 
     try:
-        with BinanceMarketDataProvider() as provider:
-            snapshot = provider.fetch_ticker(symbol)
-    except (ValueError, OSError) as exc:
+        context = bootstrap()
+        with create_market_data_services(context.settings) as services:
+            snapshot = services.ticker.fetch_ticker(symbol)
+    except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    except Exception as exc:
-        typer.echo(f"Ticker request failed: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
+    except MarketDataProviderError as exc:
+        _exit_for_provider_error("Ticker request failed", exc)
 
     typer.echo(json.dumps(snapshot.model_dump(mode="json"), indent=2))
 
