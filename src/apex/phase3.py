@@ -10,6 +10,7 @@ from apex.features.validation import ActiveCandlePolicy
 from apex.liquidity.analysis import LiquidityAnalysisResult, analyze_liquidity
 from apex.structure.analysis import analyze_structure
 from apex.structure.contracts import StructureAnalysisResult
+from apex.structure.regime import MarketRegime, classify_market_regime
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,12 @@ class Phase3AnalysisResult:
 
     structure: StructureAnalysisResult
     liquidity: LiquidityAnalysisResult
+
+    @property
+    def regime(self) -> MarketRegime:
+        """Return the derived strategy-neutral structural market regime."""
+
+        return classify_market_regime(self.structure)
 
 
 def analyze_phase3(
