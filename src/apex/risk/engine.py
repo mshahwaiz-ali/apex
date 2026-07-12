@@ -6,12 +6,15 @@ from apex.risk.config import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 from apex.risk.contracts import (
     ActionableEntry,
     LeverageRange,
+    ManagementPolicy,
+    ManagementPolicyType,
     PositionSize,
     RiskApprovedSetup,
     RiskAssessment,
     RiskDecision,
     RiskRejectionCode,
     StopLoss,
+    StopQualityBand,
     TakeProfit,
 )
 from apex.scoring.contracts import Phase5AnalysisResult, RankedCandidate
@@ -63,6 +66,7 @@ def _stop(candidate: TradeCandidate, config: RiskConfig) -> StopLoss:
         else candidate.invalidation.price + buffer
     )
     distance = abs(preferred - price)
+    quality_score = _stop_quality_score(candidate, distance / preferred * 100.0, config)
     return StopLoss(
         price=price,
         distance=distance,
@@ -71,20 +75,99 @@ def _stop(candidate: TradeCandidate, config: RiskConfig) -> StopLoss:
             *candidate.invalidation.rationale,
             "buffer beyond thesis invalidation",
         ),
+        quality_score=quality_score,
+        quality_band=_stop_quality_band(quality_score),
     )
 
 
 def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...]:
     preferred = candidate.entry.preferred
-    return tuple(
+    raw = tuple(
         TakeProfit(
             label=level.label,
             price=level.price,
             reward=abs(level.price - preferred),
             risk_reward=abs(level.price - preferred) / stop.distance,
             rationale=level.rationale,
+            partial_close_pct=partial,
         )
-        for level in candidate.targets.levels
+        for level, partial in zip(
+            candidate.targets.levels,
+            _partial_close_percentages(len(candidate.targets.levels)),
+            strict=True,
+        )
+    )
+    return raw
+
+
+def _partial_close_percentages(count: int) -> tuple[float, ...]:
+    if count <= 0:
+        raise ValueError("target count must be positive")
+    if count == 1:
+        return (100.0,)
+    if count == 2:
+        return (50.0, 50.0)
+    first = (40.0, 35.0)
+    remaining = 25.0 / (count - 2)
+    return (*first, *(remaining for _ in range(count - 2)))
+
+
+def _stop_quality_score(
+    candidate: TradeCandidate,
+    stop_distance_pct: float,
+    config: RiskConfig,
+) -> float:
+    distance_window = config.maximum_stop_distance_pct - config.minimum_stop_distance_pct
+    if distance_window <= 0.0:
+        distance_quality = 0.0
+    else:
+        midpoint = (config.maximum_stop_distance_pct + config.minimum_stop_distance_pct) / 2.0
+        distance_quality = 1.0 - min(
+            1.0,
+            abs(stop_distance_pct - midpoint) / (distance_window / 2.0),
+        )
+    structure_quality = candidate.quality.structure_quality
+    entry_quality = candidate.quality.entry_quality
+    blended = distance_quality * 0.45 + structure_quality * 0.35 + entry_quality * 0.20
+    return max(0.0, min(1.0, blended))
+
+
+def _stop_quality_band(score: float) -> StopQualityBand:
+    if score >= 0.75:
+        return StopQualityBand.STRONG
+    if score >= 0.45:
+        return StopQualityBand.ACCEPTABLE
+    return StopQualityBand.WEAK
+
+
+def _management_policies(targets: tuple[TakeProfit, ...]) -> tuple[ManagementPolicy, ...]:
+    first_target = targets[0]
+    final_target = targets[-1]
+    return (
+        ManagementPolicy(
+            kind=ManagementPolicyType.BREAKEVEN,
+            trigger=f"{first_target.label} touched or trade reaches 1R",
+            action="move stop to breakeven after partial realization",
+            rationale=("protect realized edge after first objective confirms thesis",),
+        ),
+        ManagementPolicy(
+            kind=ManagementPolicyType.TRAILING,
+            trigger=f"price accepts beyond {first_target.label}",
+            action="trail behind the latest valid structural swing or volatility band",
+            rationale=("keep upside open while preserving structural invalidation",),
+        ),
+        ManagementPolicy(
+            kind=ManagementPolicyType.TIME_EXIT,
+            trigger="entry thesis remains unresolved through candidate expiry",
+            action="cancel unfilled entry or flatten stale paper position",
+            rationale=("avoid carrying a setup after its analysis window expires",),
+        ),
+        ManagementPolicy(
+            kind=ManagementPolicyType.MOMENTUM_FAILURE,
+            trigger=f"momentum contradicts before {final_target.label}",
+            action="reduce or exit remaining exposure before structural stop",
+            rationale=("cut exposure when continuation evidence fails before invalidation",),
+        ),
     )
 
 
@@ -290,6 +373,7 @@ def analyze_phase6(
             take_profits=targets,
             position_size=position,
             leverage=leverage,
+            management_policies=_management_policies(targets),
             warnings=tuple(candidate.evidence.warnings),
         ),
         rejection_codes=(),

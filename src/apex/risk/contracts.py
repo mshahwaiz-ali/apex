@@ -30,6 +30,19 @@ class RiskRejectionCode(StrEnum):
     CONSECUTIVE_LOSS_LIMIT = "consecutive_loss_limit"
 
 
+class StopQualityBand(StrEnum):
+    STRONG = "strong"
+    ACCEPTABLE = "acceptable"
+    WEAK = "weak"
+
+
+class ManagementPolicyType(StrEnum):
+    BREAKEVEN = "breakeven"
+    TRAILING = "trailing"
+    TIME_EXIT = "time_exit"
+    MOMENTUM_FAILURE = "momentum_failure"
+
+
 def _finite(name: str, value: float) -> None:
     if not math.isfinite(value):
         raise ValueError(f"{name} must be finite")
@@ -71,6 +84,8 @@ class StopLoss:
     distance: float
     distance_pct: float
     rationale: tuple[str, ...]
+    quality_score: float = 0.5
+    quality_band: StopQualityBand = StopQualityBand.ACCEPTABLE
 
     def __post_init__(self) -> None:
         _positive("stop price", self.price)
@@ -78,6 +93,9 @@ class StopLoss:
         _positive("stop distance percentage", self.distance_pct)
         if not self.rationale:
             raise ValueError("stop rationale cannot be empty")
+        _finite("stop quality score", self.quality_score)
+        if not 0.0 <= self.quality_score <= 1.0:
+            raise ValueError("stop quality score must be between zero and one")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +105,7 @@ class TakeProfit:
     reward: float
     risk_reward: float
     rationale: tuple[str, ...]
+    partial_close_pct: float = 100.0
 
     def __post_init__(self) -> None:
         if not self.label.strip():
@@ -99,6 +118,23 @@ class TakeProfit:
             _positive(name, value)
         if not self.rationale:
             raise ValueError("target rationale cannot be empty")
+        _positive("partial close percentage", self.partial_close_pct)
+        if self.partial_close_pct > 100.0:
+            raise ValueError("partial close percentage cannot exceed 100")
+
+
+@dataclass(frozen=True, slots=True)
+class ManagementPolicy:
+    kind: ManagementPolicyType
+    trigger: str
+    action: str
+    rationale: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.trigger.strip() or not self.action.strip():
+            raise ValueError("management policy trigger and action cannot be empty")
+        if not self.rationale:
+            raise ValueError("management policy rationale cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +195,7 @@ class RiskApprovedSetup:
     take_profits: tuple[TakeProfit, ...]
     position_size: PositionSize
     leverage: LeverageRange
+    management_policies: tuple[ManagementPolicy, ...] = ()
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -171,6 +208,11 @@ class RiskApprovedSetup:
             raise ValueError("confidence score must be between zero and 100")
         if not self.take_profits:
             raise ValueError("approved setup requires at least one target")
+        if not self.management_policies:
+            raise ValueError("approved setup requires management policies")
+        partial_total = sum(target.partial_close_pct for target in self.take_profits)
+        if not math.isclose(partial_total, 100.0, rel_tol=0.0, abs_tol=1e-9):
+            raise ValueError("take-profit partial percentages must sum to 100")
         if self.position_size.required_leverage > self.leverage.maximum:
             raise ValueError("position sizing cannot require unsafe leverage")
         inside_zone = self.entry.lower <= self.entry.current_price <= self.entry.upper

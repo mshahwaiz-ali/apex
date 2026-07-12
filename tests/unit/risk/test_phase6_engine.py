@@ -5,9 +5,11 @@ import pytest
 
 from apex.risk import (
     ExposureState,
+    ManagementPolicyType,
     RiskConfig,
     RiskDecision,
     RiskRejectionCode,
+    StopQualityBand,
     analyze_phase6,
     load_risk_config,
 )
@@ -143,7 +145,21 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
     assert result.decision is RiskDecision.APPROVED
     assert result.setup is not None
     assert result.setup.stop_loss.price < result.setup.entry.lower
+    assert result.setup.stop_loss.quality_band in {
+        StopQualityBand.STRONG,
+        StopQualityBand.ACCEPTABLE,
+    }
+    assert 0.0 <= result.setup.stop_loss.quality_score <= 1.0
     assert result.setup.take_profits[0].price > result.setup.entry.upper
+    assert sum(target.partial_close_pct for target in result.setup.take_profits) == pytest.approx(
+        100.0
+    )
+    assert tuple(policy.kind for policy in result.setup.management_policies) == (
+        ManagementPolicyType.BREAKEVEN,
+        ManagementPolicyType.TRAILING,
+        ManagementPolicyType.TIME_EXIT,
+        ManagementPolicyType.MOMENTUM_FAILURE,
+    )
     assert result.setup.position_size.risk_amount == pytest.approx(50.0)
     assert result.setup.position_size.required_leverage <= result.setup.leverage.maximum
     assert result.setup.leverage.liquidation_price_at_maximum < result.setup.stop_loss.price
@@ -154,7 +170,46 @@ def test_short_candidate_is_directionally_symmetric() -> None:
     assert result.setup is not None
     assert result.setup.stop_loss.price > result.setup.entry.upper
     assert result.setup.take_profits[0].price < result.setup.entry.lower
+    assert result.setup.take_profits[0].partial_close_pct == pytest.approx(100.0)
     assert result.setup.leverage.liquidation_price_at_maximum > result.setup.stop_loss.price
+
+
+def test_multiple_targets_receive_deterministic_partial_closes() -> None:
+    candidate = _candidate(target=104.0)
+    candidate = replace(
+        candidate,
+        targets=TargetConcept(
+            levels=(
+                TargetLevel(
+                    kind=TargetType.PARTIAL,
+                    price=102.5,
+                    label="TP1",
+                    rationale=("first partial",),
+                ),
+                TargetLevel(
+                    kind=TargetType.STRUCTURAL,
+                    price=104.0,
+                    label="TP2",
+                    rationale=("second partial",),
+                ),
+                TargetLevel(
+                    kind=TargetType.EXPANSION,
+                    price=106.0,
+                    label="TP3",
+                    rationale=("runner",),
+                ),
+            )
+        ),
+    )
+
+    result = analyze_phase6(_phase5(candidate))
+
+    assert result.setup is not None
+    assert tuple(target.partial_close_pct for target in result.setup.take_profits) == (
+        40.0,
+        35.0,
+        25.0,
+    )
 
 
 def test_no_selected_candidate_remains_no_trade() -> None:
