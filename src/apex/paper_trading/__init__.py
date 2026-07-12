@@ -2,22 +2,34 @@
 
 from apex.paper_trading.contracts import (
     TERMINAL_STATES,
+    BacktestPaperComparison,
     PaperPerformance,
+    PaperReport,
     PaperTrade,
     PaperTradeConfig,
     PaperTradeState,
 )
-from apex.paper_trading.engine import create_paper_trade, summarize_paper_trades, update_paper_trade
+from apex.paper_trading.engine import (
+    compare_backtest_to_paper,
+    create_paper_trade,
+    generate_paper_report,
+    summarize_paper_trades,
+    update_paper_trade,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 __all__ = [
     "TERMINAL_STATES",
+    "BacktestPaperComparison",
     "PaperPerformance",
+    "PaperReport",
     "PaperTrade",
     "PaperTradeConfig",
     "PaperTradeState",
     "PaperTradeStore",
+    "compare_backtest_to_paper",
     "create_paper_trade",
+    "generate_paper_report",
     "summarize_paper_trades",
     "update_paper_trade",
 ]

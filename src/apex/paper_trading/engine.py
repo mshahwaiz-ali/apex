@@ -7,11 +7,13 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from apex.backtesting import BacktestSignal, signal_from_setup
+from apex.backtesting import BacktestReport, BacktestSignal, signal_from_setup
 from apex.domain.models import Candle
 from apex.paper_trading.contracts import (
     TERMINAL_STATES,
+    BacktestPaperComparison,
     PaperPerformance,
+    PaperReport,
     PaperTrade,
     PaperTradeConfig,
     PaperTradeState,
@@ -86,6 +88,52 @@ def summarize_paper_trades(trades: tuple[PaperTrade, ...]) -> PaperPerformance:
             sum(trade.realized_r_multiple for trade in closed) / len(closed) if closed else 0.0
         ),
         by_state=by_state,
+    )
+
+
+def generate_paper_report(
+    trades: tuple[PaperTrade, ...],
+    *,
+    period: str,
+    generated_at: datetime | None = None,
+) -> PaperReport:
+    """Generate a period-scoped paper trading report from stored trades."""
+
+    timestamp = generated_at or datetime.now(UTC)
+    performance = summarize_paper_trades(trades)
+    return PaperReport(
+        period=period,
+        generated_at=timestamp,
+        performance=performance,
+        notes=(
+            f"closed_trades={performance.closed_trades}",
+            f"open_trades={performance.open_trades}",
+        ),
+    )
+
+
+def compare_backtest_to_paper(
+    backtest: BacktestReport,
+    paper: PaperPerformance,
+    *,
+    generated_at: datetime | None = None,
+) -> BacktestPaperComparison:
+    """Compare realized paper performance against a backtest report."""
+
+    timestamp = generated_at or datetime.now(UTC)
+    notes: list[str] = []
+    if paper.total_trades != backtest.total_trades:
+        notes.append("trade counts differ between backtest and paper sample")
+    if paper.win_rate < backtest.win_rate:
+        notes.append("paper win rate is below backtest win rate")
+    return BacktestPaperComparison(
+        generated_at=timestamp,
+        backtest_total_trades=backtest.total_trades,
+        paper_total_trades=paper.total_trades,
+        net_pnl_delta=paper.net_pnl - backtest.net_profit,
+        win_rate_delta=paper.win_rate - backtest.win_rate,
+        average_r_delta=paper.average_r_multiple - backtest.average_risk_reward,
+        notes=tuple(notes) or ("paper and backtest metrics compared",),
     )
 
 

@@ -10,9 +10,11 @@ from apex.optimization.contracts import (
     WalkForwardSplit,
 )
 from apex.optimization.engine import (
+    compare_backtest_studies,
     compare_performance,
     evaluate_performance,
     load_performance_report,
+    performance_from_backtest_study,
     performance_from_mapping,
     result_to_payload,
     save_optimization_result,
@@ -26,9 +28,11 @@ __all__ = [
     "OptimizationRunConfig",
     "PerformanceSummary",
     "WalkForwardSplit",
+    "compare_backtest_studies",
     "compare_performance",
     "evaluate_performance",
     "load_performance_report",
+    "performance_from_backtest_study",
     "performance_from_mapping",
     "result_to_payload",
     "save_optimization_result",

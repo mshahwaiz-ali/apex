@@ -2,13 +2,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from apex.backtesting import BacktestSignal
+from apex.backtesting import BacktestConfig, BacktestSignal, simulate_trade, summarize_trades
 from apex.domain import Candle
 from apex.paper_trading import (
     PaperTrade,
     PaperTradeConfig,
     PaperTradeState,
     PaperTradeStore,
+    compare_backtest_to_paper,
+    generate_paper_report,
     summarize_paper_trades,
     update_paper_trade,
 )
@@ -133,3 +135,31 @@ def test_paper_summary_and_store_roundtrip(tmp_path) -> None:
     assert performance.total_trades == 1
     assert performance.closed_trades == 1
     assert performance.win_rate == pytest.approx(1.0)
+
+
+def test_paper_report_and_backtest_comparison() -> None:
+    closed = update_paper_trade(
+        update_paper_trade(
+            _trade(),
+            (_candle(high=101.0, low=99.0, close=100.5),),
+            config=PaperTradeConfig(fee_pct=0.0, slippage_pct=0.0),
+        ),
+        (_candle(high=105.0, low=100.0, close=104.0, index=1),),
+        config=PaperTradeConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    paper = summarize_paper_trades((closed,))
+    backtest_trade = simulate_trade(
+        _signal(),
+        (_candle(high=105.0, low=99.0, close=104.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    backtest = summarize_trades((backtest_trade,))
+
+    report = generate_paper_report((closed,), period="daily", generated_at=NOW)
+    comparison = compare_backtest_to_paper(backtest, paper, generated_at=NOW)
+
+    assert report.performance == paper
+    assert report.notes == ("closed_trades=1", "open_trades=0")
+    assert comparison.backtest_total_trades == 1
+    assert comparison.paper_total_trades == 1
+    assert comparison.win_rate_delta == pytest.approx(0.0)

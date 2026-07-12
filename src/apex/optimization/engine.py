@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from apex.backtesting import BacktestStudy
 from apex.optimization.contracts import (
     CandidateParameterSet,
     OptimizationDecision,
@@ -13,6 +14,24 @@ from apex.optimization.contracts import (
     OptimizationRunConfig,
     PerformanceSummary,
 )
+
+
+def performance_from_backtest_study(study: BacktestStudy) -> PerformanceSummary:
+    """Build optimizer performance input from a reproducible backtest study."""
+
+    report = study.report
+    return PerformanceSummary(
+        total_trades=report.total_trades,
+        win_rate=report.win_rate,
+        expectancy=report.expectancy,
+        profit_factor=report.profit_factor,
+        maximum_drawdown=report.maximum_drawdown,
+        net_profit=report.net_profit,
+        by_symbol=dict(report.by_symbol),
+        by_strategy=dict(report.by_strategy),
+        by_regime={},
+        by_score_band={},
+    )
 
 
 def performance_from_mapping(payload: dict[str, Any]) -> PerformanceSummary:
@@ -116,6 +135,20 @@ def compare_performance(
     if candidate.maximum_drawdown > drawdown_limit:
         accepted = False
         reasons.append("candidate drawdown exceeds allowed increase")
+    if _exceeds_dependency_share(
+        candidate.by_symbol,
+        candidate.total_trades,
+        run_config.maximum_symbol_trade_share,
+    ):
+        accepted = False
+        reasons.append("candidate performance is too dependent on one symbol")
+    if run_config.reject_strategy_dependency and _exceeds_dependency_share(
+        candidate.by_strategy,
+        candidate.total_trades,
+        run_config.maximum_strategy_trade_share,
+    ):
+        accepted = False
+        reasons.append("candidate performance is too dependent on one strategy")
     if not reasons:
         reasons.append("candidate improves or preserves required performance metrics")
     return OptimizationResult(
@@ -128,6 +161,23 @@ def compare_performance(
         recommended_patch=(
             {parameter_set.group.value: dict(parameter_set.parameters)} if accepted else {}
         ),
+    )
+
+
+def compare_backtest_studies(
+    baseline: BacktestStudy,
+    candidate: BacktestStudy,
+    *,
+    run_config: OptimizationRunConfig,
+    parameter_set: CandidateParameterSet,
+) -> OptimizationResult:
+    """Compare optimization candidates using actual backtest studies."""
+
+    return compare_performance(
+        performance_from_backtest_study(baseline),
+        performance_from_backtest_study(candidate),
+        run_config=run_config,
+        parameter_set=parameter_set,
     )
 
 
@@ -188,6 +238,16 @@ def _string_int_mapping(value: Any) -> dict[str, int]:
     if not isinstance(value, dict):
         return {}
     return {str(key): int(item) for key, item in value.items()}
+
+
+def _exceeds_dependency_share(
+    counts: dict[str, int],
+    total: int,
+    maximum_share: float,
+) -> bool:
+    if total <= 0 or not counts:
+        return False
+    return max(counts.values()) / total > maximum_share
 
 
 def _jsonable(value: Any) -> Any:

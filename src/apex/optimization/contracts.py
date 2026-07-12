@@ -70,6 +70,10 @@ class OptimizationRunConfig:
     minimum_expectancy_delta: float = 0.0
     maximum_drawdown_increase_pct: float = 0.0
     require_profit_factor_not_worse: bool = True
+    reject_symbol_dependency: bool = True
+    maximum_symbol_trade_share: float = 0.70
+    reject_strategy_dependency: bool = False
+    maximum_strategy_trade_share: float = 0.80
     split: WalkForwardSplit | None = None
 
     def __post_init__(self) -> None:
@@ -81,6 +85,10 @@ class OptimizationRunConfig:
             value = getattr(self, name)
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name.replace('_', ' ')} must be finite and non-negative")
+        for name in ("maximum_symbol_trade_share", "maximum_strategy_trade_share"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or not 0.0 < value <= 1.0:
+                raise ValueError(f"{name.replace('_', ' ')} must be in the interval (0, 1]")
 
 
 @dataclass(frozen=True, slots=True)

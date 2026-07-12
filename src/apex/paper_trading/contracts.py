@@ -121,3 +121,41 @@ class PaperPerformance:
                 raise ValueError(f"{name.replace('_', ' ')} must be finite")
         if not 0.0 <= self.win_rate <= 1.0:
             raise ValueError("win rate must be in the unit interval")
+
+
+@dataclass(frozen=True, slots=True)
+class PaperReport:
+    """Period-scoped paper-trading report."""
+
+    period: str
+    generated_at: datetime
+    performance: PaperPerformance
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.period.strip():
+            raise ValueError("paper report period cannot be empty")
+        if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
+            raise ValueError("paper report generation time must be timezone-aware")
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestPaperComparison:
+    """Compare paper outcomes to a reproducible backtest report."""
+
+    generated_at: datetime
+    backtest_total_trades: int
+    paper_total_trades: int
+    net_pnl_delta: float
+    win_rate_delta: float
+    average_r_delta: float
+    notes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
+            raise ValueError("comparison generation time must be timezone-aware")
+        if self.backtest_total_trades < 0 or self.paper_total_trades < 0:
+            raise ValueError("comparison trade counts cannot be negative")
+        for name in ("net_pnl_delta", "win_rate_delta", "average_r_delta"):
+            if not math.isfinite(getattr(self, name)):
+                raise ValueError(f"{name.replace('_', ' ')} must be finite")
