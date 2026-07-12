@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from itertools import pairwise
 
 from apex.structure.contracts import (
     PivotStatus,
@@ -89,7 +90,7 @@ def classify_trend(
 
 def _classify_moves(swings: Sequence[SwingPoint], tolerance: float) -> tuple[int, ...]:
     moves: list[int] = []
-    for previous, current in zip(swings, swings[1:], strict=False):
+    for previous, current in pairwise(swings):
         scale = max(abs(previous.price), abs(current.price), 1.0)
         difference = current.price - previous.price
         if abs(difference) <= tolerance * scale:
@@ -110,7 +111,11 @@ def _direction(
     weak_threshold: float,
 ) -> TrendDirection:
     if bullish == bearish:
-        return TrendDirection.RANGE if equal > 0 or bullish == 0 else TrendDirection.TRANSITION
+        return (
+            TrendDirection.RANGE
+            if equal > 0 or bullish == 0
+            else TrendDirection.TRANSITION
+        )
 
     conflict = min(bullish, bearish) > 0
     if bullish > bearish:
