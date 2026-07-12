@@ -83,11 +83,11 @@ def create_default_feature_registry() -> FeatureRegistry:
     registry.register("rsi_14", lambda candles: (relative_strength_index(candles, 14),))
     registry.register("rsi_slope_14_3", lambda candles: (rsi_slope(candles, 14, 3),))
     registry.register("roc_12", lambda candles: (rate_of_change(candles, 12),))
-    registry.register("macd_12_26_9", _macd_results)
+    registry.register("macd", _macd_results)
     registry.register("true_range", lambda candles: (true_range(candles),))
     registry.register("atr_14", lambda candles: (average_true_range(candles, 14),))
     registry.register("atr_percentage_14", lambda candles: (atr_percentage(candles, 14),))
-    registry.register("bollinger_20_2", _bollinger_results)
+    registry.register("bollinger_20", _bollinger_results)
     registry.register("candle_range_ratio_20", lambda candles: (candle_range_ratio(candles, 20),))
     registry.register("wick_statistics_latest", _wick_statistics_result)
     registry.register("average_volume_20", lambda candles: (average_volume(candles, 20),))
@@ -99,7 +99,9 @@ def create_default_feature_registry() -> FeatureRegistry:
         "recent_range_position_20",
         lambda candles: (recent_range_position(candles, 20),),
     )
-    registry.register("bollinger_position_20_2", lambda candles: (bollinger_position(candles, 20, 2.0),))
+    registry.register(
+        "bollinger_position_20_2", lambda candles: (bollinger_position(candles, 20, 2.0),)
+    )
     registry.register("distance_from_recent_extremes_20", _recent_extreme_results)
     registry.register("ema_relationship_12_26", _ema_relationship_results)
     registry.register("ema_slope_20_3", lambda candles: (ema_slope(candles, 20, 3),))
@@ -107,7 +109,9 @@ def create_default_feature_registry() -> FeatureRegistry:
         "price_distance_from_ema_20",
         lambda candles: (price_distance_from_ema(candles, 20),),
     )
-    registry.register("trend_persistence_20_10", lambda candles: (trend_persistence(candles, 20, 10),))
+    registry.register(
+        "trend_persistence_20_10", lambda candles: (trend_persistence(candles, 20, 10),)
+    )
     return registry
 
 
@@ -143,9 +147,15 @@ def _wick_statistics_result(candles: Sequence[Candle]) -> tuple[FeatureResult, .
         raise ValueError("at least 1 closed candle is required")
     statistics = wick_statistics(candle)
     specs = (
-        FeatureSpec("latest_upper_wick_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE),
-        FeatureSpec("latest_lower_wick_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE),
-        FeatureSpec("latest_body_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE),
+        FeatureSpec(
+            "latest_upper_wick_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE
+        ),
+        FeatureSpec(
+            "latest_lower_wick_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE
+        ),
+        FeatureSpec(
+            "latest_body_ratio", 1, False, FeatureOutputShape.SCALAR, MissingDataPolicy.NONE
+        ),
     )
     return (
         FeatureResult(specs[0], (statistics.upper_ratio,)),

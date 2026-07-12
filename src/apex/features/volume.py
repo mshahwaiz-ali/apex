@@ -83,7 +83,7 @@ def volume_spike(
 
     validate_period(period)
     if not math.isfinite(threshold) or threshold <= 0:
-        raise ValueError("threshold must be a positive finite value")
+        raise ValueError("threshold must be finite and greater than zero")
     relative = relative_volume(
         candles,
         period,
