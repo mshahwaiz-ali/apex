@@ -191,6 +191,11 @@ def test_orchestration_marks_confirmed_sweep_zone_as_swept() -> None:
     assert result.sweeps[0].classification is SweepClassification.CONFIRMED_SWEEP
     assert result.zones[0].status is LiquidityZoneStatus.SWEPT
     assert result.sweeps[0].zone.status is LiquidityZoneStatus.SWEPT
+    assert result.evidence_summary is not None
+    assert result.evidence_summary.zone_count == 1
+    assert result.evidence_summary.swept_zone_count == 1
+    assert result.evidence_summary.confirmed_sweep_count == 1
+    assert result.evidence_summary.strongest_zone_price == pytest.approx(100.0)
 
 
 def test_orchestration_marks_sustained_breakout_zone_as_consumed() -> None:

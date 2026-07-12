@@ -19,6 +19,7 @@ from apex.structure.contracts import (
     TrendDirection,
     TrendEvidence,
 )
+from apex.structure.regime import MarketRegime
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
@@ -112,6 +113,9 @@ def test_empty_context_produces_no_candidates() -> None:
     result = analyze_phase4(_context(actionable=False), decision_time=NOW)
 
     assert result.candidates == ()
+    assert result.decision_regime is MarketRegime.UNCERTAIN
+    assert result.eligible_strategies == ()
+    assert set(result.skipped_strategies) == set(result.evaluated_strategies)
 
 
 def test_competing_candidates_are_retained_in_registry_order() -> None:
@@ -120,6 +124,16 @@ def test_competing_candidates_are_retained_in_registry_order() -> None:
     strategies = tuple(candidate.strategy for candidate in result.candidates)
     assert StrategyType.TREND_PULLBACK in strategies
     assert StrategyType.MOMENTUM_CONTINUATION in strategies
+    assert result.decision_regime is MarketRegime.STRONG_UPTREND
+    assert result.eligible_strategies == (
+        StrategyType.TREND_PULLBACK,
+        StrategyType.BREAKOUT_CONTINUATION,
+        StrategyType.MOMENTUM_CONTINUATION,
+    )
+    assert set(result.skipped_strategies) == {
+        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.RANGE_REVERSAL,
+    }
     assert strategies.index(StrategyType.TREND_PULLBACK) < strategies.index(
         StrategyType.MOMENTUM_CONTINUATION
     )

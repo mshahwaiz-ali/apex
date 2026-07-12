@@ -6,9 +6,12 @@ from apex.domain import Candle
 from apex.structure import (
     ComparisonPolicy,
     PivotStatus,
+    StructureAnalysisResult,
     SwingPoint,
     SwingType,
+    TrendAnalysis,
     TrendDirection,
+    TrendEvidence,
     classify_trend,
     create_default_structure_registry,
     detect_swings,
@@ -125,3 +128,22 @@ def test_structure_registry_names_are_stable() -> None:
     assert registry.names == ("market_structure",)
     with pytest.raises(KeyError):
         registry.get("private_helper")
+
+
+def test_structure_result_adds_deterministic_evidence_summary() -> None:
+    result = StructureAnalysisResult(
+        swings=(
+            _swing(1, 105.0, SwingType.HIGH),
+            _swing(2, 100.0, SwingType.LOW),
+        ),
+        trend=TrendAnalysis(
+            direction=TrendDirection.BULLISH,
+            strength=0.7,
+            evidence=TrendEvidence(persistence=0.7),
+        ),
+    )
+
+    assert result.evidence_summary is not None
+    assert result.evidence_summary.swing_count == 2
+    assert result.evidence_summary.confirmed_swing_count == 2
+    assert result.evidence_summary.notes == ("trend=bullish", "trend_strength=0.700")

@@ -1,6 +1,10 @@
 """Deterministic liquidity, sweep, and trap engine."""
 
-from apex.liquidity.analysis import LiquidityAnalysisResult, analyze_liquidity
+from apex.liquidity.analysis import (
+    LiquidityAnalysisResult,
+    LiquidityEvidenceSummary,
+    analyze_liquidity,
+)
 from apex.liquidity.contracts import (
     LiquiditySide,
     LiquiditySweep,
@@ -18,6 +22,7 @@ from apex.liquidity.zones import derive_liquidity_zones
 
 __all__ = [
     "LiquidityAnalysisResult",
+    "LiquidityEvidenceSummary",
     "LiquidityRegistry",
     "LiquiditySide",
     "LiquiditySweep",

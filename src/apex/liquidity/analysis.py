@@ -17,7 +17,50 @@ from apex.liquidity.contracts import (
 from apex.liquidity.sweeps import detect_liquidity_sweeps
 from apex.liquidity.traps import detect_traps
 from apex.liquidity.zones import derive_liquidity_zones
-from apex.structure.contracts import StructureAnalysisResult
+from apex.structure.contracts import ConfirmationStatus, StructureAnalysisResult
+
+
+@dataclass(frozen=True, slots=True)
+class LiquidityEvidenceSummary:
+    """Compact explainable snapshot of liquidity state and event evidence."""
+
+    zone_count: int
+    active_zone_count: int
+    swept_zone_count: int
+    consumed_zone_count: int
+    sweep_count: int
+    confirmed_sweep_count: int
+    unresolved_breach_count: int
+    trap_count: int
+    confirmed_trap_count: int
+    strongest_zone_price: float | None = None
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "zone_count",
+            "active_zone_count",
+            "swept_zone_count",
+            "consumed_zone_count",
+            "sweep_count",
+            "confirmed_sweep_count",
+            "unresolved_breach_count",
+            "trap_count",
+            "confirmed_trap_count",
+        ):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} cannot be negative")
+        counted_zones = self.active_zone_count + self.swept_zone_count + self.consumed_zone_count
+        if counted_zones > self.zone_count:
+            raise ValueError("liquidity-zone status counts cannot exceed total zones")
+        if self.confirmed_sweep_count > self.sweep_count:
+            raise ValueError("confirmed sweep count cannot exceed total sweeps")
+        if self.unresolved_breach_count > self.sweep_count:
+            raise ValueError("unresolved breach count cannot exceed total sweeps")
+        if self.confirmed_trap_count > self.trap_count:
+            raise ValueError("confirmed trap count cannot exceed total traps")
+        if self.strongest_zone_price is not None and self.strongest_zone_price <= 0:
+            raise ValueError("strongest zone price must be positive when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +68,7 @@ class LiquidityAnalysisResult:
     zones: tuple[LiquidityZone, ...]
     sweeps: tuple[LiquiditySweep, ...]
     traps: tuple[TrapEvent, ...]
+    evidence_summary: LiquidityEvidenceSummary | None = None
 
     def __post_init__(self) -> None:
         expected_zones = tuple(
@@ -50,6 +94,8 @@ class LiquidityAnalysisResult:
         )
         if expected_traps != self.traps:
             raise ValueError("trap events must use chronological ordering")
+        if self.evidence_summary is None:
+            object.__setattr__(self, "evidence_summary", _summarize_liquidity(self))
 
 
 def analyze_liquidity(
@@ -124,3 +170,56 @@ def _status_for_classification(
     if classification is SweepClassification.SIMPLE_BREAKOUT:
         return LiquidityZoneStatus.CONSUMED
     return LiquidityZoneStatus.BREACHED
+
+
+def _summarize_liquidity(result: LiquidityAnalysisResult) -> LiquidityEvidenceSummary:
+    strongest = max(
+        result.zones,
+        key=lambda item: (item.strength, item.touch_count, -item.age, item.representative_price),
+        default=None,
+    )
+    confirmed_sweeps = tuple(
+        item
+        for item in result.sweeps
+        if item.classification is SweepClassification.CONFIRMED_SWEEP
+        and item.confirmation is ConfirmationStatus.CONFIRMED
+    )
+    unresolved = tuple(
+        item
+        for item in result.sweeps
+        if item.classification is SweepClassification.UNRESOLVED_BREACH
+    )
+    confirmed_traps = tuple(
+        item for item in result.traps if item.confirmation is ConfirmationStatus.CONFIRMED
+    )
+    notes: list[str] = []
+    if strongest is not None:
+        notes.append(
+            "strongest_zone="
+            f"{strongest.side.value}:{strongest.kind.value};"
+            f"price={strongest.representative_price:.8g};"
+            f"strength={strongest.strength:.3f}"
+        )
+    if confirmed_sweeps:
+        notes.append("confirmed_sweep_present")
+    if confirmed_traps:
+        notes.append("confirmed_trap_present")
+    return LiquidityEvidenceSummary(
+        zone_count=len(result.zones),
+        active_zone_count=sum(
+            1 for item in result.zones if item.status is LiquidityZoneStatus.ACTIVE
+        ),
+        swept_zone_count=sum(
+            1 for item in result.zones if item.status is LiquidityZoneStatus.SWEPT
+        ),
+        consumed_zone_count=sum(
+            1 for item in result.zones if item.status is LiquidityZoneStatus.CONSUMED
+        ),
+        sweep_count=len(result.sweeps),
+        confirmed_sweep_count=len(confirmed_sweeps),
+        unresolved_breach_count=len(unresolved),
+        trap_count=len(result.traps),
+        confirmed_trap_count=len(confirmed_traps),
+        strongest_zone_price=strongest.representative_price if strongest is not None else None,
+        notes=tuple(notes),
+    )

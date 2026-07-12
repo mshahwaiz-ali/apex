@@ -266,6 +266,40 @@ class RangeStructure:
 
 
 @dataclass(frozen=True, slots=True)
+class StructureEvidenceSummary:
+    """Compact explainable snapshot of the detected structure state."""
+
+    swing_count: int
+    confirmed_swing_count: int
+    developing_swing_count: int
+    break_count: int
+    actionable_break_count: int
+    change_of_character_count: int
+    range_count: int
+    level_count: int
+    latest_break_quality: BreakQuality | None = None
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "swing_count",
+            "confirmed_swing_count",
+            "developing_swing_count",
+            "break_count",
+            "actionable_break_count",
+            "change_of_character_count",
+            "range_count",
+            "level_count",
+        ):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} cannot be negative")
+        if self.confirmed_swing_count + self.developing_swing_count != self.swing_count:
+            raise ValueError("swing status counts must equal total swing count")
+        if self.actionable_break_count > self.break_count:
+            raise ValueError("actionable break count cannot exceed total break count")
+
+
+@dataclass(frozen=True, slots=True)
 class StructureAnalysisResult:
     swings: tuple[SwingPoint, ...]
     trend: TrendAnalysis
@@ -273,6 +307,7 @@ class StructureAnalysisResult:
     changes_of_character: tuple[ChangeOfCharacter, ...] = ()
     ranges: tuple[RangeStructure, ...] = ()
     levels: tuple[StructureLevel, ...] = ()
+    evidence_summary: StructureEvidenceSummary | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -304,3 +339,41 @@ class StructureAnalysisResult:
             != self.levels
         ):
             raise ValueError("levels must use deterministic ordering")
+        if self.evidence_summary is None:
+            object.__setattr__(self, "evidence_summary", _summarize_structure(self))
+
+
+def _summarize_structure(result: StructureAnalysisResult) -> StructureEvidenceSummary:
+    confirmed_swings = sum(1 for item in result.swings if item.status is PivotStatus.CONFIRMED)
+    developing_swings = sum(1 for item in result.swings if item.status is PivotStatus.DEVELOPING)
+    actionable_breaks = tuple(
+        item
+        for item in result.breaks
+        if item.confirmation is ConfirmationStatus.CONFIRMED
+        and item.quality in {BreakQuality.VALID, BreakQuality.STRONG}
+    )
+    notes: list[str] = [
+        f"trend={result.trend.direction.value}",
+        f"trend_strength={result.trend.strength:.3f}",
+    ]
+    if result.ranges:
+        latest_range = result.ranges[-1]
+        notes.append(
+            "range="
+            f"{latest_range.low:.8g}-{latest_range.high:.8g};"
+            f"quality={latest_range.quality:.3f}"
+        )
+    if result.changes_of_character:
+        notes.append("change_of_character_present")
+    return StructureEvidenceSummary(
+        swing_count=len(result.swings),
+        confirmed_swing_count=confirmed_swings,
+        developing_swing_count=developing_swings,
+        break_count=len(result.breaks),
+        actionable_break_count=len(actionable_breaks),
+        change_of_character_count=len(result.changes_of_character),
+        range_count=len(result.ranges),
+        level_count=len(result.levels),
+        latest_break_quality=result.breaks[-1].quality if result.breaks else None,
+        notes=tuple(notes),
+    )
