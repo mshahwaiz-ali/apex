@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
 .venv/
 venv/
 env/
@@ -11,21 +12,25 @@ env/
 .env.*
 !.env.example
 
-# IDE
+# IDE and OS
 .vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Logs and runtime data
-*.log
-logs/
-data/
-cache/
-
-# Testing
+# Tooling
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
+dist/
+build/
+
+# Runtime data
+/data/*
+!/data/.gitkeep
+/logs/*
+!/logs/.gitkeep
+cache/
+*.log
