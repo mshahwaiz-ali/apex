@@ -66,10 +66,9 @@ class CachedMarketDataProvider:
         timeframe: str,
         limit: int = 100,
     ) -> list[Candle]:
-        """Return fresh cached candles or fetch and store live candles."""
+        """Return fresh cached candles or fetch and best-effort cache live candles."""
 
         max_age = self._policy.max_age_for(timeframe)
-
         if max_age is None:
             return self._provider.fetch_candles(
                 symbol=symbol,
@@ -84,7 +83,6 @@ class CachedMarketDataProvider:
             limit=limit,
         )
         cached = self._cache.load(key, max_age=max_age)
-
         if cached is not None:
             return list(cached.candles)
 
@@ -93,7 +91,10 @@ class CachedMarketDataProvider:
             timeframe=timeframe,
             limit=limit,
         )
-        self._cache.save(key, candles)
+        try:
+            self._cache.save(key, candles)
+        except OSError:
+            pass
 
         return candles
 
