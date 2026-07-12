@@ -10,12 +10,21 @@ from apex.liquidity import (
     LiquidityZoneType,
     SweepClassification,
     TrapType,
+    analyze_liquidity,
     create_default_liquidity_registry,
     derive_liquidity_zones,
     detect_liquidity_sweeps,
     detect_traps,
 )
-from apex.structure import PivotStatus, SwingPoint, SwingType
+from apex.structure import (
+    PivotStatus,
+    StructureAnalysisResult,
+    SwingPoint,
+    SwingType,
+    TrendAnalysis,
+    TrendDirection,
+    TrendEvidence,
+)
 
 
 def _candle(
@@ -76,11 +85,22 @@ def _zone(side: LiquiditySide) -> LiquidityZone:
     )
 
 
+def _structure(swings: tuple[SwingPoint, ...]) -> StructureAnalysisResult:
+    return StructureAnalysisResult(
+        swings=swings,
+        trend=TrendAnalysis(
+            direction=TrendDirection.UNCERTAIN,
+            strength=0.0,
+            evidence=TrendEvidence(),
+        ),
+    )
+
+
 def test_equal_highs_form_one_buy_side_zone() -> None:
     swings = (
         _swing(1, 100.0, SwingType.HIGH),
-        _swing(3, 100.1, SwingType.HIGH),
         _swing(2, 95.0, SwingType.LOW),
+        _swing(3, 100.1, SwingType.HIGH),
     )
 
     zones = derive_liquidity_zones(swings, current_index=5, tolerance=0.002)
@@ -157,6 +177,33 @@ def test_extended_breakout_is_marked_as_late_chase_risk() -> None:
     traps = detect_traps(candles, sweeps, maximum_chase_distance=0.01)
 
     assert any(item.kind is TrapType.LATE_CHASE_RISK for item in traps)
+
+
+def test_orchestration_marks_confirmed_sweep_zone_as_swept() -> None:
+    candles = (
+        _candle(0, open_price=99.0, high=99.5, low=98.5, close=99.0),
+        _candle(1, open_price=99.0, high=100.0, low=98.8, close=99.6),
+        _candle(2, open_price=99.8, high=101.0, low=99.0, close=99.5),
+    )
+
+    result = analyze_liquidity(candles, _structure((_swing(1, 100.0, SwingType.HIGH),)))
+
+    assert result.sweeps[0].classification is SweepClassification.CONFIRMED_SWEEP
+    assert result.zones[0].status is LiquidityZoneStatus.SWEPT
+    assert result.sweeps[0].zone.status is LiquidityZoneStatus.SWEPT
+
+
+def test_orchestration_marks_sustained_breakout_zone_as_consumed() -> None:
+    candles = (
+        _candle(0, open_price=99.0, high=99.5, low=98.5, close=99.0),
+        _candle(1, open_price=99.0, high=100.0, low=98.8, close=99.6),
+        _candle(2, open_price=99.8, high=102.0, low=99.5, close=101.5),
+    )
+
+    result = analyze_liquidity(candles, _structure((_swing(1, 100.0, SwingType.HIGH),)))
+
+    assert result.sweeps[0].classification is SweepClassification.SIMPLE_BREAKOUT
+    assert result.zones[0].status is LiquidityZoneStatus.CONSUMED
 
 
 def test_liquidity_registry_names_are_stable() -> None:
