@@ -95,7 +95,10 @@ def test_pipeline_outputs_are_chronologically_ordered() -> None:
         sorted(result.structure.swings, key=lambda item: (item.index, item.kind.value))
     )
     assert result.structure.breaks == tuple(
-        sorted(result.structure.breaks, key=lambda item: item.candle_index)
+        sorted(
+            result.structure.breaks,
+            key=lambda item: (item.candle_index, item.direction.value),
+        )
     )
     assert result.liquidity.sweeps == tuple(
         sorted(
@@ -103,3 +106,28 @@ def test_pipeline_outputs_are_chronologically_ordered() -> None:
             key=lambda item: (item.candle_index, item.zone.side.value),
         )
     )
+
+
+def test_pipeline_accepts_aligned_relative_volume() -> None:
+    candles = _candles()
+    relative_volume = tuple(1.5 for _ in candles)
+
+    result = analyze_phase3(candles, relative_volume=relative_volume)
+
+    assert isinstance(result, Phase3AnalysisResult)
+
+
+def test_pipeline_rejects_misaligned_relative_volume() -> None:
+    candles = _candles()
+
+    with pytest.raises(ValueError, match="length must match candle count"):
+        analyze_phase3(candles, relative_volume=(1.0,))
+
+
+def test_pipeline_rejects_non_finite_relative_volume() -> None:
+    candles = _candles()
+    relative_volume = [1.0 for _ in candles]
+    relative_volume[5] = float("nan")
+
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        analyze_phase3(candles, relative_volume=relative_volume)
