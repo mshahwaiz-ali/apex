@@ -22,6 +22,7 @@ from apex.strategies.contracts import (
     TradeDirection,
 )
 from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "TradeCandidate",
     "TradeDirection",
     "generate_breakout_continuation_candidates",
+    "generate_liquidity_reversal_candidates",
     "generate_trend_pullback_candidates",
     "select_entry_zone",
 ]
