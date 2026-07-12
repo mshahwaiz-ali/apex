@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from datetime import datetime
 
 from apex.domain.models import Candle
 from apex.structure.contracts import (
@@ -101,7 +102,7 @@ def _classify_level_state(
     *,
     low: float,
     high: float,
-    pivot_time: object,
+    pivot_time: datetime,
     candles: Sequence[Candle],
 ) -> tuple[LevelRole, LevelStatus]:
     post_pivot = tuple(candle for candle in candles if candle.open_time > pivot_time)
@@ -116,11 +117,9 @@ def _classify_level_state(
             candle.low <= high and candle.close >= high
             for candle in post_pivot[break_index + 1 :]
         )
-        return (
-            (LevelRole.SUPPORT, LevelStatus.FLIPPED)
-            if retested
-            else (LevelRole.RESISTANCE, LevelStatus.BROKEN)
-        )
+        if retested:
+            return LevelRole.SUPPORT, LevelStatus.FLIPPED
+        return LevelRole.RESISTANCE, LevelStatus.BROKEN
 
     break_index = next(
         (index for index, candle in enumerate(post_pivot) if candle.close < low),
@@ -132,11 +131,9 @@ def _classify_level_state(
         candle.high >= low and candle.close <= low
         for candle in post_pivot[break_index + 1 :]
     )
-    return (
-        (LevelRole.RESISTANCE, LevelStatus.FLIPPED)
-        if retested
-        else (LevelRole.SUPPORT, LevelStatus.BROKEN)
-    )
+    if retested:
+        return LevelRole.RESISTANCE, LevelStatus.FLIPPED
+    return LevelRole.SUPPORT, LevelStatus.BROKEN
 
 
 def _mean_price(cluster: Sequence[SwingPoint]) -> float:
