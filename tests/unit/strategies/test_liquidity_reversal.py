@@ -65,11 +65,7 @@ def _sweep(*, bullish: bool, confirmed: bool = True) -> LiquiditySweep:
             if confirmed
             else SweepClassification.DEVELOPING_SWEEP
         ),
-        confirmation=(
-            ConfirmationStatus.CONFIRMED
-            if confirmed
-            else ConfirmationStatus.DEVELOPING
-        ),
+        confirmation=(ConfirmationStatus.CONFIRMED if confirmed else ConfirmationStatus.DEVELOPING),
         evidence=("liquidity breach recovered",),
     )
 
@@ -86,11 +82,7 @@ def _trap(
         candle_time=sweep.candle_time,
         zone=sweep.zone,
         sweep=sweep,
-        confirmation=(
-            ConfirmationStatus.CONFIRMED
-            if confirmed
-            else ConfirmationStatus.DEVELOPING
-        ),
+        confirmation=(ConfirmationStatus.CONFIRMED if confirmed else ConfirmationStatus.DEVELOPING),
         evidence=("rejection follow-through confirmed",),
         invalidation=("price closes beyond swept liquidity",),
     )

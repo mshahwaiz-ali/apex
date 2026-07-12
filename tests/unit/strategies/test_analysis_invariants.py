@@ -121,9 +121,7 @@ def test_rejects_candidate_from_unevaluated_strategy() -> None:
         Phase4AnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
-            candidates=(
-                _candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),
-            ),
+            candidates=(_candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),),
             evaluated_strategies=(StrategyType.TREND_PULLBACK,),
         )
 

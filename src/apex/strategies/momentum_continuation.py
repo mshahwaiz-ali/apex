@@ -18,7 +18,12 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry import (
+    DEFAULT_ENTRY_SELECTION_CONFIG,
+    EntryReference,
+    EntrySelectionConfig,
+    select_entry_zone,
+)
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -44,7 +49,7 @@ def generate_momentum_continuation_candidates(
     context: StrategyContext,
     *,
     decision_time: datetime,
-    entry_config: EntrySelectionConfig = EntrySelectionConfig(),
+    entry_config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
 ) -> tuple[TradeCandidate, ...]:
     """Generate near-CMP momentum continuations in stable direction order."""
 

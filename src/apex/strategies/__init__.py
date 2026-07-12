@@ -30,6 +30,7 @@ from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGenerator
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
+    "STRATEGY_REGISTRY",
     "EntryMode",
     "EntryReference",
     "EntrySelectionConfig",
@@ -39,7 +40,6 @@ __all__ = [
     "InvalidationType",
     "Phase4AnalysisResult",
     "RawQualityMetrics",
-    "STRATEGY_REGISTRY",
     "StrategyContext",
     "StrategyEvidence",
     "StrategyGenerator",

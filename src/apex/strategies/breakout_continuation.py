@@ -19,7 +19,12 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry import (
+    DEFAULT_ENTRY_SELECTION_CONFIG,
+    EntryReference,
+    EntrySelectionConfig,
+    select_entry_zone,
+)
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -34,7 +39,7 @@ def generate_breakout_continuation_candidates(
     context: StrategyContext,
     *,
     decision_time: datetime,
-    entry_config: EntrySelectionConfig = EntrySelectionConfig(),
+    entry_config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     minimum_relative_volume: float = 1.0,
     maximum_extension_atr: float = 1.25,
 ) -> tuple[TradeCandidate, ...]:
@@ -93,9 +98,7 @@ def _candidate_for_direction(
         return None
 
     invalidation_price = (
-        break_event.broken_level - atr * 0.15
-        if bullish
-        else break_event.broken_level + atr * 0.15
+        break_event.broken_level - atr * 0.15 if bullish else break_event.broken_level + atr * 0.15
     )
     target_price = _target_price(context, bullish=bullish)
     if not _valid_geometry(
@@ -123,9 +126,7 @@ def _candidate_for_direction(
     )
     warnings = ("active-candle evidence is provisional",) if context.provisional else ()
     volume_quality = (
-        0.5
-        if features.relative_volume is None
-        else min(1.0, features.relative_volume / 2.0)
+        0.5 if features.relative_volume is None else min(1.0, features.relative_volume / 2.0)
     )
     breakout_quality = 1.0 if break_event.quality is BreakQuality.STRONG else 0.8
     return TradeCandidate(
@@ -242,7 +243,10 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         for zone in frame.liquidity.zones
         if zone.side is liquidity_side
         and zone.status is LiquidityZoneStatus.ACTIVE
-        and ((bullish and zone.representative_price > current) or (not bullish and zone.representative_price < current))
+        and (
+            (bullish and zone.representative_price > current)
+            or (not bullish and zone.representative_price < current)
+        )
     ]
     if liquidity_prices:
         return min(liquidity_prices) if bullish else max(liquidity_prices)
@@ -253,7 +257,10 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         for level in frame.structure.levels
         if level.role is role
         and level.status is not LevelStatus.BROKEN
-        and ((bullish and level.representative_price > current) or (not bullish and level.representative_price < current))
+        and (
+            (bullish and level.representative_price > current)
+            or (not bullish and level.representative_price < current)
+        )
     ]
     if level_prices:
         return min(level_prices) if bullish else max(level_prices)

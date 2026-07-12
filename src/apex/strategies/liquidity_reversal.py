@@ -25,7 +25,12 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry import (
+    DEFAULT_ENTRY_SELECTION_CONFIG,
+    EntryReference,
+    EntrySelectionConfig,
+    select_entry_zone,
+)
 from apex.structure.contracts import ConfirmationStatus, LevelRole, LevelStatus
 
 
@@ -33,7 +38,7 @@ def generate_liquidity_reversal_candidates(
     context: StrategyContext,
     *,
     decision_time: datetime,
-    entry_config: EntrySelectionConfig = EntrySelectionConfig(),
+    entry_config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     minimum_close_recovery: float = 0.25,
 ) -> tuple[TradeCandidate, ...]:
     """Generate confirmed sweep-and-trap reversals in stable direction order."""
@@ -230,7 +235,11 @@ def _momentum_allows_reversal(context: StrategyContext, *, bullish: bool) -> boo
     )
     if not directional:
         return True
-    return any(value >= 0 for value in directional) if bullish else any(value <= 0 for value in directional)
+    return (
+        any(value >= 0 for value in directional)
+        if bullish
+        else any(value <= 0 for value in directional)
+    )
 
 
 def _momentum_quality(context: StrategyContext, *, bullish: bool) -> float:
@@ -271,7 +280,10 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         for level in frame.structure.levels
         if level.role is role
         and level.status is not LevelStatus.BROKEN
-        and ((bullish and level.representative_price > current) or (not bullish and level.representative_price < current))
+        and (
+            (bullish and level.representative_price > current)
+            or (not bullish and level.representative_price < current)
+        )
     ]
     if levels:
         return min(levels) if bullish else max(levels)

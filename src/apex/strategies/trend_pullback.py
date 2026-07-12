@@ -18,7 +18,12 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry import (
+    DEFAULT_ENTRY_SELECTION_CONFIG,
+    EntryReference,
+    EntrySelectionConfig,
+    select_entry_zone,
+)
 from apex.structure.contracts import LevelRole, LevelStatus, TrendDirection
 
 _BULLISH_TRENDS = {
@@ -37,7 +42,7 @@ def generate_trend_pullback_candidates(
     context: StrategyContext,
     *,
     decision_time: datetime,
-    entry_config: EntrySelectionConfig = EntrySelectionConfig(),
+    entry_config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
 ) -> tuple[TradeCandidate, ...]:
     """Generate zero, one, or competing deterministic trend-pullback candidates."""
 
@@ -234,7 +239,10 @@ def _invalidation_price(context: StrategyContext, *, bullish: bool) -> float:
         for level in frame.structure.levels
         if level.role is role
         and level.status is not LevelStatus.BROKEN
-        and ((bullish and level.representative_price < current) or (not bullish and level.representative_price > current))
+        and (
+            (bullish and level.representative_price < current)
+            or (not bullish and level.representative_price > current)
+        )
     ]
     if eligible:
         anchor = max(eligible) if bullish else min(eligible)
@@ -251,7 +259,10 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         for level in frame.structure.levels
         if level.role is role
         and level.status is not LevelStatus.BROKEN
-        and ((bullish and level.representative_price > current) or (not bullish and level.representative_price < current))
+        and (
+            (bullish and level.representative_price > current)
+            or (not bullish and level.representative_price < current)
+        )
     ]
     if eligible:
         return min(eligible) if bullish else max(eligible)
@@ -273,7 +284,11 @@ def _momentum_is_constructive(context: StrategyContext, *, bullish: bool) -> boo
     )
     if not directional:
         return True
-    return any(value >= 0 for value in directional) if bullish else any(value <= 0 for value in directional)
+    return (
+        any(value >= 0 for value in directional)
+        if bullish
+        else any(value <= 0 for value in directional)
+    )
 
 
 def _momentum_quality(context: StrategyContext, *, bullish: bool) -> float:

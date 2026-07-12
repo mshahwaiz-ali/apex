@@ -46,6 +46,9 @@ class EntrySelectionConfig:
             raise ValueError("at least one entry-distance limit must be positive")
 
 
+DEFAULT_ENTRY_SELECTION_CONFIG = EntrySelectionConfig()
+
+
 def select_entry_zone(
     *,
     current_price: float,
@@ -54,7 +57,7 @@ def select_entry_zone(
     invalidation_price: float,
     target_price: float,
     references: tuple[EntryReference, ...] = (),
-    config: EntrySelectionConfig = EntrySelectionConfig(),
+    config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
 ) -> EntryZone:
     """Return the best actionable entry while rejecting unjustified waiting."""
 

@@ -38,9 +38,7 @@ class Phase4AnalysisResult:
                 raise ValueError("candidate strategy must be present in evaluated strategies")
 
         candidate_strategies = tuple(item.strategy for item in self.candidates)
-        expected_order = tuple(
-            sorted(candidate_strategies, key=self.evaluated_strategies.index)
-        )
+        expected_order = tuple(sorted(candidate_strategies, key=self.evaluated_strategies.index))
         if candidate_strategies != expected_order:
             raise ValueError("candidates must preserve stable registry ordering")
 

@@ -18,7 +18,12 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry import (
+    DEFAULT_ENTRY_SELECTION_CONFIG,
+    EntryReference,
+    EntrySelectionConfig,
+    select_entry_zone,
+)
 from apex.structure.contracts import RangeBreakoutState, RangeStructure, TrendDirection
 
 _MINIMUM_RANGE_QUALITY = 0.6
@@ -29,7 +34,7 @@ def generate_range_reversal_candidates(
     context: StrategyContext,
     *,
     decision_time: datetime,
-    entry_config: EntrySelectionConfig = EntrySelectionConfig(),
+    entry_config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     minimum_range_quality: float = _MINIMUM_RANGE_QUALITY,
 ) -> tuple[TradeCandidate, ...]:
     """Generate valid range-edge reversals in stable direction order."""
@@ -124,9 +129,7 @@ def _candidate_for_direction(
         "entry remains inside the volatility-aware near-CMP limit",
     ]
     if false_break:
-        supporting.append(
-            "confirmed false-break state supports rejection back into the range"
-        )
+        supporting.append("confirmed false-break state supports rejection back into the range")
 
     return TradeCandidate(
         symbol=context.symbol,
@@ -184,9 +187,7 @@ def _candidate_for_direction(
 
 def _best_range(context: StrategyContext, *, minimum_quality: float) -> RangeStructure | None:
     eligible = tuple(
-        item
-        for item in context.decision_frame.structure.ranges
-        if item.quality >= minimum_quality
+        item for item in context.decision_frame.structure.ranges if item.quality >= minimum_quality
     )
     if not eligible:
         return None

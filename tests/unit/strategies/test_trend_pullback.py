@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from apex.liquidity.analysis import LiquidityAnalysisResult
 from apex.strategies import (
+    EntryMode,
     FeatureSnapshot,
     StrategyContext,
     TimeframeContext,
@@ -18,7 +19,6 @@ from apex.structure.contracts import (
     TrendDirection,
     TrendEvidence,
 )
-
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
@@ -140,7 +140,8 @@ def test_generates_long_trend_pullback_near_current_price() -> None:
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.direction is TradeDirection.LONG
-    assert candidate.entry.preferred == 99.5
+    assert candidate.entry.mode is EntryMode.SCALED_ENTRY
+    assert candidate.entry.preferred == 99.0
     assert candidate.invalidation.price < candidate.entry.lower
     assert candidate.targets.levels[0].price > candidate.entry.upper
 
@@ -154,7 +155,8 @@ def test_generates_short_trend_pullback_near_current_price() -> None:
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.direction is TradeDirection.SHORT
-    assert candidate.entry.preferred == 100.5
+    assert candidate.entry.mode is EntryMode.SCALED_ENTRY
+    assert candidate.entry.preferred == 101.0
     assert candidate.invalidation.price > candidate.entry.upper
     assert candidate.targets.levels[0].price < candidate.entry.lower
 
