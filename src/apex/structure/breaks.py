@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from apex.domain.models import Candle
@@ -41,6 +42,10 @@ def detect_structure_breaks(
 ) -> tuple[StructureBreak, ...]:
     """Detect the first meaningful breach of each confirmed pivot level."""
 
+    if not math.isfinite(minimum_close_distance) or not math.isfinite(
+        strong_close_distance
+    ):
+        raise ValueError("break-distance thresholds must be finite")
     if minimum_close_distance < 0 or strong_close_distance < minimum_close_distance:
         raise ValueError("break-distance thresholds are invalid")
 
