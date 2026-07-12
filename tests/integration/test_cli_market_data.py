@@ -168,3 +168,16 @@ def test_backtest_command_returns_no_backtest_without_setup(monkeypatch) -> None
 
     assert result.exit_code == 0
     assert "BTC/USDT: NO_BACKTEST" in result.output
+
+
+def test_paper_report_command_emits_metrics(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(cli.app, ["paper", "report"])
+
+    assert result.exit_code == 0
+    assert "PAPER_REPORT | total=0" in result.output
