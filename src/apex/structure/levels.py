@@ -50,23 +50,25 @@ def derive_structure_levels(
             else:
                 matching.append(pivot)
 
-    latest_close = candles[-1].close if candles else None
     levels: list[StructureLevel] = []
     for cluster in clusters:
         if len(cluster) < minimum_touches:
             continue
         prices = tuple(item.price for item in cluster)
         representative = sum(prices) / len(prices)
-        source_kind = cluster[0].kind
-        role = LevelRole.RESISTANCE if source_kind is SwingType.HIGH else LevelRole.SUPPORT
-        status = LevelStatus.ACTIVE
-        if latest_close is not None:
-            if role is LevelRole.RESISTANCE and latest_close > max(prices):
-                status = LevelStatus.FLIPPED
-                role = LevelRole.SUPPORT
-            elif role is LevelRole.SUPPORT and latest_close < min(prices):
-                status = LevelStatus.FLIPPED
-                role = LevelRole.RESISTANCE
+        latest_pivot = max(cluster, key=lambda item: item.index)
+        source_role = (
+            LevelRole.RESISTANCE
+            if latest_pivot.kind is SwingType.HIGH
+            else LevelRole.SUPPORT
+        )
+        role, status = _classify_level_state(
+            source_role,
+            low=min(prices),
+            high=max(prices),
+            pivot_time=latest_pivot.time,
+            candles=candles,
+        )
 
         ordered_indices = tuple(sorted(item.index for item in cluster))
         levels.append(
@@ -78,7 +80,7 @@ def derive_structure_levels(
                 status=status,
                 touches=len(cluster),
                 pivot_indices=ordered_indices,
-                last_touch_index=max(ordered_indices),
+                last_touch_index=ordered_indices[-1],
             )
         )
 
@@ -91,6 +93,49 @@ def derive_structure_levels(
                 item.last_touch_index,
             ),
         )
+    )
+
+
+def _classify_level_state(
+    source_role: LevelRole,
+    *,
+    low: float,
+    high: float,
+    pivot_time: object,
+    candles: Sequence[Candle],
+) -> tuple[LevelRole, LevelStatus]:
+    post_pivot = tuple(candle for candle in candles if candle.open_time > pivot_time)
+    if source_role is LevelRole.RESISTANCE:
+        break_index = next(
+            (index for index, candle in enumerate(post_pivot) if candle.close > high),
+            None,
+        )
+        if break_index is None:
+            return source_role, LevelStatus.ACTIVE
+        retested = any(
+            candle.low <= high and candle.close >= high
+            for candle in post_pivot[break_index + 1 :]
+        )
+        return (
+            (LevelRole.SUPPORT, LevelStatus.FLIPPED)
+            if retested
+            else (LevelRole.RESISTANCE, LevelStatus.BROKEN)
+        )
+
+    break_index = next(
+        (index for index, candle in enumerate(post_pivot) if candle.close < low),
+        None,
+    )
+    if break_index is None:
+        return source_role, LevelStatus.ACTIVE
+    retested = any(
+        candle.high >= low and candle.close <= low
+        for candle in post_pivot[break_index + 1 :]
+    )
+    return (
+        (LevelRole.RESISTANCE, LevelStatus.FLIPPED)
+        if retested
+        else (LevelRole.SUPPORT, LevelStatus.BROKEN)
     )
 
 
