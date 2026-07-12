@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from apex.domain.models import Candle
@@ -24,8 +25,8 @@ def detect_liquidity_sweeps(
 ) -> tuple[LiquiditySweep, ...]:
     """Classify the first post-zone breach as sweep, breakout, or unresolved."""
 
-    if minimum_penetration < 0:
-        raise ValueError("minimum_penetration cannot be negative")
+    if not math.isfinite(minimum_penetration) or minimum_penetration < 0:
+        raise ValueError("minimum_penetration must be finite and non-negative")
     usable = prepare_candles(
         candles,
         minimum_candles=1,
