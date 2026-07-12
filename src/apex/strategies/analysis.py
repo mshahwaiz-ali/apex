@@ -24,12 +24,24 @@ class Phase4AnalysisResult:
             raise ValueError("analysis-result symbol cannot be empty")
         if self.decision_time.tzinfo is None or self.decision_time.utcoffset() is None:
             raise ValueError("analysis decision time must be timezone-aware")
-        if tuple(item.strategy for item in self.candidates) != tuple(
-            sorted(
-                (item.strategy for item in self.candidates),
-                key=self.evaluated_strategies.index,
-            )
-        ):
+        if not self.evaluated_strategies:
+            raise ValueError("at least one evaluated strategy is required")
+        if len(set(self.evaluated_strategies)) != len(self.evaluated_strategies):
+            raise ValueError("evaluated strategies must be unique")
+
+        for candidate in self.candidates:
+            if candidate.symbol != self.symbol:
+                raise ValueError("candidate symbol must match the analysis symbol")
+            if candidate.decision_time != self.decision_time:
+                raise ValueError("candidate decision time must match the analysis decision time")
+            if candidate.strategy not in self.evaluated_strategies:
+                raise ValueError("candidate strategy must be present in evaluated strategies")
+
+        candidate_strategies = tuple(item.strategy for item in self.candidates)
+        expected_order = tuple(
+            sorted(candidate_strategies, key=self.evaluated_strategies.index)
+        )
+        if candidate_strategies != expected_order:
             raise ValueError("candidates must preserve stable registry ordering")
 
 
