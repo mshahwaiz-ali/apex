@@ -50,7 +50,11 @@ def derive_liquidity_zones(
         for cluster in _cluster_pivots(pivots, tolerance):
             prices = tuple(item.price for item in cluster)
             representative = sum(prices) / len(prices)
-            side = LiquiditySide.BUY_SIDE if kind is SwingType.HIGH else LiquiditySide.SELL_SIDE
+            side = (
+                LiquiditySide.BUY_SIDE
+                if kind is SwingType.HIGH
+                else LiquiditySide.SELL_SIDE
+            )
             zone_type = _zone_type(
                 kind,
                 prices,
@@ -150,34 +154,42 @@ def _range_zones(
     current_index: int,
 ) -> tuple[LiquidityZone, ...]:
     has_trigger_candle = detected_range.breakout_state is not RangeBreakoutState.NONE
-    boundary_end = detected_range.end_index - 1 if has_trigger_candle else detected_range.end_index
+    boundary_end = (
+        detected_range.end_index - 1
+        if has_trigger_candle
+        else detected_range.end_index
+    )
     if boundary_end <= detected_range.start_index:
         raise ValueError("range must contain boundary history before a trigger candle")
     age = current_index - boundary_end
-    common = {
-        "source_pivot_indices": (detected_range.start_index, boundary_end),
-        "touch_count": 2,
-        "created_index": detected_range.start_index,
-        "last_touch_index": boundary_end,
-        "age": age,
-        "status": LiquidityZoneStatus.ACTIVE,
-        "strength": detected_range.quality,
-    }
-    return (
-        LiquidityZone(
-            side=LiquiditySide.BUY_SIDE,
-            kind=LiquidityZoneType.RANGE_HIGH,
-            low=detected_range.high,
-            high=detected_range.high,
-            representative_price=detected_range.high,
-            **common,
-        ),
-        LiquidityZone(
-            side=LiquiditySide.SELL_SIDE,
-            kind=LiquidityZoneType.RANGE_LOW,
-            low=detected_range.low,
-            high=detected_range.low,
-            representative_price=detected_range.low,
-            **common,
-        ),
+    source_indices = (detected_range.start_index, boundary_end)
+
+    buy_side = LiquidityZone(
+        side=LiquiditySide.BUY_SIDE,
+        kind=LiquidityZoneType.RANGE_HIGH,
+        low=detected_range.high,
+        high=detected_range.high,
+        representative_price=detected_range.high,
+        source_pivot_indices=source_indices,
+        touch_count=2,
+        created_index=detected_range.start_index,
+        last_touch_index=boundary_end,
+        age=age,
+        status=LiquidityZoneStatus.ACTIVE,
+        strength=detected_range.quality,
     )
+    sell_side = LiquidityZone(
+        side=LiquiditySide.SELL_SIDE,
+        kind=LiquidityZoneType.RANGE_LOW,
+        low=detected_range.low,
+        high=detected_range.low,
+        representative_price=detected_range.low,
+        source_pivot_indices=source_indices,
+        touch_count=2,
+        created_index=detected_range.start_index,
+        last_touch_index=boundary_end,
+        age=age,
+        status=LiquidityZoneStatus.ACTIVE,
+        strength=detected_range.quality,
+    )
+    return buy_side, sell_side
