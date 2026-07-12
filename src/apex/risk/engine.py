@@ -67,41 +67,41 @@ def _stop(candidate: TradeCandidate, config: RiskConfig) -> StopLoss:
         price=price,
         distance=distance,
         distance_pct=distance / preferred * 100.0,
-        rationale=(*candidate.invalidation.rationale, "volatility buffer beyond thesis invalidation"),
+        rationale=(*candidate.invalidation.rationale, "buffer beyond thesis invalidation"),
     )
 
 
 def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...]:
     preferred = candidate.entry.preferred
-    targets: list[TakeProfit] = []
-    for level in candidate.targets.levels:
-        reward = abs(level.price - preferred)
-        targets.append(
-            TakeProfit(
-                label=level.label,
-                price=level.price,
-                reward=reward,
-                risk_reward=reward / stop.distance,
-                rationale=level.rationale,
-            )
+    return tuple(
+        TakeProfit(
+            label=level.label,
+            price=level.price,
+            reward=abs(level.price - preferred),
+            risk_reward=abs(level.price - preferred) / stop.distance,
+            rationale=level.rationale,
         )
-    return tuple(targets)
+        for level in candidate.targets.levels
+    )
 
 
 def _position_size(config: RiskConfig, entry: ActionableEntry, stop: StopLoss) -> PositionSize:
     risk_amount = config.account_equity * config.risk_per_trade_pct / 100.0
     quantity = risk_amount / stop.distance
+    notional_value = quantity * entry.preferred
     return PositionSize(
         risk_amount=risk_amount,
         quantity=quantity,
-        notional_value=quantity * entry.preferred,
+        notional_value=notional_value,
         account_risk_pct=config.risk_per_trade_pct,
+        required_leverage=max(1.0, notional_value / config.account_equity),
     )
 
 
 def _leverage(
     candidate: TradeCandidate,
     config: RiskConfig,
+    position: PositionSize,
     stop: StopLoss,
 ) -> LeverageRange | None:
     stop_fraction = stop.distance_pct / 100.0
@@ -110,10 +110,13 @@ def _leverage(
     denominator = required_liquidation_distance + maintenance_fraction
     if denominator <= 0.0:
         return None
+
     modeled_maximum = 1.0 / denominator
     maximum = min(config.maximum_leverage, modeled_maximum)
-    if maximum < 1.0:
+    minimum = position.required_leverage
+    if maximum < minimum:
         return None
+
     liquidation_distance = max(0.0, 1.0 / maximum - maintenance_fraction)
     entry = candidate.entry.preferred
     liquidation_price = (
@@ -128,8 +131,9 @@ def _leverage(
     )
     if buffer <= 0.0:
         return None
+
     return LeverageRange(
-        minimum=1.0,
+        minimum=minimum,
         maximum=maximum,
         modeled_maximum=modeled_maximum,
         liquidation_price_at_maximum=liquidation_price,
@@ -156,6 +160,13 @@ def _exposure_rejections(
     ):
         rejected.append(
             (RiskRejectionCode.MAX_DIRECTIONAL_RISK, "maximum same-direction risk exceeded")
+        )
+    if (
+        exposure.correlated_risk_amount + risk_amount
+        > equity * config.maximum_correlated_risk_pct / 100.0
+    ):
+        rejected.append(
+            (RiskRejectionCode.MAX_CORRELATED_RISK, "maximum correlated risk exceeded")
         )
     if exposure.daily_realized_loss >= equity * config.maximum_daily_loss_pct / 100.0:
         rejected.append((RiskRejectionCode.DAILY_LOSS_LIMIT, "daily loss limit reached"))
@@ -188,10 +199,11 @@ def analyze_phase6(
 
     candidate = _candidate_from(selected)
     entry = _entry(candidate, config)
-    if candidate.direction is TradeDirection.LONG:
-        extended = entry.current_price > entry.maximum_chase_price
-    else:
-        extended = entry.current_price < entry.maximum_chase_price
+    extended = (
+        entry.current_price > entry.maximum_chase_price
+        if candidate.direction is TradeDirection.LONG
+        else entry.current_price < entry.maximum_chase_price
+    )
     if candidate.entry.is_extended or extended:
         return _reject(
             phase5,
@@ -229,18 +241,17 @@ def analyze_phase6(
     if exposure_rejections:
         return _reject(phase5, config, *exposure_rejections)
 
-    leverage = _leverage(candidate, config, stop)
+    leverage = _leverage(candidate, config, position, stop)
     if leverage is None:
         return _reject(
             phase5,
             config,
             (
                 RiskRejectionCode.LEVERAGE_UNSAFE,
-                "liquidation cannot remain safely beyond the structural stop",
+                "required leverage cannot keep liquidation safely beyond the stop",
             ),
         )
 
-    warnings = tuple(candidate.evidence.warnings)
     return RiskAssessment(
         symbol=phase5.symbol,
         decision_time=phase5.decision_time,
@@ -257,7 +268,7 @@ def analyze_phase6(
             take_profits=targets,
             position_size=position,
             leverage=leverage,
-            warnings=warnings,
+            warnings=tuple(candidate.evidence.warnings),
         ),
         rejection_codes=(),
         reasons=(),
