@@ -29,6 +29,10 @@ class RetryPolicy:
             raise ValueError("base_delay_seconds cannot be negative")
         if self.max_delay_seconds < 0:
             raise ValueError("max_delay_seconds cannot be negative")
+        if self.max_delay_seconds < self.base_delay_seconds:
+            raise ValueError(
+                "max_delay_seconds must not be lower than base_delay_seconds"
+            )
 
     def delay_before_attempt(self, attempt: int) -> float:
         """Return exponential delay before the next attempt."""
@@ -38,6 +42,23 @@ class RetryPolicy:
 
         delay: float = self.base_delay_seconds * (2 ** (attempt - 1))
         return min(delay, self.max_delay_seconds)
+
+    def retry_delay(self, attempt: int, retry_after: str | None = None) -> float:
+        """Return a bounded delay using Retry-After when it is valid."""
+
+        fallback = self.delay_before_attempt(attempt)
+        if retry_after is None:
+            return fallback
+
+        try:
+            header_delay = int(retry_after.strip())
+        except (TypeError, ValueError):
+            return fallback
+
+        if header_delay < 0:
+            return fallback
+
+        return min(max(fallback, float(header_delay)), self.max_delay_seconds)
 
 
 def request_json(
@@ -72,14 +93,15 @@ def request_json(
         retryable = status_code in RETRYABLE_STATUS_CODES
 
         if retryable and attempt < retry_policy.max_attempts:
-            sleep(retry_policy.delay_before_attempt(attempt))
+            retry_after = response.headers.get("Retry-After") if status_code == 429 else None
+            sleep(retry_policy.retry_delay(attempt, retry_after))
             continue
 
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise ProviderRequestError(
-                (f"{provider} returned HTTP {status_code} during {operation}"),
+                f"{provider} returned HTTP {status_code} during {operation}",
                 provider=provider,
                 operation=operation,
                 retryable=retryable,
