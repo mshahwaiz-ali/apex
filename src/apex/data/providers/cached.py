@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -91,10 +92,8 @@ class CachedMarketDataProvider:
             timeframe=timeframe,
             limit=limit,
         )
-        try:
+        with contextlib.suppress(OSError):
             self._cache.save(key, candles)
-        except OSError:
-            pass
 
         return candles
 

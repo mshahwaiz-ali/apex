@@ -261,7 +261,7 @@ def test_save_rejects_invalid_candle_series(tmp_path: Path) -> None:
 
     with pytest.raises(
         ValueError,
-        match="cannot cache invalid candle series",
+        match="duplicate timestamps",
     ):
         cache.save(make_key(), [candle, candle])
 

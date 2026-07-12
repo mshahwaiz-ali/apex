@@ -30,9 +30,7 @@ class RetryPolicy:
         if self.max_delay_seconds < 0:
             raise ValueError("max_delay_seconds cannot be negative")
         if self.max_delay_seconds < self.base_delay_seconds:
-            raise ValueError(
-                "max_delay_seconds must not be lower than base_delay_seconds"
-            )
+            raise ValueError("max_delay_seconds must not be lower than base_delay_seconds")
 
     def delay_before_attempt(self, attempt: int) -> float:
         """Return exponential delay before the next attempt."""

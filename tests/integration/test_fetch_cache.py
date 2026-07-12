@@ -3,7 +3,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-import apex.cli
+import apex.application.market_data
 from apex.cli import app
 from apex.domain.models import Candle
 
@@ -20,6 +20,9 @@ class FakeBinanceMarketDataProvider:
         return self
 
     def __exit__(self, *args: object) -> None:
+        return None
+
+    def close(self) -> None:
         return None
 
     def fetch_candles(
@@ -69,7 +72,7 @@ def test_fetch_command_reuses_fresh_file_cache(
 
     monkeypatch.setenv("APEX_CONFIG_DIR", str(config_dir))
     monkeypatch.setattr(
-        apex.cli,
+        apex.application.market_data,
         "BinanceMarketDataProvider",
         FakeBinanceMarketDataProvider,
     )

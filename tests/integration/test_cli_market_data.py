@@ -7,7 +7,6 @@ from typer.testing import CliRunner
 import apex.cli as cli
 from apex.data.providers.errors import ProviderRequestError
 
-
 runner = CliRunner()
 
 

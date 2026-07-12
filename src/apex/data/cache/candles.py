@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import itertools
 import json
 import os
 import tempfile
@@ -92,7 +94,7 @@ def validate_candle_series(
     if active_indexes and active_indexes[0] != len(candles) - 1:
         raise ValueError("active candle must be the final candle")
 
-    for previous, current in zip(candles, candles[1:], strict=False):
+    for previous, current in itertools.pairwise(candles):
         if current.open_time == previous.open_time:
             raise ValueError("candle series contains duplicate timestamps")
         if current.open_time < previous.open_time:
@@ -216,10 +218,8 @@ class FileCandleCache:
             temporary_path.replace(path)
         finally:
             if temporary_path is not None:
-                try:
+                with contextlib.suppress(OSError):
                     temporary_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
 
         return path
 
