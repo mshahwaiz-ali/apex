@@ -11,6 +11,7 @@ from apex.features.contracts import (
     FeatureSpec,
     MissingDataPolicy,
 )
+from apex.features.numerical import validate_period
 from apex.features.validation import ActiveCandlePolicy, prepare_candles
 from apex.features.volatility import bollinger_bands
 
@@ -23,6 +24,7 @@ def recent_range_position(
 ) -> FeatureResult:
     """Return close position inside the recent high-low range, bounded to 0..1."""
 
+    validate_period(period)
     prepared = prepare_candles(
         candles,
         minimum_candles=period,
@@ -50,6 +52,7 @@ def distance_from_recent_extremes(
 ) -> tuple[FeatureResult, FeatureResult]:
     """Return percentage distance below recent high and above recent low."""
 
+    validate_period(period)
     prepared = prepare_candles(
         candles,
         minimum_candles=period,
@@ -115,6 +118,7 @@ def bollinger_position(
 ) -> FeatureResult:
     """Return close position between lower and upper Bollinger Bands."""
 
+    validate_period(period)
     prepared = prepare_candles(
         candles,
         minimum_candles=period,
