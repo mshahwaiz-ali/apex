@@ -1,0 +1,257 @@
+"""Immutable contracts for deterministic market-structure analysis."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from datetime import datetime
+from enum import StrEnum
+
+
+class SwingType(StrEnum):
+    HIGH = "high"
+    LOW = "low"
+
+
+class PivotStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    DEVELOPING = "developing"
+
+
+class ComparisonPolicy(StrEnum):
+    STRICT = "strict"
+    NON_STRICT = "non_strict"
+
+
+class TrendDirection(StrEnum):
+    STRONG_BULLISH = "strong_bullish"
+    BULLISH = "bullish"
+    WEAK_BULLISH = "weak_bullish"
+    RANGE = "range"
+    WEAK_BEARISH = "weak_bearish"
+    BEARISH = "bearish"
+    STRONG_BEARISH = "strong_bearish"
+    TRANSITION = "transition"
+    UNCERTAIN = "uncertain"
+
+
+class BreakDirection(StrEnum):
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+
+
+class BreakQuality(StrEnum):
+    WICK_ONLY = "wick_only"
+    WEAK = "weak"
+    VALID = "valid"
+    STRONG = "strong"
+    FAILED = "failed"
+
+
+class ConfirmationStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    DEVELOPING = "developing"
+    REJECTED = "rejected"
+
+
+class LevelRole(StrEnum):
+    SUPPORT = "support"
+    RESISTANCE = "resistance"
+
+
+class LevelStatus(StrEnum):
+    ACTIVE = "active"
+    BROKEN = "broken"
+    FLIPPED = "flipped"
+
+
+class RangeBreakoutState(StrEnum):
+    NONE = "none"
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+    FALSE_BULLISH = "false_bullish"
+    FALSE_BEARISH = "false_bearish"
+
+
+def _require_finite(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+
+
+def _require_positive(name: str, value: float) -> None:
+    _require_finite(name, value)
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than zero")
+
+
+@dataclass(frozen=True, slots=True)
+class SwingPoint:
+    index: int
+    time: datetime
+    price: float
+    kind: SwingType
+    status: PivotStatus
+    left_window: int
+    right_window: int
+
+    def __post_init__(self) -> None:
+        if self.index < 0:
+            raise ValueError("swing index cannot be negative")
+        _require_positive("swing price", self.price)
+        if self.left_window < 1 or self.right_window < 1:
+            raise ValueError("swing windows must be at least 1")
+
+
+@dataclass(frozen=True, slots=True)
+class TrendEvidence:
+    higher_highs: int = 0
+    higher_lows: int = 0
+    lower_highs: int = 0
+    lower_lows: int = 0
+    equal_highs: int = 0
+    equal_lows: int = 0
+    persistence: float = 0.0
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "higher_highs",
+            "higher_lows",
+            "lower_highs",
+            "lower_lows",
+            "equal_highs",
+            "equal_lows",
+        ):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} cannot be negative")
+        _require_finite("trend persistence", self.persistence)
+        if not 0 <= self.persistence <= 1:
+            raise ValueError("trend persistence must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
+class TrendAnalysis:
+    direction: TrendDirection
+    strength: float
+    evidence: TrendEvidence
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_finite("trend strength", self.strength)
+        if not 0 <= self.strength <= 1:
+            raise ValueError("trend strength must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
+class StructureBreak:
+    direction: BreakDirection
+    broken_swing: SwingPoint
+    candle_index: int
+    candle_time: datetime
+    broken_level: float
+    close_distance: float
+    wick_penetration: float
+    quality: BreakQuality
+    confirmation: ConfirmationStatus
+    evidence: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.candle_index < 0:
+            raise ValueError("break candle index cannot be negative")
+        _require_positive("broken level", self.broken_level)
+        _require_finite("close distance", self.close_distance)
+        _require_finite("wick penetration", self.wick_penetration)
+        if self.wick_penetration < 0:
+            raise ValueError("wick penetration cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeOfCharacter:
+    prior_trend: TrendDirection
+    break_event: StructureBreak
+    confirmation: ConfirmationStatus
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class StructureLevel:
+    representative_price: float
+    low: float
+    high: float
+    role: LevelRole
+    status: LevelStatus
+    touches: int
+    pivot_indices: tuple[int, ...]
+    last_touch_index: int
+
+    def __post_init__(self) -> None:
+        _require_positive("level representative price", self.representative_price)
+        _require_positive("level low", self.low)
+        _require_positive("level high", self.high)
+        if self.low > self.high:
+            raise ValueError("level low cannot exceed level high")
+        if not self.low <= self.representative_price <= self.high:
+            raise ValueError("representative price must lie inside the level")
+        if self.touches < 1 or self.touches != len(self.pivot_indices):
+            raise ValueError("touch count must match pivot indices")
+        if self.last_touch_index < 0:
+            raise ValueError("last touch index cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class RangeStructure:
+    low: float
+    high: float
+    midpoint: float
+    width: float
+    width_percentage: float
+    start_index: int
+    end_index: int
+    upper_tests: int
+    lower_tests: int
+    breakout_state: RangeBreakoutState
+    current_position: float
+    quality: float
+    false_break_indices: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("range low", self.low),
+            ("range high", self.high),
+            ("range midpoint", self.midpoint),
+        ):
+            _require_positive(name, value)
+        for name, value in (
+            ("range width", self.width),
+            ("range width percentage", self.width_percentage),
+            ("current position", self.current_position),
+            ("range quality", self.quality),
+        ):
+            _require_finite(name, value)
+        if self.low >= self.high or self.width <= 0:
+            raise ValueError("range must have positive width")
+        if self.start_index < 0 or self.end_index < self.start_index:
+            raise ValueError("invalid range indices")
+        if self.upper_tests < 0 or self.lower_tests < 0:
+            raise ValueError("range test counts cannot be negative")
+        if not 0 <= self.current_position <= 1:
+            raise ValueError("current position must be between 0 and 1")
+        if not 0 <= self.quality <= 1:
+            raise ValueError("range quality must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
+class StructureAnalysisResult:
+    swings: tuple[SwingPoint, ...]
+    trend: TrendAnalysis
+    breaks: tuple[StructureBreak, ...] = ()
+    changes_of_character: tuple[ChangeOfCharacter, ...] = ()
+    ranges: tuple[RangeStructure, ...] = ()
+    levels: tuple[StructureLevel, ...] = ()
+
+    def __post_init__(self) -> None:
+        if tuple(sorted(self.swings, key=lambda item: (item.index, item.kind.value))) != self.swings:
+            raise ValueError("swings must use deterministic chronological ordering")
+        if tuple(sorted(self.breaks, key=lambda item: item.candle_index)) != self.breaks:
+            raise ValueError("breaks must use chronological ordering")
