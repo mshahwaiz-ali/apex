@@ -7,6 +7,7 @@ from apex.strategies.context import (
     StrategyContext,
     TimeframeContext,
     TimeframeRole,
+    timeframe_role_sort_key,
 )
 from apex.strategies.contracts import (
     EntryMode,
@@ -58,4 +59,5 @@ __all__ = [
     "generate_range_reversal_candidates",
     "generate_trend_pullback_candidates",
     "select_entry_zone",
+    "timeframe_role_sort_key",
 ]

@@ -1,4 +1,4 @@
-"""Public Phase 12 testnet-only execution API."""
+"""Public local execution simulation API."""
 
 from apex.execution.contracts import (
     ExecutionConfig,
@@ -13,6 +13,7 @@ from apex.execution.engine import (
     intent_from_setup,
     load_duplicate_keys,
     preview_execution,
+    simulate_testnet_order,
     submit_testnet_order,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "intent_from_setup",
     "load_duplicate_keys",
     "preview_execution",
+    "simulate_testnet_order",
     "submit_testnet_order",
 ]

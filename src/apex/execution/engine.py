@@ -1,4 +1,4 @@
-"""Testnet-only Phase 12 execution safety engine."""
+"""Local testnet simulation safety engine."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def preview_execution(intent: ExecutionIntent, *, now: datetime | None = None) -
     return ExecutionResult(state=ExecutionState.PREVIEW, order=order, reasons=())
 
 
-def submit_testnet_order(
+def simulate_testnet_order(
     intent: ExecutionIntent,
     *,
     config: ExecutionConfig,
@@ -58,7 +58,7 @@ def submit_testnet_order(
     daily_realized_loss: float = 0.0,
     now: datetime | None = None,
 ) -> ExecutionResult:
-    """Record a simulated testnet order only when all safety gates pass."""
+    """Record a local simulated testnet order only when all safety gates pass."""
 
     reasons = _rejection_reasons(
         intent,
@@ -79,19 +79,44 @@ def submit_testnet_order(
         append_audit_event(audit_log, result, timestamp=timestamp)
         return result
     order = ExecutionOrder(
-        order_id=f"testnet-{intent.duplicate_key}",
+        order_id=f"local-sim-{intent.duplicate_key}",
         intent=intent,
-        state=ExecutionState.TESTNET_SUBMITTED,
+        state=ExecutionState.LOCAL_TESTNET_SIMULATED,
         created_at=timestamp,
     )
     result = ExecutionResult(
-        state=ExecutionState.TESTNET_SUBMITTED,
+        state=ExecutionState.LOCAL_TESTNET_SIMULATED,
         order=order,
         reasons=(),
         audit_path=str(audit_log),
     )
     append_audit_event(audit_log, result, timestamp=timestamp)
     return result
+
+
+def submit_testnet_order(
+    intent: ExecutionIntent,
+    *,
+    config: ExecutionConfig,
+    audit_log: Path,
+    kill_switch: KillSwitchState,
+    confirmed: bool,
+    existing_duplicate_keys: set[str] | None = None,
+    daily_realized_loss: float = 0.0,
+    now: datetime | None = None,
+) -> ExecutionResult:
+    """Backward-compatible alias for local testnet simulation."""
+
+    return simulate_testnet_order(
+        intent,
+        config=config,
+        audit_log=audit_log,
+        kill_switch=kill_switch,
+        confirmed=confirmed,
+        existing_duplicate_keys=existing_duplicate_keys,
+        daily_realized_loss=daily_realized_loss,
+        now=now,
+    )
 
 
 def append_audit_event(path: Path, result: ExecutionResult, *, timestamp: datetime) -> None:
@@ -135,7 +160,7 @@ def _rejection_reasons(
     if not config.enabled:
         reasons.append("execution is disabled")
     if not config.testnet:
-        reasons.append("only testnet execution is supported")
+        reasons.append("only local testnet simulation is supported")
     if not confirmed:
         reasons.append("explicit confirmation is required")
     if kill_switch is KillSwitchState.ENABLED:
@@ -143,7 +168,7 @@ def _rejection_reasons(
     if intent.notional_value > config.max_order_notional:
         reasons.append("order notional exceeds configured maximum")
     if intent.duplicate_key in existing_duplicate_keys:
-        reasons.append("duplicate order key already submitted")
+        reasons.append("duplicate order key already recorded")
     if daily_realized_loss >= config.daily_loss_limit:
         reasons.append("daily loss circuit breaker is active")
     return reasons

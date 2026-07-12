@@ -15,3 +15,18 @@ analysis_timeframes:
   - 30m
   - 1h
   - 4h
+timeframe_roles:
+  1W: long_term_macro
+  3D: swing
+  1D: swing
+  12h: swing
+  8h: macro
+  6h: macro
+  4h: macro
+  2h: intermediate
+  1h: intermediate
+  30m: intraday
+  15m: setup
+  5m: entry
+  3m: refinement
+  1m: timing

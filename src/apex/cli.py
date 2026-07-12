@@ -33,7 +33,7 @@ from apex.execution import (
     intent_from_setup,
     load_duplicate_keys,
     preview_execution,
-    submit_testnet_order,
+    simulate_testnet_order,
 )
 from apex.intelligence import disabled_intelligence_metadata
 from apex.optimization import (
@@ -178,6 +178,7 @@ def analyze(
                 symbol,
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
+                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -217,6 +218,7 @@ def scan(
                 symbols,
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
+                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -248,6 +250,7 @@ def backtest(
                 symbol,
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
+                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -302,6 +305,7 @@ def paper_record(
                 symbol,
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
+                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )
@@ -490,7 +494,7 @@ def execute_preview(
     output: str = typer.Option("text", "--output", "-o", help="text or json"),
     candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
 ) -> None:
-    """Preview testnet execution intent without submitting anything."""
+    """Preview local testnet-simulation intent without submitting anything."""
 
     analysis = _analysis_for_execution(symbol, candle_limit)
     if analysis.assessment.setup is None:
@@ -508,11 +512,11 @@ def execute_preview(
 @execute_app.command("testnet")
 def execute_testnet(
     symbol: str = typer.Argument(..., help="Trading pair, for example BTC/USDT."),
-    confirm: bool = typer.Option(False, "--confirm", help="Required for testnet submit."),
+    confirm: bool = typer.Option(False, "--confirm", help="Required for local simulation."),
     output: str = typer.Option("text", "--output", "-o", help="text or json"),
     candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
 ) -> None:
-    """Record a simulated testnet order after explicit confirmation."""
+    """Record a local testnet simulation event after explicit confirmation."""
 
     context = bootstrap()
     analysis = _analysis_for_execution(symbol, candle_limit)
@@ -524,7 +528,7 @@ def execute_testnet(
         )
         return
     audit_log = _execution_audit_log(context.settings.data_dir)
-    result = submit_testnet_order(
+    result = simulate_testnet_order(
         intent_from_setup(analysis.assessment.setup),
         config=ExecutionConfig(enabled=confirm, testnet=True),
         audit_log=audit_log,
@@ -534,7 +538,7 @@ def execute_testnet(
     )
     _emit_output(
         _jsonable(asdict(result)),
-        f"EXECUTE_TESTNET | state={result.state.value}",
+        f"EXECUTE_LOCAL_TESTNET_SIMULATION | state={result.state.value}",
         output,
     )
 
@@ -548,7 +552,7 @@ def execute_status(
     context = bootstrap()
     audit_log = _execution_audit_log(context.settings.data_dir)
     payload = {
-        "mode": "testnet_only",
+        "mode": "local_testnet_simulation_only",
         "enabled_by_default": False,
         "kill_switch": _read_kill_switch(context.settings.data_dir).value,
         "duplicate_keys": len(load_duplicate_keys(audit_log)),
@@ -556,7 +560,8 @@ def execute_status(
     }
     _emit_output(
         payload,
-        f"EXECUTE_STATUS | mode=testnet_only | kill_switch={payload['kill_switch']}",
+        "EXECUTE_STATUS | "
+        f"mode=local_testnet_simulation_only | kill_switch={payload['kill_switch']}",
         output,
     )
 
@@ -579,6 +584,7 @@ def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
                 symbol,
                 services.candles,
                 timeframes=context.settings.analysis_timeframes,
+                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
             )

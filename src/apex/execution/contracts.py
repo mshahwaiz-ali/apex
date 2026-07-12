@@ -1,4 +1,4 @@
-"""Immutable contracts for Phase 12 testnet-only execution."""
+"""Immutable contracts for local execution simulation safety."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from apex.strategies import TradeDirection
 class ExecutionState(StrEnum):
     PREVIEW = "preview"
     REJECTED = "rejected"
-    TESTNET_SUBMITTED = "testnet_submitted"
+    LOCAL_TESTNET_SIMULATED = "local_testnet_simulated"
 
 
 class KillSwitchState(StrEnum):
@@ -34,7 +34,7 @@ class ExecutionConfig:
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name.replace('_', ' ')} must be positive and finite")
         if not self.testnet:
-            raise ValueError("execution config only supports testnet mode")
+            raise ValueError("execution config only supports local testnet simulation")
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 
+from apex.config import DEFAULT_TIMEFRAME_ROLES
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import Candle
 from apex.features.registry import create_default_feature_registry
@@ -33,27 +34,8 @@ from apex.strategies import (
     TimeframeContext,
     TimeframeRole,
     analyze_phase4,
+    timeframe_role_sort_key,
 )
-
-_TIMEFRAME_ROLES: Mapping[str, TimeframeRole] = {
-    "4h": TimeframeRole.MACRO,
-    "1h": TimeframeRole.INTERMEDIATE,
-    "30m": TimeframeRole.INTRADAY,
-    "15m": TimeframeRole.SETUP,
-    "5m": TimeframeRole.ENTRY,
-    "3m": TimeframeRole.REFINEMENT,
-    "1m": TimeframeRole.TIMING,
-}
-
-_ROLE_SORT: Mapping[TimeframeRole, int] = {
-    TimeframeRole.MACRO: 0,
-    TimeframeRole.INTERMEDIATE: 1,
-    TimeframeRole.INTRADAY: 2,
-    TimeframeRole.SETUP: 3,
-    TimeframeRole.ENTRY: 4,
-    TimeframeRole.REFINEMENT: 5,
-    TimeframeRole.TIMING: 6,
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +84,7 @@ def analyze_symbol(
     provider: MarketDataProvider,
     *,
     timeframes: Sequence[str],
+    timeframe_roles: Mapping[str, str] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
@@ -116,6 +99,7 @@ def analyze_symbol(
         symbol,
         provider,
         timeframes=timeframes,
+        timeframe_roles=timeframe_roles,
         candle_limit=candle_limit,
     )
     phase4 = analyze_phase4(context, decision_time=decision_time)
@@ -141,13 +125,16 @@ def build_strategy_context(
     *,
     timeframes: Sequence[str],
     candle_limit: int,
+    timeframe_roles: Mapping[str, str] | None = None,
 ) -> tuple[StrategyContext, Mapping[str, str]]:
     """Fetch candles and build a strategy context in deterministic role order."""
 
+    role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
     frames: list[TimeframeContext] = []
     regimes: dict[str, str] = {}
     for timeframe in timeframes:
-        role = _TIMEFRAME_ROLES.get(timeframe)
+        role_name = role_config.get(timeframe)
+        role = TimeframeRole(role_name) if role_name is not None else None
         if role is None:
             continue
         candles = tuple(provider.fetch_candles(symbol, timeframe, limit=candle_limit))
@@ -160,7 +147,7 @@ def build_strategy_context(
     return (
         StrategyContext(
             symbol=symbol,
-            frames=tuple(sorted(frames, key=lambda frame: _ROLE_SORT[frame.role])),
+            frames=tuple(sorted(frames, key=lambda frame: timeframe_role_sort_key(frame.role))),
         ),
         regimes,
     )
@@ -171,6 +158,7 @@ def scan_symbols(
     provider: MarketDataProvider,
     *,
     timeframes: Sequence[str],
+    timeframe_roles: Mapping[str, str] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
@@ -187,6 +175,7 @@ def scan_symbols(
                     symbol,
                     provider,
                     timeframes=timeframes,
+                    timeframe_roles=timeframe_roles,
                     candle_limit=candle_limit,
                     risk_config=risk_config,
                     generated_at=timestamp,

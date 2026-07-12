@@ -2,14 +2,23 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from apex.application.analysis import load_symbols, scan_symbols, serialize_scan_result
+from apex.application.analysis import (
+    build_strategy_context,
+    load_symbols,
+    scan_symbols,
+    serialize_scan_result,
+)
 from apex.domain import Candle
+from apex.strategies import TimeframeRole
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
 class FakeProvider:
     name = "fake"
+
+    def __init__(self) -> None:
+        self.requests: list[tuple[str, str, int]] = []
 
     def fetch_candles(
         self,
@@ -19,6 +28,7 @@ class FakeProvider:
     ) -> list[Candle]:
         if symbol == "BROKEN/USDT":
             raise RuntimeError("fixture failure")
+        self.requests.append((symbol, timeframe, limit))
         candles: list[Candle] = []
         start = NOW - timedelta(minutes=limit)
         for index in range(limit):
@@ -70,3 +80,23 @@ def test_scan_isolates_symbol_failures() -> None:
     assert "BROKEN/USDT" in payload["failures"]
     assert payload["results"]
     assert payload["generated_at"] == NOW.isoformat()
+
+
+def test_strategy_context_uses_configured_timeframe_roles() -> None:
+    provider = FakeProvider()
+
+    context, regimes = build_strategy_context(
+        "BTC/USDT",
+        provider,
+        timeframes=("5m", "1D"),
+        candle_limit=80,
+        timeframe_roles={"1D": "long_term_macro", "5m": "entry"},
+    )
+
+    assert provider.requests == [("BTC/USDT", "5m", 80), ("BTC/USDT", "1D", 80)]
+    assert [frame.timeframe for frame in context.frames] == ["1D", "5m"]
+    assert [frame.role for frame in context.frames] == [
+        TimeframeRole.LONG_TERM_MACRO,
+        TimeframeRole.ENTRY,
+    ]
+    assert set(regimes) == {"1D", "5m"}

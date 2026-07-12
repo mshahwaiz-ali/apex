@@ -6,6 +6,8 @@ from typer.testing import CliRunner
 
 import apex.cli as cli
 from apex.data.providers.errors import ProviderRequestError
+from apex.execution.contracts import ExecutionIntent
+from apex.strategies import TradeDirection
 
 runner = CliRunner()
 
@@ -260,7 +262,7 @@ def test_intelligence_summary_is_disabled_by_default(monkeypatch) -> None:
     assert '"enabled": false' in result.output
 
 
-def test_execute_status_reports_testnet_only(monkeypatch, tmp_path) -> None:
+def test_execute_status_reports_local_testnet_simulation_only(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         cli,
         "bootstrap",
@@ -270,7 +272,42 @@ def test_execute_status_reports_testnet_only(monkeypatch, tmp_path) -> None:
     result = runner.invoke(cli.app, ["execute", "status"])
 
     assert result.exit_code == 0
-    assert "EXECUTE_STATUS | mode=testnet_only" in result.output
+    assert "EXECUTE_STATUS | mode=local_testnet_simulation_only" in result.output
+
+
+def test_execute_testnet_reports_local_simulation(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_analysis_for_execution",
+        lambda symbol, candle_limit: SimpleNamespace(
+            assessment=SimpleNamespace(setup=object(), reasons=())
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "intent_from_setup",
+        lambda setup: ExecutionIntent(
+            symbol="BTC/USDT",
+            direction=TradeDirection.LONG,
+            quantity=1.0,
+            entry_price=100.0,
+            stop_price=98.0,
+            target_price=104.0,
+            notional_value=100.0,
+            duplicate_key="abc123",
+        ),
+    )
+
+    result = runner.invoke(cli.app, ["execute", "testnet", "BTC/USDT", "--confirm"])
+
+    assert result.exit_code == 0
+    assert "EXECUTE_LOCAL_TESTNET_SIMULATION" in result.output
+    assert "local_testnet_simulated" in result.output
 
 
 def test_execute_kill_switch_enable(monkeypatch, tmp_path) -> None:

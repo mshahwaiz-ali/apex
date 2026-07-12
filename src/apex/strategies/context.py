@@ -11,6 +11,8 @@ from apex.structure.contracts import StructureAnalysisResult, TrendDirection
 
 
 class TimeframeRole(StrEnum):
+    LONG_TERM_MACRO = "long_term_macro"
+    SWING = "swing"
     MACRO = "macro"
     INTERMEDIATE = "intermediate"
     INTRADAY = "intraday"
@@ -21,14 +23,22 @@ class TimeframeRole(StrEnum):
 
 
 _ROLE_ORDER = {
-    TimeframeRole.MACRO: 0,
-    TimeframeRole.INTERMEDIATE: 1,
-    TimeframeRole.INTRADAY: 2,
-    TimeframeRole.SETUP: 3,
-    TimeframeRole.ENTRY: 4,
-    TimeframeRole.REFINEMENT: 5,
-    TimeframeRole.TIMING: 6,
+    TimeframeRole.LONG_TERM_MACRO: 0,
+    TimeframeRole.SWING: 1,
+    TimeframeRole.MACRO: 2,
+    TimeframeRole.INTERMEDIATE: 3,
+    TimeframeRole.INTRADAY: 4,
+    TimeframeRole.SETUP: 5,
+    TimeframeRole.ENTRY: 6,
+    TimeframeRole.REFINEMENT: 7,
+    TimeframeRole.TIMING: 8,
 }
+
+
+def timeframe_role_sort_key(role: TimeframeRole) -> int:
+    """Return stable highest-to-lowest ordering for configured timeframe roles."""
+
+    return _ROLE_ORDER[role]
 
 
 def _finite(name: str, value: float | None) -> None:
@@ -125,6 +135,8 @@ class StrategyContext:
         if len(set(roles)) != len(roles):
             raise ValueError("timeframe roles must be unique")
         thesis_roles = {
+            TimeframeRole.LONG_TERM_MACRO,
+            TimeframeRole.SWING,
             TimeframeRole.MACRO,
             TimeframeRole.INTERMEDIATE,
             TimeframeRole.INTRADAY,
@@ -169,5 +181,11 @@ class StrategyContext:
         return any(
             frame.structure.trend.direction in opposed
             for frame in self.frames
-            if frame.role in {TimeframeRole.MACRO, TimeframeRole.INTERMEDIATE}
+            if frame.role
+            in {
+                TimeframeRole.LONG_TERM_MACRO,
+                TimeframeRole.SWING,
+                TimeframeRole.MACRO,
+                TimeframeRole.INTERMEDIATE,
+            }
         )
