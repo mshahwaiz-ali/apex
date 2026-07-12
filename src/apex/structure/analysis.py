@@ -19,14 +19,20 @@ def analyze_structure(
     *,
     left_window: int = 2,
     right_window: int = 2,
+    relative_volume: Sequence[float | None] | None = None,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
 ) -> StructureAnalysisResult:
     """Run the Phase 3 structure pipeline in a fixed execution order."""
 
+    if relative_volume is not None and len(relative_volume) != len(candles):
+        raise ValueError("relative_volume length must match candle count")
     usable = prepare_candles(
         candles,
         minimum_candles=left_window + 1,
         active_candle_policy=active_candle_policy,
+    )
+    usable_volume = (
+        tuple(relative_volume[: len(usable)]) if relative_volume is not None else None
     )
     swings = detect_swings(
         usable,
@@ -38,6 +44,7 @@ def analyze_structure(
     breaks = detect_structure_breaks(
         usable,
         swings,
+        relative_volume=usable_volume,
         active_candle_policy=ActiveCandlePolicy.ALLOW_FINAL,
     )
     changes = detect_changes_of_character(trend, breaks)
