@@ -29,8 +29,7 @@ def classify_trend(
     if minimum_pairs < 1:
         raise ValueError("minimum_pairs must be at least 1")
     if not all(
-        math.isfinite(value)
-        for value in (strong_persistence, weak_persistence, equality_tolerance)
+        math.isfinite(value) for value in (strong_persistence, weak_persistence, equality_tolerance)
     ):
         raise ValueError("trend thresholds must be finite")
     if not 0 <= weak_persistence <= strong_persistence <= 1:
@@ -111,11 +110,7 @@ def _direction(
     weak_threshold: float,
 ) -> TrendDirection:
     if bullish == bearish:
-        return (
-            TrendDirection.RANGE
-            if equal > 0 or bullish == 0
-            else TrendDirection.TRANSITION
-        )
+        return TrendDirection.RANGE if equal > 0 or bullish == 0 else TrendDirection.TRANSITION
 
     conflict = min(bullish, bearish) > 0
     if bullish > bearish:

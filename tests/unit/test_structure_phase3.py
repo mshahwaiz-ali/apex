@@ -15,7 +15,9 @@ from apex.structure import (
 )
 
 
-def _candles(highs: list[float], lows: list[float], *, active_final: bool = False) -> tuple[Candle, ...]:
+def _candles(
+    highs: list[float], lows: list[float], *, active_final: bool = False
+) -> tuple[Candle, ...]:
     opened = datetime(2026, 1, 1, tzinfo=UTC)
     items: list[Candle] = []
     for index, (high, low) in enumerate(zip(highs, lows, strict=True)):

@@ -177,7 +177,7 @@ def test_zero_relative_volume_is_valid_but_not_confirmation() -> None:
     )
 
     assert events[0].classification is SweepClassification.CONFIRMED_SWEEP
-    assert "lacks relative-volume confirmation" in events[0].warnings
+    assert events[0].warnings == ("lacks relative-volume confirmation",)
 
 
 def test_close_confirmed_bearish_break() -> None:
@@ -222,10 +222,7 @@ def test_future_pivot_is_rejected_from_liquidity_derivation() -> None:
 
 
 def test_flat_market_does_not_create_zero_width_range() -> None:
-    candles = tuple(
-        _candle(index, high=100.0, low=100.0, close=100.0)
-        for index in range(21)
-    )
+    candles = tuple(_candle(index, high=100.0, low=100.0, close=100.0) for index in range(21))
 
     assert detect_range(candles) is None
 

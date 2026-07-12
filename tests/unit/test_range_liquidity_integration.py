@@ -70,8 +70,7 @@ def test_false_break_trigger_occurs_after_range_zone_history() -> None:
     buy_side = next(
         zone
         for zone in zones
-        if zone.side is LiquiditySide.BUY_SIDE
-        and zone.kind is LiquidityZoneType.RANGE_HIGH
+        if zone.side is LiquiditySide.BUY_SIDE and zone.kind is LiquidityZoneType.RANGE_HIGH
     )
     events = detect_liquidity_sweeps(candles, (buy_side,))
 

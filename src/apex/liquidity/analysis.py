@@ -69,9 +69,7 @@ def analyze_liquidity(
         minimum_candles=1,
         active_candle_policy=active_candle_policy,
     )
-    usable_volume = (
-        tuple(relative_volume[: len(usable)]) if relative_volume is not None else None
-    )
+    usable_volume = tuple(relative_volume[: len(usable)]) if relative_volume is not None else None
     zones = derive_liquidity_zones(
         structure.swings,
         current_index=len(usable) - 1,
@@ -88,9 +86,7 @@ def analyze_liquidity(
     traps = detect_traps(usable, sweeps)
     return LiquidityAnalysisResult(
         zones=zones,
-        sweeps=tuple(
-            sorted(sweeps, key=lambda item: (item.candle_index, item.zone.side.value))
-        ),
+        sweeps=tuple(sorted(sweeps, key=lambda item: (item.candle_index, item.zone.side.value))),
         traps=tuple(sorted(traps, key=lambda item: (item.candle_index, item.kind.value))),
     )
 
@@ -116,9 +112,7 @@ def _synchronize_zone_status(
             ),
         )
     )
-    updated_sweeps = tuple(
-        replace(sweep, zone=replacements[sweep.zone]) for sweep in sweeps
-    )
+    updated_sweeps = tuple(replace(sweep, zone=replacements[sweep.zone]) for sweep in sweeps)
     return updated_zones, updated_sweeps
 
 

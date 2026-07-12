@@ -31,9 +31,7 @@ def analyze_structure(
         minimum_candles=left_window + 1,
         active_candle_policy=active_candle_policy,
     )
-    usable_volume = (
-        tuple(relative_volume[: len(usable)]) if relative_volume is not None else None
-    )
+    usable_volume = tuple(relative_volume[: len(usable)]) if relative_volume is not None else None
     swings = detect_swings(
         usable,
         left_window=left_window,

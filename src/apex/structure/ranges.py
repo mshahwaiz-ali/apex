@@ -57,9 +57,7 @@ def detect_range(
     upper_tests = sum(
         abs(candle.high - range_high) <= tolerance_amount for candle in boundary_window
     )
-    lower_tests = sum(
-        abs(candle.low - range_low) <= tolerance_amount for candle in boundary_window
-    )
+    lower_tests = sum(abs(candle.low - range_low) <= tolerance_amount for candle in boundary_window)
     if upper_tests < minimum_boundary_tests or lower_tests < minimum_boundary_tests:
         return None
 

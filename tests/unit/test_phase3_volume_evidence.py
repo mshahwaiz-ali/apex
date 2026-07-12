@@ -108,7 +108,4 @@ def test_high_relative_volume_is_added_to_sweep_evidence() -> None:
         relative_volume=(1.0, 1.0, 1.5),
     )[0]
 
-    assert (
-        "relative volume confirmed participation at the liquidity event"
-        in event.evidence
-    )
+    assert "relative volume confirmed participation at the liquidity event" in event.evidence

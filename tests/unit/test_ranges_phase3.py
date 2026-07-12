@@ -32,7 +32,7 @@ def _base_range() -> list[Candle]:
 
 
 def test_detect_range_returns_stable_recent_range() -> None:
-    candles = tuple(_base_range() + [_candle(20, 101.0, 99.0, 100.5)])
+    candles = tuple([*_base_range(), _candle(20, 101.0, 99.0, 100.5)])
 
     result = detect_range(candles)
 
@@ -43,7 +43,7 @@ def test_detect_range_returns_stable_recent_range() -> None:
 
 
 def test_detect_range_classifies_close_confirmed_breakout() -> None:
-    candles = tuple(_base_range() + [_candle(20, 104.0, 101.0, 103.0)])
+    candles = tuple([*_base_range(), _candle(20, 104.0, 101.0, 103.0)])
 
     result = detect_range(candles)
 
@@ -52,7 +52,7 @@ def test_detect_range_classifies_close_confirmed_breakout() -> None:
 
 
 def test_detect_range_classifies_false_breakout() -> None:
-    candles = tuple(_base_range() + [_candle(20, 104.0, 99.0, 101.0)])
+    candles = tuple([*_base_range(), _candle(20, 104.0, 99.0, 101.0)])
 
     result = detect_range(candles)
 

@@ -44,9 +44,7 @@ def detect_structure_breaks(
 ) -> tuple[StructureBreak, ...]:
     """Detect the first meaningful close break of each confirmed pivot level."""
 
-    if not math.isfinite(minimum_close_distance) or not math.isfinite(
-        strong_close_distance
-    ):
+    if not math.isfinite(minimum_close_distance) or not math.isfinite(strong_close_distance):
         raise ValueError("break-distance thresholds must be finite")
     if minimum_close_distance < 0 or strong_close_distance < minimum_close_distance:
         raise ValueError("break-distance thresholds are invalid")
@@ -178,9 +176,7 @@ def _first_break(
                 wick_penetration=wick_penetration,
                 quality=BreakQuality.WICK_ONLY,
                 confirmation=(
-                    ConfirmationStatus.DEVELOPING
-                    if is_active
-                    else ConfirmationStatus.REJECTED
+                    ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.REJECTED
                 ),
                 evidence=["wick breached level but close did not sustain beyond it"],
                 relative_volume=relative_volume,
@@ -203,9 +199,7 @@ def _first_break(
                 wick_penetration=wick_penetration,
                 quality=BreakQuality.WEAK,
                 confirmation=(
-                    ConfirmationStatus.DEVELOPING
-                    if is_active
-                    else ConfirmationStatus.REJECTED
+                    ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.REJECTED
                 ),
                 evidence=["close penetration was below the configured threshold"],
                 relative_volume=relative_volume,
@@ -218,9 +212,7 @@ def _first_break(
             continue
 
         quality = (
-            BreakQuality.STRONG
-            if close_distance >= strong_close_distance
-            else BreakQuality.VALID
+            BreakQuality.STRONG if close_distance >= strong_close_distance else BreakQuality.VALID
         )
         return _build_break(
             swing=swing,
@@ -232,9 +224,7 @@ def _first_break(
             wick_penetration=wick_penetration,
             quality=quality,
             confirmation=(
-                ConfirmationStatus.DEVELOPING
-                if is_active
-                else ConfirmationStatus.CONFIRMED
+                ConfirmationStatus.DEVELOPING if is_active else ConfirmationStatus.CONFIRMED
             ),
             evidence=["candle closed beyond a confirmed structural pivot"],
             relative_volume=relative_volume,

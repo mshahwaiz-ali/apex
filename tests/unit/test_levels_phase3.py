@@ -23,7 +23,9 @@ def _swing(index: int, price: float, kind: SwingType) -> SwingPoint:
     )
 
 
-def _candle(index: int, close: float, *, high: float | None = None, low: float | None = None) -> Candle:
+def _candle(
+    index: int, close: float, *, high: float | None = None, low: float | None = None
+) -> Candle:
     opened = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=index)
     return Candle(
         symbol="BTC/USDT",

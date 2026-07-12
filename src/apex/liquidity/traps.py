@@ -41,9 +41,7 @@ def detect_traps(
         ]
         buy_side = sweep.zone.side is LiquiditySide.BUY_SIDE
         invalidation = (
-            (f"close above {sweep.zone.high}",)
-            if buy_side
-            else (f"close below {sweep.zone.low}",)
+            (f"close above {sweep.zone.high}",) if buy_side else (f"close below {sweep.zone.low}",)
         )
 
         if sweep.classification is SweepClassification.CONFIRMED_SWEEP:
@@ -126,9 +124,7 @@ def detect_traps(
                     zone=sweep.zone,
                     sweep=sweep,
                     confirmation=ConfirmationStatus.CONFIRMED,
-                    evidence=(
-                        "breakout close is materially extended from the liquidity boundary",
-                    ),
+                    evidence=("breakout close is materially extended from the liquidity boundary",),
                     invalidation=("price retests the breakout boundary before entry",),
                 )
             )

@@ -255,7 +255,9 @@ class RangeStructure:
             raise ValueError("range test counts cannot be negative")
         if tuple(sorted(set(self.false_break_indices))) != self.false_break_indices:
             raise ValueError("false-break indices must be unique and sorted")
-        if any(index < self.start_index or index > self.end_index for index in self.false_break_indices):
+        if any(
+            index < self.start_index or index > self.end_index for index in self.false_break_indices
+        ):
             raise ValueError("false-break indices must lie inside the range interval")
         if not 0 <= self.current_position <= 1:
             raise ValueError("current position must be between 0 and 1")
@@ -273,20 +275,32 @@ class StructureAnalysisResult:
     levels: tuple[StructureLevel, ...] = ()
 
     def __post_init__(self) -> None:
-        if tuple(sorted(self.swings, key=lambda item: (item.index, item.kind.value))) != self.swings:
+        if (
+            tuple(sorted(self.swings, key=lambda item: (item.index, item.kind.value)))
+            != self.swings
+        ):
             raise ValueError("swings must use deterministic chronological ordering")
-        if tuple(sorted(self.breaks, key=lambda item: (item.candle_index, item.direction.value))) != self.breaks:
+        if (
+            tuple(sorted(self.breaks, key=lambda item: (item.candle_index, item.direction.value)))
+            != self.breaks
+        ):
             raise ValueError("breaks must use deterministic chronological ordering")
-        if tuple(sorted(self.ranges, key=lambda item: (item.start_index, item.end_index))) != self.ranges:
+        if (
+            tuple(sorted(self.ranges, key=lambda item: (item.start_index, item.end_index)))
+            != self.ranges
+        ):
             raise ValueError("ranges must use chronological ordering")
-        if tuple(
-            sorted(
-                self.levels,
-                key=lambda item: (
-                    item.representative_price,
-                    item.role.value,
-                    item.last_touch_index,
-                ),
+        if (
+            tuple(
+                sorted(
+                    self.levels,
+                    key=lambda item: (
+                        item.representative_price,
+                        item.role.value,
+                        item.last_touch_index,
+                    ),
+                )
             )
-        ) != self.levels:
+            != self.levels
+        ):
             raise ValueError("levels must use deterministic ordering")

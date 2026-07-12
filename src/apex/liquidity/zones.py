@@ -50,11 +50,7 @@ def derive_liquidity_zones(
         for cluster in _cluster_pivots(pivots, tolerance):
             prices = tuple(item.price for item in cluster)
             representative = sum(prices) / len(prices)
-            side = (
-                LiquiditySide.BUY_SIDE
-                if kind is SwingType.HIGH
-                else LiquiditySide.SELL_SIDE
-            )
+            side = LiquiditySide.BUY_SIDE if kind is SwingType.HIGH else LiquiditySide.SELL_SIDE
             zone_type = _zone_type(
                 kind,
                 prices,
@@ -106,9 +102,7 @@ def _zone_type(
 ) -> LiquidityZoneType:
     if len(prices) == 1:
         return (
-            LiquidityZoneType.PIVOT_HIGH
-            if kind is SwingType.HIGH
-            else LiquidityZoneType.PIVOT_LOW
+            LiquidityZoneType.PIVOT_HIGH if kind is SwingType.HIGH else LiquidityZoneType.PIVOT_LOW
         )
     spread = (max(prices) - min(prices)) / representative
     if spread <= equal_tolerance:
@@ -133,8 +127,7 @@ def _cluster_pivots(
             (
                 cluster
                 for cluster in clusters
-                if abs(pivot.price - _mean(cluster))
-                <= max(pivot.price, _mean(cluster)) * tolerance
+                if abs(pivot.price - _mean(cluster)) <= max(pivot.price, _mean(cluster)) * tolerance
             ),
             None,
         )
@@ -154,11 +147,7 @@ def _range_zones(
     current_index: int,
 ) -> tuple[LiquidityZone, ...]:
     has_trigger_candle = detected_range.breakout_state is not RangeBreakoutState.NONE
-    boundary_end = (
-        detected_range.end_index - 1
-        if has_trigger_candle
-        else detected_range.end_index
-    )
+    boundary_end = detected_range.end_index - 1 if has_trigger_candle else detected_range.end_index
     if boundary_end <= detected_range.start_index:
         raise ValueError("range must contain boundary history before a trigger candle")
     age = current_index - boundary_end

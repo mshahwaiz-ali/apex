@@ -59,9 +59,7 @@ def derive_structure_levels(
         representative = sum(prices) / len(prices)
         latest_pivot = max(cluster, key=lambda item: item.index)
         source_role = (
-            LevelRole.RESISTANCE
-            if latest_pivot.kind is SwingType.HIGH
-            else LevelRole.SUPPORT
+            LevelRole.RESISTANCE if latest_pivot.kind is SwingType.HIGH else LevelRole.SUPPORT
         )
         role, status = _classify_level_state(
             source_role,
@@ -114,8 +112,7 @@ def _classify_level_state(
         if break_index is None:
             return source_role, LevelStatus.ACTIVE
         retested = any(
-            candle.low <= high and candle.close >= high
-            for candle in post_pivot[break_index + 1 :]
+            candle.low <= high and candle.close >= high for candle in post_pivot[break_index + 1 :]
         )
         if retested:
             return LevelRole.SUPPORT, LevelStatus.FLIPPED
@@ -128,8 +125,7 @@ def _classify_level_state(
     if break_index is None:
         return source_role, LevelStatus.ACTIVE
     retested = any(
-        candle.high >= low and candle.close <= low
-        for candle in post_pivot[break_index + 1 :]
+        candle.high >= low and candle.close <= low for candle in post_pivot[break_index + 1 :]
     )
     if retested:
         return LevelRole.RESISTANCE, LevelStatus.FLIPPED

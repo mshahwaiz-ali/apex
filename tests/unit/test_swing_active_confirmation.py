@@ -42,14 +42,10 @@ def test_active_right_candle_cannot_confirm_swing() -> None:
     )
 
     active_high = next(
-        swing
-        for swing in developing
-        if swing.index == 1 and swing.kind is SwingType.HIGH
+        swing for swing in developing if swing.index == 1 and swing.kind is SwingType.HIGH
     )
     closed_high = next(
-        swing
-        for swing in confirmed
-        if swing.index == 1 and swing.kind is SwingType.HIGH
+        swing for swing in confirmed if swing.index == 1 and swing.kind is SwingType.HIGH
     )
     assert active_high.status is PivotStatus.DEVELOPING
     assert closed_high.status is PivotStatus.CONFIRMED
