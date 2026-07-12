@@ -104,3 +104,7 @@ Features return typed `FeatureResult` objects with inspectable `FeatureSpec` met
 ## Testing
 
 The feature engine includes unit tests for contracts, validation, formulas, warm-up behavior, active-candle behavior, registry invariants, and invalid parameters. A JSON fixture anchors deterministic regression outputs for representative SMA, EMA, ATR, RSI, VWAP, and recent-range calculations.
+
+## Verification
+
+Phase 2 completion requires a green GitHub Actions quality run covering Ruff linting, Ruff formatting, strict mypy checks, and the complete pytest suite before Phase 3 begins.
