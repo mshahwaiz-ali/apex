@@ -20,6 +20,9 @@ from apex.structure.contracts import (
 )
 
 
+NOW = datetime(2026, 7, 13, tzinfo=UTC)
+
+
 def _structure(*, bullish: bool) -> StructureAnalysisResult:
     trend = TrendDirection.BULLISH if bullish else TrendDirection.BEARISH
     levels = (
@@ -131,7 +134,7 @@ def _context(
 def test_generates_long_trend_pullback_near_current_price() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=True),
-        decision_time=datetime(2026, 7, 13, tzinfo=UTC),
+        decision_time=NOW,
     )
 
     assert len(candidates) == 1
@@ -145,7 +148,7 @@ def test_generates_long_trend_pullback_near_current_price() -> None:
 def test_generates_short_trend_pullback_near_current_price() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=False),
-        decision_time=datetime(2026, 7, 13, tzinfo=UTC),
+        decision_time=NOW,
     )
 
     assert len(candidates) == 1
@@ -159,7 +162,7 @@ def test_generates_short_trend_pullback_near_current_price() -> None:
 def test_rejects_strong_higher_timeframe_contradiction() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=True, contradiction=True),
-        decision_time=datetime(2026, 7, 13, tzinfo=UTC),
+        decision_time=NOW,
     )
 
     assert candidates == ()
@@ -168,7 +171,7 @@ def test_rejects_strong_higher_timeframe_contradiction() -> None:
 def test_allows_missing_optional_indicators() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=True, sparse_features=True),
-        decision_time=datetime(2026, 7, 13, tzinfo=UTC),
+        decision_time=NOW,
     )
 
     assert len(candidates) == 1
@@ -178,8 +181,17 @@ def test_allows_missing_optional_indicators() -> None:
 def test_marks_active_candle_candidate_provisional() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=True, active=True),
-        decision_time=datetime(2026, 7, 13, tzinfo=UTC),
+        decision_time=NOW,
     )
 
     assert candidates[0].provisional is True
     assert "active-candle evidence is provisional" in candidates[0].evidence.warnings
+
+
+def test_output_is_deterministic() -> None:
+    context = _context(bullish=True)
+
+    first = generate_trend_pullback_candidates(context, decision_time=NOW)
+    second = generate_trend_pullback_candidates(context, decision_time=NOW)
+
+    assert first == second
