@@ -4,6 +4,8 @@ import httpx
 import pytest
 
 from apex.data.providers.binance import BinanceMarketDataProvider
+from apex.data.providers.errors import ProviderRequestError, ProviderResponseError
+from apex.data.providers.http import RetryPolicy
 
 
 def test_fetch_candles_normalizes_binance_response() -> None:
@@ -190,7 +192,79 @@ def test_fetch_ticker_rejects_invalid_payload(
 
     provider = BinanceMarketDataProvider(client=client)
 
-    with pytest.raises(ValueError, match=expected_message):
+    with pytest.raises(ProviderResponseError, match=expected_message):
         provider.fetch_ticker("BTC/USDT")
+
+    client.close()
+
+
+def test_fetch_candles_retries_retryable_binance_error() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+
+        if attempts == 1:
+            return httpx.Response(503, request=request)
+
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    1_700_000_000_000,
+                    "100.0",
+                    "110.0",
+                    "95.0",
+                    "105.0",
+                    "123.45",
+                    1_700_000_899_999,
+                ]
+            ],
+            request=request,
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(
+        client=client,
+        retry_policy=RetryPolicy(
+            max_attempts=2,
+            base_delay_seconds=0,
+        ),
+        sleep=lambda _: None,
+    )
+
+    candles = provider.fetch_candles("BTC/USDT", "15m", limit=1)
+
+    assert len(candles) == 1
+    assert attempts == 2
+
+    client.close()
+
+
+def test_fetch_candles_normalizes_non_retryable_http_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, request=request)
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(
+        client=client,
+        retry_policy=RetryPolicy(max_attempts=3),
+    )
+
+    with pytest.raises(ProviderRequestError) as exc_info:
+        provider.fetch_candles("INVALID/USDT", "15m", limit=1)
+
+    error = exc_info.value
+    assert error.provider == "binance"
+    assert error.operation == "fetch candles"
+    assert error.status_code == 400
+    assert error.retryable is False
 
     client.close()

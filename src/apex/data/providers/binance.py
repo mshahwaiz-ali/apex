@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 import httpx
 
+from apex.data.providers.errors import ProviderResponseError
+from apex.data.providers.http import RetryPolicy, request_json
 from apex.domain.models import Candle, TickerSnapshot
 
 
@@ -31,8 +35,12 @@ class BinanceMarketDataProvider:
         *,
         timeout: float = 10.0,
         client: httpx.Client | None = None,
+        retry_policy: RetryPolicy | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._owns_client = client is None
+        self._retry_policy = retry_policy or RetryPolicy()
+        self._sleep = sleep
         self._client = client or httpx.Client(
             base_url=self.BASE_URL,
             timeout=timeout,
@@ -72,19 +80,26 @@ class BinanceMarketDataProvider:
 
         normalized_symbol = self._normalize_symbol(symbol)
 
-        response = self._client.get(
+        payload = request_json(
+            self._client,
+            "GET",
             "/api/v3/klines",
+            provider=self.name,
+            operation="fetch candles",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
             params={
                 "symbol": normalized_symbol,
                 "interval": timeframe,
                 "limit": limit,
             },
         )
-        response.raise_for_status()
-
-        payload = response.json()
         if not isinstance(payload, list):
-            raise ValueError("Binance candle response must be a list")
+            raise ProviderResponseError(
+                "Binance candle response must be a list",
+                provider=self.name,
+                operation="fetch candles",
+            )
 
         now = datetime.now(UTC)
         candles = [
@@ -98,7 +113,11 @@ class BinanceMarketDataProvider:
         ]
 
         if not candles:
-            raise ValueError("Binance returned no candles")
+            raise ProviderResponseError(
+                "Binance returned no candles",
+                provider=self.name,
+                operation="fetch candles",
+            )
 
         return candles
 
@@ -107,25 +126,39 @@ class BinanceMarketDataProvider:
 
         normalized_symbol = self._normalize_symbol(symbol)
 
-        book_response = self._client.get(
+        book_payload = request_json(
+            self._client,
+            "GET",
             "/api/v3/ticker/bookTicker",
+            provider=self.name,
+            operation="fetch book ticker",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
             params={"symbol": normalized_symbol},
         )
-        book_response.raise_for_status()
-
-        stats_response = self._client.get(
+        stats_payload = request_json(
+            self._client,
+            "GET",
             "/api/v3/ticker/24hr",
+            provider=self.name,
+            operation="fetch 24h ticker",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
             params={"symbol": normalized_symbol},
         )
-        stats_response.raise_for_status()
-
-        book_payload = book_response.json()
-        stats_payload = stats_response.json()
 
         if not isinstance(book_payload, dict):
-            raise ValueError("Binance book ticker response must be an object")
+            raise ProviderResponseError(
+                "Binance book ticker response must be an object",
+                provider=self.name,
+                operation="fetch book ticker",
+            )
         if not isinstance(stats_payload, dict):
-            raise ValueError("Binance 24h ticker response must be an object")
+            raise ProviderResponseError(
+                "Binance 24h ticker response must be an object",
+                provider=self.name,
+                operation="fetch 24h ticker",
+            )
 
         return TickerSnapshot(
             symbol=symbol.upper(),
@@ -153,7 +186,11 @@ class BinanceMarketDataProvider:
         now: datetime,
     ) -> Candle:
         if not isinstance(row, list) or len(row) < 7:
-            raise ValueError("Invalid Binance candle row")
+            raise ProviderResponseError(
+                "Invalid Binance candle row",
+                provider=self.name,
+                operation="parse candles",
+            )
 
         open_time = self._milliseconds_to_datetime(row[0])
         close_time = self._milliseconds_to_datetime(row[6])
@@ -177,6 +214,10 @@ class BinanceMarketDataProvider:
         try:
             milliseconds = int(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid Binance timestamp: {value!r}") from exc
+            raise ProviderResponseError(
+                f"Invalid Binance timestamp: {value!r}",
+                provider="binance",
+                operation="parse candles",
+            ) from exc
 
         return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)

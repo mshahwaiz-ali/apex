@@ -10,7 +10,11 @@ import typer
 from apex import __version__
 from apex.application import bootstrap
 from apex.config import load_settings
-from apex.data.providers import BinanceMarketDataProvider
+from apex.data.cache.candles import FileCandleCache
+from apex.data.providers import (
+    BinanceMarketDataProvider,
+    CachedMarketDataProvider,
+)
 
 app = typer.Typer(help="Apex Trading Agent command line interface.", no_args_is_help=True)
 
@@ -58,7 +62,14 @@ def fetch_candles(
     """Fetch live public OHLCV candles from Binance."""
 
     try:
-        with BinanceMarketDataProvider() as provider:
+        context = bootstrap()
+        cache = FileCandleCache(context.settings.data_dir / "cache" / "candles")
+
+        with BinanceMarketDataProvider() as live_provider:
+            provider = CachedMarketDataProvider(
+                live_provider,
+                cache,
+            )
             candles = provider.fetch_candles(
                 symbol=symbol,
                 timeframe=timeframe,
