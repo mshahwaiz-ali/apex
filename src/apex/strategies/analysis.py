@@ -23,12 +23,8 @@ _RANGE_REGIMES = {
     MarketRegime.VOLATILE_RANGE,
     MarketRegime.COMPRESSION,
 }
-_TRANSITION_REGIMES = {
-    MarketRegime.REVERSAL_TRANSITION,
-}
-_BREAKOUT_REGIMES = {
-    MarketRegime.BREAKOUT_EXPANSION,
-}
+_TRANSITION_REGIMES = {MarketRegime.REVERSAL_TRANSITION}
+_BREAKOUT_REGIMES = {MarketRegime.BREAKOUT_EXPANSION}
 _UNSTABLE_REGIMES = {
     MarketRegime.HIGH_VOLATILITY_CHAOS,
     MarketRegime.LOW_VOLATILITY_STAGNATION,
@@ -42,6 +38,9 @@ _STRATEGY_REGIME_ALLOWLIST: Mapping[StrategyType, frozenset[MarketRegime]] = {
     StrategyType.LIQUIDITY_REVERSAL: frozenset(_RANGE_REGIMES | _TRANSITION_REGIMES),
     StrategyType.RANGE_REVERSAL: frozenset(_RANGE_REGIMES | _TRANSITION_REGIMES),
     StrategyType.MOMENTUM_CONTINUATION: frozenset(_TREND_REGIMES | _BREAKOUT_REGIMES),
+    StrategyType.MOMENTUM_GAINER_CONTINUATION: frozenset(
+        _TREND_REGIMES | _BREAKOUT_REGIMES
+    ),
 }
 
 
@@ -111,8 +110,8 @@ def analyze_phase4(
     eligible, skipped = _strategy_eligibility(decision_regime, evaluated)
     candidates = tuple(
         candidate
-        for _strategy, generator in STRATEGY_REGISTRY
-        if _strategy in eligible
+        for strategy, generator in STRATEGY_REGISTRY
+        if strategy in eligible
         for candidate in run_strategy_generator(
             generator,
             context,
