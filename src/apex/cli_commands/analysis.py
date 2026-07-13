@@ -10,6 +10,7 @@ from apex.application import (
     analyze_selected_symbol,
     bootstrap,
     build_futures_account_input,
+    build_futures_plan_result,
     create_market_data_services,
     format_symbol_text,
     load_default_risk_config,
@@ -85,15 +86,28 @@ def register_analysis_commands(app: typer.Typer) -> None:
         payload["futures_account"] = account.model_dump(mode="json") | {
             "maximum_account_loss_amount": account.maximum_account_loss_amount
         }
+        setup = result.assessment.setup
+        if setup is not None:
+            payload["futures_plan"] = build_futures_plan_result(setup, account)
+
         if output == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
-        else:
-            typer.echo(format_symbol_text(result))
-            typer.echo(
-                "Futures account: "
-                f"wallet={account.wallet_balance:.2f} "
-                f"risk={account.risk_mode.value} "
-                f"leverage={account.leverage_mode.value} "
-                f"max_loss={account.maximum_account_loss_amount:.2f} "
-                f"margin={account.margin_mode.value}"
-            )
+            return
+
+        typer.echo(format_symbol_text(result))
+        typer.echo(
+            "Futures account: "
+            f"wallet={account.wallet_balance:.2f} "
+            f"risk={account.risk_mode.value} "
+            f"leverage={account.leverage_mode.value} "
+            f"max_loss={account.maximum_account_loss_amount:.2f} "
+            f"margin={account.margin_mode.value}"
+        )
+        futures_plan = payload.get("futures_plan")
+        if isinstance(futures_plan, dict):
+            status = futures_plan.get("status", "UNKNOWN")
+            typer.echo(f"Futures plan: {status}")
+            reasons = futures_plan.get("reasons", [])
+            if isinstance(reasons, list):
+                for reason in reasons:
+                    typer.echo(f"- {reason}")
