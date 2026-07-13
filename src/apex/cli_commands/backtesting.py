@@ -15,6 +15,7 @@ from apex.application import (
     normalize_market_symbol,
     run_chronological_pipeline_backtest,
 )
+from apex.application.chronological_metadata import build_chronological_metadata
 from apex.cli import backtest as legacy_simulate_current_setup
 from apex.data.providers.errors import MarketDataProviderError
 
@@ -49,6 +50,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         canonical = normalize_market_symbol(symbol)
         try:
             context = bootstrap()
+            risk_config = load_default_risk_config()
             timeframes = tuple(
                 dict.fromkeys((*context.settings.analysis_timeframes, replay_timeframe))
             )
@@ -63,17 +65,27 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     )
                     for timeframe in timeframes
                 }
-            result = run_chronological_pipeline_backtest(
-                ChronologicalBacktestRequest(
-                    symbol=canonical,
-                    candles_by_timeframe=candles,
-                    analysis_timeframes=tuple(context.settings.analysis_timeframes),
-                    replay_timeframe=replay_timeframe,
-                    candle_limit=candle_limit,
-                    decision_interval_candles=decision_interval,
-                    candidate_cooldown_candles=candidate_cooldown,
-                    risk_config=load_default_risk_config(),
-                )
+            request = ChronologicalBacktestRequest(
+                symbol=canonical,
+                candles_by_timeframe=candles,
+                analysis_timeframes=tuple(context.settings.analysis_timeframes),
+                replay_timeframe=replay_timeframe,
+                candle_limit=candle_limit,
+                decision_interval_candles=decision_interval,
+                candidate_cooldown_candles=candidate_cooldown,
+                risk_config=risk_config,
+            )
+            result = run_chronological_pipeline_backtest(request)
+            metadata = build_chronological_metadata(
+                symbol=canonical,
+                candles_by_timeframe=candles,
+                analysis_timeframes=request.analysis_timeframes,
+                replay_timeframe=replay_timeframe,
+                candle_limit=candle_limit,
+                decision_interval_candles=decision_interval,
+                candidate_cooldown_candles=candidate_cooldown,
+                risk_config=risk_config,
+                backtest_config=request.backtest_config,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -83,6 +95,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
 
         payload = {
             "symbol": canonical,
+            "metadata": asdict(metadata),
             "decision_count": result.decision_count,
             "approved_count": result.approved_count,
             "skipped_count": result.skipped_count,
