@@ -90,4 +90,257 @@ def test_ticker_does_not_mask_programming_error(monkeypatch) -> None:
         lambda settings: FakeServices(candles=object(), ticker=BuggyTickerProvider()),
     )
 
-    result = runner.invoke
+    result = runner.invoke(app, ["ticker", "BTC/USDT"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RuntimeError)
+    assert "Ticker request failed" not in result.output
+
+
+def test_analyze_command_emits_text_result(monkeypatch) -> None:
+    fake_analysis = object()
+    monkeypatch.setattr(
+        analysis_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+    )
+    monkeypatch.setattr(
+        analysis_cli,
+        "create_market_data_services",
+        lambda settings: FakeServices(candles=object(), ticker=object()),
+    )
+    monkeypatch.setattr(analysis_cli, "load_default_risk_config", lambda: object())
+    monkeypatch.setattr(
+        analysis_cli,
+        "analyze_selected_symbol",
+        lambda *args, **kwargs: fake_analysis,
+    )
+    monkeypatch.setattr(
+        analysis_cli,
+        "serialize_symbol_analysis",
+        lambda analysis: {"decision": "NO_TRADE"},
+    )
+    monkeypatch.setattr(
+        analysis_cli,
+        "format_symbol_text",
+        lambda analysis: "BTC/USDT: NO_TRADE",
+    )
+
+    result = runner.invoke(app, ["analyze", "BTC/USDT"])
+
+    assert result.exit_code == 0
+    assert "BTC/USDT: NO_TRADE" in result.output
+
+
+def test_scan_command_emits_json_result(monkeypatch, tmp_path) -> None:
+    symbols = tmp_path / "symbols.yaml"
+    symbols.write_text("symbols:\n  - BTC/USDT\n", encoding="utf-8")
+    fake_scan = object()
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+    )
+    monkeypatch.setattr(
+        legacy_cli,
+        "create_market_data_services",
+        lambda settings: FakeServices(candles=object(), ticker=object()),
+    )
+    monkeypatch.setattr(legacy_cli, "load_default_risk_config", lambda: object())
+    monkeypatch.setattr(legacy_cli, "scan_symbols", lambda *args, **kwargs: fake_scan)
+    monkeypatch.setattr(
+        legacy_cli,
+        "serialize_scan_result",
+        lambda result: {"best_overall": None, "failures": {}},
+    )
+    monkeypatch.setattr(legacy_cli, "format_scan_text", lambda result: "scan text")
+
+    result = runner.invoke(app, ["scan", "--symbols-file", str(symbols), "--output", "json"])
+
+    assert result.exit_code == 0
+    assert '"best_overall": null' in result.output
+
+
+def test_simulate_current_setup_delegates_to_legacy_command(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_simulate_current_setup(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(
+        backtesting_cli,
+        "legacy_simulate_current_setup",
+        fake_simulate_current_setup,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "simulate-current-setup",
+            "BTCUSDT",
+            "--candles",
+            "240",
+            "--replay-timeframe",
+            "5m",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured == {
+        "symbol": "BTC/USDT",
+        "output": "text",
+        "candle_limit": 240,
+        "replay_timeframe": "5m",
+    }
+
+
+def test_paper_report_command_emits_metrics(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(app, ["paper", "report"])
+
+    assert result.exit_code == 0
+    assert "PAPER_REPORT | total=0" in result.output
+
+
+def test_optimize_evaluate_command_writes_report(monkeypatch, tmp_path) -> None:
+    report = tmp_path / "backtest.json"
+    report.write_text(
+        '{"metrics":{"total_trades":1,"win_rate":1.0,"expectancy":2.0,'
+        '"profit_factor":2.0,"maximum_drawdown":0.0,"net_profit":2.0}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(app, ["optimize", "evaluate", "--input", str(report)])
+
+    assert result.exit_code == 0
+    assert "OPTIMIZE_EVALUATE | decision=accepted" in result.output
+    assert (tmp_path / "optimization" / "latest-evaluate.json").exists()
+
+
+def test_optimize_compare_command_emits_json(monkeypatch, tmp_path) -> None:
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    baseline.write_text(
+        '{"metrics":{"total_trades":2,"win_rate":0.5,"expectancy":1.0,'
+        '"profit_factor":1.0,"maximum_drawdown":1.0,"net_profit":2.0}}',
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        '{"metrics":{"total_trades":2,"win_rate":0.5,"expectancy":2.0,'
+        '"profit_factor":1.2,"maximum_drawdown":1.0,"net_profit":4.0}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "optimize",
+            "compare",
+            "--baseline",
+            str(baseline),
+            "--candidate",
+            str(candidate),
+            "--output",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"decision": "accepted"' in result.output
+
+
+def test_intelligence_summary_is_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(
+            settings=SimpleNamespace(
+                advanced_intelligence_enabled=False,
+                intelligence_funding_enabled=False,
+                intelligence_open_interest_enabled=False,
+                intelligence_correlation_enabled=False,
+            )
+        ),
+    )
+
+    result = runner.invoke(app, ["intelligence", "summary", "--output", "json"])
+
+    assert result.exit_code == 0
+    assert '"enabled": false' in result.output
+
+
+def test_execute_status_reports_local_testnet_simulation_only(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(app, ["execute", "status"])
+
+    assert result.exit_code == 0
+    assert "EXECUTE_STATUS | mode=local_testnet_simulation_only" in result.output
+
+
+def test_execute_testnet_reports_local_simulation(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+    monkeypatch.setattr(
+        legacy_cli,
+        "_analysis_for_execution",
+        lambda symbol, candle_limit: SimpleNamespace(
+            assessment=SimpleNamespace(setup=object(), reasons=())
+        ),
+    )
+    monkeypatch.setattr(
+        legacy_cli,
+        "intent_from_setup",
+        lambda setup: ExecutionIntent(
+            symbol="BTC/USDT",
+            direction=TradeDirection.LONG,
+            quantity=1.0,
+            entry_price=100.0,
+            stop_price=98.0,
+            target_price=104.0,
+            notional_value=100.0,
+            duplicate_key="abc123",
+        ),
+    )
+
+    result = runner.invoke(app, ["execute", "testnet", "BTC/USDT", "--confirm"])
+
+    assert result.exit_code == 0
+    assert "EXECUTE_LOCAL_TESTNET_SIMULATION" in result.output
+    assert "local_testnet_simulated" in result.output
+
+
+def test_execute_kill_switch_enable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        legacy_cli,
+        "bootstrap",
+        lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
+    )
+
+    result = runner.invoke(app, ["execute", "kill-switch", "enable"])
+
+    assert result.exit_code == 0
+    assert "EXECUTION_KILL_SWITCH | enabled" in result.output
+    assert (tmp_path / "execution" / "kill_switch.txt").read_text(encoding="utf-8") == "enabled\n"
