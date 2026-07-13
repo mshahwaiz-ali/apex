@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 import typer
 
@@ -16,6 +17,7 @@ from apex.application import (
     run_chronological_pipeline_backtest,
 )
 from apex.application.chronological_metadata import build_chronological_metadata
+from apex.application.historical_dataset import load_historical_candles
 from apex.cli import backtest as legacy_simulate_current_setup
 from apex.data.providers.errors import MarketDataProviderError
 
@@ -46,29 +48,46 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         candle_limit: int = typer.Option(200, "--analysis-candles", min=40, max=500),
         decision_interval: int = typer.Option(1, "--decision-interval", min=1),
         candidate_cooldown: int = typer.Option(3, "--candidate-cooldown", min=0),
+        dataset: Path | None = typer.Option(
+            None,
+            "--dataset",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional local .json or .csv historical candle dataset.",
+        ),
     ) -> None:
         canonical = normalize_market_symbol(symbol)
         try:
             context = bootstrap()
             risk_config = load_default_risk_config()
-            timeframes = tuple(
-                dict.fromkeys((*context.settings.analysis_timeframes, replay_timeframe))
-            )
-            with create_market_data_services(context.settings) as services:
-                candles = {
-                    timeframe: tuple(
-                        services.candles.fetch_candles(
-                            canonical,
-                            timeframe,
-                            limit=history_limit,
+            analysis_timeframes = tuple(context.settings.analysis_timeframes)
+            required_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
+            if dataset is None:
+                with create_market_data_services(context.settings) as services:
+                    candles = {
+                        timeframe: tuple(
+                            services.candles.fetch_candles(
+                                canonical,
+                                timeframe,
+                                limit=history_limit,
+                            )
                         )
-                    )
-                    for timeframe in timeframes
-                }
+                        for timeframe in required_timeframes
+                    }
+                dataset_source = "live-provider"
+            else:
+                candles = load_historical_candles(
+                    dataset,
+                    expected_symbol=canonical,
+                    required_timeframes=required_timeframes,
+                )
+                dataset_source = str(dataset)
+
             request = ChronologicalBacktestRequest(
                 symbol=canonical,
                 candles_by_timeframe=candles,
-                analysis_timeframes=tuple(context.settings.analysis_timeframes),
+                analysis_timeframes=analysis_timeframes,
                 replay_timeframe=replay_timeframe,
                 candle_limit=candle_limit,
                 decision_interval_candles=decision_interval,
@@ -87,23 +106,4 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 risk_config=risk_config,
                 backtest_config=request.backtest_config,
             )
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-        except MarketDataProviderError as exc:
-            typer.echo(f"Chronological backtest market-data request failed: {exc}", err=True)
-            raise typer.Exit(code=1) from exc
-
-        payload = {
-            "symbol": canonical,
-            "metadata": asdict(metadata),
-            "decision_count": result.decision_count,
-            "approved_count": result.approved_count,
-            "skipped_count": result.skipped_count,
-            "cooldown_skipped_count": result.cooldown_skipped_count,
-            "overlap_skipped_count": result.overlap_skipped_count,
-            "failure_count": result.failure_count,
-            "failures": dict(result.failures),
-            "metrics": asdict(result.report),
-            "trades": [asdict(trade) for trade in result.trades],
-        }
-        typer.echo(json.dumps(payload, indent=2, default=str))
+        except
