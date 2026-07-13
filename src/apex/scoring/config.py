@@ -100,9 +100,7 @@ _DEFAULT_PROFILES: Mapping[StrategyType, StrategyProfile] = MappingProxyType(
         StrategyType.LIQUIDITY_REVERSAL: StrategyProfile(
             neutral_metrics=frozenset({"volume_quality"})
         ),
-        StrategyType.RANGE_REVERSAL: StrategyProfile(
-            neutral_metrics=frozenset({"volume_quality"})
-        ),
+        StrategyType.RANGE_REVERSAL: StrategyProfile(neutral_metrics=frozenset({"volume_quality"})),
         StrategyType.MOMENTUM_CONTINUATION: StrategyProfile(
             neutral_metrics=frozenset({"liquidity_quality"})
         ),
