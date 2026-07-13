@@ -13,7 +13,7 @@ from apex.features.registry import (
 START = datetime(2026, 7, 12, 0, 0, tzinfo=UTC)
 
 
-def make_candles(count: int = 40) -> list[Candle]:
+def make_candles(count: int = 220) -> list[Candle]:
     return [
         Candle(
             symbol="BTC/USDT",
@@ -60,11 +60,11 @@ def test_default_registry_is_ordered_and_deterministic() -> None:
 
 def test_default_registry_exposes_explicit_ema_time_horizons() -> None:
     registry = create_default_feature_registry()
-    results = registry.calculate_all(make_candles(220))
+    results = registry.calculate_all(make_candles())
 
-    assert results["ema_20"][0].spec.name == "ema_20"
-    assert results["ema_50"][0].spec.name == "ema_50"
-    assert results["ema_200"][0].spec.name == "ema_200"
+    assert results["ema_20"][0].spec.name == "ema_close_20"
+    assert results["ema_50"][0].spec.name == "ema_close_50"
+    assert results["ema_200"][0].spec.name == "ema_close_200"
     assert results["ema_20"][0].latest is not None
     assert results["ema_50"][0].latest is not None
     assert results["ema_200"][0].latest is not None
