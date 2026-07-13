@@ -14,29 +14,26 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MarginMode(StrEnum):
-    """Supported futures margin modes."""
-
     ISOLATED = "ISOLATED"
 
 
 class LeverageMode(StrEnum):
-    """How leverage is selected for a position plan."""
-
     AUTOMATIC = "AUTOMATIC"
     MANUAL = "MANUAL"
 
 
 class RiskMode(StrEnum):
-    """Initial Apex account-risk profiles."""
-
     STANDARD = "STANDARD"
     AGGRESSIVE = "AGGRESSIVE"
     EXTREME = "EXTREME"
 
 
-class EntryState(StrEnum):
-    """Lifecycle state of a proposed entry."""
+class FuturesDirection(StrEnum):
+    LONG = "LONG"
+    SHORT = "SHORT"
 
+
+class EntryState(StrEnum):
     WATCH = "WATCH"
     APPROACHING_ENTRY = "APPROACHING_ENTRY"
     READY_NOW = "READY_NOW"
@@ -48,8 +45,6 @@ class EntryState(StrEnum):
 
 
 class TradeLifecycleState(StrEnum):
-    """Lifecycle state shared by paper and future execution workflows."""
-
     GENERATED = "GENERATED"
     WAITING_FOR_ENTRY = "WAITING_FOR_ENTRY"
     ENTERED = "ENTERED"
@@ -62,8 +57,6 @@ class TradeLifecycleState(StrEnum):
 
 
 class FuturesAccountInput(BaseModel):
-    """User-controlled inputs required to build a futures position plan."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     wallet_balance: float = Field(gt=0)
@@ -85,16 +78,13 @@ class FuturesAccountInput(BaseModel):
 
     @property
     def maximum_account_loss_amount(self) -> float:
-        """Maximum planned loss before fees and slippage."""
-
         return self.wallet_balance * (self.maximum_account_loss_percentage / 100)
 
 
 class EntryPlan(BaseModel):
-    """Actionable entry geometry near the current market price."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    direction: FuturesDirection = FuturesDirection.LONG
     state: EntryState
     current_price: float = Field(gt=0)
     zone_low: float = Field(gt=0)
@@ -108,18 +98,22 @@ class EntryPlan(BaseModel):
             raise ValueError("entry zone low cannot exceed entry zone high")
         if not self.zone_low <= self.ideal_entry <= self.zone_high:
             raise ValueError("ideal entry must remain inside the entry zone")
-        if self.maximum_chase_price < self.zone_high:
-            raise ValueError("maximum chase price cannot be below the entry-zone high")
+        if self.direction is FuturesDirection.LONG:
+            if self.maximum_chase_price < self.zone_high:
+                raise ValueError("long maximum chase price cannot be below the entry-zone high")
+            missed = self.current_price > self.maximum_chase_price
+        else:
+            if self.maximum_chase_price > self.zone_low:
+                raise ValueError("short maximum chase price cannot be above the entry-zone low")
+            missed = self.current_price < self.maximum_chase_price
         if self.state is EntryState.READY_NOW and not self.zone_low <= self.current_price <= self.zone_high:
             raise ValueError("READY_NOW requires current price inside the entry zone")
-        if self.state is EntryState.MISSED_ENTRY and self.current_price <= self.maximum_chase_price:
+        if self.state is EntryState.MISSED_ENTRY and not missed:
             raise ValueError("MISSED_ENTRY requires current price beyond maximum chase")
         return self
 
 
 class StopPlan(BaseModel):
-    """Layered invalidation geometry for leveraged futures."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     soft_failure: float = Field(gt=0)
@@ -129,8 +123,6 @@ class StopPlan(BaseModel):
 
 
 class TargetLeg(BaseModel):
-    """One deterministic partial-close target."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     label: str = Field(min_length=1)
@@ -139,8 +131,6 @@ class TargetLeg(BaseModel):
 
 
 class TargetPlan(BaseModel):
-    """Scalp targets and optional runner allocation."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     targets: tuple[TargetLeg, ...] = Field(min_length=1)
@@ -157,8 +147,6 @@ class TargetPlan(BaseModel):
 
 
 class PositionPlan(BaseModel):
-    """Frozen output contract for account-aware futures sizing."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     leverage: float = Field(gt=0)
