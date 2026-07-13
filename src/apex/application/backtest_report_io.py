@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, is_dataclass
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -20,14 +21,17 @@ def make_run_id(*, symbol: str, replay_timeframe: str, dataset_hash: str, config
 def to_json_value(value: Any) -> Any:
     """Convert supported domain values into explicit JSON-compatible values."""
     if is_dataclass(value) and not isinstance(value, type):
-        return to_json_value(asdict(value))
+        return {
+            field.name: to_json_value(getattr(value, field.name))
+            for field in fields(value)
+        }
     if isinstance(value, Enum):
         return to_json_value(value.value)
     if isinstance(value, datetime):
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("report datetimes must be timezone-aware")
         return value.isoformat()
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {str(key): to_json_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [to_json_value(item) for item in value]
