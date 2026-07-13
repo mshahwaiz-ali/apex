@@ -8,6 +8,10 @@ from datetime import datetime
 from types import MappingProxyType
 
 from apex.application.analysis import analyze_symbol
+from apex.application.chronological_metadata import (
+    ChronologicalBacktestMetadata,
+    build_chronological_metadata,
+)
 from apex.backtesting import (
     BacktestConfig,
     BacktestReport,
@@ -59,6 +63,7 @@ class ChronologicalBacktestRequest:
 class ChronologicalBacktestResult:
     report: BacktestReport
     trades: tuple[SimulatedTrade, ...]
+    metadata: ChronologicalBacktestMetadata
     decision_count: int
     approved_count: int
     skipped_count: int
@@ -156,9 +161,21 @@ def run_chronological_pipeline_backtest(
         last_accepted_index = decision_index
 
     trade_tuple = tuple(trades)
+    metadata = build_chronological_metadata(
+        symbol=request.symbol,
+        candles_by_timeframe=request.candles_by_timeframe,
+        analysis_timeframes=request.analysis_timeframes,
+        replay_timeframe=request.replay_timeframe,
+        candle_limit=request.candle_limit,
+        decision_interval_candles=request.decision_interval_candles,
+        candidate_cooldown_candles=request.candidate_cooldown_candles,
+        risk_config=request.risk_config,
+        backtest_config=request.backtest_config,
+    )
     return ChronologicalBacktestResult(
         report=summarize_trades(trade_tuple),
         trades=trade_tuple,
+        metadata=metadata,
         decision_count=decision_count,
         approved_count=len(trade_tuple),
         skipped_count=skipped_count,
