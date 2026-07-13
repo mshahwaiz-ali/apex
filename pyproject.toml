@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = { text = "Proprietary" }
 authors = [{ name = "Apex Trading Agent" }]
 dependencies = [
-    "httpx>=0.28,<1",
+  "httpx>=0.28,<1",
   "pydantic>=2.8,<3",
   "pydantic-settings>=2.4,<3",
   "PyYAML>=6.0.2,<7",
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-apex = "apex.cli:app"
+apex = "apex.cli_app:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/apex"]
