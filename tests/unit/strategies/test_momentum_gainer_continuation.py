@@ -27,6 +27,8 @@ NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
 def _structure(*, bullish: bool, persistence: float = 0.8) -> StructureAnalysisResult:
+    support = 98.0 if bullish else 94.0
+    resistance = 106.0 if bullish else 102.0
     return StructureAnalysisResult(
         swings=(),
         trend=TrendAnalysis(
@@ -36,9 +38,9 @@ def _structure(*, bullish: bool, persistence: float = 0.8) -> StructureAnalysisR
         ),
         levels=(
             StructureLevel(
-                representative_price=98.0,
-                low=97.9,
-                high=98.1,
+                representative_price=support,
+                low=support - 0.1,
+                high=support + 0.1,
                 role=LevelRole.SUPPORT,
                 status=LevelStatus.ACTIVE,
                 touches=2,
@@ -46,9 +48,9 @@ def _structure(*, bullish: bool, persistence: float = 0.8) -> StructureAnalysisR
                 last_touch_index=3,
             ),
             StructureLevel(
-                representative_price=106.0,
-                low=105.9,
-                high=106.1,
+                representative_price=resistance,
+                low=resistance - 0.1,
+                high=resistance + 0.1,
                 role=LevelRole.RESISTANCE,
                 status=LevelStatus.ACTIVE,
                 touches=2,
