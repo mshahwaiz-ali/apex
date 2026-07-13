@@ -27,7 +27,7 @@ def test_case_insensitive_cli_values_are_supported() -> None:
     assert account.risk_mode is RiskMode.STANDARD
     assert account.leverage_mode is LeverageMode.MANUAL
     assert account.manual_leverage == 12
-    assert account.maximum_account_loss_percentage == 1.25
+    assert account.maximum_account_loss_percentage == 1.0
 
 
 def test_explicit_loss_override_is_preserved() -> None:
