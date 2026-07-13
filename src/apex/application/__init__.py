@@ -23,7 +23,11 @@ from apex.application.futures_account import (
     DEFAULT_FUTURES_CONFIG_PATH,
     build_futures_account_input,
 )
-from apex.application.futures_plan import build_futures_plan
+from apex.application.futures_plan import (
+    FuturesPlanSafetyError,
+    build_futures_plan,
+    build_futures_plan_result,
+)
 from apex.application.market_data import MarketDataServices, create_market_data_services
 from apex.application.selected_symbol import analyze_selected_symbol
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
@@ -34,6 +38,7 @@ __all__ = [
     "ApplicationContext",
     "ChronologicalBacktestRequest",
     "ChronologicalBacktestResult",
+    "FuturesPlanSafetyError",
     "MarketDataServices",
     "ScanResult",
     "SymbolAnalysis",
@@ -42,6 +47,7 @@ __all__ = [
     "bootstrap",
     "build_futures_account_input",
     "build_futures_plan",
+    "build_futures_plan_result",
     "create_market_data_services",
     "format_scan_text",
     "format_symbol_text",
