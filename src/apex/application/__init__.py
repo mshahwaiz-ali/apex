@@ -20,6 +20,7 @@ from apex.application.chronological_backtest import (
     run_chronological_pipeline_backtest,
 )
 from apex.application.market_data import MarketDataServices, create_market_data_services
+from apex.application.selected_symbol import analyze_selected_symbol
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "MarketDataServices",
     "ScanResult",
     "SymbolAnalysis",
+    "analyze_selected_symbol",
     "analyze_symbol",
     "bootstrap",
     "create_market_data_services",
