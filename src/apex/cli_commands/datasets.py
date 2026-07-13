@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Annotated, Any
 
 import typer
 
@@ -14,11 +16,26 @@ from apex.data.providers.errors import MarketDataProviderError
 def register_dataset_commands(app: typer.Typer) -> None:
     @app.command("export-dataset")
     def export_dataset(
-        symbol: str = typer.Argument(..., help="Any provider-supported market symbol."),
-        timeframes: str = typer.Option(..., "--timeframes", help="Comma-separated timeframes."),
-        candles: int = typer.Option(1000, "--candles", min=1, max=1000),
-        output: Path = typer.Option(..., "--output", dir_okay=False),
-        force: bool = typer.Option(False, "--force", help="Allow replacing an existing file."),
+        symbol: Annotated[
+            str,
+            typer.Argument(help="Any provider-supported market symbol."),
+        ],
+        timeframes: Annotated[
+            str,
+            typer.Option("--timeframes", help="Comma-separated timeframes."),
+        ],
+        output: Annotated[
+            Path,
+            typer.Option("--output", dir_okay=False),
+        ],
+        candles: Annotated[
+            int,
+            typer.Option("--candles", min=1, max=1000),
+        ] = 1000,
+        force: Annotated[
+            bool,
+            typer.Option("--force", help="Allow replacing an existing file."),
+        ] = False,
     ) -> None:
         canonical = normalize_market_symbol(symbol)
         requested = _parse_timeframes(timeframes)
@@ -45,7 +62,11 @@ def register_dataset_commands(app: typer.Typer) -> None:
         except MarketDataProviderError as exc:
             typer.echo(f"Dataset export market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
-        typer.echo(f"Exported {len(payload['candles'])} closed candles to {output}")
+
+        candle_payload = payload.get("candles")
+        if not isinstance(candle_payload, Sequence) or isinstance(candle_payload, (str, bytes)):
+            raise typer.BadParameter("dataset payload candles must be a sequence")
+        typer.echo(f"Exported {len(candle_payload)} closed candles to {output}")
 
 
 def _parse_timeframes(value: str) -> tuple[str, ...]:
