@@ -11,10 +11,18 @@ import pytest
 
 from apex.application.backtest_comparison import compare_backtest_reports
 from apex.application.backtest_report_io import (
+    BACKTEST_CAMPAIGN_DB_SCHEMA_VERSION,
+    BACKTEST_REPORT_DB_SCHEMA_VERSION,
     dumps_report,
+    list_backtest_campaign_metadata_sqlite,
+    list_backtest_report_metadata_sqlite,
+    load_backtest_campaign_sqlite,
+    load_backtest_report_sqlite,
     make_run_id,
     to_json_value,
+    write_backtest_campaign_sqlite,
     write_backtest_report,
+    write_backtest_report_sqlite,
 )
 from apex.application.historical_dataset import load_historical_candles
 from apex.application.historical_dataset_export import build_dataset_payload, write_dataset
@@ -136,3 +144,79 @@ def test_backtest_report_comparison(tmp_path) -> None:
     assert comparison["dataset_hash"]["matches"] is True
     assert comparison["config_hash"]["matches"] is True
     assert comparison["metrics"]["net_profit"]["delta"] == 5.0
+
+
+def test_backtest_report_sqlite_upserts_and_loads_report(tmp_path) -> None:
+    path = tmp_path / "backtests.db"
+    payload = {
+        "symbol": "BTC/USDT",
+        "dataset_source": "fixture",
+        "metadata": {
+            "run_id": "btc-usdt-5m-aaaaaaaaaaaa-bbbbbbbbbbbb",
+            "dataset_hash": "a" * 64,
+            "config_hash": "b" * 64,
+            "replay_timeframe": "5m",
+        },
+        "metrics": {
+            "total_trades": 2,
+            "net_profit": 10.0,
+            "maximum_drawdown": 2.0,
+        },
+        "trades": [],
+    }
+
+    write_backtest_report_sqlite(path, payload)
+    write_backtest_report_sqlite(path, payload)
+
+    loaded = load_backtest_report_sqlite(path, "btc-usdt-5m-aaaaaaaaaaaa-bbbbbbbbbbbb")
+    assert loaded == payload
+    metadata = list_backtest_report_metadata_sqlite(path)
+    assert len(metadata) == 1
+    assert metadata[0]["schema_version"] == BACKTEST_REPORT_DB_SCHEMA_VERSION
+    assert metadata[0]["run_id"] == "btc-usdt-5m-aaaaaaaaaaaa-bbbbbbbbbbbb"
+    assert metadata[0]["symbol"] == "BTC/USDT"
+    assert metadata[0]["total_trades"] == 2
+
+
+def test_backtest_report_sqlite_helpers_handle_missing_database(tmp_path) -> None:
+    path = tmp_path / "missing.db"
+
+    assert load_backtest_report_sqlite(path, "missing") is None
+    assert list_backtest_report_metadata_sqlite(path) == ()
+
+
+def test_backtest_campaign_sqlite_upserts_and_loads_campaign(tmp_path) -> None:
+    path = tmp_path / "campaigns.db"
+    payload = {
+        "schema_version": 1,
+        "campaign_id": "btc-usdt-campaign-abc",
+        "symbol": "BTC/USDT",
+        "dataset_source": "fixture",
+        "variant_count": 2,
+        "best_variant_id": "candidate",
+        "rankings": [
+            {
+                "rank": 1,
+                "variant_id": "candidate",
+                "run_id": "candidate-run",
+                "total_trades": 3,
+                "net_profit": 12.5,
+                "expectancy": 4.1,
+                "maximum_drawdown": 1.0,
+                "failure_count": 0,
+            }
+        ],
+        "variants": [],
+    }
+
+    write_backtest_campaign_sqlite(path, payload)
+    write_backtest_campaign_sqlite(path, payload)
+
+    loaded = load_backtest_campaign_sqlite(path, "btc-usdt-campaign-abc")
+    assert loaded == payload
+    metadata = list_backtest_campaign_metadata_sqlite(path)
+    assert len(metadata) == 1
+    assert metadata[0]["schema_version"] == BACKTEST_CAMPAIGN_DB_SCHEMA_VERSION
+    assert metadata[0]["campaign_id"] == "btc-usdt-campaign-abc"
+    assert metadata[0]["best_variant_id"] == "candidate"
+    assert metadata[0]["best_net_profit"] == 12.5

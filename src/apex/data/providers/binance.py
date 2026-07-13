@@ -11,7 +11,13 @@ import httpx
 
 from apex.data.providers.errors import ProviderResponseError
 from apex.data.providers.http import RetryPolicy, request_json
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain.models import (
+    Candle,
+    ExchangeFilterSnapshot,
+    OrderBookLevel,
+    OrderBookSnapshot,
+    TickerSnapshot,
+)
 
 
 class BinanceMarketDataProvider:
@@ -177,6 +183,93 @@ class BinanceMarketDataProvider:
                 operation="parse ticker",
             ) from exc
 
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        """Fetch and normalize Binance Spot order-book depth."""
+
+        if not 1 <= depth <= 5000:
+            raise ValueError("order-book depth must be between 1 and 5000")
+        normalized_symbol = self._normalize_symbol(symbol)
+        payload = request_json(
+            self._client,
+            "GET",
+            "/api/v3/depth",
+            provider=self.name,
+            operation="fetch order book",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
+            params={"symbol": normalized_symbol, "limit": depth},
+        )
+        if not isinstance(payload, dict):
+            raise ProviderResponseError(
+                "Binance order book response must be an object",
+                provider=self.name,
+                operation="fetch order book",
+            )
+        try:
+            bids = tuple(self._parse_order_book_level(row) for row in payload["bids"])
+            asks = tuple(self._parse_order_book_level(row) for row in payload["asks"])
+            return OrderBookSnapshot(
+                symbol=symbol.upper(),
+                bids=bids,
+                asks=asks,
+                captured_at=datetime.now(UTC),
+                source=self.name,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderResponseError(
+                "Invalid Binance order book response fields",
+                provider=self.name,
+                operation="parse order book",
+            ) from exc
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        """Fetch and normalize Binance Spot exchange precision filters."""
+
+        normalized_symbol = self._normalize_symbol(symbol)
+        payload = request_json(
+            self._client,
+            "GET",
+            "/api/v3/exchangeInfo",
+            provider=self.name,
+            operation="fetch exchange filters",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
+            params={"symbol": normalized_symbol},
+        )
+        if not isinstance(payload, dict):
+            raise ProviderResponseError(
+                "Binance exchange info response must be an object",
+                provider=self.name,
+                operation="fetch exchange filters",
+            )
+        try:
+            symbols = payload["symbols"]
+            if not isinstance(symbols, list) or not symbols:
+                raise ValueError("missing symbol filters")
+            filters = {
+                item["filterType"]: item
+                for item in symbols[0]["filters"]
+                if isinstance(item, dict) and "filterType" in item
+            }
+            price_filter = filters["PRICE_FILTER"]
+            lot_filter = filters["LOT_SIZE"]
+            notional_filter = filters.get("MIN_NOTIONAL") or filters["NOTIONAL"]
+            return ExchangeFilterSnapshot(
+                symbol=symbol.upper(),
+                tick_size=float(price_filter["tickSize"]),
+                step_size=float(lot_filter["stepSize"]),
+                min_quantity=float(lot_filter["minQty"]),
+                min_notional=float(notional_filter["minNotional"]),
+                captured_at=datetime.now(UTC),
+                source=self.name,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderResponseError(
+                "Invalid Binance exchange filter response fields",
+                provider=self.name,
+                operation="parse exchange filters",
+            ) from exc
+
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
         normalized = symbol.upper().replace("/", "").replace("-", "").strip()
@@ -224,6 +317,12 @@ class BinanceMarketDataProvider:
                 provider=self.name,
                 operation="parse candles",
             ) from exc
+
+    @staticmethod
+    def _parse_order_book_level(row: Any) -> OrderBookLevel:
+        if not isinstance(row, list | tuple) or len(row) < 2:
+            raise ValueError("invalid order book level")
+        return OrderBookLevel(price=float(row[0]), quantity=float(row[1]))
 
     @staticmethod
     def _milliseconds_to_datetime(value: Any) -> datetime:

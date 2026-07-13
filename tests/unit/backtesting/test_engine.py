@@ -17,7 +17,12 @@ from apex.strategies import StrategyType, TradeDirection
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
-def _signal(*, direction: TradeDirection = TradeDirection.LONG) -> BacktestSignal:
+def _signal(
+    *,
+    direction: TradeDirection = TradeDirection.LONG,
+    target_prices: tuple[float, ...] = (),
+    partial_close_percentages: tuple[float, ...] = (),
+) -> BacktestSignal:
     return BacktestSignal(
         symbol="BTC/USDT",
         strategy=StrategyType.TREND_PULLBACK,
@@ -25,10 +30,16 @@ def _signal(*, direction: TradeDirection = TradeDirection.LONG) -> BacktestSigna
         generated_at=NOW,
         entry_price=100.0,
         stop_price=98.0 if direction is TradeDirection.LONG else 102.0,
-        target_price=104.0 if direction is TradeDirection.LONG else 96.0,
+        target_price=(
+            target_prices[0]
+            if target_prices
+            else (104.0 if direction is TradeDirection.LONG else 96.0)
+        ),
         quantity=10.0,
         risk_amount=20.0,
         confidence_score=80.0,
+        target_prices=target_prices,
+        partial_close_percentages=partial_close_percentages,
     )
 
 
@@ -96,6 +107,41 @@ def test_short_trade_target_and_summary_metrics() -> None:
     assert report.win_rate == pytest.approx(1.0)
     assert report.by_symbol == {"BTC/USDT": 1}
     assert report.by_strategy == {"trend_pullback": 1}
+    assert report.metadata["total_targets"] == 1
+
+
+def test_simulated_trade_realizes_partial_target_before_stop() -> None:
+    trade = simulate_trade(
+        _signal(target_prices=(102.0, 104.0), partial_close_percentages=(50.0, 50.0)),
+        (
+            _candle(high=102.5, low=99.0, close=101.0, index=0),
+            _candle(high=101.0, low=97.5, close=98.0, index=1),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.gross_pnl == pytest.approx(0.0)
+    assert trade.metadata["partial_target_count"] == 1
+    assert trade.metadata["closed_percentage"] == pytest.approx(50.0)
+
+
+def test_simulated_trade_can_complete_target_ladder() -> None:
+    trade = simulate_trade(
+        _signal(target_prices=(102.0, 104.0), partial_close_percentages=(50.0, 50.0)),
+        (_candle(high=104.5, low=99.0, close=104.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.TARGET
+    assert trade.gross_pnl == pytest.approx(30.0)
+    assert trade.metadata["partial_target_count"] == 2
+    assert trade.metadata["closed_percentage"] == pytest.approx(100.0)
+
+
+def test_backtest_signal_rejects_invalid_partial_percentages() -> None:
+    with pytest.raises(ValueError, match="sum to 100"):
+        _signal(target_prices=(102.0, 104.0), partial_close_percentages=(40.0, 40.0))
 
 
 def test_unentered_trade_expires_at_last_allowed_candle() -> None:
@@ -110,6 +156,22 @@ def test_unentered_trade_expires_at_last_allowed_candle() -> None:
 
     assert trade.outcome is BacktestOutcome.MISSED_ENTRY
     assert trade.holding_candles == 2
+
+
+def test_simulated_trade_preserves_reproducibility_metadata() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (_candle(high=105.0, low=99.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+        metadata={
+            "entry_state": "READY_NOW",
+            "scanner_type": "NORMAL_MARKET",
+            "precision_entry_score": 82.5,
+        },
+    )
+
+    assert trade.metadata["entry_state"] == "READY_NOW"
+    assert trade.metadata["precision_entry_score"] == pytest.approx(82.5)
 
 
 def test_historical_runner_uses_only_future_candles_without_lookahead() -> None:

@@ -6,7 +6,13 @@ from apex.data.providers.cached import (
     CachedMarketDataProvider,
     CandleCachePolicy,
 )
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain.models import (
+    Candle,
+    ExchangeFilterSnapshot,
+    OrderBookLevel,
+    OrderBookSnapshot,
+    TickerSnapshot,
+)
 
 NOW = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
 
@@ -17,6 +23,8 @@ class FakeMarketDataProvider:
     def __init__(self) -> None:
         self.candle_calls = 0
         self.ticker_calls = 0
+        self.order_book_calls = 0
+        self.exchange_filter_calls = 0
 
     def fetch_candles(
         self,
@@ -49,6 +57,28 @@ class FakeMarketDataProvider:
             bid_price=104.0,
             ask_price=106.0,
             quote_volume_24h=1_000_000.0,
+            captured_at=NOW,
+            source=self.name,
+        )
+
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        self.order_book_calls += 1
+        return OrderBookSnapshot(
+            symbol=symbol.upper(),
+            bids=(OrderBookLevel(price=104.0, quantity=1.0),),
+            asks=(OrderBookLevel(price=106.0, quantity=1.0),),
+            captured_at=NOW,
+            source=self.name,
+        )
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        self.exchange_filter_calls += 1
+        return ExchangeFilterSnapshot(
+            symbol=symbol.upper(),
+            tick_size=0.01,
+            step_size=0.001,
+            min_quantity=0.001,
+            min_notional=5.0,
             captured_at=NOW,
             source=self.name,
         )
@@ -124,6 +154,19 @@ def test_ticker_always_bypasses_candle_cache(tmp_path: Path) -> None:
     cached_provider.fetch_ticker("BTC/USDT")
 
     assert provider.ticker_calls == 2
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_microstructure_bypasses_candle_cache(tmp_path: Path) -> None:
+    provider = FakeMarketDataProvider()
+    cache = FileCandleCache(tmp_path, now=lambda: NOW)
+    cached_provider = CachedMarketDataProvider(provider, cache)
+
+    cached_provider.fetch_order_book("BTC/USDT")
+    cached_provider.fetch_exchange_filters("BTC/USDT")
+
+    assert provider.order_book_calls == 1
+    assert provider.exchange_filter_calls == 1
     assert list(tmp_path.glob("*.json")) == []
 
 

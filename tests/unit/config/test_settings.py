@@ -1,6 +1,14 @@
+from copy import deepcopy
+
 import pytest
 
-from apex.config import DEFAULT_TIMEFRAME_RESAMPLING_SOURCES, DEFAULT_TIMEFRAME_ROLES, FileSettings
+from apex.config import (
+    DEFAULT_STRATEGY_ROUTING,
+    DEFAULT_TIMEFRAME_RESAMPLING_SOURCES,
+    DEFAULT_TIMEFRAME_ROLES,
+    FileSettings,
+)
+from apex.domain import GainerStateThresholds
 
 
 def test_default_timeframe_roles_include_higher_context() -> None:
@@ -11,6 +19,8 @@ def test_default_timeframe_roles_include_higher_context() -> None:
     assert settings.timeframe_roles["4h"] == "macro"
     assert settings.timeframe_roles == DEFAULT_TIMEFRAME_ROLES
     assert settings.timeframe_resampling_sources == DEFAULT_TIMEFRAME_RESAMPLING_SOURCES
+    assert settings.strategy_routing == DEFAULT_STRATEGY_ROUTING
+    assert settings.gainer_state_thresholds == GainerStateThresholds()
 
 
 def test_settings_reject_missing_enabled_timeframe_role() -> None:
@@ -67,3 +77,32 @@ def test_settings_reject_negative_staleness_limit() -> None:
             analysis_timeframes=["5m"],
             timeframe_max_staleness_seconds={"5m": -1},
         )
+
+
+def test_settings_reject_unknown_strategy_route() -> None:
+    routing = deepcopy(DEFAULT_STRATEGY_ROUTING)
+    routing["experimental"] = ["trend_pullback"]
+
+    with pytest.raises(ValueError, match="unsupported strategy routing keys"):
+        FileSettings(strategy_routing=routing)
+
+
+def test_settings_reject_invalid_strategy_route_member() -> None:
+    routing = deepcopy(DEFAULT_STRATEGY_ROUTING)
+    routing["gainer"] = ["not_a_strategy"]
+
+    with pytest.raises(ValueError, match="unsupported strategy"):
+        FileSettings(strategy_routing=routing)
+
+
+def test_settings_reject_duplicate_strategy_route_member() -> None:
+    routing = deepcopy(DEFAULT_STRATEGY_ROUTING)
+    routing["normal_market"] = ["trend_pullback", "trend_pullback"]
+
+    with pytest.raises(ValueError, match="cannot contain duplicates"):
+        FileSettings(strategy_routing=routing)
+
+
+def test_settings_reject_invalid_gainer_threshold() -> None:
+    with pytest.raises(ValueError, match="greater than or equal"):
+        FileSettings(gainer_state_thresholds={"fresh_total_return_pct": -1})

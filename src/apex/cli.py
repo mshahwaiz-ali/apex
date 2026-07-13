@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import NoReturn
 
@@ -14,6 +15,9 @@ from apex.application import (
     SymbolAnalysis,
     analyze_symbol,
     bootstrap,
+    build_analysis_record,
+    build_futures_account_input,
+    build_futures_plan_result,
     create_market_data_services,
     format_scan_text,
     format_symbol_text,
@@ -22,17 +26,29 @@ from apex.application import (
     scan_symbols,
     serialize_scan_result,
     serialize_symbol_analysis,
+    write_analysis_record,
     write_json_report,
 )
+from apex.application.analysis_records import write_analysis_record_sqlite
 from apex.backtesting import BacktestConfig, signal_from_setup, simulate_trade, summarize_trades
 from apex.config import load_settings
 from apex.data.providers.errors import MarketDataProviderError
 from apex.execution import (
+    EXECUTION_AUDIT_SCHEMA_VERSION,
+    ExecutionAdapterSnapshot,
     ExecutionConfig,
+    ExecutionEnvironment,
+    ExecutionReconciliationRecord,
+    ExecutionReconciliationReport,
+    ExecutionReconciliationStatus,
     KillSwitchState,
+    build_execution_readiness_report,
     intent_from_setup,
     load_duplicate_keys,
     preview_execution,
+    readiness_report_payload,
+    reconcile_execution_audit,
+    reconciliation_report_payload,
     simulate_testnet_order,
 )
 from apex.intelligence import disabled_intelligence_metadata
@@ -40,8 +56,11 @@ from apex.optimization import (
     CandidateParameterSet,
     OptimizationGroup,
     OptimizationRunConfig,
+    WalkForwardSplit,
+    calibration_to_payload,
     compare_performance,
     evaluate_performance,
+    evaluate_walk_forward_calibration,
     load_performance_report,
     result_to_payload,
     save_optimization_result,
@@ -50,6 +69,7 @@ from apex.paper_trading import (
     PaperTrade,
     PaperTradeConfig,
     PaperTradeStore,
+    build_paper_replay_report,
     create_paper_trade,
     summarize_paper_trades,
     update_paper_trade,
@@ -166,6 +186,16 @@ def analyze(
         "--report",
         help="Optional JSON report path.",
     ),
+    record: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--record",
+        help="Optional append-only JSONL analysis record path.",
+    ),
+    record_db: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--record-db",
+        help="Optional SQLite analysis record database path.",
+    ),
     candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
 ) -> None:
     """Run complete deterministic analysis for one symbol."""
@@ -186,6 +216,8 @@ def analyze(
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -195,6 +227,12 @@ def analyze(
     payload = serialize_symbol_analysis(analysis)
     if report is not None:
         write_json_report(payload, report)
+    if record is not None or record_db is not None:
+        analysis_record = build_analysis_record(payload)
+        if record is not None:
+            write_analysis_record(record, analysis_record)
+        if record_db is not None:
+            write_analysis_record_sqlite(record_db, analysis_record)
     _emit_output(payload, format_symbol_text(analysis), output)
 
 
@@ -210,7 +248,18 @@ def scan(
         "--report",
         help="Optional JSON report path.",
     ),
+    record: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--record",
+        help="Optional append-only JSONL scan record path.",
+    ),
+    record_db: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--record-db",
+        help="Optional SQLite scan record database path.",
+    ),
     candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+    mode: str = typer.Option("normal", "--mode", help="normal, gainers, or all"),
 ) -> None:
     """Analyze the configured symbol universe and rank opportunities."""
 
@@ -231,6 +280,9 @@ def scan(
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
+                scanner_mode=mode,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -240,6 +292,12 @@ def scan(
     payload = serialize_scan_result(result)
     if report is not None:
         write_json_report(payload, report)
+    if record is not None or record_db is not None:
+        analysis_record = build_analysis_record(payload)
+        if record is not None:
+            write_analysis_record(record, analysis_record)
+        if record_db is not None:
+            write_analysis_record_sqlite(record_db, analysis_record)
     _emit_output(payload, format_scan_text(result), output)
 
 
@@ -268,6 +326,8 @@ def backtest(
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
             if analysis.assessment.setup is None:
                 payload: dict[str, object] = {
@@ -328,6 +388,8 @@ def paper_record(
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -342,6 +404,10 @@ def paper_record(
     trade = create_paper_trade(
         analysis.assessment.setup,
         analysis_payload=serialize_symbol_analysis(analysis),
+        futures_plan=build_futures_plan_result(
+            analysis.assessment.setup,
+            build_futures_account_input(wallet_balance=100.0),
+        ),
     )
     store.upsert(trade)
     typer.echo(f"{symbol}: PAPER_RECORDED | id={trade.trade_id} | state={trade.state.value}")
@@ -404,6 +470,31 @@ def paper_report(
         f"| win_rate={performance.win_rate:.2%}"
     )
     _emit_output(payload, text, output)
+
+
+@paper_app.command("replay-report")
+def paper_replay_report(
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+    report: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--report",
+        help="Optional JSON replay report path.",
+    ),
+) -> None:
+    """Replay stored paper lifecycle events into an audit report."""
+
+    context = bootstrap()
+    store = _paper_store(context.settings.data_dir)
+    payload = build_paper_replay_report(store.load())
+    if report is not None:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _emit_output(
+        payload,
+        f"PAPER_REPLAY_REPORT | replayed={payload['replayed_count']} "
+        f"| failures={payload['failure_count']}",
+        output,
+    )
 
 
 def _paper_store(data_dir: Path) -> PaperTradeStore:
@@ -481,6 +572,110 @@ def optimize_compare(
     _emit_output(
         payload,
         f"OPTIMIZE_COMPARE | decision={result.decision.value} | report={report_path}",
+        output,
+    )
+
+
+@optimize_app.command("calibrate")
+def optimize_calibrate(
+    train_baseline: Path = typer.Option(  # noqa: B008
+        ...,
+        "--train-baseline",
+        exists=True,
+        dir_okay=False,
+    ),
+    train_candidate: Path = typer.Option(  # noqa: B008
+        ...,
+        "--train-candidate",
+        exists=True,
+        dir_okay=False,
+    ),
+    validation_baseline: Path = typer.Option(  # noqa: B008
+        ...,
+        "--validation-baseline",
+        exists=True,
+        dir_okay=False,
+    ),
+    validation_candidate: Path = typer.Option(  # noqa: B008
+        ...,
+        "--validation-candidate",
+        exists=True,
+        dir_okay=False,
+    ),
+    final_test_baseline: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--final-test-baseline",
+        exists=True,
+        dir_okay=False,
+    ),
+    final_test_candidate: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--final-test-candidate",
+        exists=True,
+        dir_okay=False,
+    ),
+    group: str = typer.Option(OptimizationGroup.SCORING_THRESHOLDS.value, "--group"),
+    parameter_id: str = typer.Option("candidate-report", "--parameter-id"),
+    parameter_name: str = typer.Option("source", "--parameter-name"),
+    parameter_value: str | None = typer.Option(None, "--parameter-value"),
+    train_start: str = typer.Option(..., "--train-start"),
+    train_end: str = typer.Option(..., "--train-end"),
+    validation_start: str = typer.Option(..., "--validation-start"),
+    validation_end: str = typer.Option(..., "--validation-end"),
+    out_of_sample_start: str = typer.Option(..., "--out-of-sample-start"),
+    out_of_sample_end: str = typer.Option(..., "--out-of-sample-end"),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Evaluate a train/validation calibration candidate without using final test for selection."""
+
+    if (final_test_baseline is None) != (final_test_candidate is None):
+        raise typer.BadParameter("final-test baseline and candidate must be provided together")
+    context = bootstrap()
+    group_value = OptimizationGroup(group)
+    split = WalkForwardSplit(
+        train_start=train_start,
+        train_end=train_end,
+        validation_start=validation_start,
+        validation_end=validation_end,
+        out_of_sample_start=out_of_sample_start,
+        out_of_sample_end=out_of_sample_end,
+    )
+    run_config = OptimizationRunConfig(
+        identifier="cli-calibrate",
+        variable_group=group_value,
+        split=split,
+    )
+    parameter_set = CandidateParameterSet(
+        identifier=parameter_id,
+        group=group_value,
+        parameters={parameter_name: parameter_value or str(validation_candidate)},
+    )
+    evaluation = evaluate_walk_forward_calibration(
+        split=split,
+        run_config=run_config,
+        parameter_set=parameter_set,
+        train_baseline=load_performance_report(train_baseline),
+        train_candidate=load_performance_report(train_candidate),
+        validation_baseline=load_performance_report(validation_baseline),
+        validation_candidate=load_performance_report(validation_candidate),
+        final_test_baseline=(
+            load_performance_report(final_test_baseline)
+            if final_test_baseline is not None
+            else None
+        ),
+        final_test_candidate=(
+            load_performance_report(final_test_candidate)
+            if final_test_candidate is not None
+            else None
+        ),
+    )
+    report_path = context.settings.data_dir / "optimization" / "latest-calibration.json"
+    payload = calibration_to_payload(evaluation) | {"report_path": str(report_path)}
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _emit_output(
+        payload,
+        f"OPTIMIZE_CALIBRATE | decision={evaluation.decision.value} | report={report_path}",
         output,
     )
 
@@ -573,7 +768,10 @@ def execute_status(
     audit_log = _execution_audit_log(context.settings.data_dir)
     payload = {
         "mode": "local_testnet_simulation_only",
+        "environment": ExecutionEnvironment.LOCAL_TESTNET_SIMULATION.value,
+        "audit_schema_version": EXECUTION_AUDIT_SCHEMA_VERSION,
         "enabled_by_default": False,
+        "live_fallback": False,
         "kill_switch": _read_kill_switch(context.settings.data_dir).value,
         "duplicate_keys": len(load_duplicate_keys(audit_log)),
         "audit_log": str(audit_log),
@@ -582,6 +780,89 @@ def execute_status(
         payload,
         "EXECUTE_STATUS | "
         f"mode=local_testnet_simulation_only | kill_switch={payload['kill_switch']}",
+        output,
+    )
+
+
+@execute_app.command("reconcile")
+def execute_reconcile(
+    snapshots: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--snapshots",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Optional JSON adapter snapshot file for deterministic reconciliation.",
+    ),
+    report: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--report",
+        dir_okay=False,
+        help="Optional JSON reconciliation report path.",
+    ),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Reconcile local execution audit events against deterministic snapshots."""
+
+    context = bootstrap()
+    audit_log = _execution_audit_log(context.settings.data_dir)
+    snapshot_items = _load_execution_snapshots(snapshots) if snapshots is not None else ()
+    result = reconcile_execution_audit(
+        audit_log,
+        adapter_snapshots=snapshot_items,
+        adapter_name="snapshot-file" if snapshots is not None else "local-simulation",
+    )
+    payload = reconciliation_report_payload(result)
+    if report is not None:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _emit_output(
+        payload,
+        "EXECUTE_RECONCILE | "
+        f"matched={result.matched_count} | missing={result.missing_count} "
+        f"| mismatched={result.mismatched_count} | rejected={result.rejected_local_count}",
+        output,
+    )
+
+
+@execute_app.command("readiness")
+def execute_readiness(
+    reconciliation: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--reconciliation",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Optional JSON report produced by execute reconcile.",
+    ),
+    report: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--report",
+        dir_okay=False,
+        help="Optional JSON readiness report path.",
+    ),
+    output: str = typer.Option("text", "--output", "-o", help="text or json"),
+) -> None:
+    """Report local simulation readiness and explicit exchange blockers."""
+
+    context = bootstrap()
+    readiness = build_execution_readiness_report(
+        audit_log=_execution_audit_log(context.settings.data_dir),
+        kill_switch=_read_kill_switch(context.settings.data_dir),
+        reconciliation=(
+            _load_reconciliation_report(reconciliation) if reconciliation is not None else None
+        ),
+    )
+    payload = readiness_report_payload(readiness)
+    if report is not None:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _emit_output(
+        payload,
+        "EXECUTE_READINESS | "
+        f"local_simulation_ready={str(readiness.local_simulation_ready).lower()} "
+        f"| exchange_ready={str(readiness.exchange_ready).lower()} "
+        f"| blockers={len(readiness.blockers)}",
         output,
     )
 
@@ -612,6 +893,8 @@ def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -621,6 +904,56 @@ def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
 
 def _execution_audit_log(data_dir: Path) -> Path:
     return data_dir / "execution" / "audit.jsonl"
+
+
+def _load_execution_snapshots(path: Path) -> tuple[ExecutionAdapterSnapshot, ...]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    items = payload.get("orders", payload) if isinstance(payload, dict) else payload
+    if not isinstance(items, list):
+        raise typer.BadParameter("execution snapshots must be a JSON list or orders object")
+    try:
+        return tuple(ExecutionAdapterSnapshot(**item) for item in items if isinstance(item, dict))
+    except (TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _load_reconciliation_report(path: Path) -> ExecutionReconciliationReport:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise typer.BadParameter("reconciliation report must be a JSON object")
+    try:
+        records = tuple(
+            ExecutionReconciliationRecord(
+                status=ExecutionReconciliationStatus(str(item["status"])),
+                audit_state=item["audit_state"],
+                client_order_id=item.get("client_order_id"),
+                local_order_id=item.get("local_order_id"),
+                adapter_order_id=item.get("adapter_order_id"),
+                reasons=tuple(str(reason) for reason in item.get("reasons", [])),
+            )
+            for item in payload.get("records", [])
+            if isinstance(item, dict)
+        )
+        return ExecutionReconciliationReport(
+            generated_at=_datetime_from_iso(str(payload["generated_at"])),
+            audit_path=str(payload["audit_path"]),
+            adapter_name=str(payload["adapter_name"]),
+            total_audit_events=int(payload["total_audit_events"]),
+            matched_count=int(payload["matched_count"]),
+            missing_count=int(payload["missing_count"]),
+            mismatched_count=int(payload["mismatched_count"]),
+            rejected_local_count=int(payload["rejected_local_count"]),
+            records=records,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(f"invalid reconciliation report: {exc}") from exc
+
+
+def _datetime_from_iso(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("datetime must be timezone-aware")
+    return parsed
 
 
 def _execution_kill_switch_path(data_dir: Path) -> Path:

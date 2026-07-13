@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import typer
 
 from apex.application import (
     analyze_selected_symbol,
     bootstrap,
+    build_analysis_record,
     build_futures_account_input,
     build_futures_plan_result,
     create_market_data_services,
     format_symbol_text,
     load_default_risk_config,
     serialize_symbol_analysis,
+    write_analysis_record,
+    write_analysis_record_sqlite,
 )
 from apex.data.providers.errors import MarketDataProviderError
 
@@ -54,6 +58,16 @@ def register_analysis_commands(app: typer.Typer) -> None:
             max=100.0,
             help="Optional override for maximum planned account loss percentage.",
         ),
+        record: Path | None = typer.Option(  # noqa: B008
+            None,
+            "--record",
+            help="Optional append-only JSONL analysis record path.",
+        ),
+        record_db: Path | None = typer.Option(  # noqa: B008
+            None,
+            "--record-db",
+            help="Optional SQLite analysis record database path.",
+        ),
     ) -> None:
         try:
             account = build_futures_account_input(
@@ -75,6 +89,10 @@ def register_analysis_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=candle_limit,
                     risk_config=load_default_risk_config(),
+                    strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    gainer_state_thresholds=getattr(
+                        context.settings, "gainer_state_thresholds", None
+                    ),
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -86,9 +104,16 @@ def register_analysis_commands(app: typer.Typer) -> None:
         payload["futures_account"] = account.model_dump(mode="json") | {
             "maximum_account_loss_amount": account.maximum_account_loss_amount
         }
-        setup = result.assessment.setup
+        assessment = getattr(result, "assessment", None)
+        setup = getattr(assessment, "setup", None)
         if setup is not None:
             payload["futures_plan"] = build_futures_plan_result(setup, account)
+        if record is not None or record_db is not None:
+            analysis_record = build_analysis_record(payload)
+            if record is not None:
+                write_analysis_record(record, analysis_record)
+            if record_db is not None:
+                write_analysis_record_sqlite(record_db, analysis_record)
 
         if output == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))

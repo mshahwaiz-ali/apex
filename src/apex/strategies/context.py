@@ -111,6 +111,14 @@ class TimeframeContext:
     latest_closed_price: float | None = None
     active_candle_price: float | None = None
     ticker_price: float | None = None
+    spread_percentage: float | None = None
+    order_book_spread_percentage: float | None = None
+    order_book_depth_imbalance: float | None = None
+    exchange_tick_size: float | None = None
+    exchange_step_size: float | None = None
+    exchange_min_notional: float | None = None
+    nearest_long_cluster_distance_pct: float | None = None
+    nearest_short_cluster_distance_pct: float | None = None
     mark_price: float | None = None
     index_price: float | None = None
     analysis_price: float | None = None
@@ -139,6 +147,26 @@ class TimeframeContext:
             value = getattr(self, name)
             if value is not None and (not math.isfinite(value) or value <= 0):
                 raise ValueError(f"{name.replace('_', ' ')} must be positive and finite")
+        if self.spread_percentage is not None and (
+            not math.isfinite(self.spread_percentage) or self.spread_percentage < 0
+        ):
+            raise ValueError("spread percentage must be non-negative and finite")
+        for name in (
+            "order_book_spread_percentage",
+            "exchange_tick_size",
+            "exchange_step_size",
+            "exchange_min_notional",
+            "nearest_long_cluster_distance_pct",
+            "nearest_short_cluster_distance_pct",
+        ):
+            value = getattr(self, name)
+            if value is not None and (not math.isfinite(value) or value < 0):
+                raise ValueError(f"{name.replace('_', ' ')} must be non-negative and finite")
+        if self.order_book_depth_imbalance is not None and (
+            not math.isfinite(self.order_book_depth_imbalance)
+            or not -1 <= self.order_book_depth_imbalance <= 1
+        ):
+            raise ValueError("order book depth imbalance must be between -1 and 1")
         if self.staleness_seconds is not None and (
             not math.isfinite(self.staleness_seconds) or self.staleness_seconds < 0
         ):

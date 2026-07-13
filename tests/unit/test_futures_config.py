@@ -15,6 +15,7 @@ def test_default_futures_configuration_loads() -> None:
     assert config.futures_only is True
     assert config.default_risk_mode is RiskMode.AGGRESSIVE
     assert config.defaults_for(RiskMode.AGGRESSIVE).preferred_leverage == 18
+    assert config.execution_costs.total_cost_fraction > 0
 
 
 def test_all_risk_modes_are_required() -> None:

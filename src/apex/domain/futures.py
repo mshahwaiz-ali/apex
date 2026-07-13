@@ -91,6 +91,7 @@ class EntryPlan(BaseModel):
     zone_high: float = Field(gt=0)
     ideal_entry: float = Field(gt=0)
     maximum_chase_price: float = Field(gt=0)
+    classification_reasons: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def validate_geometry(self) -> Self:
@@ -106,7 +107,10 @@ class EntryPlan(BaseModel):
             if self.maximum_chase_price > self.zone_low:
                 raise ValueError("short maximum chase price cannot be above the entry-zone low")
             missed = self.current_price < self.maximum_chase_price
-        if self.state is EntryState.READY_NOW and not self.zone_low <= self.current_price <= self.zone_high:
+        if (
+            self.state is EntryState.READY_NOW
+            and not self.zone_low <= self.current_price <= self.zone_high
+        ):
             raise ValueError("READY_NOW requires current price inside the entry zone")
         if self.state is EntryState.MISSED_ENTRY and not missed:
             raise ValueError("MISSED_ENTRY requires current price beyond maximum chase")
@@ -150,13 +154,28 @@ class PositionPlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     leverage: float = Field(gt=0)
+    leverage_mode: LeverageMode = LeverageMode.AUTOMATIC
+    position_quantity: float = Field(default=0.0, ge=0)
     position_notional: float = Field(gt=0)
     required_margin: float = Field(gt=0)
     wallet_exposure_percentage: float = Field(gt=0, le=100)
     planned_loss_amount: float = Field(gt=0)
+    gross_structural_movement_risk: float = Field(default=0.0, ge=0)
+    entry_fee_allowance: float = Field(default=0.0, ge=0)
+    exit_fee_allowance: float = Field(default=0.0, ge=0)
+    entry_slippage_allowance: float = Field(default=0.0, ge=0)
+    exit_slippage_allowance: float = Field(default=0.0, ge=0)
     estimated_fees: float = Field(ge=0)
     estimated_slippage: float = Field(ge=0)
+    total_maximum_planned_loss: float = Field(default=0.0, ge=0)
     liquidation_price: float = Field(gt=0)
+    structural_stop: float | None = Field(default=None, gt=0)
+    emergency_invalidation: float | None = Field(default=None, gt=0)
+    stop_to_liquidation_price_buffer: float = Field(default=0.0, ge=0)
+    stop_to_liquidation_percentage_buffer: float = Field(default=0.0, ge=0)
+    leverage_selection_reason: str = ""
+    limiting_constraint: str = ""
+    warnings: tuple[str, ...] = ()
     margin_mode: MarginMode = MarginMode.ISOLATED
 
     @model_validator(mode="after")
@@ -167,4 +186,15 @@ class PositionPlan(BaseModel):
             raise ValueError("required margin must equal position notional divided by leverage")
         if self.margin_mode is not MarginMode.ISOLATED:
             raise ValueError("Apex position plans must use isolated margin")
+        total = (
+            self.gross_structural_movement_risk
+            + self.entry_fee_allowance
+            + self.exit_fee_allowance
+            + self.entry_slippage_allowance
+            + self.exit_slippage_allowance
+        )
+        if self.total_maximum_planned_loss and abs(self.total_maximum_planned_loss - total) > max(
+            1e-8, total * 1e-8
+        ):
+            raise ValueError("total maximum planned loss must equal modeled loss components")
         return self

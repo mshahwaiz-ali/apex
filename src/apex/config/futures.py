@@ -30,10 +30,31 @@ class RiskModeDefaults(BaseModel):
     @model_validator(mode="after")
     def validate_leverage_order(self) -> Self:
         if not self.minimum_leverage <= self.preferred_leverage <= self.maximum_leverage:
-            raise ValueError(
-                "risk-mode leverage must satisfy minimum <= preferred <= maximum"
-            )
+            raise ValueError("risk-mode leverage must satisfy minimum <= preferred <= maximum")
         return self
+
+
+class FuturesExecutionCostConfig(BaseModel):
+    """Generic exchange-cost and liquidation assumptions for account plans."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    entry_fee_percentage: float = Field(default=0.04, ge=0)
+    exit_fee_percentage: float = Field(default=0.04, ge=0)
+    entry_slippage_percentage: float = Field(default=0.03, ge=0)
+    exit_slippage_percentage: float = Field(default=0.03, ge=0)
+    maintenance_margin_percentage: float = Field(default=0.5, ge=0)
+    liquidation_fee_buffer_percentage: float = Field(default=0.1, ge=0)
+    minimum_stop_to_liquidation_buffer_percentage: float = Field(default=0.2, ge=0)
+
+    @property
+    def total_cost_fraction(self) -> float:
+        return (
+            self.entry_fee_percentage
+            + self.exit_fee_percentage
+            + self.entry_slippage_percentage
+            + self.exit_slippage_percentage
+        ) / 100.0
 
 
 class FuturesProductConfig(BaseModel):
@@ -45,6 +66,7 @@ class FuturesProductConfig(BaseModel):
     margin_mode: MarginMode = MarginMode.ISOLATED
     default_leverage_mode: LeverageMode = LeverageMode.AUTOMATIC
     default_risk_mode: RiskMode = RiskMode.AGGRESSIVE
+    execution_costs: FuturesExecutionCostConfig = Field(default_factory=FuturesExecutionCostConfig)
     risk_modes: dict[RiskMode, RiskModeDefaults]
 
     @model_validator(mode="after")

@@ -7,7 +7,7 @@
 Apex analyzes live multi-timeframe cryptocurrency data, detects structured trading opportunities, ranks actionable setups and applies strict risk controls before producing a decision.
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python\&logoColor=white)](https://www.python.org/)
-[![Status](https://img.shields.io/badge/status-active%20development-f59e0b)](#project-status)
+[![Status](https://img.shields.io/badge/status-local%20roadmap%20complete-16a34a)](#project-status)
 [![Architecture](https://img.shields.io/badge/architecture-modular-7c3aed)](#architecture)
 [![Execution](https://img.shields.io/badge/execution-testnet--only-ef4444)](#execution-safety)
 [![License](https://img.shields.io/badge/license-proprietary-64748b)](#license)
@@ -227,6 +227,8 @@ The `1m` timeframe is never intended to define the complete trade thesis by itse
 Higher timeframes provide context.
 
 Lower timeframes provide execution detail.
+
+Approved analysis payloads include `precision_entry` trigger metadata from available `5m`, `3m`, and `1m` contexts, including reclaim, retest, fast-failure, trigger state, and evidence fields. Ticker bid/ask spread, order-book depth imbalance, exchange precision filters, and liquidation-cluster distances are used when a provider supplies them. The Binance public adapter supplies ticker, order-book depth, and exchange-filter snapshots; liquidation clusters require a derivatives provider.
 
 Perfect alignment across every timeframe is not required, but severe contradiction can reduce confidence or reject a setup.
 
@@ -511,6 +513,27 @@ Display the complete command list:
 apex --help
 ```
 
+### Quick command map
+
+| Command | Purpose |
+| --- | --- |
+| `apex version` | Print the installed Apex version. |
+| `apex validate-config` | Validate YAML configuration. |
+| `apex smoke` | Check that the application boots. |
+| `apex fetch SYMBOL` | Fetch public OHLCV candles. |
+| `apex ticker SYMBOL` | Fetch a public ticker snapshot. |
+| `apex analyze SYMBOL` | Analyze one symbol and build a futures plan. |
+| `apex scan` | Rank opportunities across the symbol universe. |
+| `apex export-dataset SYMBOL` | Save closed candles as a reproducible dataset. |
+| `apex simulate-current-setup SYMBOL` | Simulate the currently approved setup, if present. |
+| `apex chronological-backtest SYMBOL` | Replay the production pipeline historically. |
+| `apex chronological-backtest-campaign SYMBOLS` | Run one or more symbols across multiple variants. |
+| `apex compare-backtests LEFT RIGHT` | Compare saved chronological reports. |
+| `apex paper ...` | Record, update, report, and replay local paper trades. |
+| `apex optimize ...` | Evaluate, compare, and calibrate report performance. |
+| `apex intelligence summary` | Show optional intelligence metadata status. |
+| `apex execute ...` | Preview, simulate, reconcile, and report local execution readiness. |
+
 ### Foundation commands
 
 ```bash
@@ -567,12 +590,18 @@ Control candle history:
 apex analyze BTC/USDT --candles 300
 ```
 
-Save a reusable report:
+Append a schema-versioned local analysis record:
 
 ```bash
 apex analyze BTC/USDT \
-  --output json \
-  --report data/reports/btc-analysis.json
+  --record data/reports/analysis-records.jsonl
+```
+
+Store or update the same reproducible record in SQLite:
+
+```bash
+apex analyze BTC/USDT \
+  --record-db data/reports/analysis-records.db
 ```
 
 A result may contain:
@@ -622,13 +651,25 @@ apex scan \
   --report data/reports/latest-scan.json
 ```
 
+Append a reproducible scan record:
+
+```bash
+apex scan --record data/reports/analysis-records.jsonl
+```
+
+Store reproducible scan records in SQLite:
+
+```bash
+apex scan --record-db data/reports/analysis-records.db
+```
+
 Use another symbol universe:
 
 ```bash
 apex scan --symbols-file config/symbols.yaml
 ```
 
-The scanner is designed so that one failed symbol does not invalidate the entire scan.
+The scanner is designed so that one failed symbol does not invalidate the entire scan. Use `--mode normal`, `--mode gainers`, or `--mode all` to choose the scanner path. JSON output includes `scanner_type`, entry state, gainer-state evidence when applicable, and routing metadata. The normal-market and gainer strategy routes are configured in `config/default.yaml` under `strategy_routing`; gainer state thresholds are configured under `gainer_state_thresholds`. Routing is enforced before candidate scoring and records regime, scanner-route, selected-strategy, and gainer-state rejection explanations.
 
 ---
 
@@ -637,19 +678,45 @@ The scanner is designed so that one failed symbol does not invalidate the entire
 Run a deterministic simulation for an approved setup:
 
 ```bash
-apex backtest BTC/USDT
+apex simulate-current-setup BTC/USDT
 ```
 
 Specify the replay timeframe:
 
 ```bash
-apex backtest BTC/USDT --replay-timeframe 5m
+apex simulate-current-setup BTC/USDT --replay-timeframe 5m
 ```
 
 Request structured output:
 
 ```bash
-apex backtest BTC/USDT --output json
+apex simulate-current-setup BTC/USDT --output json
+```
+
+Chronological backtest reports can also be written to JSON and indexed in SQLite:
+
+```bash
+apex chronological-backtest BTC/USDT \
+  --report-output data/reports/btc-baseline.json \
+  --record-db data/reports/backtest-runs.db
+```
+
+Backtest campaigns run multiple chronological variants through the same production pipeline without editing runtime configuration:
+
+```bash
+apex chronological-backtest-campaign BTC/USDT \
+  --dataset data/btc_usdt_baseline_full.json \
+  --variants base:5m:200:1:3,fast:5m:120:1:1 \
+  --report-output data/reports/btc-campaign.json \
+  --record-db data/reports/backtest-campaigns.db
+```
+
+Campaigns can also fan out curated multi-symbol datasets:
+
+```bash
+apex chronological-backtest-campaign BTC/USDT,ETH/USDT \
+  --dataset data/curated_futures_baseline.json \
+  --variants base:5m:200:1:3,fast:5m:120:1:1
 ```
 
 The simulation considers execution-related factors such as:
@@ -661,19 +728,26 @@ The simulation considers execution-related factors such as:
 * realized R multiple;
 * conservative intrabar assumptions.
 
-The CLI backtest command is a focused simulation utility. It must not be interpreted as proof of strategy profitability across a statistically valid historical sample.
+Approved setup target ladders are preserved. Partial targets close their configured percentages, and any remaining quantity continues toward later targets, stop, or expiry.
+
+`simulate-current-setup` is a focused current-setup simulation utility. It must not be interpreted as proof of strategy profitability across a statistically valid historical sample.
+
+Backtest trade records preserve metadata for reproducibility, including production decision context when generated through the chronological pipeline.
 
 ---
 
 ## Paper Trading
 
 Paper trading allows approved setups to be recorded and followed without placing real orders.
+Target ladders are preserved: partial targets move trades into `partially_closed`, realized PnL is accumulated, and remaining size stays open until a later target, stop, expiry, cancellation, or invalidation.
 
 ### Record a setup
 
 ```bash
 apex paper record BTC/USDT
 ```
+
+New paper records include the serialized analysis payload, a canonical futures-plan snapshot, and replayable lifecycle events for audit and recovery.
 
 If analysis does not produce an approved setup, no paper trade is created.
 
@@ -687,6 +761,13 @@ Update a specific symbol:
 
 ```bash
 apex paper update BTC/USDT
+```
+
+Replay stored lifecycle events into an audit report:
+
+```bash
+apex paper replay-report \
+  --report data/reports/paper-replay.json
 ```
 
 Choose the update timeframe:
@@ -732,6 +813,7 @@ invalidated
 ## Optimization
 
 The optimization layer compares measurable performance rather than editing production settings blindly.
+Walk-forward calibration keeps train and validation decisions separate from the final test set, which is recorded for audit only and cannot be used for candidate selection.
 
 ### Evaluate one performance report
 
@@ -740,12 +822,30 @@ apex optimize evaluate \
   --input data/reports/performance.json
 ```
 
+Campaign reports can be evaluated directly; the selected best variant is aggregated across symbols before comparison.
+
 ### Compare a baseline and candidate
 
 ```bash
 apex optimize compare \
   --baseline data/reports/baseline.json \
   --candidate data/reports/candidate.json
+```
+
+### Walk-forward calibration
+
+```bash
+apex optimize calibrate \
+  --train-baseline data/reports/train-baseline.json \
+  --train-candidate data/reports/train-candidate.json \
+  --validation-baseline data/reports/validation-baseline.json \
+  --validation-candidate data/reports/validation-candidate.json \
+  --train-start 2026-01-01 \
+  --train-end 2026-02-01 \
+  --validation-start 2026-02-02 \
+  --validation-end 2026-03-01 \
+  --out-of-sample-start 2026-03-02 \
+  --out-of-sample-end 2026-04-01
 ```
 
 A candidate should not be accepted merely because it improves win rate.
@@ -815,7 +915,8 @@ The current execution foundation is:
 * protected by maximum-notional rules;
 * aware of daily-loss circuit-breaker input;
 * controlled by a local kill switch;
-* recorded in an audit log.
+* recorded in a schema-versioned audit log.
+* covered by a deterministic fake testnet adapter for offline validation.
 
 ### Preview an execution intent
 
@@ -839,6 +940,26 @@ Without explicit confirmation, submission must remain blocked.
 apex execute status
 ```
 
+### Reconcile local audit events
+
+```bash
+apex execute reconcile \
+  --snapshots data/execution/snapshots.json \
+  --report data/reports/execution-reconciliation.json
+```
+
+Reconciliation compares local audit events with deterministic adapter snapshots. It reports matched, missing, mismatched and locally rejected events without connecting to an exchange.
+
+### Check execution readiness
+
+```bash
+apex execute readiness \
+  --reconciliation data/reports/execution-reconciliation.json \
+  --report data/reports/execution-readiness.json
+```
+
+Readiness reports local simulation readiness separately from exchange readiness and keeps `exchange_ready=false` until external adapter, credential, and exchange-side reconciliation gates are actually passed.
+
 ### Enable the kill switch
 
 ```bash
@@ -850,6 +971,9 @@ Execution audit data is stored under:
 ```text
 data/execution/audit.jsonl
 ```
+
+Audit events record `environment=local_testnet_simulation`, deterministic client order IDs, deterministic idempotency keys, preserved target ladders with partial-close percentages, and `live_fallback=false`. Non-testnet execution configuration is rejected instead of being silently downgraded.
+The fake testnet adapter is provider-independent and does not connect to an exchange or use credentials.
 
 No production exchange credential workflow or unrestricted real-money adapter should be added without separately passing the project's execution-readiness gates.
 
@@ -895,37 +1019,37 @@ JSON output is suitable for:
 ### Run linting
 
 ```bash
-python -m ruff check .
+.venv/bin/python -m ruff check .
 ```
 
 ### Verify formatting
 
 ```bash
-python -m ruff format --check .
+.venv/bin/python -m ruff format --check .
 ```
 
 Apply formatting locally:
 
 ```bash
-python -m ruff format .
+.venv/bin/python -m ruff format .
 ```
 
 ### Run strict type checking
 
 ```bash
-python -m mypy src
+.venv/bin/python -m mypy src
 ```
 
 ### Run tests
 
 ```bash
-python -m pytest
+.venv/bin/python -m pytest
 ```
 
 ### Run tests with coverage
 
 ```bash
-python -m pytest \
+.venv/bin/python -m pytest \
   --cov=apex \
   --cov-report=term-missing
 ```
@@ -933,10 +1057,10 @@ python -m pytest \
 ### Run the complete local gate
 
 ```bash
-python -m ruff check .
-python -m ruff format --check .
-python -m mypy src
-python -m pytest --cov=apex --cov-report=term-missing
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy src
+.venv/bin/python -m pytest --cov=apex --cov-report=term-missing
 git diff --check
 ```
 
@@ -1070,9 +1194,9 @@ Implementing a framework does not automatically mean that a viability gate has p
 
 ## Project Status
 
-The repository contains implementation foundations across roadmap phases `0–12`.
+The local roadmap implementation is complete across the planned phases, with deterministic tests and documentation updated. Remaining work is external validation, not unfinished local architecture.
 
-### Implemented foundations
+### Implemented locally
 
 * repository and configuration foundation;
 * live market-data access;
@@ -1085,19 +1209,20 @@ The repository contains implementation foundations across roadmap phases `0–12
 * persistent paper trading;
 * optimization contracts and reports;
 * optional intelligence metadata;
-* guarded testnet execution foundations.
+* guarded local testnet-simulation execution;
+* execution audit reconciliation and readiness reporting.
 
-### Still requiring real-world validation
+### Still requiring external validation
 
 * curated historical datasets;
-* broad multi-symbol backtest campaigns;
+* larger curated multi-symbol dataset coverage;
 * out-of-sample studies;
 * walk-forward evaluation;
 * extended forward paper-trading samples;
 * production threshold calibration;
 * exchange-specific testnet adapter validation;
-* execution reconciliation;
-* any decision regarding real-money readiness.
+* exchange-side reconciliation against real testnet order history;
+* any decision regarding production exchange readiness.
 
 The codebase may contain a complete architectural roadmap without the trading strategy itself being commercially or statistically proven.
 

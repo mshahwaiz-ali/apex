@@ -9,15 +9,20 @@ from apex.backtesting import (
 )
 from apex.domain import Candle
 from apex.optimization import (
+    CalibrationEvaluation,
     CandidateParameterSet,
     OptimizationDecision,
     OptimizationGroup,
     OptimizationRunConfig,
     PerformanceSummary,
+    WalkForwardSplit,
+    calibration_to_payload,
     compare_backtest_studies,
     compare_performance,
+    evaluate_walk_forward_calibration,
     load_performance_report,
     performance_from_backtest_study,
+    performance_from_campaign_payload,
     save_optimization_result,
 )
 from apex.strategies import StrategyType, TradeDirection
@@ -216,3 +221,188 @@ def test_report_round_trip_does_not_mutate_config(tmp_path) -> None:
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["run_config"]["variable_group"] == "symbol_filters"
     assert payload["recommended_patch"] == {}
+
+
+def test_campaign_payload_aggregates_selected_best_variant_across_symbols() -> None:
+    payload = {
+        "best_variant_id": "candidate",
+        "variants": [
+            {
+                "symbol": "BTC/USDT",
+                "variant": {"identifier": "baseline"},
+                "metrics": {
+                    "total_trades": 2,
+                    "win_rate": 0.5,
+                    "gross_profit": 8.0,
+                    "gross_loss": -2.0,
+                    "net_profit": 6.0,
+                    "maximum_drawdown": 1.0,
+                    "by_strategy": {"trend_pullback": 2},
+                },
+            },
+            {
+                "symbol": "BTC/USDT",
+                "variant": {"identifier": "candidate"},
+                "metrics": {
+                    "total_trades": 2,
+                    "win_rate": 0.5,
+                    "gross_profit": 10.0,
+                    "gross_loss": -2.0,
+                    "net_profit": 8.0,
+                    "maximum_drawdown": 1.0,
+                    "by_strategy": {"trend_pullback": 2},
+                },
+            },
+            {
+                "symbol": "ETH/USDT",
+                "variant": {"identifier": "candidate"},
+                "metrics": {
+                    "total_trades": 3,
+                    "win_rate": 2 / 3,
+                    "gross_profit": 12.0,
+                    "gross_loss": -3.0,
+                    "net_profit": 9.0,
+                    "maximum_drawdown": 2.0,
+                    "by_strategy": {"range_reversion": 3},
+                },
+            },
+        ],
+    }
+
+    summary = performance_from_campaign_payload(payload)
+
+    assert summary.total_trades == 5
+    assert summary.net_profit == 17.0
+    assert summary.expectancy == 3.4
+    assert summary.profit_factor == 22.0 / 5.0
+    assert summary.by_symbol == {"BTC/USDT": 2, "ETH/USDT": 3}
+    assert summary.by_strategy == {"trend_pullback": 2, "range_reversion": 3}
+
+
+def test_load_performance_report_accepts_campaign_payload(tmp_path) -> None:
+    report = tmp_path / "campaign.json"
+    report.write_text(
+        json.dumps(
+            {
+                "best_variant_id": "candidate",
+                "variants": [
+                    {
+                        "symbol": "BTC/USDT",
+                        "variant": {"identifier": "candidate"},
+                        "metrics": {
+                            "total_trades": 2,
+                            "win_rate": 0.5,
+                            "gross_profit": 6.0,
+                            "gross_loss": -2.0,
+                            "net_profit": 4.0,
+                            "maximum_drawdown": 1.0,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = load_performance_report(report)
+
+    assert summary.total_trades == 2
+    assert summary.net_profit == 4.0
+
+
+def test_walk_forward_split_requires_chronological_boundaries() -> None:
+    try:
+        WalkForwardSplit(
+            train_start="2026-02-01",
+            train_end="2026-01-01",
+            validation_start="2026-03-01",
+            validation_end="2026-04-01",
+            out_of_sample_start="2026-05-01",
+            out_of_sample_end="2026-06-01",
+        )
+    except ValueError as exc:
+        assert "chronological" in str(exc)
+    else:
+        raise AssertionError("expected invalid split to be rejected")
+
+
+def test_walk_forward_calibration_keeps_final_test_isolated() -> None:
+    split = WalkForwardSplit(
+        train_start="2026-01-01",
+        train_end="2026-02-01",
+        validation_start="2026-02-02",
+        validation_end="2026-03-01",
+        out_of_sample_start="2026-03-02",
+        out_of_sample_end="2026-04-01",
+    )
+    run_config = OptimizationRunConfig(
+        identifier="walk-forward",
+        variable_group=OptimizationGroup.SCORING_THRESHOLDS,
+        minimum_trades=1,
+        maximum_symbol_trade_share=1.0,
+        split=split,
+    )
+    parameter_set = CandidateParameterSet(
+        identifier="candidate",
+        group=OptimizationGroup.SCORING_THRESHOLDS,
+        parameters={"minimum_score": 65.0},
+    )
+
+    evaluation = evaluate_walk_forward_calibration(
+        split=split,
+        run_config=run_config,
+        parameter_set=parameter_set,
+        train_baseline=_summary(expectancy=10.0),
+        train_candidate=_summary(expectancy=11.0, profit_factor=1.5),
+        validation_baseline=_summary(expectancy=10.0),
+        validation_candidate=_summary(expectancy=11.0, profit_factor=1.5),
+        final_test_baseline=_summary(expectancy=5.0),
+        final_test_candidate=_summary(expectancy=100.0, profit_factor=5.0),
+    )
+    payload = calibration_to_payload(evaluation)
+
+    assert evaluation.decision is OptimizationDecision.ACCEPTED
+    assert payload["final_test"]["used_for_selection"] is False
+    assert payload["recommended_patch"] == {"scoring_thresholds": {"minimum_score": 65.0}}
+
+
+def test_calibration_rejects_final_test_selection() -> None:
+    split = WalkForwardSplit(
+        train_start="2026-01-01",
+        train_end="2026-02-01",
+        validation_start="2026-02-02",
+        validation_end="2026-03-01",
+        out_of_sample_start="2026-03-02",
+        out_of_sample_end="2026-04-01",
+    )
+    run_config = OptimizationRunConfig(
+        identifier="walk-forward",
+        variable_group=OptimizationGroup.SCORING_THRESHOLDS,
+        split=split,
+    )
+    parameter_set = CandidateParameterSet(
+        identifier="candidate",
+        group=OptimizationGroup.SCORING_THRESHOLDS,
+        parameters={"minimum_score": 65.0},
+    )
+    result = compare_performance(
+        _summary(),
+        _summary(expectancy=11.0, profit_factor=1.5),
+        run_config=run_config,
+        parameter_set=parameter_set,
+    )
+
+    try:
+        CalibrationEvaluation(
+            split=split,
+            run_config=run_config,
+            parameter_set=parameter_set,
+            train_result=result,
+            validation_result=result,
+            final_test_used_for_selection=True,
+            reasons=("should fail",),
+        )
+    except ValueError as exc:
+        assert "final test" in str(exc)
+    else:
+        raise AssertionError("expected final-test selection to be rejected")

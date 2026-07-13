@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
 
-from apex.application.analysis import analyze_symbol
+from apex.application.analysis import SymbolAnalysis, analyze_symbol, serialize_symbol_analysis
 from apex.application.chronological_metadata import (
     ChronologicalBacktestMetadata,
     build_chronological_metadata,
@@ -21,6 +21,7 @@ from apex.backtesting import (
     simulate_trade,
     summarize_trades,
 )
+from apex.domain import GainerStateThresholds
 from apex.domain.models import Candle, TickerSnapshot
 from apex.risk import DEFAULT_RISK_CONFIG, RiskConfig
 from apex.risk.contracts import RiskDecision
@@ -37,6 +38,8 @@ class ChronologicalBacktestRequest:
     candidate_cooldown_candles: int = 3
     risk_config: RiskConfig = field(default_factory=lambda: DEFAULT_RISK_CONFIG)
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
+    strategy_routing: Mapping[str, Sequence[str]] | None = None
+    gainer_state_thresholds: GainerStateThresholds | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -126,6 +129,8 @@ def run_chronological_pipeline_backtest(
                 candle_limit=request.candle_limit,
                 risk_config=request.risk_config,
                 generated_at=decision_time,
+                strategy_routing=request.strategy_routing,
+                gainer_state_thresholds=request.gainer_state_thresholds,
             )
         except Exception as exc:
             failures[decision_time.isoformat()] = str(exc)
@@ -158,7 +163,14 @@ def run_chronological_pipeline_backtest(
         if not future:
             skipped_count += 1
             continue
-        trades.append(simulate_trade(signal, future, config=request.backtest_config))
+        trades.append(
+            simulate_trade(
+                signal,
+                future,
+                config=request.backtest_config,
+                metadata=_backtest_trade_metadata(analysis),
+            )
+        )
         last_fingerprint = fingerprint
         last_accepted_index = decision_index
 
@@ -190,6 +202,21 @@ def run_chronological_pipeline_backtest(
 
 def _signal_fingerprint(signal: BacktestSignal) -> tuple[str, str, str]:
     return signal.symbol, signal.strategy.value, signal.direction.value
+
+
+def _backtest_trade_metadata(analysis: SymbolAnalysis) -> dict[str, str | int | float | bool]:
+    payload = serialize_symbol_analysis(analysis)
+    metadata: dict[str, str | int | float | bool] = {
+        "configuration_id": str(payload.get("configuration_id", "")),
+        "scanner_type": str(payload.get("scanner_type", "")),
+        "entry_state": str(payload.get("entry_state", "")),
+    }
+    precision = payload.get("precision_entry")
+    if isinstance(precision, dict):
+        score = precision.get("score")
+        if isinstance(score, dict) and isinstance(score.get("final_score"), int | float):
+            metadata["precision_entry_score"] = float(score["final_score"])
+    return metadata
 
 
 def _is_overlapping(trades: Sequence[SimulatedTrade], decision_time: datetime) -> bool:

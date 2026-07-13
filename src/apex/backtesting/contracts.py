@@ -54,6 +54,8 @@ class BacktestSignal:
     quantity: float
     risk_amount: float
     confidence_score: float
+    target_prices: tuple[float, ...] = ()
+    partial_close_percentages: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -72,11 +74,35 @@ class BacktestSignal:
                 raise ValueError(f"{name.replace('_', ' ')} must be positive and finite")
         if not math.isfinite(self.confidence_score) or not 0.0 <= self.confidence_score <= 100.0:
             raise ValueError("confidence score must be between zero and 100")
+        target_prices = self.target_prices or (self.target_price,)
+        partials = self.partial_close_percentages or (100.0,)
+        if len(target_prices) != len(partials):
+            raise ValueError("target prices and partial close percentages must align")
+        if not target_prices:
+            raise ValueError("at least one target price is required")
+        for target in target_prices:
+            if not math.isfinite(target) or target <= 0.0:
+                raise ValueError("target prices must be positive and finite")
+        for partial in partials:
+            if not math.isfinite(partial) or partial <= 0.0:
+                raise ValueError("partial close percentages must be positive and finite")
+        if not math.isclose(sum(partials), 100.0, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("partial close percentages must sum to 100")
         if self.direction is TradeDirection.LONG:
             if not self.stop_price < self.entry_price < self.target_price:
                 raise ValueError("long signal prices must be stop < entry < target")
+            if any(target <= self.entry_price for target in target_prices):
+                raise ValueError("long target prices must be above entry")
+            if tuple(sorted(target_prices)) != target_prices:
+                raise ValueError("long target prices must be ascending")
         elif not self.target_price < self.entry_price < self.stop_price:
             raise ValueError("short signal prices must be target < entry < stop")
+        elif any(target >= self.entry_price for target in target_prices):
+            raise ValueError("short target prices must be below entry")
+        elif tuple(sorted(target_prices, reverse=True)) != target_prices:
+            raise ValueError("short target prices must be descending")
+        object.__setattr__(self, "target_prices", target_prices)
+        object.__setattr__(self, "partial_close_percentages", partials)
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +118,7 @@ class SimulatedTrade:
     net_pnl: float
     realized_r_multiple: float
     holding_candles: int
+    metadata: Mapping[str, str | int | float | bool] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.exit_time.tzinfo is None or self.exit_time.utcoffset() is None:
@@ -105,6 +132,7 @@ class SimulatedTrade:
             raise ValueError("fees cannot be negative")
         if self.holding_candles < 1:
             raise ValueError("holding candles must be positive")
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +157,7 @@ class BacktestReport:
     consecutive_losses: int
     by_symbol: dict[str, int]
     by_strategy: dict[str, int]
+    metadata: Mapping[str, str | int | float | bool] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.total_trades != len(self.trades):
@@ -137,6 +166,7 @@ class BacktestReport:
             value = getattr(self, name)
             if not math.isfinite(value) or not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name.replace('_', ' ')} must be in the unit interval")
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
 
 @dataclass(frozen=True, slots=True)

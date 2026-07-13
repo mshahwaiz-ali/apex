@@ -21,6 +21,12 @@ class OptimizationDecision(StrEnum):
     REJECTED = "rejected"
 
 
+class CalibrationStage(StrEnum):
+    TRAIN = "train"
+    VALIDATION = "validation"
+    FINAL_TEST = "final_test"
+
+
 @dataclass(frozen=True, slots=True)
 class WalkForwardSplit:
     train_start: str
@@ -41,6 +47,8 @@ class WalkForwardSplit:
         )
         if any(not value.strip() for value in values):
             raise ValueError("walk-forward split boundaries cannot be empty")
+        if values != tuple(sorted(values)):
+            raise ValueError("walk-forward split boundaries must be chronological")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,3 +149,29 @@ class OptimizationResult:
             "recommended_patch",
             MappingProxyType(dict(self.recommended_patch)),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationEvaluation:
+    """Walk-forward calibration decision that keeps the final test isolated."""
+
+    split: WalkForwardSplit
+    run_config: OptimizationRunConfig
+    parameter_set: CandidateParameterSet
+    train_result: OptimizationResult
+    validation_result: OptimizationResult
+    final_test_baseline: PerformanceSummary | None = None
+    final_test_candidate: PerformanceSummary | None = None
+    final_test_used_for_selection: bool = False
+    decision: OptimizationDecision = OptimizationDecision.REJECTED
+    reasons: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.run_config.split != self.split:
+            raise ValueError("calibration split must match run configuration split")
+        if self.parameter_set.group is not self.run_config.variable_group:
+            raise ValueError("calibration parameter set must match run variable group")
+        if self.final_test_used_for_selection:
+            raise ValueError("final test set must remain isolated from calibration selection")
+        if not self.reasons:
+            raise ValueError("calibration evaluation requires reasons")

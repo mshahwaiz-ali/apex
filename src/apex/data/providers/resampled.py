@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import cast
 
-from apex.data.providers.base import MarketDataProvider
+from apex.data.providers.base import MarketDataProvider, MarketMicrostructureProvider
 from apex.data.resampling import resample_candles, source_limit_for_resampling
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain.models import Candle, ExchangeFilterSnapshot, OrderBookSnapshot, TickerSnapshot
 
 
 class ResamplingMarketDataProvider:
@@ -67,3 +68,15 @@ class ResamplingMarketDataProvider:
         """Ticker snapshots are delegated unchanged."""
 
         return self._provider.fetch_ticker(symbol)
+
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        """Order-book snapshots are delegated unchanged."""
+
+        provider = cast(MarketMicrostructureProvider, self._provider)
+        return provider.fetch_order_book(symbol, depth=depth)
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        """Exchange filters are delegated unchanged."""
+
+        provider = cast(MarketMicrostructureProvider, self._provider)
+        return provider.fetch_exchange_filters(symbol)

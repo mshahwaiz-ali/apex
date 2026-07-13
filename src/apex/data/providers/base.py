@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain.models import (
+    Candle,
+    ExchangeFilterSnapshot,
+    LiquidationClusterSnapshot,
+    OrderBookSnapshot,
+    TickerSnapshot,
+)
 from apex.intelligence.contracts import FundingRateSnapshot, OpenInterestSnapshot
 
 
@@ -39,3 +45,20 @@ class DerivativesDataProvider(Protocol):
 
     def fetch_open_interest(self, symbol: str) -> OpenInterestSnapshot:
         """Fetch the latest public open-interest snapshot."""
+
+
+class MarketMicrostructureProvider(Protocol):
+    """Optional order-book and exchange-filter contract."""
+
+    @property
+    def name(self) -> str:
+        """Return the provider identifier."""
+
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        """Fetch normalized current order-book depth."""
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        """Fetch normalized exchange precision and notional filters."""
+
+    def fetch_liquidation_clusters(self, symbol: str) -> LiquidationClusterSnapshot:
+        """Fetch normalized liquidation cluster levels."""

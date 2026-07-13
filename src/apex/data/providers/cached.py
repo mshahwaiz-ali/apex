@@ -6,10 +6,11 @@ import contextlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import cast
 
 from apex.data.cache.candles import CandleCacheKey, FileCandleCache
-from apex.data.providers.base import MarketDataProvider
-from apex.domain.models import Candle, TickerSnapshot
+from apex.data.providers.base import MarketDataProvider, MarketMicrostructureProvider
+from apex.domain.models import Candle, ExchangeFilterSnapshot, OrderBookSnapshot, TickerSnapshot
 
 DEFAULT_CANDLE_CACHE_TTLS: dict[str, timedelta] = {
     "1m": timedelta(seconds=10),
@@ -101,3 +102,15 @@ class CachedMarketDataProvider:
         """Ticker snapshots remain live and bypass candle caching."""
 
         return self._provider.fetch_ticker(symbol)
+
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        """Order-book snapshots remain live and bypass candle caching."""
+
+        provider = cast(MarketMicrostructureProvider, self._provider)
+        return provider.fetch_order_book(symbol, depth=depth)
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        """Exchange filters remain live and bypass candle caching."""
+
+        provider = cast(MarketMicrostructureProvider, self._provider)
+        return provider.fetch_exchange_filters(symbol)

@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from apex.data.timeframes import timeframe_delta
+from apex.domain import GainerStateThresholds
+from apex.strategies import StrategyType
 
 _VALID_TIMEFRAME_ROLES = {
     "long_term_macro",
@@ -77,6 +79,23 @@ DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS: dict[str, int] = {
     "1W": 1_209_600,
 }
 
+DEFAULT_STRATEGY_ROUTING: dict[str, list[str]] = {
+    "normal_market": [
+        StrategyType.TREND_PULLBACK.value,
+        StrategyType.BREAKOUT_CONTINUATION.value,
+        StrategyType.LIQUIDITY_REVERSAL.value,
+        StrategyType.RANGE_REVERSAL.value,
+        StrategyType.MOMENTUM_CONTINUATION.value,
+    ],
+    "gainer": [
+        StrategyType.MOMENTUM_GAINER_CONTINUATION.value,
+        StrategyType.MOMENTUM_CONTINUATION.value,
+        StrategyType.BREAKOUT_CONTINUATION.value,
+    ],
+}
+
+_VALID_STRATEGY_ROUTE_KEYS = frozenset(DEFAULT_STRATEGY_ROUTING)
+
 
 class FileSettings(BaseModel):
     """Validated settings loaded from the default YAML file."""
@@ -100,6 +119,12 @@ class FileSettings(BaseModel):
     intelligence_funding_enabled: bool = False
     intelligence_open_interest_enabled: bool = False
     intelligence_correlation_enabled: bool = False
+    gainer_state_thresholds: GainerStateThresholds = Field(default_factory=GainerStateThresholds)
+    strategy_routing: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            key: list(values) for key, values in DEFAULT_STRATEGY_ROUTING.items()
+        }
+    )
 
     @field_validator("analysis_timeframes")
     @classmethod
@@ -154,6 +179,31 @@ class FileSettings(BaseModel):
             normalized[clean_timeframe] = seconds
         if len(normalized) != len(value):
             raise ValueError("staleness timeframe keys must be unique after normalization")
+        return normalized
+
+    @field_validator("strategy_routing")
+    @classmethod
+    def _validate_strategy_routing(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        normalized: dict[str, list[str]] = {}
+        unknown_routes = sorted(set(value) - _VALID_STRATEGY_ROUTE_KEYS)
+        if unknown_routes:
+            raise ValueError(f"unsupported strategy routing keys: {', '.join(unknown_routes)}")
+        missing_routes = sorted(_VALID_STRATEGY_ROUTE_KEYS - set(value))
+        if missing_routes:
+            raise ValueError(f"missing strategy routing keys: {', '.join(missing_routes)}")
+        valid_strategy_values = {strategy.value for strategy in StrategyType}
+        for route_key, strategies in value.items():
+            if not strategies:
+                raise ValueError(f"strategy routing for {route_key} cannot be empty")
+            clean_strategies: list[str] = []
+            for strategy in strategies:
+                clean_strategy = strategy.strip()
+                if clean_strategy not in valid_strategy_values:
+                    raise ValueError(f"unsupported strategy in {route_key}: {strategy}")
+                clean_strategies.append(clean_strategy)
+            if len(set(clean_strategies)) != len(clean_strategies):
+                raise ValueError(f"strategy routing for {route_key} cannot contain duplicates")
+            normalized[route_key] = clean_strategies
         return normalized
 
     @model_validator(mode="after")

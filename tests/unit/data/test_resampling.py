@@ -4,7 +4,13 @@ import pytest
 
 from apex.data.providers.resampled import ResamplingMarketDataProvider
 from apex.data.resampling import resample_candles, source_limit_for_resampling
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain.models import (
+    Candle,
+    ExchangeFilterSnapshot,
+    OrderBookLevel,
+    OrderBookSnapshot,
+    TickerSnapshot,
+)
 
 START = datetime(2026, 7, 13, tzinfo=UTC)
 
@@ -117,6 +123,26 @@ class FakeProvider:
             source=self.name,
         )
 
+    def fetch_order_book(self, symbol: str, depth: int = 20) -> OrderBookSnapshot:
+        return OrderBookSnapshot(
+            symbol=symbol,
+            bids=(OrderBookLevel(price=99.0, quantity=1.0),),
+            asks=(OrderBookLevel(price=101.0, quantity=1.0),),
+            captured_at=START,
+            source=self.name,
+        )
+
+    def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
+        return ExchangeFilterSnapshot(
+            symbol=symbol,
+            tick_size=0.01,
+            step_size=0.001,
+            min_quantity=0.001,
+            min_notional=5.0,
+            captured_at=START,
+            source=self.name,
+        )
+
 
 def test_resampling_provider_fetches_configured_source_timeframe() -> None:
     provider = FakeProvider()
@@ -139,3 +165,11 @@ def test_resampling_provider_delegates_native_timeframes() -> None:
 
     assert provider.requests == [("BTC/USDT", "1h", 2)]
     assert [candle.timeframe for candle in candles] == ["1h", "1h"]
+
+
+def test_resampling_provider_delegates_microstructure_snapshots() -> None:
+    provider = FakeProvider()
+    wrapped = ResamplingMarketDataProvider(provider, resampling_sources={"2h": "1h"})
+
+    assert wrapped.fetch_order_book("BTC/USDT").source == "fake"
+    assert wrapped.fetch_exchange_filters("BTC/USDT").min_notional == 5.0

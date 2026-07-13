@@ -133,39 +133,57 @@ def test_generates_short_strong_mover_continuation() -> None:
 def test_rejects_expansion_below_boundary() -> None:
     config = MomentumGainerContinuationConfig(minimum_absolute_roc=0.02)
 
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, roc=0.0199), decision_time=NOW, config=config
-    ) == ()
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, roc=0.0199), decision_time=NOW, config=config
+        )
+        == ()
+    )
     assert generate_momentum_gainer_continuation_candidates(
         _context(bullish=True, roc=0.02), decision_time=NOW, config=config
     )
 
 
 def test_rejects_insufficient_relative_volume() -> None:
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, relative_volume=1.24), decision_time=NOW
-    ) == ()
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, relative_volume=1.24), decision_time=NOW
+        )
+        == ()
+    )
 
 
 def test_rejects_weak_persistence() -> None:
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, persistence=0.64), decision_time=NOW
-    ) == ()
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, persistence=0.64), decision_time=NOW
+        )
+        == ()
+    )
 
 
 def test_rejects_disorderly_location_and_extension() -> None:
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, range_position=0.59), decision_time=NOW
-    ) == ()
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, volatility_expansion=0.86), decision_time=NOW
-    ) == ()
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, range_position=0.59), decision_time=NOW
+        )
+        == ()
+    )
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, volatility_expansion=0.86), decision_time=NOW
+        )
+        == ()
+    )
 
 
 def test_rejects_higher_timeframe_contradiction() -> None:
-    assert generate_momentum_gainer_continuation_candidates(
-        _context(bullish=True, higher_contradiction=True), decision_time=NOW
-    ) == ()
+    assert (
+        generate_momentum_gainer_continuation_candidates(
+            _context(bullish=True, higher_contradiction=True), decision_time=NOW
+        )
+        == ()
+    )
 
 
 def test_configuration_validates_boundaries() -> None:

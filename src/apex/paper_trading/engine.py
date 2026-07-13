@@ -8,6 +8,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apex.backtesting import BacktestReport, BacktestSignal, signal_from_setup
+from apex.domain import (
+    TradeLifecycle,
+    TradeLifecycleEvent,
+    TradeLifecycleEventType,
+    replay_lifecycle_events,
+)
 from apex.domain.models import Candle
 from apex.paper_trading.contracts import (
     TERMINAL_STATES,
@@ -26,6 +32,7 @@ def create_paper_trade(
     setup: RiskApprovedSetup,
     *,
     analysis_payload: dict[str, Any],
+    futures_plan: dict[str, Any] | None = None,
     created_at: datetime | None = None,
 ) -> PaperTrade:
     """Create an auditable paper trade from a risk-approved setup."""
@@ -40,6 +47,11 @@ def create_paper_trade(
         created_at=timestamp,
         updated_at=timestamp,
         analysis_payload=analysis_payload,
+        futures_plan=futures_plan,
+        lifecycle_events=(
+            _event(TradeLifecycleEventType.SETUP_GENERATED, timestamp),
+            _event(TradeLifecycleEventType.WAITING_FOR_ENTRY, timestamp),
+        ),
         notes=("paper trade generated from approved setup",),
     )
 
@@ -63,7 +75,7 @@ def update_paper_trade(
     for candle in candles:
         if current.state is PaperTradeState.WAITING_FOR_ENTRY:
             current = _update_waiting_trade(current, candle, config)
-        elif current.state is PaperTradeState.ENTERED:
+        elif current.state in {PaperTradeState.ENTERED, PaperTradeState.PARTIALLY_CLOSED}:
             current = _update_entered_trade(current, candle, config)
         if current.state in TERMINAL_STATES:
             return current
@@ -137,6 +149,78 @@ def compare_backtest_to_paper(
     )
 
 
+def paper_lifecycle_snapshot(trade: PaperTrade) -> TradeLifecycle:
+    """Replay stored paper lifecycle events into the canonical lifecycle snapshot."""
+
+    events = tuple(
+        TradeLifecycleEvent(
+            event_type=TradeLifecycleEventType(str(event["event_type"])),
+            occurred_at=datetime.fromisoformat(str(event["occurred_at"])),
+            closed_percentage=event.get("closed_percentage"),
+            stop_price=event.get("stop_price"),
+            trailing_stop_price=event.get("trailing_stop_price"),
+            target_label=event.get("target_label"),
+            runner_active=event.get("runner_active"),
+            reason=event.get("reason"),
+        )
+        for event in trade.lifecycle_events
+    )
+    return replay_lifecycle_events(created_at=trade.created_at, events=events)
+
+
+def build_paper_replay_report(
+    trades: tuple[PaperTrade, ...],
+    *,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Replay stored paper lifecycle events into a reproducible audit report."""
+
+    timestamp = generated_at or datetime.now(UTC)
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError("paper replay report time must be timezone-aware")
+    replayed: list[dict[str, Any]] = []
+    failures: dict[str, str] = {}
+    for trade in trades:
+        try:
+            snapshot = paper_lifecycle_snapshot(trade)
+        except ValueError as exc:
+            failures[trade.trade_id] = str(exc)
+            continue
+        replayed.append(
+            {
+                "trade_id": trade.trade_id,
+                "symbol": trade.signal.symbol,
+                "paper_state": trade.state.value,
+                "lifecycle_state": snapshot.state.value,
+                "created_at": snapshot.created_at.isoformat(),
+                "updated_at": snapshot.updated_at.isoformat(),
+                "entered_at": (
+                    None if snapshot.entered_at is None else snapshot.entered_at.isoformat()
+                ),
+                "closed_at": (
+                    None if snapshot.closed_at is None else snapshot.closed_at.isoformat()
+                ),
+                "closed_percentage": snapshot.closed_percentage,
+                "active_stop_price": snapshot.active_stop_price,
+                "trailing_stop_price": snapshot.trailing_stop_price,
+                "runner_active": snapshot.runner_active,
+                "partial_targets_hit": list(snapshot.partial_targets_hit),
+                "last_target_label": snapshot.last_target_label,
+                "event_count": len(trade.lifecycle_events),
+                "reason": snapshot.reason,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "generated_at": timestamp.isoformat(),
+        "trade_count": len(trades),
+        "replayed_count": len(replayed),
+        "failure_count": len(failures),
+        "trades": replayed,
+        "failures": failures,
+    }
+
+
 def _update_waiting_trade(
     trade: PaperTrade,
     candle: Candle,
@@ -173,6 +257,10 @@ def _update_waiting_trade(
             entry_time=candle.close_time,
             entry_price=entry,
             candles_waited=waited,
+            lifecycle_events=(
+                *trade.lifecycle_events,
+                _event(TradeLifecycleEventType.ENTRY_FILLED, candle.close_time),
+            ),
             notes=(*trade.notes, "entry filled"),
         )
     if waited >= config.entry_timeout_candles:
@@ -196,24 +284,25 @@ def _update_entered_trade(
     signal = trade.signal
     held = trade.candles_held + 1
     stop_hit = _stop_hit(signal, candle)
-    target_hit = _target_hit(signal, candle)
-    if stop_hit and target_hit:
-        state = (
-            PaperTradeState.STOPPED if config.conservative_intrabar else PaperTradeState.TARGET_HIT
-        )
-        exit_price = signal.stop_price if state is PaperTradeState.STOPPED else signal.target_price
+    hit_targets = _hit_target_indexes(signal, candle, start=trade.partial_target_count)
+    if stop_hit and hit_targets and config.conservative_intrabar:
         return _close(
             trade,
-            state,
+            PaperTradeState.STOPPED,
             candle,
-            exit_price,
+            signal.stop_price,
             "ambiguous intrabar resolution",
             config,
             held,
         )
+    current = trade
+    for target_index in hit_targets:
+        current = _apply_target_fill(current, candle, target_index, config, held)
+        if current.state is PaperTradeState.TARGET_HIT:
+            return current
     if stop_hit:
         return _close(
-            trade,
+            current,
             PaperTradeState.STOPPED,
             candle,
             signal.stop_price,
@@ -221,19 +310,9 @@ def _update_entered_trade(
             config,
             held,
         )
-    if target_hit:
-        return _close(
-            trade,
-            PaperTradeState.TARGET_HIT,
-            candle,
-            signal.target_price,
-            "target hit",
-            config,
-            held,
-        )
     if held >= config.maximum_holding_candles:
         return _close(
-            trade,
+            current,
             PaperTradeState.EXPIRED,
             candle,
             candle.close,
@@ -241,7 +320,63 @@ def _update_entered_trade(
             config,
             held,
         )
-    return replace(trade, updated_at=candle.close_time, candles_held=held)
+    return replace(current, updated_at=candle.close_time, candles_held=held)
+
+
+def _apply_target_fill(
+    trade: PaperTrade,
+    candle: Candle,
+    target_index: int,
+    config: PaperTradeConfig,
+    candles_held: int,
+) -> PaperTrade:
+    entry_price = trade.entry_price
+    if entry_price is None:
+        return trade
+    signal = trade.signal
+    target_price = _slipped_exit(signal, signal.target_prices[target_index], config)
+    partial = signal.partial_close_percentages[target_index]
+    fill_quantity = signal.quantity * partial / 100.0
+    gross = _gross_for_fill(
+        signal,
+        entry=entry_price,
+        exit_price=target_price,
+        quantity=fill_quantity,
+    )
+    fees = (entry_price + target_price) * fill_quantity * config.fee_pct / 100.0
+    net_pnl = trade.net_pnl + gross - fees
+    target_count = target_index + 1
+    closed_percentage = min(100.0, sum(signal.partial_close_percentages[:target_count]))
+    terminal = closed_percentage >= 100.0
+    state = PaperTradeState.TARGET_HIT if terminal else PaperTradeState.PARTIALLY_CLOSED
+    event_type = (
+        TradeLifecycleEventType.FULL_TARGET_HIT
+        if terminal
+        else TradeLifecycleEventType.PARTIAL_TARGET_HIT
+    )
+    return replace(
+        trade,
+        state=state,
+        updated_at=candle.close_time,
+        exit_time=candle.close_time if terminal else trade.exit_time,
+        exit_price=target_price,
+        net_pnl=net_pnl,
+        realized_r_multiple=net_pnl / signal.risk_amount,
+        partial_target_count=target_count,
+        closed_percentage=closed_percentage,
+        candles_held=candles_held,
+        lifecycle_events=(
+            *trade.lifecycle_events,
+            _event(
+                event_type,
+                candle.close_time,
+                reason=f"target {target_count} hit",
+                closed_percentage=closed_percentage,
+                target_label=f"tp{target_count}",
+            ),
+        ),
+        notes=(*trade.notes, f"target {target_count} hit"),
+    )
 
 
 def _close(
@@ -266,13 +401,14 @@ def _close(
     }
     if entry_price is not None and state in pnl_states:
         final_exit = _slipped_exit(trade.signal, exit_price, config)
+        remaining_quantity = trade.signal.quantity * (100.0 - trade.closed_percentage) / 100.0
         gross = (
-            (final_exit - entry_price) * trade.signal.quantity
+            (final_exit - entry_price) * remaining_quantity
             if trade.signal.direction is TradeDirection.LONG
-            else (entry_price - final_exit) * trade.signal.quantity
+            else (entry_price - final_exit) * remaining_quantity
         )
-        fees = (entry_price + final_exit) * trade.signal.quantity * config.fee_pct / 100.0
-        net_pnl = gross - fees
+        fees = (entry_price + final_exit) * remaining_quantity * config.fee_pct / 100.0
+        net_pnl = trade.net_pnl + gross - fees
         realized_r = net_pnl / trade.signal.risk_amount
     return replace(
         trade,
@@ -282,10 +418,44 @@ def _close(
         exit_price=final_exit,
         net_pnl=net_pnl,
         realized_r_multiple=realized_r,
+        closed_percentage=100.0 if entry_price is not None and state in pnl_states else 0.0,
         candles_waited=trade.candles_waited if candles_waited is None else candles_waited,
         candles_held=trade.candles_held if candles_held is None else candles_held,
+        lifecycle_events=(
+            *trade.lifecycle_events,
+            _event(_paper_state_event_type(state), candle.close_time, reason=note),
+        ),
         notes=(*trade.notes, note),
     )
+
+
+def _paper_state_event_type(state: PaperTradeState) -> TradeLifecycleEventType:
+    if state is PaperTradeState.TARGET_HIT:
+        return TradeLifecycleEventType.FULL_TARGET_HIT
+    if state is PaperTradeState.STOPPED:
+        return TradeLifecycleEventType.STOPPED_OUT
+    if state is PaperTradeState.INVALIDATED:
+        return TradeLifecycleEventType.STRUCTURAL_INVALIDATION
+    if state is PaperTradeState.CANCELLED:
+        return TradeLifecycleEventType.CANCELLED
+    return TradeLifecycleEventType.EXPIRED
+
+
+def _event(
+    event_type: TradeLifecycleEventType,
+    occurred_at: datetime,
+    *,
+    reason: str | None = None,
+    closed_percentage: float | None = None,
+    target_label: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "event_type": event_type.value,
+        "occurred_at": occurred_at.isoformat(),
+        "closed_percentage": closed_percentage,
+        "target_label": target_label,
+        "reason": reason,
+    }
 
 
 def _entry_touched(signal: BacktestSignal, candle: Candle) -> bool:
@@ -312,8 +482,23 @@ def _stop_hit(signal: BacktestSignal, candle: Candle) -> bool:
     return _stop_violated_before_entry(signal, candle)
 
 
-def _target_hit(signal: BacktestSignal, candle: Candle) -> bool:
-    return _target_hit_before_entry(signal, candle)
+def _hit_target_indexes(
+    signal: BacktestSignal,
+    candle: Candle,
+    *,
+    start: int,
+) -> tuple[int, ...]:
+    indexes: list[int] = []
+    for index, target in enumerate(signal.target_prices[start:], start=start):
+        if (
+            candle.high >= target
+            if signal.direction is TradeDirection.LONG
+            else candle.low <= target
+        ):
+            indexes.append(index)
+        else:
+            break
+    return tuple(indexes)
 
 
 def _slipped_entry(signal: BacktestSignal, config: PaperTradeConfig) -> float:
@@ -328,6 +513,20 @@ def _slipped_entry(signal: BacktestSignal, config: PaperTradeConfig) -> float:
 def _slipped_exit(signal: BacktestSignal, price: float, config: PaperTradeConfig) -> float:
     slippage = price * config.slippage_pct / 100.0
     return price - slippage if signal.direction is TradeDirection.LONG else price + slippage
+
+
+def _gross_for_fill(
+    signal: BacktestSignal,
+    *,
+    entry: float,
+    exit_price: float,
+    quantity: float,
+) -> float:
+    return (
+        (exit_price - entry) * quantity
+        if signal.direction is TradeDirection.LONG
+        else (entry - exit_price) * quantity
+    )
 
 
 def _trade_id(symbol: str, generated_at: str, strategy: str) -> str:

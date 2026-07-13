@@ -8,6 +8,7 @@ from datetime import datetime
 from apex.application.analysis import SymbolAnalysis, analyze_symbol
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
+from apex.domain import GainerStateThresholds
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
 
@@ -22,6 +23,8 @@ def analyze_selected_symbol(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
+    strategy_routing: Mapping[str, Sequence[str]] | None = None,
+    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> SymbolAnalysis:
     """Normalize a user-entered symbol and run the standard analysis pipeline."""
 
@@ -36,4 +39,6 @@ def analyze_selected_symbol(
         risk_config=risk_config,
         exposure=exposure,
         generated_at=generated_at,
+        strategy_routing=strategy_routing,
+        gainer_state_thresholds=gainer_state_thresholds,
     )

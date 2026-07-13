@@ -1,5 +1,10 @@
 """Domain public API."""
 
+from apex.domain.entry import (
+    EntryClassificationInput,
+    EntryClassificationResult,
+    classify_entry_state,
+)
 from apex.domain.futures import (
     EntryPlan,
     EntryState,
@@ -18,28 +23,79 @@ from apex.domain.lifecycle import (
     ALLOWED_LIFECYCLE_TRANSITIONS,
     TERMINAL_LIFECYCLE_STATES,
     TradeLifecycle,
+    TradeLifecycleEvent,
+    TradeLifecycleEventType,
+    replay_lifecycle_events,
 )
-from apex.domain.models import AnalysisResult, Candle, Decision, EntryZone, TakeProfit
+from apex.domain.market import (
+    GainerState,
+    GainerStateInput,
+    GainerStateResult,
+    GainerStateThresholds,
+    MarketCategory,
+    ScannerMode,
+    classify_gainer_state,
+)
+from apex.domain.models import (
+    AnalysisResult,
+    Candle,
+    Decision,
+    EntryZone,
+    ExchangeFilterSnapshot,
+    LiquidationCluster,
+    LiquidationClusterSide,
+    LiquidationClusterSnapshot,
+    OrderBookLevel,
+    OrderBookSnapshot,
+    TakeProfit,
+)
+from apex.domain.precision import (
+    PrecisionEntryPlan,
+    PrecisionEntryScore,
+    weighted_precision_score,
+)
 
 __all__ = [
     "ALLOWED_LIFECYCLE_TRANSITIONS",
+    "TERMINAL_LIFECYCLE_STATES",
     "AnalysisResult",
     "Candle",
     "Decision",
+    "EntryClassificationInput",
+    "EntryClassificationResult",
     "EntryPlan",
     "EntryState",
     "EntryZone",
+    "ExchangeFilterSnapshot",
     "FuturesAccountInput",
     "FuturesDirection",
+    "GainerState",
+    "GainerStateInput",
+    "GainerStateResult",
+    "GainerStateThresholds",
     "LeverageMode",
+    "LiquidationCluster",
+    "LiquidationClusterSide",
+    "LiquidationClusterSnapshot",
     "MarginMode",
+    "MarketCategory",
+    "OrderBookLevel",
+    "OrderBookSnapshot",
     "PositionPlan",
+    "PrecisionEntryPlan",
+    "PrecisionEntryScore",
     "RiskMode",
+    "ScannerMode",
     "StopPlan",
-    "TERMINAL_LIFECYCLE_STATES",
     "TakeProfit",
     "TargetLeg",
     "TargetPlan",
     "TradeLifecycle",
+    "TradeLifecycleEvent",
+    "TradeLifecycleEventType",
     "TradeLifecycleState",
+    "classify_entry_state",
+    "classify_gainer_state",
+    "replay_lifecycle_events",
+    "weighted_precision_score",
 ]

@@ -75,6 +75,117 @@ class TickerSnapshot(BaseModel):
         return (self.spread / midpoint) * 100
 
 
+class OrderBookLevel(BaseModel):
+    """One normalized order-book price level."""
+
+    model_config = ConfigDict(frozen=True)
+
+    price: float = Field(gt=0)
+    quantity: float = Field(ge=0)
+
+    @property
+    def notional(self) -> float:
+        return self.price * self.quantity
+
+
+class OrderBookSnapshot(BaseModel):
+    """Provider-independent top-of-book/depth snapshot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    bids: tuple[OrderBookLevel, ...]
+    asks: tuple[OrderBookLevel, ...]
+    captured_at: datetime
+    source: str
+
+    @model_validator(mode="after")
+    def validate_book(self) -> OrderBookSnapshot:
+        if not self.bids or not self.asks:
+            raise ValueError("order book requires at least one bid and ask")
+        if tuple(sorted(self.bids, key=lambda level: level.price, reverse=True)) != self.bids:
+            raise ValueError("order book bids must be sorted descending by price")
+        if tuple(sorted(self.asks, key=lambda level: level.price)) != self.asks:
+            raise ValueError("order book asks must be sorted ascending by price")
+        if self.best_bid.price > self.best_ask.price:
+            raise ValueError("order book best bid cannot exceed best ask")
+        return self
+
+    @property
+    def best_bid(self) -> OrderBookLevel:
+        return self.bids[0]
+
+    @property
+    def best_ask(self) -> OrderBookLevel:
+        return self.asks[0]
+
+    @property
+    def spread_percentage(self) -> float:
+        midpoint = (self.best_bid.price + self.best_ask.price) / 2
+        return (self.best_ask.price - self.best_bid.price) / midpoint * 100
+
+    @property
+    def bid_depth_notional(self) -> float:
+        return sum(level.notional for level in self.bids)
+
+    @property
+    def ask_depth_notional(self) -> float:
+        return sum(level.notional for level in self.asks)
+
+    @property
+    def depth_imbalance(self) -> float:
+        total = self.bid_depth_notional + self.ask_depth_notional
+        if total <= 0:
+            return 0.0
+        return (self.bid_depth_notional - self.ask_depth_notional) / total
+
+
+class ExchangeFilterSnapshot(BaseModel):
+    """Provider-independent futures precision and notional filters."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    tick_size: float = Field(gt=0)
+    step_size: float = Field(gt=0)
+    min_quantity: float = Field(ge=0)
+    min_notional: float = Field(ge=0)
+    captured_at: datetime
+    source: str
+
+
+class LiquidationClusterSide(StrEnum):
+    LONG = "long"
+    SHORT = "short"
+
+
+class LiquidationCluster(BaseModel):
+    """One provider-normalized liquidation cluster level."""
+
+    model_config = ConfigDict(frozen=True)
+
+    side: LiquidationClusterSide
+    price: float = Field(gt=0)
+    notional: float = Field(ge=0)
+
+
+class LiquidationClusterSnapshot(BaseModel):
+    """Provider-independent liquidation-cluster snapshot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    clusters: tuple[LiquidationCluster, ...]
+    captured_at: datetime
+    source: str
+
+    @model_validator(mode="after")
+    def validate_clusters(self) -> LiquidationClusterSnapshot:
+        if not self.clusters:
+            raise ValueError("liquidation cluster snapshot requires at least one cluster")
+        return self
+
+
 class EntryZone(BaseModel):
     model_config = ConfigDict(frozen=True)
     low: float = Field(gt=0)

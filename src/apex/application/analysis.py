@@ -12,10 +12,34 @@ from typing import Any
 
 import yaml
 
+from apex.application.analysis_records import build_analysis_record
+from apex.application.precision_entry import build_precision_entry_plan
+from apex.application.strategy_routing import (
+    apply_strategy_routing,
+    build_strategy_routing_payload,
+)
 from apex.config import DEFAULT_TIMEFRAME_ROLES
 from apex.config.settings import DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
 from apex.data.providers.base import MarketDataProvider
-from apex.domain.models import Candle, TickerSnapshot
+from apex.domain import (
+    EntryClassificationInput,
+    FuturesDirection,
+    GainerStateInput,
+    GainerStateResult,
+    GainerStateThresholds,
+    MarketCategory,
+    ScannerMode,
+    classify_entry_state,
+    classify_gainer_state,
+)
+from apex.domain.models import (
+    Candle,
+    ExchangeFilterSnapshot,
+    LiquidationClusterSide,
+    LiquidationClusterSnapshot,
+    OrderBookSnapshot,
+    TickerSnapshot,
+)
 from apex.features.registry import create_default_feature_registry
 from apex.phase3 import analyze_phase3
 from apex.risk import (
@@ -50,6 +74,11 @@ class SymbolAnalysis:
     evaluated_timeframes: tuple[str, ...]
     regime_by_timeframe: Mapping[str, str]
     data_quality_by_timeframe: Mapping[str, Mapping[str, Any]]
+    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET
+    gainer_state: str | None = None
+    gainer_evidence: Mapping[str, Any] | None = None
+    strategy_routing: Mapping[str, Any] | None = None
+    precision_entry: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +88,7 @@ class ScanResult:
     generated_at: datetime
     analyses: tuple[SymbolAnalysis, ...]
     failures: Mapping[str, str]
+    scanner_mode: ScannerMode = ScannerMode.NORMAL
 
     @property
     def approved(self) -> tuple[SymbolAnalysis, ...]:
@@ -92,6 +122,9 @@ def analyze_symbol(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
+    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
+    strategy_routing: Mapping[str, Sequence[str]] | None = None,
+    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> SymbolAnalysis:
     """Run the deterministic Phase 4 to Phase 6 stack for one symbol."""
 
@@ -107,23 +140,55 @@ def analyze_symbol(
         candle_limit=candle_limit,
         received_at=decision_time,
     )
+    gainer_result = (
+        _classify_gainer_context(context, thresholds=gainer_state_thresholds)
+        if scanner_type is MarketCategory.GAINER
+        else None
+    )
     phase4 = analyze_phase4(context, decision_time=decision_time)
-    phase5 = analyze_phase5(phase4)
+    routed_phase4 = apply_strategy_routing(
+        phase4,
+        scanner_type=scanner_type,
+        gainer_result=gainer_result,
+        routing_config=strategy_routing,
+    )
+    phase5 = analyze_phase5(routed_phase4)
     assessment = analyze_phase6(
         phase5,
         config=risk_config,
         exposure=exposure,
     )
+    precision_entry = (
+        build_precision_entry_plan(assessment.setup, timeframe_contexts=context.frames).model_dump(
+            mode="json"
+        )
+        if assessment.setup is not None
+        else None
+    )
     return SymbolAnalysis(
         symbol=symbol,
         generated_at=decision_time,
         assessment=assessment,
-        candidate_count=len(phase4.candidates),
+        candidate_count=len(routed_phase4.candidates),
         evaluated_timeframes=tuple(frame.timeframe for frame in context.frames),
         regime_by_timeframe=regimes,
         data_quality_by_timeframe={
             frame.timeframe: _frame_data_quality_payload(frame) for frame in context.frames
         },
+        scanner_type=scanner_type,
+        gainer_state=gainer_result.state.value if gainer_result is not None else None,
+        gainer_evidence=(
+            {
+                "evidence": list(gainer_result.evidence),
+                "missing_optional_data": list(gainer_result.missing_optional_data),
+            }
+            if gainer_result is not None
+            else None
+        ),
+        strategy_routing=_strategy_routing_payload(
+            scanner_type, assessment, gainer_result, routed_phase4, strategy_routing
+        ),
+        precision_entry=precision_entry,
     )
 
 
@@ -142,7 +207,12 @@ def build_strategy_context(
     role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
     staleness_config = timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
     timestamp = received_at or datetime.now(UTC)
-    ticker_price = _fetch_ticker_price(provider, symbol)
+    ticker_snapshot = _fetch_ticker_snapshot(provider, symbol)
+    ticker_price = ticker_snapshot.last_price if ticker_snapshot is not None else None
+    spread_percentage = ticker_snapshot.spread_percentage if ticker_snapshot is not None else None
+    order_book_snapshot = _fetch_order_book_snapshot(provider, symbol)
+    exchange_filter_snapshot = _fetch_exchange_filter_snapshot(provider, symbol)
+    liquidation_cluster_snapshot = _fetch_liquidation_cluster_snapshot(provider, symbol)
     frames: list[TimeframeContext] = []
     regimes: dict[str, str] = {}
     for timeframe in timeframes:
@@ -159,6 +229,10 @@ def build_strategy_context(
             received_at=timestamp,
             max_staleness_seconds=staleness_config.get(timeframe),
             ticker_price=ticker_price,
+            spread_percentage=spread_percentage,
+            order_book_snapshot=order_book_snapshot,
+            exchange_filter_snapshot=exchange_filter_snapshot,
+            liquidation_cluster_snapshot=liquidation_cluster_snapshot,
         )
         frames.append(frame)
         regimes[timeframe] = regime
@@ -184,31 +258,40 @@ def scan_symbols(
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
+    scanner_mode: ScannerMode | str = ScannerMode.NORMAL,
+    strategy_routing: Mapping[str, Sequence[str]] | None = None,
+    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> ScanResult:
     """Analyze each symbol independently and rank approved setups."""
 
     timestamp = generated_at or datetime.now(UTC)
     analyses: list[SymbolAnalysis] = []
     failures: dict[str, str] = {}
-    for symbol in symbols:
-        try:
-            analyses.append(
-                analyze_symbol(
-                    symbol,
-                    provider,
-                    timeframes=timeframes,
-                    timeframe_roles=timeframe_roles,
-                    timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
-                    candle_limit=candle_limit,
-                    risk_config=risk_config,
-                    generated_at=timestamp,
+    mode = scanner_mode if isinstance(scanner_mode, ScannerMode) else ScannerMode(scanner_mode)
+    for scanner_type in _scanner_categories(mode):
+        for symbol in symbols:
+            failure_key = symbol if mode is ScannerMode.NORMAL else f"{scanner_type.value}:{symbol}"
+            try:
+                analyses.append(
+                    analyze_symbol(
+                        symbol,
+                        provider,
+                        timeframes=timeframes,
+                        timeframe_roles=timeframe_roles,
+                        timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+                        candle_limit=candle_limit,
+                        risk_config=risk_config,
+                        generated_at=timestamp,
+                        scanner_type=scanner_type,
+                        strategy_routing=strategy_routing,
+                        gainer_state_thresholds=gainer_state_thresholds,
+                    )
                 )
-            )
-        except Exception as exc:  # Scanner must isolate per-symbol failures.
-            failures[symbol] = str(exc)
+            except Exception as exc:  # Scanner must isolate per-symbol failures.
+                failures[failure_key] = str(exc)
 
     ranked = tuple(sorted(analyses, key=_scan_sort_key))
-    return ScanResult(generated_at=timestamp, analyses=ranked, failures=failures)
+    return ScanResult(generated_at=timestamp, analyses=ranked, failures=failures, scanner_mode=mode)
 
 
 def load_default_risk_config(path: str | Path = "config/risk.yaml") -> RiskConfig:
@@ -227,7 +310,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     if assessment.decision is RiskDecision.APPROVED:
         if assessment.setup is None:
             raise ValueError("approved analysis is missing setup")
-        payload = _approved_payload(assessment.setup)
+        payload = _approved_payload(assessment.setup, analysis.precision_entry)
     else:
         payload = {
             "symbol": analysis.symbol,
@@ -238,6 +321,10 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload.update(
         {
             "generated_at": analysis.generated_at.isoformat(),
+            "scanner_type": analysis.scanner_type.value,
+            "gainer_state": analysis.gainer_state,
+            "gainer_evidence": dict(analysis.gainer_evidence or {}),
+            "strategy_routing": dict(analysis.strategy_routing or {}),
             "candidate_count": analysis.candidate_count,
             "evaluated_timeframes": list(analysis.evaluated_timeframes),
             "market_regime": dict(analysis.regime_by_timeframe),
@@ -257,6 +344,8 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     approved = tuple(
         analysis for analysis in result.analyses if analysis.assessment.setup is not None
     )
+    normal = tuple(item for item in approved if item.scanner_type is MarketCategory.NORMAL_MARKET)
+    gainers = tuple(item for item in approved if item.scanner_type is MarketCategory.GAINER)
     long_setups = tuple(
         item
         for item in approved
@@ -269,7 +358,10 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     )
     return {
         "generated_at": result.generated_at.isoformat(),
+        "scanner_mode": result.scanner_mode.value,
         "best_overall": serialize_symbol_analysis(approved[0]) if approved else None,
+        "best_normal_market": serialize_symbol_analysis(normal[0]) if normal else None,
+        "best_gainer": serialize_symbol_analysis(gainers[0]) if gainers else None,
         "top_long_setups": [serialize_symbol_analysis(item) for item in long_setups],
         "top_short_setups": [serialize_symbol_analysis(item) for item in short_setups],
         "results": [serialize_symbol_analysis(item) for item in result.analyses],
@@ -280,8 +372,13 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
 def write_json_report(payload: Mapping[str, Any], path: Path) -> None:
     """Write a deterministic JSON report."""
 
+    record = build_analysis_record(payload)
+    report_payload = dict(payload)
+    report_payload["record_metadata"] = {
+        key: value for key, value in record.items() if key != "payload"
+    }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(report_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def format_symbol_text(analysis: SymbolAnalysis) -> str:
@@ -294,6 +391,7 @@ def format_symbol_text(analysis: SymbolAnalysis) -> str:
 
     return (
         f"{analysis.symbol}: {payload['decision']} {payload['strategy']} "
+        f"| state={payload['entry_state']} "
         f"| score={payload['confidence_score']:.1f} "
         f"| entry={payload['entry_zone']['low']:.4f}-{payload['entry_zone']['high']:.4f} "
         f"| stop={payload['stop_loss']:.4f} "
@@ -321,6 +419,10 @@ def _frame_from_candles(
     received_at: datetime,
     max_staleness_seconds: int | None,
     ticker_price: float | None,
+    spread_percentage: float | None,
+    order_book_snapshot: OrderBookSnapshot | None,
+    exchange_filter_snapshot: ExchangeFilterSnapshot | None,
+    liquidation_cluster_snapshot: LiquidationClusterSnapshot | None,
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
@@ -361,6 +463,34 @@ def _frame_from_candles(
             latest_closed_price=latest_closed.close,
             active_candle_price=active_candle_price,
             ticker_price=ticker_price,
+            spread_percentage=spread_percentage,
+            order_book_spread_percentage=(
+                order_book_snapshot.spread_percentage if order_book_snapshot is not None else None
+            ),
+            order_book_depth_imbalance=(
+                order_book_snapshot.depth_imbalance if order_book_snapshot is not None else None
+            ),
+            exchange_tick_size=(
+                exchange_filter_snapshot.tick_size if exchange_filter_snapshot is not None else None
+            ),
+            exchange_step_size=(
+                exchange_filter_snapshot.step_size if exchange_filter_snapshot is not None else None
+            ),
+            exchange_min_notional=(
+                exchange_filter_snapshot.min_notional
+                if exchange_filter_snapshot is not None
+                else None
+            ),
+            nearest_long_cluster_distance_pct=_nearest_liquidation_distance_pct(
+                liquidation_cluster_snapshot,
+                side=LiquidationClusterSide.LONG,
+                reference_price=live_price,
+            ),
+            nearest_short_cluster_distance_pct=_nearest_liquidation_distance_pct(
+                liquidation_cluster_snapshot,
+                side=LiquidationClusterSide.SHORT,
+                reference_price=live_price,
+            ),
             analysis_price=latest_closed.close,
             last_closed_at=latest_closed.close_time,
             last_received_at=received_at,
@@ -395,7 +525,7 @@ def _unit_or_none(value: float | None) -> float | None:
     return max(0.0, min(1.0, value))
 
 
-def _fetch_ticker_price(provider: MarketDataProvider, symbol: str) -> float | None:
+def _fetch_ticker_snapshot(provider: MarketDataProvider, symbol: str) -> TickerSnapshot | None:
     fetch_ticker = getattr(provider, "fetch_ticker", None)
     if not callable(fetch_ticker):
         return None
@@ -405,7 +535,71 @@ def _fetch_ticker_price(provider: MarketDataProvider, symbol: str) -> float | No
         return None
     if not isinstance(snapshot, TickerSnapshot):
         return None
-    return snapshot.last_price
+    return snapshot
+
+
+def _fetch_order_book_snapshot(
+    provider: MarketDataProvider,
+    symbol: str,
+) -> OrderBookSnapshot | None:
+    fetch_order_book = getattr(provider, "fetch_order_book", None)
+    if not callable(fetch_order_book):
+        return None
+    try:
+        snapshot = fetch_order_book(symbol)
+    except Exception:
+        return None
+    if not isinstance(snapshot, OrderBookSnapshot):
+        return None
+    return snapshot
+
+
+def _fetch_exchange_filter_snapshot(
+    provider: MarketDataProvider,
+    symbol: str,
+) -> ExchangeFilterSnapshot | None:
+    fetch_exchange_filters = getattr(provider, "fetch_exchange_filters", None)
+    if not callable(fetch_exchange_filters):
+        return None
+    try:
+        snapshot = fetch_exchange_filters(symbol)
+    except Exception:
+        return None
+    if not isinstance(snapshot, ExchangeFilterSnapshot):
+        return None
+    return snapshot
+
+
+def _fetch_liquidation_cluster_snapshot(
+    provider: MarketDataProvider,
+    symbol: str,
+) -> LiquidationClusterSnapshot | None:
+    fetch_liquidation_clusters = getattr(provider, "fetch_liquidation_clusters", None)
+    if not callable(fetch_liquidation_clusters):
+        return None
+    try:
+        snapshot = fetch_liquidation_clusters(symbol)
+    except Exception:
+        return None
+    if not isinstance(snapshot, LiquidationClusterSnapshot):
+        return None
+    return snapshot
+
+
+def _nearest_liquidation_distance_pct(
+    snapshot: LiquidationClusterSnapshot | None,
+    *,
+    side: LiquidationClusterSide,
+    reference_price: float,
+) -> float | None:
+    if snapshot is None:
+        return None
+    distances = tuple(
+        abs(cluster.price - reference_price) / reference_price * 100.0
+        for cluster in snapshot.clusters
+        if cluster.side is side
+    )
+    return min(distances) if distances else None
 
 
 def _select_current_price(
@@ -426,6 +620,14 @@ def _frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
         "latest_closed_price": frame.latest_closed_price,
         "active_candle_price": frame.active_candle_price,
         "ticker_price": frame.ticker_price,
+        "spread_percentage": frame.spread_percentage,
+        "order_book_spread_percentage": frame.order_book_spread_percentage,
+        "order_book_depth_imbalance": frame.order_book_depth_imbalance,
+        "exchange_tick_size": frame.exchange_tick_size,
+        "exchange_step_size": frame.exchange_step_size,
+        "exchange_min_notional": frame.exchange_min_notional,
+        "nearest_long_liquidation_distance_pct": frame.nearest_long_cluster_distance_pct,
+        "nearest_short_liquidation_distance_pct": frame.nearest_short_cluster_distance_pct,
         "mark_price": frame.mark_price,
         "index_price": frame.index_price,
         "analysis_price": frame.analysis_price,
@@ -438,19 +640,88 @@ def _frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
     }
 
 
-def _approved_payload(setup: RiskApprovedSetup) -> dict[str, Any]:
+def _scanner_categories(mode: ScannerMode) -> tuple[MarketCategory, ...]:
+    if mode is ScannerMode.NORMAL:
+        return (MarketCategory.NORMAL_MARKET,)
+    if mode is ScannerMode.GAINERS:
+        return (MarketCategory.GAINER,)
+    return (MarketCategory.NORMAL_MARKET, MarketCategory.GAINER)
+
+
+def _classify_gainer_context(
+    context: StrategyContext,
+    *,
+    thresholds: GainerStateThresholds | None,
+) -> GainerStateResult:
+    frame = context.frames[-1]
+    ema_extension_pct = None
+    ema_fast = frame.features.ema_fast
+    if ema_fast is not None and ema_fast != 0:
+        ema_extension_pct = (frame.current_price - ema_fast) / ema_fast * 100
+    return classify_gainer_state(
+        GainerStateInput(
+            return_24h_pct=None,
+            recent_return_pct=frame.features.rate_of_change,
+            relative_volume=frame.features.relative_volume,
+            range_expansion=frame.features.volatility_expansion,
+            close_location=frame.features.range_position,
+            ema_extension_pct=ema_extension_pct,
+        ),
+        thresholds=thresholds,
+    )
+
+
+def _strategy_routing_payload(
+    scanner_type: MarketCategory,
+    assessment: RiskAssessment,
+    gainer_result: GainerStateResult | None,
+    phase4: Any,
+    routing_config: Mapping[str, Sequence[str]] | None,
+) -> dict[str, Any]:
+    return dict(
+        build_strategy_routing_payload(
+            scanner_type=scanner_type,
+            assessment=assessment,
+            gainer_result=gainer_result,
+            phase4=phase4,
+            routing_config=routing_config,
+        )
+    )
+
+
+def _approved_payload(
+    setup: RiskApprovedSetup, precision_entry_payload: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     max_risk_reward = max(target.risk_reward for target in setup.take_profits)
+    entry_classification = classify_entry_state(
+        EntryClassificationInput(
+            direction=FuturesDirection(setup.direction.value.upper()),
+            current_price=setup.entry.current_price,
+            zone_low=setup.entry.lower,
+            zone_high=setup.entry.upper,
+            ideal_entry=setup.entry.preferred,
+            maximum_chase_price=setup.entry.maximum_chase_price,
+            structural_invalidation=setup.stop_loss.price,
+        )
+    )
+    precision_entry = precision_entry_payload or build_precision_entry_plan(setup).model_dump(
+        mode="json"
+    )
     return {
         "symbol": setup.symbol,
         "decision": setup.direction.value.upper(),
         "strategy": setup.strategy.value,
         "current_price": setup.entry.current_price,
+        "entry_state": entry_classification.state.value,
+        "entry_classification": entry_classification.model_dump(mode="json"),
+        "precision_entry": dict(precision_entry),
         "entry_zone": {
             "low": setup.entry.lower,
             "high": setup.entry.upper,
             "preferred": setup.entry.preferred,
             "maximum_chase_price": setup.entry.maximum_chase_price,
             "current_price_inside_zone": setup.entry.current_price_inside_zone,
+            "state": entry_classification.state.value,
         },
         "stop_loss": setup.stop_loss.price,
         "take_profits": [

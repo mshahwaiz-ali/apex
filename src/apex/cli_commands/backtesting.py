@@ -10,19 +10,28 @@ from typing import Annotated
 import typer
 
 from apex.application import (
+    BacktestCampaignRequest,
     ChronologicalBacktestRequest,
+    MultiSymbolBacktestCampaignRequest,
     bootstrap,
+    campaign_result_to_payload,
     create_market_data_services,
     load_default_risk_config,
     normalize_market_symbol,
+    parse_campaign_variants,
+    run_backtest_campaign,
     run_chronological_pipeline_backtest,
+    run_multi_symbol_backtest_campaign,
+    split_campaign_candles_by_symbol,
 )
 from apex.application.backtest_comparison import compare_backtest_reports
 from apex.application.backtest_report_io import (
     dumps_report,
     make_run_id,
     to_json_value,
+    write_backtest_campaign_sqlite,
     write_backtest_report,
+    write_backtest_report_sqlite,
 )
 from apex.application.chronological_metadata import build_chronological_metadata
 from apex.application.historical_dataset import load_historical_candles
@@ -36,7 +45,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
     def simulate_current_setup(
         symbol: Annotated[
             str,
-            typer.Argument(help="Any provider-supported market symbol."),
+            typer.Argument(
+                help="One market symbol, or comma-separated symbols for a curated campaign."
+            ),
         ],
         output: Annotated[
             str,
@@ -104,6 +115,14 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 help="Optional path for the complete JSON backtest report.",
             ),
         ] = None,
+        record_db: Annotated[
+            Path | None,
+            typer.Option(
+                "--record-db",
+                dir_okay=False,
+                help="Optional SQLite database for reproducible backtest reports.",
+            ),
+        ] = None,
         force: Annotated[
             bool,
             typer.Option("--force", help="Allow replacing report output."),
@@ -146,6 +165,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 decision_interval_candles=decision_interval,
                 candidate_cooldown_candles=candidate_cooldown,
                 risk_config=risk_config,
+                strategy_routing=getattr(context.settings, "strategy_routing", None),
+                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
             result = run_chronological_pipeline_backtest(request)
             metadata = build_chronological_metadata(
@@ -191,6 +212,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 write_backtest_report(report_output, payload, force=force)
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc
+        if record_db is not None:
+            write_backtest_report_sqlite(record_db, payload)
         typer.echo(dumps_report(payload), nl=False)
 
     @app.command("compare-backtests")
@@ -210,3 +233,150 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         typer.echo(dumps_report(comparison), nl=False)
+
+    @app.command("chronological-backtest-campaign")
+    def chronological_backtest_campaign(
+        symbol: Annotated[
+            str,
+            typer.Argument(help="Any provider-supported market symbol."),
+        ],
+        variants: Annotated[
+            str | None,
+            typer.Option(
+                "--variants",
+                help=(
+                    "Comma-separated id:timeframe:candles:interval:cooldown entries. "
+                    "Defaults to baseline, fast-decisions, and slower-decisions."
+                ),
+            ),
+        ] = None,
+        history_limit: Annotated[
+            int,
+            typer.Option("--history-candles", min=80, max=1500),
+        ] = 600,
+        dataset: Annotated[
+            Path | None,
+            typer.Option(
+                "--dataset",
+                exists=True,
+                dir_okay=False,
+                readable=True,
+                help="Optional local .json or .csv historical candle dataset.",
+            ),
+        ] = None,
+        report_output: Annotated[
+            Path | None,
+            typer.Option(
+                "--report-output",
+                dir_okay=False,
+                help="Optional path for the complete JSON campaign report.",
+            ),
+        ] = None,
+        record_db: Annotated[
+            Path | None,
+            typer.Option(
+                "--record-db",
+                dir_okay=False,
+                help="Optional SQLite database for reproducible campaign reports.",
+            ),
+        ] = None,
+        force: Annotated[
+            bool,
+            typer.Option("--force", help="Allow replacing report output."),
+        ] = False,
+    ) -> None:
+        """Run multiple chronological backtest variants without mutating config."""
+
+        try:
+            symbols = _parse_campaign_symbols(symbol)
+            parsed_variants = parse_campaign_variants(variants)
+            context = bootstrap()
+            risk_config = load_default_risk_config()
+            analysis_timeframes = tuple(context.settings.analysis_timeframes)
+            replay_timeframes = tuple(variant.replay_timeframe for variant in parsed_variants)
+            required_timeframes = tuple(dict.fromkeys((*analysis_timeframes, *replay_timeframes)))
+            candles: Mapping[str, tuple[Candle, ...]]
+            candles_by_symbol: Mapping[str, Mapping[str, tuple[Candle, ...]]]
+            if dataset is None:
+                with create_market_data_services(context.settings) as services:
+                    candles_by_symbol = {
+                        item: {
+                            timeframe: tuple(
+                                services.candles.fetch_candles(
+                                    item,
+                                    timeframe,
+                                    limit=history_limit,
+                                )
+                            )
+                            for timeframe in required_timeframes
+                        }
+                        for item in symbols
+                    }
+                dataset_source = "live-provider"
+            else:
+                candles = load_historical_candles(
+                    dataset,
+                    required_timeframes=required_timeframes,
+                )
+                candles_by_symbol = split_campaign_candles_by_symbol(candles, symbols)
+                dataset_source = str(dataset)
+            if len(symbols) == 1:
+                result = run_backtest_campaign(
+                    BacktestCampaignRequest(
+                        symbol=symbols[0],
+                        candles_by_timeframe=candles_by_symbol[symbols[0]],
+                        analysis_timeframes=analysis_timeframes,
+                        variants=parsed_variants,
+                        dataset_source=dataset_source,
+                        risk_config=risk_config,
+                        strategy_routing=getattr(context.settings, "strategy_routing", None),
+                        gainer_state_thresholds=getattr(
+                            context.settings,
+                            "gainer_state_thresholds",
+                            None,
+                        ),
+                    )
+                )
+            else:
+                result = run_multi_symbol_backtest_campaign(
+                    MultiSymbolBacktestCampaignRequest(
+                        symbols=symbols,
+                        candles_by_symbol=candles_by_symbol,
+                        analysis_timeframes=analysis_timeframes,
+                        variants=parsed_variants,
+                        dataset_source=dataset_source,
+                        risk_config=risk_config,
+                        strategy_routing=getattr(context.settings, "strategy_routing", None),
+                        gainer_state_thresholds=getattr(
+                            context.settings,
+                            "gainer_state_thresholds",
+                            None,
+                        ),
+                    )
+                )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        except MarketDataProviderError as exc:
+            typer.echo(f"Chronological campaign market-data request failed: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        payload = campaign_result_to_payload(result)
+        if report_output is not None:
+            try:
+                write_backtest_report(report_output, payload, force=force)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+        if record_db is not None:
+            write_backtest_campaign_sqlite(record_db, payload)
+        typer.echo(dumps_report(payload), nl=False)
+
+
+def _parse_campaign_symbols(value: str) -> tuple[str, ...]:
+    symbols = tuple(
+        normalize_market_symbol(item.strip()) for item in value.split(",") if item.strip()
+    )
+    if not symbols:
+        raise ValueError("campaign requires at least one symbol")
+    if len(set(symbols)) != len(symbols):
+        raise ValueError("campaign symbols must be unique")
+    return symbols

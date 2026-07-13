@@ -150,6 +150,79 @@ def test_fetch_ticker_normalizes_binance_responses() -> None:
     client.close()
 
 
+def test_fetch_order_book_normalizes_binance_depth_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/depth"
+        assert request.url.params["symbol"] == "BTCUSDT"
+        assert request.url.params["limit"] == "2"
+        return httpx.Response(
+            200,
+            json={
+                "lastUpdateId": 1,
+                "bids": [["99.0", "2.0"], ["98.5", "1.0"]],
+                "asks": [["100.0", "1.0"], ["101.0", "0.5"]],
+            },
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    book = provider.fetch_order_book("BTC/USDT", depth=2)
+
+    assert book.symbol == "BTC/USDT"
+    assert book.best_bid.price == 99.0
+    assert book.best_ask.price == 100.0
+    assert book.depth_imbalance > 0
+    assert book.source == "binance"
+
+    client.close()
+
+
+def test_fetch_exchange_filters_normalizes_binance_exchange_info() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/exchangeInfo"
+        assert request.url.params["symbol"] == "BTCUSDT"
+        return httpx.Response(
+            200,
+            json={
+                "symbols": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "filters": [
+                            {"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+                            {
+                                "filterType": "LOT_SIZE",
+                                "stepSize": "0.00001",
+                                "minQty": "0.00001",
+                            },
+                            {"filterType": "MIN_NOTIONAL", "minNotional": "5.0"},
+                        ],
+                    }
+                ]
+            },
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    filters = provider.fetch_exchange_filters("BTC/USDT")
+
+    assert filters.symbol == "BTC/USDT"
+    assert filters.tick_size == 0.01
+    assert filters.step_size == 0.00001
+    assert filters.min_quantity == 0.00001
+    assert filters.min_notional == 5.0
+    assert filters.source == "binance"
+
+    client.close()
+
+
 @pytest.mark.parametrize(
     ("path", "payload", "expected_message"),
     [
@@ -194,6 +267,34 @@ def test_fetch_ticker_rejects_invalid_payload(
 
     with pytest.raises(ProviderResponseError, match=expected_message):
         provider.fetch_ticker("BTC/USDT")
+
+    client.close()
+
+
+def test_fetch_order_book_rejects_invalid_payload() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[])),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    with pytest.raises(ProviderResponseError, match="order book response must be an object"):
+        provider.fetch_order_book("BTC/USDT")
+
+    client.close()
+
+
+def test_fetch_exchange_filters_rejects_missing_filter_payload() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"symbols": [{"filters": []}]})
+        ),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    with pytest.raises(ProviderResponseError, match="Invalid Binance exchange filter"):
+        provider.fetch_exchange_filters("BTC/USDT")
 
     client.close()
 

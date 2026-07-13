@@ -15,6 +15,7 @@ class PaperTradeState(StrEnum):
     GENERATED = "generated"
     WAITING_FOR_ENTRY = "waiting_for_entry"
     ENTERED = "entered"
+    PARTIALLY_CLOSED = "partially_closed"
     STOPPED = "stopped"
     TARGET_HIT = "target_hit"
     EXPIRED = "expired"
@@ -64,12 +65,16 @@ class PaperTrade:
     created_at: datetime
     updated_at: datetime
     analysis_payload: dict[str, Any]
+    futures_plan: dict[str, Any] | None = None
+    lifecycle_events: tuple[dict[str, Any], ...] = ()
     entry_time: datetime | None = None
     entry_price: float | None = None
     exit_time: datetime | None = None
     exit_price: float | None = None
     net_pnl: float = 0.0
     realized_r_multiple: float = 0.0
+    partial_target_count: int = 0
+    closed_percentage: float = 0.0
     candles_waited: int = 0
     candles_held: int = 0
     notes: tuple[str, ...] = ()
@@ -88,10 +93,21 @@ class PaperTrade:
         for name in ("net_pnl", "realized_r_multiple"):
             if not math.isfinite(getattr(self, name)):
                 raise ValueError(f"{name.replace('_', ' ')} must be finite")
+        if self.partial_target_count < 0:
+            raise ValueError("partial target count cannot be negative")
+        if not math.isfinite(self.closed_percentage) or not 0.0 <= self.closed_percentage <= 100.0:
+            raise ValueError("closed percentage must be between zero and 100")
         if self.candles_waited < 0 or self.candles_held < 0:
             raise ValueError("paper trade candle counters cannot be negative")
         if self.state in TERMINAL_STATES and self.exit_time is None:
             raise ValueError("terminal paper trades require an exit time")
+        for event in self.lifecycle_events:
+            if (
+                not isinstance(event, dict)
+                or "event_type" not in event
+                or "occurred_at" not in event
+            ):
+                raise ValueError("paper lifecycle events require event_type and occurred_at")
 
     @property
     def is_open(self) -> bool:

@@ -8,11 +8,13 @@ from typing import Any
 
 from apex.backtesting import BacktestStudy
 from apex.optimization.contracts import (
+    CalibrationEvaluation,
     CandidateParameterSet,
     OptimizationDecision,
     OptimizationResult,
     OptimizationRunConfig,
     PerformanceSummary,
+    WalkForwardSplit,
 )
 
 
@@ -37,6 +39,9 @@ def performance_from_backtest_study(study: BacktestStudy) -> PerformanceSummary:
 def performance_from_mapping(payload: dict[str, Any]) -> PerformanceSummary:
     """Build a performance summary from a backtest/optimizer JSON payload."""
 
+    if isinstance(payload.get("variants"), list):
+        return performance_from_campaign_payload(payload)
+
     metrics = payload.get("metrics", payload)
     if not isinstance(metrics, dict):
         raise ValueError("performance payload must contain a metrics object")
@@ -53,6 +58,79 @@ def performance_from_mapping(payload: dict[str, Any]) -> PerformanceSummary:
         by_strategy=_string_int_mapping(metrics.get("by_strategy", {})),
         by_regime=_string_int_mapping(metrics.get("by_regime", {})),
         by_score_band=_string_int_mapping(metrics.get("by_score_band", {})),
+    )
+
+
+def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSummary:
+    """Build optimizer performance from the campaign's selected best variant."""
+
+    variants = payload.get("variants")
+    if not isinstance(variants, list) or not variants:
+        raise ValueError("campaign performance payload requires variants")
+    best_variant = payload.get("best_variant_id")
+    if not isinstance(best_variant, str) or not best_variant.strip():
+        rankings = payload.get("rankings", [])
+        if (
+            isinstance(rankings, list)
+            and rankings
+            and isinstance(rankings[0], dict)
+            and isinstance(rankings[0].get("variant_id"), str)
+        ):
+            best_variant = rankings[0]["variant_id"]
+        else:
+            raise ValueError("campaign performance payload requires best_variant_id")
+
+    selected = tuple(
+        item
+        for item in variants
+        if isinstance(item, dict)
+        and isinstance(item.get("variant"), dict)
+        and item["variant"].get("identifier") == best_variant
+    )
+    if not selected:
+        raise ValueError("campaign best variant does not match any variant payload")
+
+    total_trades = 0
+    weighted_wins = 0.0
+    net_profit = 0.0
+    gross_profit = 0.0
+    gross_loss = 0.0
+    maximum_drawdown = 0.0
+    by_symbol: dict[str, int] = {}
+    by_strategy: dict[str, int] = {}
+    by_regime: dict[str, int] = {}
+    by_score_band: dict[str, int] = {}
+    for run in selected:
+        metrics = run.get("metrics", {})
+        if not isinstance(metrics, dict):
+            continue
+        trades = int(metrics.get("total_trades", 0))
+        total_trades += trades
+        weighted_wins += float(metrics.get("win_rate", 0.0)) * trades
+        net_profit += float(metrics.get("net_profit", 0.0))
+        gross_profit += float(metrics.get("gross_profit", 0.0))
+        gross_loss += float(metrics.get("gross_loss", 0.0))
+        maximum_drawdown = max(maximum_drawdown, float(metrics.get("maximum_drawdown", 0.0)))
+        symbol = str(run.get("symbol", ""))
+        if symbol:
+            by_symbol[symbol] = by_symbol.get(symbol, 0) + trades
+        _merge_counts(by_symbol, metrics.get("by_symbol", {}))
+        _merge_counts(by_strategy, metrics.get("by_strategy", {}))
+        _merge_counts(by_regime, metrics.get("by_regime", {}))
+        _merge_counts(by_score_band, metrics.get("by_score_band", {}))
+
+    profit_factor = None if gross_loss == 0.0 else gross_profit / abs(gross_loss)
+    return PerformanceSummary(
+        total_trades=total_trades,
+        win_rate=weighted_wins / total_trades if total_trades else 0.0,
+        expectancy=net_profit / total_trades if total_trades else 0.0,
+        profit_factor=profit_factor,
+        maximum_drawdown=maximum_drawdown,
+        net_profit=net_profit,
+        by_symbol=by_symbol,
+        by_strategy=by_strategy,
+        by_regime=by_regime,
+        by_score_band=by_score_band,
     )
 
 
@@ -181,6 +259,57 @@ def compare_backtest_studies(
     )
 
 
+def evaluate_walk_forward_calibration(
+    *,
+    split: WalkForwardSplit,
+    run_config: OptimizationRunConfig,
+    parameter_set: CandidateParameterSet,
+    train_baseline: PerformanceSummary,
+    train_candidate: PerformanceSummary,
+    validation_baseline: PerformanceSummary,
+    validation_candidate: PerformanceSummary,
+    final_test_baseline: PerformanceSummary | None = None,
+    final_test_candidate: PerformanceSummary | None = None,
+) -> CalibrationEvaluation:
+    """Evaluate train/validation performance while keeping final test isolated."""
+
+    if run_config.split != split:
+        raise ValueError("run configuration split must match calibration split")
+    train = compare_performance(
+        train_baseline,
+        train_candidate,
+        run_config=run_config,
+        parameter_set=parameter_set,
+    )
+    validation = compare_performance(
+        validation_baseline,
+        validation_candidate,
+        run_config=run_config,
+        parameter_set=parameter_set,
+    )
+    accepted = (
+        train.decision is OptimizationDecision.ACCEPTED
+        and validation.decision is OptimizationDecision.ACCEPTED
+    )
+    reasons = [
+        f"train={train.decision.value}",
+        f"validation={validation.decision.value}",
+        "final test set recorded for later audit only",
+    ]
+    return CalibrationEvaluation(
+        split=split,
+        run_config=run_config,
+        parameter_set=parameter_set,
+        train_result=train,
+        validation_result=validation,
+        final_test_baseline=final_test_baseline,
+        final_test_candidate=final_test_candidate,
+        final_test_used_for_selection=False,
+        decision=OptimizationDecision.ACCEPTED if accepted else OptimizationDecision.REJECTED,
+        reasons=tuple(reasons),
+    )
+
+
 def load_performance_report(path: Path) -> PerformanceSummary:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -219,6 +348,48 @@ def result_to_payload(result: OptimizationResult) -> dict[str, Any]:
     }
 
 
+def calibration_to_payload(evaluation: CalibrationEvaluation) -> dict[str, Any]:
+    """Serialize walk-forward calibration decisions without mutating config."""
+
+    return {
+        "decision": evaluation.decision.value,
+        "split": {
+            "train_start": evaluation.split.train_start,
+            "train_end": evaluation.split.train_end,
+            "validation_start": evaluation.split.validation_start,
+            "validation_end": evaluation.split.validation_end,
+            "out_of_sample_start": evaluation.split.out_of_sample_start,
+            "out_of_sample_end": evaluation.split.out_of_sample_end,
+        },
+        "parameter_set": {
+            "identifier": evaluation.parameter_set.identifier,
+            "group": evaluation.parameter_set.group.value,
+            "parameters": dict(evaluation.parameter_set.parameters),
+        },
+        "train_result": result_to_payload(evaluation.train_result),
+        "validation_result": result_to_payload(evaluation.validation_result),
+        "final_test": {
+            "used_for_selection": evaluation.final_test_used_for_selection,
+            "baseline": (
+                None
+                if evaluation.final_test_baseline is None
+                else _summary_payload(evaluation.final_test_baseline)
+            ),
+            "candidate": (
+                None
+                if evaluation.final_test_candidate is None
+                else _summary_payload(evaluation.final_test_candidate)
+            ),
+        },
+        "reasons": list(evaluation.reasons),
+        "recommended_patch": (
+            dict(evaluation.validation_result.recommended_patch)
+            if evaluation.decision is OptimizationDecision.ACCEPTED
+            else {}
+        ),
+    }
+
+
 def _summary_payload(summary: PerformanceSummary) -> dict[str, Any]:
     return {
         "total_trades": summary.total_trades,
@@ -238,6 +409,11 @@ def _string_int_mapping(value: Any) -> dict[str, int]:
     if not isinstance(value, dict):
         return {}
     return {str(key): int(item) for key, item in value.items()}
+
+
+def _merge_counts(target: dict[str, int], value: Any) -> None:
+    for key, item in _string_int_mapping(value).items():
+        target[key] = target.get(key, 0) + item
 
 
 def _exceeds_dependency_share(
