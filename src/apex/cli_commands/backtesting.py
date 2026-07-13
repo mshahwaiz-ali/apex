@@ -20,7 +20,22 @@ from apex.data.providers.errors import MarketDataProviderError
 
 
 def register_backtesting_commands(app: typer.Typer) -> None:
-    app.command("simulate-current-setup")(legacy_simulate_current_setup)
+    @app.command("simulate-current-setup")
+    def simulate_current_setup(
+        symbol: str = typer.Argument(..., help="Any provider-supported market symbol."),
+        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        candle_limit: int = typer.Option(240, "--candles", min=80, max=1000),
+        replay_timeframe: str = typer.Option("5m", "--replay-timeframe"),
+    ) -> None:
+        """Simulate one currently approved setup using a canonical market symbol."""
+
+        canonical = normalize_market_symbol(symbol)
+        legacy_simulate_current_setup(
+            symbol=canonical,
+            output=output,
+            candle_limit=candle_limit,
+            replay_timeframe=replay_timeframe,
+        )
 
     @app.command("chronological-backtest")
     def chronological_backtest(
