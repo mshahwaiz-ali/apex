@@ -39,10 +39,10 @@ def test_chronological_runner_executes_real_analysis_pipeline_without_ticker_fai
     result = run_chronological_pipeline_backtest(
         ChronologicalBacktestRequest(
             symbol="BTC/USDT",
-            candles_by_timeframe={"5m": _candles(45)},
+            candles_by_timeframe={"5m": _candles(205)},
             analysis_timeframes=("5m",),
             replay_timeframe="5m",
-            candle_limit=40,
+            candle_limit=200,
         )
     )
 
