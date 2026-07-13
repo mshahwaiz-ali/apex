@@ -1,0 +1,23 @@
+futures_only: true
+margin_mode: ISOLATED
+default_leverage_mode: AUTOMATIC
+default_risk_mode: AGGRESSIVE
+risk_modes:
+  STANDARD:
+    account_loss_percentage: 1.0
+    minimum_leverage: 10.0
+    preferred_leverage: 12.0
+    maximum_leverage: 15.0
+    maximum_wallet_exposure_percentage: 20.0
+  AGGRESSIVE:
+    account_loss_percentage: 2.5
+    minimum_leverage: 15.0
+    preferred_leverage: 18.0
+    maximum_leverage: 20.0
+    maximum_wallet_exposure_percentage: 30.0
+  EXTREME:
+    account_loss_percentage: 4.0
+    minimum_leverage: 20.0
+    preferred_leverage: 25.0
+    maximum_leverage: 35.0
+    maximum_wallet_exposure_percentage: 40.0
