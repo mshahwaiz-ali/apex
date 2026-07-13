@@ -49,4 +49,11 @@ def test_chronological_runner_executes_real_analysis_pipeline_without_ticker_fai
     assert result.decision_count == 5
     assert result.failure_count == 0
     assert result.failures == {}
-    assert result.approved_count + result.skipped_count == result.decision_count
+    assert (
+        result.approved_count
+        + result.skipped_count
+        + result.cooldown_skipped_count
+        + result.overlap_skipped_count
+        + result.failure_count
+        == result.decision_count
+    )
