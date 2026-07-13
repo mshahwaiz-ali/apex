@@ -14,6 +14,7 @@ from apex.domain import (
     StopPlan,
     TargetLeg,
     TargetPlan,
+    TradeLifecycle,
 )
 from apex.risk.contracts import RiskApprovedSetup
 
@@ -114,12 +115,17 @@ def build_futures_plan(
         estimated_slippage=0.0,
         liquidation_price=setup.leverage.liquidation_price_at_maximum,
     )
+    lifecycle = TradeLifecycle(
+        created_at=setup.decision_time,
+        updated_at=setup.decision_time,
+    )
     return {
         "status": "APPROVED",
         "entry": entry.model_dump(mode="json"),
         "stop": stop.model_dump(mode="json"),
         "targets": targets.model_dump(mode="json"),
         "position": position.model_dump(mode="json"),
+        "lifecycle": lifecycle.model_dump(mode="json"),
     }
 
 
