@@ -31,7 +31,6 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         replay_timeframe: str = typer.Option("5m", "--replay-timeframe"),
     ) -> None:
         """Simulate one currently approved setup using a canonical market symbol."""
-
         canonical = normalize_market_symbol(symbol)
         legacy_simulate_current_setup(
             symbol=canonical,
@@ -106,4 +105,24 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 risk_config=risk_config,
                 backtest_config=request.backtest_config,
             )
-        except
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        except MarketDataProviderError as exc:
+            typer.echo(f"Chronological backtest market-data request failed: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        payload = {
+            "symbol": canonical,
+            "dataset_source": dataset_source,
+            "metadata": asdict(metadata),
+            "decision_count": result.decision_count,
+            "approved_count": result.approved_count,
+            "skipped_count": result.skipped_count,
+            "cooldown_skipped_count": result.cooldown_skipped_count,
+            "overlap_skipped_count": result.overlap_skipped_count,
+            "failure_count": result.failure_count,
+            "failures": dict(result.failures),
+            "metrics": asdict(result.report),
+            "trades": [asdict(trade) for trade in result.trades],
+        }
+        typer.echo(json.dumps(payload, indent=2, default=str))
