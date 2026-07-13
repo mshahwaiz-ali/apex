@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
 from pathlib import Path
 
@@ -15,6 +14,12 @@ from apex.application import (
     load_default_risk_config,
     normalize_market_symbol,
     run_chronological_pipeline_backtest,
+)
+from apex.application.backtest_comparison import compare_backtest_reports
+from apex.application.backtest_report_io import (
+    dumps_report,
+    make_run_id,
+    write_backtest_report,
 )
 from apex.application.chronological_metadata import build_chronological_metadata
 from apex.application.historical_dataset import load_historical_candles
@@ -55,6 +60,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             readable=True,
             help="Optional local .json or .csv historical candle dataset.",
         ),
+        report_output: Path | None = typer.Option(
+            None,
+            "--report-output",
+            dir_okay=False,
+            help="Optional path for the complete JSON backtest report.",
+        ),
+        force: bool = typer.Option(False, "--force", help="Allow replacing report output."),
     ) -> None:
         canonical = normalize_market_symbol(symbol)
         try:
@@ -111,10 +123,17 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             typer.echo(f"Chronological backtest market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
+        metadata_payload = asdict(metadata)
+        metadata_payload["run_id"] = make_run_id(
+            symbol=canonical,
+            replay_timeframe=replay_timeframe,
+            dataset_hash=metadata.dataset_hash,
+            config_hash=metadata.config_hash,
+        )
         payload = {
             "symbol": canonical,
             "dataset_source": dataset_source,
-            "metadata": asdict(metadata),
+            "metadata": metadata_payload,
             "decision_count": result.decision_count,
             "approved_count": result.approved_count,
             "skipped_count": result.skipped_count,
@@ -125,4 +144,21 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "metrics": asdict(result.report),
             "trades": [asdict(trade) for trade in result.trades],
         }
-        typer.echo(json.dumps(payload, indent=2, default=str))
+        if report_output is not None:
+            try:
+                write_backtest_report(report_output, payload, force=force)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+        typer.echo(dumps_report(payload), nl=False)
+
+    @app.command("compare-backtests")
+    def compare_backtests(
+        left: Path = typer.Argument(..., exists=True, dir_okay=False, readable=True),
+        right: Path = typer.Argument(..., exists=True, dir_okay=False, readable=True),
+    ) -> None:
+        """Compare identities and aggregate metrics from two saved reports."""
+        try:
+            comparison = compare_backtest_reports(left, right)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        typer.echo(dumps_report(comparison), nl=False)
