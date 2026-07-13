@@ -342,7 +342,7 @@ def _frame_from_candles(
     snapshot = FeatureSnapshot(
         atr=_required_latest(features_by_name["atr_14"][0], "ATR"),
         ema_fast=_latest(features_by_name["ema_20"][0]),
-        ema_slow=_latest(features_by_name["sma_20"][0]),
+        ema_slow=_latest(features_by_name["ema_50"][0]),
         vwap=_latest(features_by_name["vwap"][0]),
         rsi=_latest(features_by_name["rsi_14"][0]),
         rsi_slope=_latest(features_by_name["rsi_slope_14_3"][0]),
