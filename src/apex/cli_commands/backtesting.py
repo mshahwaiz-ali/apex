@@ -19,6 +19,7 @@ from apex.application.backtest_comparison import compare_backtest_reports
 from apex.application.backtest_report_io import (
     dumps_report,
     make_run_id,
+    to_json_value,
     write_backtest_report,
 )
 from apex.application.chronological_metadata import build_chronological_metadata
@@ -123,7 +124,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             typer.echo(f"Chronological backtest market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        metadata_payload = asdict(metadata)
+        metadata_payload = to_json_value(metadata)
         metadata_payload["run_id"] = make_run_id(
             symbol=canonical,
             replay_timeframe=replay_timeframe,
