@@ -9,6 +9,7 @@ import typer
 from apex.application import (
     analyze_selected_symbol,
     bootstrap,
+    build_futures_account_input,
     create_market_data_services,
     format_symbol_text,
     load_default_risk_config,
@@ -20,11 +21,47 @@ from apex.data.providers.errors import MarketDataProviderError
 def register_analysis_commands(app: typer.Typer) -> None:
     @app.command("analyze")
     def analyze(
-        symbol: str = typer.Argument(..., help="Any provider-supported market symbol."),
+        symbol: str = typer.Argument(..., help="Any provider-supported futures market symbol."),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+        wallet_balance: float = typer.Option(
+            100.0,
+            "--wallet-balance",
+            min=0.01,
+            help="Futures wallet balance used for account-aware planning.",
+        ),
+        risk_mode: str | None = typer.Option(
+            None,
+            "--risk-mode",
+            help="STANDARD, AGGRESSIVE, or EXTREME. Defaults to product configuration.",
+        ),
+        leverage_mode: str | None = typer.Option(
+            None,
+            "--leverage-mode",
+            help="AUTOMATIC or MANUAL. Defaults to product configuration.",
+        ),
+        manual_leverage: float | None = typer.Option(
+            None,
+            "--manual-leverage",
+            min=1.0,
+            help="Required only when leverage mode is MANUAL.",
+        ),
+        max_account_loss_pct: float | None = typer.Option(
+            None,
+            "--max-account-loss-pct",
+            min=0.01,
+            max=100.0,
+            help="Optional override for maximum planned account loss percentage.",
+        ),
     ) -> None:
         try:
+            account = build_futures_account_input(
+                wallet_balance=wallet_balance,
+                risk_mode=risk_mode,
+                leverage_mode=leverage_mode,
+                manual_leverage=manual_leverage,
+                maximum_account_loss_percentage=max_account_loss_pct,
+            )
             context = bootstrap()
             with create_market_data_services(context.settings) as services:
                 result = analyze_selected_symbol(
@@ -45,7 +82,18 @@ def register_analysis_commands(app: typer.Typer) -> None:
             raise typer.Exit(code=1) from exc
 
         payload = serialize_symbol_analysis(result)
+        payload["futures_account"] = account.model_dump(mode="json") | {
+            "maximum_account_loss_amount": account.maximum_account_loss_amount
+        }
         if output == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
         else:
             typer.echo(format_symbol_text(result))
+            typer.echo(
+                "Futures account: "
+                f"wallet={account.wallet_balance:.2f} "
+                f"risk={account.risk_mode.value} "
+                f"leverage={account.leverage_mode.value} "
+                f"max_loss={account.maximum_account_loss_amount:.2f} "
+                f"margin={account.margin_mode.value}"
+            )
