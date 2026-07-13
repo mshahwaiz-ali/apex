@@ -1,5 +1,6 @@
 """Tests for mapping approved setups into the futures output contract."""
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -40,6 +41,7 @@ def _setup(
     )
     leverage = SimpleNamespace(liquidation_price_at_maximum=95.0)
     return SimpleNamespace(
+        decision_time=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
         direction=SimpleNamespace(value=direction),
         entry=entry,
         stop_loss=stop_loss,
@@ -65,6 +67,7 @@ def test_build_futures_plan_uses_setup_leverage_in_automatic_mode() -> None:
     assert plan["position"]["required_margin"] == 50.0
     assert plan["position"]["wallet_exposure_percentage"] == 25.0
     assert plan["targets"]["targets"][0]["close_percentage"] == 60.0
+    assert plan["lifecycle"]["state"] == "GENERATED"
 
 
 def test_build_futures_plan_uses_manual_leverage() -> None:
