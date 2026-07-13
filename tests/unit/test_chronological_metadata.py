@@ -42,7 +42,7 @@ def _metadata(candles: tuple[Candle, ...], *, cooldown: int = 3):
 
 def test_metadata_hashes_are_deterministic_and_ignore_active_candles() -> None:
     closed = tuple(_candle(index) for index in range(3))
-    first = _metadata(closed + (_candle(3, closed=False),))
+    first = _metadata((*closed, _candle(3, closed=False)))
     second = _metadata(closed)
 
     assert first.dataset_hash == second.dataset_hash
@@ -55,12 +55,14 @@ def test_metadata_hashes_are_deterministic_and_ignore_active_candles() -> None:
 def test_config_hash_changes_when_replay_controls_change() -> None:
     candles = tuple(_candle(index) for index in range(3))
 
-    assert _metadata(candles, cooldown=3).dataset_hash == _metadata(candles, cooldown=5).dataset_hash
+    assert (
+        _metadata(candles, cooldown=3).dataset_hash == _metadata(candles, cooldown=5).dataset_hash
+    )
     assert _metadata(candles, cooldown=3).config_hash != _metadata(candles, cooldown=5).config_hash
 
 
 def test_dataset_hash_changes_when_closed_candle_data_changes() -> None:
     candles = tuple(_candle(index) for index in range(3))
-    changed = candles[:-1] + (_candle(4),)
+    changed = (*candles[:-1], _candle(4))
 
     assert _metadata(candles).dataset_hash != _metadata(changed).dataset_hash

@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
 from apex.application.chronological_backtest import (
-    _HistoricalPrefixProvider,
     _has_required_warmup,
+    _HistoricalPrefixProvider,
 )
 from apex.domain import Candle
 
@@ -27,7 +27,8 @@ def _candle(index: int, *, timeframe: str = "5m", is_closed: bool = True) -> Can
 
 
 def test_historical_provider_excludes_active_and_future_candles() -> None:
-    candles = tuple(_candle(index) for index in range(4)) + (
+    candles = (
+        *tuple(_candle(index) for index in range(4)),
         _candle(4, is_closed=False),
         _candle(5),
     )
@@ -44,9 +45,10 @@ def test_historical_provider_excludes_active_and_future_candles() -> None:
 
 def test_warmup_requires_enough_closed_candles_on_every_timeframe() -> None:
     five_minute = tuple(_candle(index) for index in range(40))
-    fifteen_minute = tuple(
-        _candle(index, timeframe="15m") for index in range(39)
-    ) + (_candle(39, timeframe="15m", is_closed=False),)
+    fifteen_minute = (
+        *tuple(_candle(index, timeframe="15m") for index in range(39)),
+        _candle(39, timeframe="15m", is_closed=False),
+    )
     decision_time = five_minute[-1].close_time
     provider = _HistoricalPrefixProvider(
         {"5m": five_minute, "15m": fifteen_minute},

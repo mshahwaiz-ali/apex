@@ -21,10 +21,7 @@ def make_run_id(*, symbol: str, replay_timeframe: str, dataset_hash: str, config
 def to_json_value(value: Any) -> Any:
     """Convert supported domain values into explicit JSON-compatible values."""
     if is_dataclass(value) and not isinstance(value, type):
-        return {
-            field.name: to_json_value(getattr(value, field.name))
-            for field in fields(value)
-        }
+        return {field.name: to_json_value(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, Enum):
         return to_json_value(value.value)
     if isinstance(value, datetime):

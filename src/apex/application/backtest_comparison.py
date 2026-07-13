@@ -61,8 +61,11 @@ def _mapping(value: Any, label: str) -> dict[str, Any]:
 
 
 def _numeric_delta(left: Any, right: Any) -> float | int | None:
-    if isinstance(left, (int, float)) and not isinstance(left, bool) and isinstance(
-        right, (int, float)
-    ) and not isinstance(right, bool):
+    if (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+    ):
         return right - left
     return None

@@ -152,7 +152,9 @@ def run_chronological_pipeline_backtest(
             cooldown_skipped_count += 1
             continue
 
-        future = tuple(candle for candle in replay[decision_index:] if candle.open_time >= decision_time)
+        future = tuple(
+            candle for candle in replay[decision_index:] if candle.open_time >= decision_time
+        )
         if not future:
             skipped_count += 1
             continue

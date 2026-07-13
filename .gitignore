@@ -34,3 +34,6 @@ build/
 !/logs/.gitkeep
 /cache/
 *.log
+
+# Generated reports
+/reports/
