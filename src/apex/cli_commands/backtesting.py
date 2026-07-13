@@ -43,6 +43,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         replay_timeframe: str = typer.Option("5m", "--replay-timeframe"),
         history_limit: int = typer.Option(500, "--history-candles", min=80, max=1000),
         candle_limit: int = typer.Option(200, "--analysis-candles", min=40, max=500),
+        decision_interval: int = typer.Option(1, "--decision-interval", min=1),
+        candidate_cooldown: int = typer.Option(3, "--candidate-cooldown", min=0),
     ) -> None:
         canonical = normalize_market_symbol(symbol)
         try:
@@ -68,6 +70,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     analysis_timeframes=tuple(context.settings.analysis_timeframes),
                     replay_timeframe=replay_timeframe,
                     candle_limit=candle_limit,
+                    decision_interval_candles=decision_interval,
+                    candidate_cooldown_candles=candidate_cooldown,
                     risk_config=load_default_risk_config(),
                 )
             )
@@ -82,6 +86,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_count": result.decision_count,
             "approved_count": result.approved_count,
             "skipped_count": result.skipped_count,
+            "cooldown_skipped_count": result.cooldown_skipped_count,
+            "overlap_skipped_count": result.overlap_skipped_count,
             "failure_count": result.failure_count,
             "failures": dict(result.failures),
             "metrics": asdict(result.report),
