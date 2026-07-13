@@ -106,6 +106,7 @@ def test_registry_has_fixed_expected_order() -> None:
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,
         StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_GAINER_CONTINUATION,
     )
 
 
@@ -129,6 +130,7 @@ def test_competing_candidates_are_retained_in_registry_order() -> None:
         StrategyType.TREND_PULLBACK,
         StrategyType.BREAKOUT_CONTINUATION,
         StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_GAINER_CONTINUATION,
     )
     assert set(result.skipped_strategies) == {
         StrategyType.LIQUIDITY_REVERSAL,
