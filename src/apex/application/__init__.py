@@ -24,10 +24,10 @@ from apex.application.selected_symbol import analyze_selected_symbol
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
 
 __all__ = [
+    "DEFAULT_QUOTE_ASSETS",
     "ApplicationContext",
     "ChronologicalBacktestRequest",
     "ChronologicalBacktestResult",
-    "DEFAULT_QUOTE_ASSETS",
     "MarketDataServices",
     "ScanResult",
     "SymbolAnalysis",
