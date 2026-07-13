@@ -58,6 +58,18 @@ def test_default_registry_is_ordered_and_deterministic() -> None:
     assert first["bollinger_20"][3].spec.name == "bollinger_width_20"
 
 
+def test_default_registry_exposes_explicit_ema_time_horizons() -> None:
+    registry = create_default_feature_registry()
+    results = registry.calculate_all(make_candles(220))
+
+    assert results["ema_20"][0].spec.name == "ema_20"
+    assert results["ema_50"][0].spec.name == "ema_50"
+    assert results["ema_200"][0].spec.name == "ema_200"
+    assert results["ema_20"][0].latest is not None
+    assert results["ema_50"][0].latest is not None
+    assert results["ema_200"][0].latest is not None
+
+
 def test_registry_audit_exposes_feature_contract_metadata() -> None:
     registry = create_default_feature_registry()
     first = registry.audit(make_candles())
