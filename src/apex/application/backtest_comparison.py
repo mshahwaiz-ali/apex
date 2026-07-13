@@ -8,12 +8,12 @@ from typing import Any
 from apex.application.backtest_report_io import load_backtest_report
 
 _METRICS = (
-    "trade_count",
-    "net_profit",
-    "expectancy",
-    "profit_factor",
-    "maximum_drawdown",
-    "win_rate",
+    ("trade_count", "total_trades"),
+    ("net_profit", "net_profit"),
+    ("expectancy", "expectancy"),
+    ("profit_factor", "profit_factor"),
+    ("maximum_drawdown", "maximum_drawdown"),
+    ("win_rate", "win_rate"),
 )
 
 
@@ -27,12 +27,15 @@ def compare_backtest_reports(left_path: Path, right_path: Path) -> dict[str, Any
     right_metrics = _mapping(right.get("metrics"), "right metrics")
 
     metric_comparison = {
-        name: {
-            "left": left_metrics.get(name),
-            "right": right_metrics.get(name),
-            "delta": _numeric_delta(left_metrics.get(name), right_metrics.get(name)),
+        output_name: {
+            "left": left_metrics.get(report_name),
+            "right": right_metrics.get(report_name),
+            "delta": _numeric_delta(
+                left_metrics.get(report_name),
+                right_metrics.get(report_name),
+            ),
         }
-        for name in _METRICS
+        for output_name, report_name in _METRICS
     }
     return {
         "left": str(left_path),
