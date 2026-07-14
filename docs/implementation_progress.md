@@ -44,6 +44,15 @@ profitability or production readiness.
   from `config/futures.yaml` and `config/account_policies.yaml` when loaded.
 - `config/risk.yaml` now owns only Phase-6 setup geometry and simulation inputs. Duplicate
   canonical account or futures fields are rejected with a validation error.
+- A schema-versioned `AccountStateSnapshot` and atomic JSON `AccountStateStore` now persist:
+  - trading day and start-of-day equity;
+  - current balance and equity;
+  - daily trade count;
+  - consecutive losses;
+  - total open risk;
+  - directional and correlated exposure.
+- Account-state transitions support validated entry registration, close registration,
+  loss-streak updates, exposure release, and daily counter rollover.
 
 ### Tests added or updated
 
@@ -61,7 +70,10 @@ profitability or production readiness.
 - compatibility updates for futures-plan tests;
 - canonical Phase-6 risk configuration resolution;
 - aggressive profile mapping;
-- duplicate canonical-field rejection.
+- duplicate canonical-field rejection;
+- account-state persistence round trips;
+- entry, close, loss-streak, exposure, and day-roll transitions;
+- transition-time invariant validation.
 
 ### Configuration ownership
 
@@ -76,11 +88,11 @@ profitability or production readiness.
 
 ### Known limitations / remaining N1 work
 
-- CLI inputs do not yet expose account-policy selection or live account-policy state.
-- Persistent daily counters and account lockout state are not yet stored by a dedicated
-  account-state service.
-- Proposed directional and correlated exposure are not yet modeled separately from
-  currently open exposure.
+- CLI inputs do not yet expose account-policy selection or account-state file selection.
+- Account-state persistence is implemented but is not yet automatically updated by paper
+  trade or execution lifecycle events.
+- Proposed directional and correlated exposure are supplied explicitly; automatic symbol
+  correlation classification is not yet implemented.
 - `DEFAULT_RISK_CONFIG` remains a safe import-time fallback; production-style runs should
   use `load_risk_config()` so canonical mode and policy values are injected.
 - The complete local quality gate is intentionally deferred until the end of the current
