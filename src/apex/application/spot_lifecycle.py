@@ -32,9 +32,8 @@ class SpotLifecycleEvent(BaseModel):
         if self.event_type in {
             SpotLifecycleEventType.ENTRY_FILLED,
             SpotLifecycleEventType.TARGET_FILLED,
-        }:
-            if not self.label or self.quantity <= 0:
-                raise ValueError("fill events require label and positive quantity")
+        } and (not self.label or self.quantity <= 0):
+            raise ValueError("fill events require label and positive quantity")
         return self
 
 
