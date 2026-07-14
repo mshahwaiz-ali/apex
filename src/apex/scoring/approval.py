@@ -29,6 +29,7 @@ class ApprovalReasonCode(StrEnum):
     ENTRY_STATE_NOT_ACTIONABLE = "ENTRY_STATE_NOT_ACTIONABLE"
     ACCOUNT_POLICY_LOCKED = "ACCOUNT_POLICY_LOCKED"
     HISTORICAL_EVIDENCE_INSUFFICIENT = "HISTORICAL_EVIDENCE_INSUFFICIENT"
+    FORWARD_PAPER_EVIDENCE_REQUIRED = "FORWARD_PAPER_EVIDENCE_REQUIRED"
     AGGRESSIVE_MODE_PAPER_ONLY = "AGGRESSIVE_MODE_PAPER_ONLY"
     EXTREME_MODE_EXPERIMENTAL_ONLY = "EXTREME_MODE_EXPERIMENTAL_ONLY"
 
@@ -191,7 +192,13 @@ def evaluate_strategy_approval(
             )
         )
     else:
-        eligibility = SetupEligibility.FUNDED_ELIGIBLE
+        eligibility = SetupEligibility.PAPER_ONLY
+        reasons.append(
+            ApprovalReason(
+                code=ApprovalReasonCode.FORWARD_PAPER_EVIDENCE_REQUIRED,
+                message="Historical evidence alone cannot advance beyond paper-only eligibility.",
+            )
+        )
 
     if risk_mode is RiskMode.STANDARD and rule.quality_class is StrategyQualityClass.RESTRICTED:
         reasons.append(
