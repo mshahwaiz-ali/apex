@@ -237,3 +237,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix: complete cost-aware Phase 6 risk modeling"
           git push origin HEAD:main
+
+# Trigger registered workflow.
