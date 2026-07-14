@@ -104,12 +104,37 @@ profitability or production readiness.
 - Added focused tests for JSON serialization, allocation invariants, direction-aware target
   geometry, contradictory action rejection, deterministic entry mapping, and lifecycle replay.
 
+### Batch N2.2 implemented
+
+- Added application-layer `build_trade_management_plan()` composition without moving
+  orchestration into domain models.
+- Every policy-approved futures plan now serializes a complete `management_plan` alongside
+  entry, precision-entry, stop, target, position, lifecycle, risk-mode, and account-policy data.
+- Current operator action is derived deterministically from the canonical entry state.
+- Entry instructions serialize an order recommendation and direction-aware cancellation rules
+  for structural invalidation, maximum-chase breach, lifecycle invalidation, expiry, and account
+  lockout.
+- Initial protection is populated from the already validated futures position model rather than
+  recalculating or fabricating risk, sizing, execution costs, leverage, or liquidation data.
+- Target legs now include deterministic cumulative allocation and direction-aware expected
+  R multiples calculated from the approved ideal entry and structural stop.
+- The first completed target produces a canonical breakeven stop-movement instruction; the
+  instruction explicitly forbids tightening before the target trigger.
+- Emergency rules cover structural invalidation, configured spread-safety failure, and active
+  account-policy lockout.
+- Existing short-plan fixtures now use directionally valid short targets, allowing N2 target
+  validation to catch genuine contradictions rather than preserving invalid test geometry.
+- Added integration assertions for ready-now, missed-entry, short-retest, manual-leverage,
+  protection, allocation, R-multiple, breakeven, and emergency-exit serialization.
+- Exported `build_trade_management_plan()` through `apex.application`.
+
 ### N2 remaining work
 
-- Build `TradeManagementPlan` automatically for every approved futures setup.
-- Add calibrated breakeven, structural stop movement, trailing, and runner rules.
+- Add calibrated structural trailing and explicit runner rules without assuming a runner when
+  the approved target allocation already totals 100%.
 - Serialize management plans in human-readable CLI reports as well as JSON.
 - Update paper-trade reports from lifecycle state to one unambiguous current action.
-- Add invalidation-before-entry, emergency-close, runner, and complete replay test coverage.
+- Add emergency-close, stop-update, runner, expiry, cancellation, and complete replay coverage.
+- Run and record the complete Ruff, strict-mypy, and pytest gate for the integrated N2 changes.
 
 No external or forward-validation claim is made by this implementation.
