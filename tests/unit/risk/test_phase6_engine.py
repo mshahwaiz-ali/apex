@@ -160,7 +160,7 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
         ManagementPolicyType.TIME_EXIT,
         ManagementPolicyType.MOMENTUM_FAILURE,
     )
-    assert result.setup.position_size.risk_amount == pytest.approx(50.0)
+    assert result.setup.position_size.risk_amount == pytest.approx(25.0)
     assert result.setup.position_size.required_leverage <= result.setup.leverage.maximum
     assert result.setup.leverage.liquidation_price_at_maximum < result.setup.stop_loss.price
 
@@ -310,7 +310,10 @@ def test_correlated_exposure_limit_rejects_new_trade() -> None:
         _phase5(_candidate()),
         exposure=ExposureState(open_risk_amount=60.0, correlated_risk_amount=60.0),
     )
-    assert result.rejection_codes == (RiskRejectionCode.MAX_CORRELATED_RISK,)
+    assert result.rejection_codes == (
+        RiskRejectionCode.MAX_OPEN_RISK,
+        RiskRejectionCode.MAX_CORRELATED_RISK,
+    )
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])

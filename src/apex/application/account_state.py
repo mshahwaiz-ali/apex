@@ -100,12 +100,8 @@ class AccountStateSnapshot(BaseModel):
         return self._validated_update(
             trades_today=self.trades_today + 1,
             total_open_risk_pct=self.total_open_risk_pct + risk_pct,
-            directional_exposure_pct=(
-                self.directional_exposure_pct + directional_risk_pct
-            ),
-            correlated_exposure_pct=(
-                self.correlated_exposure_pct + correlated_risk_pct
-            ),
+            directional_exposure_pct=(self.directional_exposure_pct + directional_risk_pct),
+            correlated_exposure_pct=(self.correlated_exposure_pct + correlated_risk_pct),
         )
 
     def release_exposure(
@@ -117,11 +113,14 @@ class AccountStateSnapshot(BaseModel):
     ) -> Self:
         """Release open exposure without changing balance or loss streak."""
 
-        if min(
-            released_risk_pct,
-            released_directional_risk_pct,
-            released_correlated_risk_pct,
-        ) < 0:
+        if (
+            min(
+                released_risk_pct,
+                released_directional_risk_pct,
+                released_correlated_risk_pct,
+            )
+            < 0
+        ):
             raise ValueError("released exposure percentages cannot be negative")
         return self._validated_update(
             total_open_risk_pct=max(0.0, self.total_open_risk_pct - released_risk_pct),

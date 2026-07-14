@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from apex.application.account_state import AccountStateSnapshot
-from apex.paper_trading import PaperTrade, TERMINAL_STATES
+from apex.paper_trading import TERMINAL_STATES, PaperTrade
 
 ACCOUNT_STATE_REGISTRATION_KEY = "account_state_registration"
 
@@ -81,12 +81,8 @@ def apply_paper_account_transition(
         return updated.register_close(
             realized_pnl=after.net_pnl,
             released_risk_pct=exposure.risk_pct * remaining_fraction,
-            released_directional_risk_pct=(
-                exposure.directional_risk_pct * remaining_fraction
-            ),
-            released_correlated_risk_pct=(
-                exposure.correlated_risk_pct * remaining_fraction
-            ),
+            released_directional_risk_pct=(exposure.directional_risk_pct * remaining_fraction),
+            released_correlated_risk_pct=(exposure.correlated_risk_pct * remaining_fraction),
             current_equity=updated.current_equity + after.net_pnl,
         )
 
@@ -95,12 +91,8 @@ def apply_paper_account_transition(
         release_fraction = newly_closed / 100.0
         updated = updated.release_exposure(
             released_risk_pct=exposure.risk_pct * release_fraction,
-            released_directional_risk_pct=(
-                exposure.directional_risk_pct * release_fraction
-            ),
-            released_correlated_risk_pct=(
-                exposure.correlated_risk_pct * release_fraction
-            ),
+            released_directional_risk_pct=(exposure.directional_risk_pct * release_fraction),
+            released_correlated_risk_pct=(exposure.correlated_risk_pct * release_fraction),
         )
     return updated
 

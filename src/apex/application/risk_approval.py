@@ -34,8 +34,7 @@ def build_futures_plan(
     policy_decision = _evaluate_policy(account, account_policy, account_policy_state)
     if policy_decision is not None and not policy_decision.approved:
         mode_reasons.extend(
-            f"account policy lockout: {reason.value}"
-            for reason in policy_decision.lockout_reasons
+            f"account policy lockout: {reason.value}" for reason in policy_decision.lockout_reasons
         )
     if mode_reasons:
         raise FuturesPlanSafetyError(tuple(mode_reasons))
@@ -112,9 +111,7 @@ def _risk_mode_rejection_reasons(
     if state is not None:
         daily_drawdown = max(
             0.0,
-            (state.start_of_day_equity - state.current_equity)
-            / state.start_of_day_equity
-            * 100.0,
+            (state.start_of_day_equity - state.current_equity) / state.start_of_day_equity * 100.0,
         )
         if daily_drawdown >= defaults.maximum_daily_loss_percentage:
             reasons.append(
@@ -128,9 +125,7 @@ def _risk_mode_rejection_reasons(
                 f"{account.risk_mode.value} mode limit "
                 f"{defaults.maximum_consecutive_losses}"
             )
-        projected_open_risk = (
-            state.total_open_risk_pct + account.maximum_account_loss_percentage
-        )
+        projected_open_risk = state.total_open_risk_pct + account.maximum_account_loss_percentage
         if projected_open_risk > defaults.maximum_open_risk_percentage:
             reasons.append(
                 f"projected open risk {projected_open_risk:.2f}% exceeds "

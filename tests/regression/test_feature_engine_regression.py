@@ -3,11 +3,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from apex.features.price_location import recent_range_position, vwap
 
 from apex.domain.models import Candle
 from apex.features.momentum import relative_strength_index
 from apex.features.moving_averages import exponential_moving_average, simple_moving_average
+from apex.features.price_location import recent_range_position, vwap
 from apex.features.volatility import average_true_range
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "feature_regression.json"

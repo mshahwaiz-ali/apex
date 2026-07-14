@@ -121,14 +121,18 @@ def test_terminal_loss_releases_remaining_risk_and_updates_loss_streak() -> None
         net_pnl=-1.5,
         realized_r_multiple=-0.75,
     )
-    opened = _snapshot().register_entry(
-        risk_pct=0.5,
-        directional_risk_pct=0.0,
-        correlated_risk_pct=0.0,
-    ).release_exposure(
-        released_risk_pct=0.25,
-        released_directional_risk_pct=0.0,
-        released_correlated_risk_pct=0.0,
+    opened = (
+        _snapshot()
+        .register_entry(
+            risk_pct=0.5,
+            directional_risk_pct=0.0,
+            correlated_risk_pct=0.0,
+        )
+        .release_exposure(
+            released_risk_pct=0.25,
+            released_directional_risk_pct=0.0,
+            released_correlated_risk_pct=0.0,
+        )
     )
 
     updated = apply_paper_account_transition(opened, before, after)

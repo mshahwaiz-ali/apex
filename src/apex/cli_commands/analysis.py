@@ -58,12 +58,12 @@ def register_analysis_commands(app: typer.Typer) -> None:
             max=100.0,
             help="Optional override for maximum planned account loss percentage.",
         ),
-        record: Path | None = typer.Option(  # noqa: B008
+        record: Path | None = typer.Option(
             None,
             "--record",
             help="Optional append-only JSONL analysis record path.",
         ),
-        record_db: Path | None = typer.Option(  # noqa: B008
+        record_db: Path | None = typer.Option(
             None,
             "--record-db",
             help="Optional SQLite analysis record database path.",
