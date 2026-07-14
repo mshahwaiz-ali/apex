@@ -62,7 +62,7 @@ class FuturesAccountInput(BaseModel):
     wallet_balance: float = Field(gt=0)
     leverage_mode: LeverageMode = LeverageMode.AUTOMATIC
     manual_leverage: float | None = Field(default=None, gt=0)
-    risk_mode: RiskMode = RiskMode.AGGRESSIVE
+    risk_mode: RiskMode = RiskMode.STANDARD
     maximum_account_loss_percentage: float = Field(gt=0, le=100)
     margin_mode: MarginMode = MarginMode.ISOLATED
 
