@@ -32,7 +32,7 @@ def _trade(
     *,
     outcome: BacktestOutcome = BacktestOutcome.TARGET,
     entry_time: datetime = _START + timedelta(days=1),
-    exit_time: datetime = _START + timedelta(days=1, minutes=30),
+    exit_time: datetime | None = None,
     net_pnl: float = 39.0,
     fees: float = 1.0,
     metadata: dict[str, str | int | float | bool] | None = None,
@@ -61,7 +61,7 @@ def _trade(
     return SimulatedTrade(
         signal=signal,
         outcome=outcome,
-        exit_time=exit_time,
+        exit_time=exit_time or entry_time + timedelta(minutes=30),
         exit_price=104.0,
         gross_pnl=net_pnl + fees,
         fees=fees,

@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from itertools import pairwise
 from typing import Any
 
 from apex.application.historical_edge import DatasetPartition, MarketType
@@ -121,7 +122,12 @@ class CuratedDatasetManifest:
     out_of_order_row_count: int
 
     def __post_init__(self) -> None:
-        required = (self.dataset_id, self.source_type, self.source_identifier, self.exchange_provider)
+        required = (
+            self.dataset_id,
+            self.source_type,
+            self.source_identifier,
+            self.exchange_provider,
+        )
         if any(not value.strip() for value in required):
             raise ValueError("manifest identity fields are required")
         if not self.symbols or not self.timeframes:
@@ -309,6 +315,14 @@ def canonical_candle_content_hash(records: Sequence[Mapping[str, object]]) -> st
     return hashlib.sha256(encoded.encode()).hexdigest()
 
 
+def _parse_float(value: object) -> float:
+    if isinstance(value, bool):
+        raise TypeError("boolean values are not valid OHLCV numbers")
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    raise TypeError("OHLCV fields must be numeric")
+
+
 def _parse_record(
     index: int, record: Mapping[str, object]
 ) -> tuple[_ParsedRecord | None, tuple[DatasetValidationIssue, ...]]:
@@ -316,14 +330,15 @@ def _parse_record(
     timeframe = str(record["timeframe"]).strip()
     open_time = _parse_timestamp(record["open_time"])
     close_time = _parse_timestamp(record["close_time"])
-    common = {"row_index": index, "symbol": symbol or None, "timeframe": timeframe or None}
     if open_time is None or close_time is None:
         return None, (
             DatasetValidationIssue(
                 DatasetIssueCode.MALFORMED_TIMESTAMP,
                 DatasetIssueSeverity.ERROR,
                 "open_time and close_time must be datetime values",
-                **common,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
             ),
         )
     if not _is_aware(open_time) or not _is_aware(close_time):
@@ -333,11 +348,15 @@ def _parse_record(
                 DatasetIssueSeverity.ERROR,
                 "candle timestamps must be timezone-aware",
                 observed_at=open_time,
-                **common,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
             ),
         )
     try:
-        values = tuple(float(record[name]) for name in ("open", "high", "low", "close", "volume"))
+        values = tuple(
+            _parse_float(record[name]) for name in ("open", "high", "low", "close", "volume")
+        )
     except (TypeError, ValueError):
         return None, (
             DatasetValidationIssue(
@@ -345,35 +364,97 @@ def _parse_record(
                 DatasetIssueSeverity.ERROR,
                 "OHLCV fields must be numeric",
                 observed_at=open_time,
-                **common,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
             ),
         )
     open_price, high, low, close, volume = values
     issues: list[DatasetValidationIssue] = []
     if not all(math.isfinite(value) for value in values):
-        issues.append(DatasetValidationIssue(DatasetIssueCode.NON_FINITE_NUMBER, DatasetIssueSeverity.ERROR, "OHLCV fields must be finite", observed_at=open_time, **common))
-    if min(open_price, high, low, close) <= 0 or high < max(open_price, close, low) or low > min(open_price, close, high):
-        issues.append(DatasetValidationIssue(DatasetIssueCode.IMPOSSIBLE_OHLC, DatasetIssueSeverity.ERROR, "invalid OHLC geometry", observed_at=open_time, **common))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.NON_FINITE_NUMBER,
+                DatasetIssueSeverity.ERROR,
+                "OHLCV fields must be finite",
+                observed_at=open_time,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
+            )
+        )
+    if (
+        min(open_price, high, low, close) <= 0
+        or high < max(open_price, close, low)
+        or low > min(open_price, close, high)
+    ):
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.IMPOSSIBLE_OHLC,
+                DatasetIssueSeverity.ERROR,
+                "invalid OHLC geometry",
+                observed_at=open_time,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
+            )
+        )
     if volume < 0:
-        issues.append(DatasetValidationIssue(DatasetIssueCode.NEGATIVE_VOLUME, DatasetIssueSeverity.ERROR, "volume cannot be negative", observed_at=open_time, **common))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.NEGATIVE_VOLUME,
+                DatasetIssueSeverity.ERROR,
+                "volume cannot be negative",
+                observed_at=open_time,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
+            )
+        )
     if close_time <= open_time:
-        issues.append(DatasetValidationIssue(DatasetIssueCode.INVALID_INTERVAL, DatasetIssueSeverity.ERROR, "close_time must be after open_time", observed_at=open_time, **common))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.INVALID_INTERVAL,
+                DatasetIssueSeverity.ERROR,
+                "close_time must be after open_time",
+                observed_at=open_time,
+                row_index=index,
+                symbol=symbol or None,
+                timeframe=timeframe or None,
+            )
+        )
     return (
-        _ParsedRecord(index, symbol, timeframe, open_time, close_time, open_price, high, low, close, volume),
+        _ParsedRecord(
+            index, symbol, timeframe, open_time, close_time, open_price, high, low, close, volume
+        ),
         tuple(issues),
     )
 
 
-def _append_duplicate_issues(parsed: Sequence[_ParsedRecord], issues: list[DatasetValidationIssue]) -> int:
+def _append_duplicate_issues(
+    parsed: Sequence[_ParsedRecord], issues: list[DatasetValidationIssue]
+) -> int:
     counts = Counter((item.symbol, item.timeframe, item.open_time) for item in parsed)
     duplicate_keys = {key for key, count in counts.items() if count > 1}
     for item in parsed:
         if (item.symbol, item.timeframe, item.open_time) in duplicate_keys:
-            issues.append(DatasetValidationIssue(DatasetIssueCode.DUPLICATE_TIMESTAMP, DatasetIssueSeverity.ERROR, "duplicate timestamp for symbol/timeframe", item.row_index, item.symbol, item.timeframe, item.open_time))
+            issues.append(
+                DatasetValidationIssue(
+                    DatasetIssueCode.DUPLICATE_TIMESTAMP,
+                    DatasetIssueSeverity.ERROR,
+                    "duplicate timestamp for symbol/timeframe",
+                    item.row_index,
+                    item.symbol,
+                    item.timeframe,
+                    item.open_time,
+                )
+            )
     return sum(count - 1 for count in counts.values() if count > 1)
 
 
-def _append_order_issues(parsed: Sequence[_ParsedRecord], issues: list[DatasetValidationIssue]) -> int:
+def _append_order_issues(
+    parsed: Sequence[_ParsedRecord], issues: list[DatasetValidationIssue]
+) -> int:
     previous: dict[tuple[str, str], datetime] = {}
     count = 0
     for item in parsed:
@@ -381,12 +462,27 @@ def _append_order_issues(parsed: Sequence[_ParsedRecord], issues: list[DatasetVa
         last = previous.get(key)
         if last is not None and item.open_time <= last:
             count += 1
-            issues.append(DatasetValidationIssue(DatasetIssueCode.OUT_OF_ORDER, DatasetIssueSeverity.ERROR, "records must be strictly chronological", item.row_index, item.symbol, item.timeframe, item.open_time))
+            issues.append(
+                DatasetValidationIssue(
+                    DatasetIssueCode.OUT_OF_ORDER,
+                    DatasetIssueSeverity.ERROR,
+                    "records must be strictly chronological",
+                    item.row_index,
+                    item.symbol,
+                    item.timeframe,
+                    item.open_time,
+                )
+            )
         previous[key] = item.open_time
     return count
 
 
-def _append_interval_issues(parsed: Sequence[_ParsedRecord], issues: list[DatasetValidationIssue], *, expected_interval: str | None) -> int:
+def _append_interval_issues(
+    parsed: Sequence[_ParsedRecord],
+    issues: list[DatasetValidationIssue],
+    *,
+    expected_interval: str | None,
+) -> int:
     groups: defaultdict[tuple[str, str], list[_ParsedRecord]] = defaultdict(list)
     for item in parsed:
         groups[(item.symbol, item.timeframe)].append(item)
@@ -395,18 +491,46 @@ def _append_interval_issues(parsed: Sequence[_ParsedRecord], issues: list[Datase
         interval_name = expected_interval or timeframe
         seconds = _TIMEFRAME_SECONDS.get(interval_name)
         if seconds is None:
-            issues.append(DatasetValidationIssue(DatasetIssueCode.INVALID_INTERVAL, DatasetIssueSeverity.ERROR, f"unsupported interval: {interval_name}", symbol=symbol, timeframe=timeframe))
+            issues.append(
+                DatasetValidationIssue(
+                    DatasetIssueCode.INVALID_INTERVAL,
+                    DatasetIssueSeverity.ERROR,
+                    f"unsupported interval: {interval_name}",
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
+            )
             continue
         expected_delta = timedelta(seconds=seconds)
         ordered = sorted(group, key=lambda item: item.open_time)
-        for previous, current in zip(ordered, ordered[1:], strict=False):
+        for previous, current in pairwise(ordered):
             delta = current.open_time - previous.open_time
             if delta > expected_delta:
                 missing = max(int(delta / expected_delta) - 1, 1)
                 missing_count += missing
-                issues.append(DatasetValidationIssue(DatasetIssueCode.MISSING_INTERVAL, DatasetIssueSeverity.WARNING, f"detected {missing} missing interval(s)", current.row_index, symbol, timeframe, current.open_time))
+                issues.append(
+                    DatasetValidationIssue(
+                        DatasetIssueCode.MISSING_INTERVAL,
+                        DatasetIssueSeverity.WARNING,
+                        f"detected {missing} missing interval(s)",
+                        current.row_index,
+                        symbol,
+                        timeframe,
+                        current.open_time,
+                    )
+                )
             elif delta != expected_delta:
-                issues.append(DatasetValidationIssue(DatasetIssueCode.INVALID_INTERVAL, DatasetIssueSeverity.ERROR, "timestamp delta does not match expected interval", current.row_index, symbol, timeframe, current.open_time))
+                issues.append(
+                    DatasetValidationIssue(
+                        DatasetIssueCode.INVALID_INTERVAL,
+                        DatasetIssueSeverity.ERROR,
+                        "timestamp delta does not match expected interval",
+                        current.row_index,
+                        symbol,
+                        timeframe,
+                        current.open_time,
+                    )
+                )
     return missing_count
 
 
@@ -421,29 +545,72 @@ def _append_expectation_issues(
     expected_last_timestamp: datetime | None,
 ) -> None:
     if expected_symbols and {item.symbol for item in parsed} != set(expected_symbols):
-        issues.append(DatasetValidationIssue(DatasetIssueCode.SYMBOL_MISMATCH, DatasetIssueSeverity.ERROR, "symbols do not match manifest declaration"))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.SYMBOL_MISMATCH,
+                DatasetIssueSeverity.ERROR,
+                "symbols do not match manifest declaration",
+            )
+        )
     if expected_timeframes and {item.timeframe for item in parsed} != set(expected_timeframes):
-        issues.append(DatasetValidationIssue(DatasetIssueCode.TIMEFRAME_MISMATCH, DatasetIssueSeverity.ERROR, "timeframes do not match manifest declaration"))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.TIMEFRAME_MISMATCH,
+                DatasetIssueSeverity.ERROR,
+                "timeframes do not match manifest declaration",
+            )
+        )
     if expected_count is not None and len(parsed) != expected_count:
-        issues.append(DatasetValidationIssue(DatasetIssueCode.COUNT_MISMATCH, DatasetIssueSeverity.ERROR, f"expected {expected_count} records; found {len(parsed)}"))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.COUNT_MISMATCH,
+                DatasetIssueSeverity.ERROR,
+                f"expected {expected_count} records; found {len(parsed)}",
+            )
+        )
     if not parsed:
         return
     first = min(item.open_time for item in parsed)
     last = max(item.open_time for item in parsed)
     if expected_first_timestamp is not None and first != expected_first_timestamp:
-        issues.append(DatasetValidationIssue(DatasetIssueCode.FIRST_TIMESTAMP_MISMATCH, DatasetIssueSeverity.ERROR, "first timestamp mismatch", observed_at=first))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.FIRST_TIMESTAMP_MISMATCH,
+                DatasetIssueSeverity.ERROR,
+                "first timestamp mismatch",
+                observed_at=first,
+            )
+        )
     if expected_last_timestamp is not None and last != expected_last_timestamp:
-        issues.append(DatasetValidationIssue(DatasetIssueCode.LAST_TIMESTAMP_MISMATCH, DatasetIssueSeverity.ERROR, "last timestamp mismatch", observed_at=last))
+        issues.append(
+            DatasetValidationIssue(
+                DatasetIssueCode.LAST_TIMESTAMP_MISMATCH,
+                DatasetIssueSeverity.ERROR,
+                "last timestamp mismatch",
+                observed_at=last,
+            )
+        )
 
 
-def _append_partition_issues(parsed: Sequence[_ParsedRecord], partitions: Sequence[DatasetPartition], issues: list[DatasetValidationIssue]) -> None:
+def _append_partition_issues(
+    parsed: Sequence[_ParsedRecord],
+    partitions: Sequence[DatasetPartition],
+    issues: list[DatasetValidationIssue],
+) -> None:
     if not parsed:
         return
     first = min(item.open_time for item in parsed)
     last_close = max(item.close_time for item in parsed)
     for partition in partitions:
         if partition.start_at < first or partition.end_at > last_close:
-            issues.append(DatasetValidationIssue(DatasetIssueCode.PARTITION_OUT_OF_RANGE, DatasetIssueSeverity.ERROR, f"{partition.split.value} partition is outside dataset range", observed_at=partition.start_at))
+            issues.append(
+                DatasetValidationIssue(
+                    DatasetIssueCode.PARTITION_OUT_OF_RANGE,
+                    DatasetIssueSeverity.ERROR,
+                    f"{partition.split.value} partition is outside dataset range",
+                    observed_at=partition.start_at,
+                )
+            )
 
 
 def _canonical_record(record: Mapping[str, object]) -> dict[str, Any]:
@@ -475,7 +642,13 @@ def _canonical_timestamp(value: datetime) -> str:
 
 
 def _issue_sort_key(issue: DatasetValidationIssue) -> tuple[str, int, str, str, str]:
-    return (issue.severity.value, -1 if issue.row_index is None else issue.row_index, issue.code.value, issue.symbol or "", issue.timeframe or "")
+    return (
+        issue.severity.value,
+        -1 if issue.row_index is None else issue.row_index,
+        issue.code.value,
+        issue.symbol or "",
+        issue.timeframe or "",
+    )
 
 
 def _is_aware(value: datetime) -> bool:

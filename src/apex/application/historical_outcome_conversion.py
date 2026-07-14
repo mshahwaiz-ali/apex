@@ -14,7 +14,6 @@ from types import MappingProxyType
 
 from apex.application.historical_edge import (
     DatasetPartition,
-    DatasetSplit,
     HistoricalOutcome,
     MarketType,
 )
@@ -67,7 +66,9 @@ class HistoricalOutcomeConversionSummary:
         if self.duplicate_count < 0:
             raise ValueError("duplicate count cannot be negative")
         _validate_sha256(self.result_hash)
-        object.__setattr__(self, "rejection_reasons", MappingProxyType(dict(self.rejection_reasons)))
+        object.__setattr__(
+            self, "rejection_reasons", MappingProxyType(dict(self.rejection_reasons))
+        )
 
 
 def convert_backtest_trades(
@@ -168,7 +169,9 @@ def _convert_trade(
     source_identity: str,
 ) -> tuple[HistoricalOutcome | None, OutcomeConversionRejection | None]:
     if trade.outcome is BacktestOutcome.MISSED_ENTRY:
-        return None, _reject(source_index, OutcomeRejectionReason.MISSED_ENTRY, "trade never entered")
+        return None, _reject(
+            source_index, OutcomeRejectionReason.MISSED_ENTRY, "trade never entered"
+        )
 
     entry_time = _metadata_datetime(trade.metadata, "entry_time")
     if entry_time is None:
@@ -193,12 +196,20 @@ def _convert_trade(
         )
     mfe_r = _metadata_float(trade.metadata, "maximum_favorable_excursion_r")
     if mfe_r is None:
-        return None, _reject(source_index, OutcomeRejectionReason.MISSING_MFE_R, "MFE in R is required")
+        return None, _reject(
+            source_index, OutcomeRejectionReason.MISSING_MFE_R, "MFE in R is required"
+        )
     mae_r = _metadata_float(trade.metadata, "maximum_adverse_excursion_r")
     if mae_r is None:
-        return None, _reject(source_index, OutcomeRejectionReason.MISSING_MAE_R, "MAE in R is required")
-    if not all(math.isfinite(value) for value in (mfe_r, mae_r, trade.net_pnl, trade.realized_r_multiple)):
-        return None, _reject(source_index, OutcomeRejectionReason.INVALID_METRIC, "trade metrics must be finite")
+        return None, _reject(
+            source_index, OutcomeRejectionReason.MISSING_MAE_R, "MAE in R is required"
+        )
+    if not all(
+        math.isfinite(value) for value in (mfe_r, mae_r, trade.net_pnl, trade.realized_r_multiple)
+    ):
+        return None, _reject(
+            source_index, OutcomeRejectionReason.INVALID_METRIC, "trade metrics must be finite"
+        )
     if trade.net_pnl == 0.0:
         return None, _reject(
             source_index,
