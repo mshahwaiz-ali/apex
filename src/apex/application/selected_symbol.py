@@ -22,13 +22,13 @@ def analyze_selected_symbol(
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
-    risk_mode: RiskMode = RiskMode.STANDARD,
+    risk_mode: RiskMode | str = RiskMode.STANDARD,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> SymbolAnalysis:
-    """Normalize a user-entered symbol and run the selected futures risk mode."""
+    """Normalize a user-entered symbol and run the futures analysis pipeline."""
 
     normalized_symbol = normalize_market_symbol(symbol)
     with futures_risk_mode_scope(risk_mode):
