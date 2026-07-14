@@ -45,6 +45,9 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/apex/cli_commands/*.py" = ["B008"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
