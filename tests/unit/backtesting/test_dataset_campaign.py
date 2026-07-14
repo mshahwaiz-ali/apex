@@ -14,7 +14,7 @@ from apex.backtesting import (
     plan_futures_dataset_campaign,
     write_futures_dataset_campaign_plan,
 )
-from apex.cli import app
+from apex.cli_app import app
 
 runner = CliRunner()
 
@@ -108,9 +108,9 @@ def test_tampered_conflicting_paths_are_rejected(tmp_path: Path) -> None:
     write_futures_dataset_campaign_plan(path, plan)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["jobs"][1]["datasets"]["parent"]["path"] = payload["jobs"][0]["datasets"]["parent"][
-        "path"
-    ]
+    payload["jobs"][1]["datasets"]["parent"]["path"] = payload["jobs"][0]["datasets"][
+        "parent"
+    ]["path"]
     path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="conflicting output paths"):
@@ -161,6 +161,7 @@ def test_campaign_plan_cli_writes_and_reloads_manifest(
     assert "DATASET_CAMPAIGN_PLANNED" in result.stdout
     assert "campaign_id=initialbaseline" in result.stdout
     assert "jobs=2" in result.stdout
+    assert "timeframes=5m" in result.stdout
 
     loaded = load_futures_dataset_campaign_plan(manifest_path)
     assert tuple(job.symbol for job in loaded.jobs) == (
