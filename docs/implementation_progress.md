@@ -53,6 +53,16 @@ profitability or production readiness.
   - directional and correlated exposure.
 - Account-state transitions support validated entry registration, close registration,
   loss-streak updates, exposure release, and daily counter rollover.
+- The active `paper record` CLI now accepts compact account context through:
+  - risk-mode selection;
+  - account-policy selection;
+  - persistent account-state file selection;
+  - optional wallet-balance override;
+  - session and weekend state.
+- CLI account context derives policy state from the validated JSON snapshot rather than
+  duplicating every persistent account-state field as a separate command option.
+- Policy lockouts are evaluated before a paper trade is recorded; rejected plans expose
+  the deterministic risk-mode or account-policy reasons.
 
 ### Tests added or updated
 
@@ -73,7 +83,9 @@ profitability or production readiness.
 - duplicate canonical-field rejection;
 - account-state persistence round trips;
 - entry, close, loss-streak, exposure, and day-roll transitions;
-- transition-time invariant validation.
+- transition-time invariant validation;
+- CLI account-context default behavior, state-derived policy resolution, and mismatch
+  rejection.
 
 ### Configuration ownership
 
@@ -88,7 +100,6 @@ profitability or production readiness.
 
 ### Known limitations / remaining N1 work
 
-- CLI inputs do not yet expose account-policy selection or account-state file selection.
 - Account-state persistence is implemented but is not yet automatically updated by paper
   trade or execution lifecycle events.
 - Proposed directional and correlated exposure are supplied explicitly; automatic symbol

@@ -2,26 +2,120 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
-from apex.application import normalize_market_symbol
-from apex.cli import paper_record as legacy_paper_record
-from apex.cli import paper_update as legacy_paper_update
+from apex.application import (
+    analyze_symbol,
+    bootstrap,
+    build_futures_plan_result,
+    create_market_data_services,
+    load_default_risk_config,
+    normalize_market_symbol,
+    serialize_symbol_analysis,
+)
+from apex.application.account_context import resolve_account_context
+from apex.data.providers.errors import MarketDataProviderError
+from apex.paper_trading import (
+    PaperTrade,
+    PaperTradeConfig,
+    PaperTradeStore,
+    create_paper_trade,
+    update_paper_trade,
+)
 
 
 def register_paper_trading_commands(app: typer.Typer) -> None:
-    """Register corrected paper commands while preserving legacy behavior."""
+    """Register policy-aware paper commands using canonical market symbols."""
 
     @app.command("record")
     def paper_record(
         symbol: str = typer.Argument(..., help="Any provider-supported market symbol."),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+        risk_mode: str | None = typer.Option(None, "--risk-mode"),
+        account_policy: str | None = typer.Option(None, "--account-policy"),
+        account_state_file: Path | None = typer.Option(  # noqa: B008
+            None,
+            "--account-state-file",
+            dir_okay=False,
+            help="Persistent account-state JSON file used for policy lockouts.",
+        ),
+        account_policies_file: Path = typer.Option(  # noqa: B008
+            Path("config/account_policies.yaml"),
+            "--account-policies-file",
+            exists=True,
+            dir_okay=False,
+        ),
+        wallet_balance: float | None = typer.Option(None, "--wallet-balance", min=0.01),
+        session: str | None = typer.Option(None, "--session"),
+        is_weekend: bool = typer.Option(False, "--weekend"),
     ) -> None:
-        """Analyze and record a setup using a canonical market symbol."""
+        """Analyze and record only after risk-mode and account-policy approval."""
 
-        legacy_paper_record(
-            symbol=normalize_market_symbol(symbol),
-            candle_limit=candle_limit,
+        canonical_symbol = normalize_market_symbol(symbol)
+        try:
+            context = bootstrap()
+            account_context = resolve_account_context(
+                wallet_balance=wallet_balance,
+                risk_mode=risk_mode,
+                account_policy_name=account_policy,
+                account_state_file=account_state_file,
+                account_policies_file=account_policies_file,
+                session=session,
+                is_weekend=is_weekend,
+            )
+            risk_config = load_default_risk_config()
+            with create_market_data_services(context.settings) as services:
+                analysis = analyze_symbol(
+                    canonical_symbol,
+                    services.candles,
+                    timeframes=context.settings.analysis_timeframes,
+                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                    timeframe_max_staleness_seconds=getattr(
+                        context.settings,
+                        "timeframe_max_staleness_seconds",
+                        None,
+                    ),
+                    candle_limit=candle_limit,
+                    risk_config=risk_config,
+                    strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    gainer_state_thresholds=getattr(
+                        context.settings,
+                        "gainer_state_thresholds",
+                        None,
+                    ),
+                )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        except MarketDataProviderError as exc:
+            typer.echo(f"Paper record market-data request failed: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        if analysis.assessment.setup is None:
+            typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | no approved setup")
+            return
+
+        futures_plan = build_futures_plan_result(
+            analysis.assessment.setup,
+            account_context.account,
+            account_policy=account_context.policy,
+            account_policy_state=account_context.policy_state,
+        )
+        if futures_plan.get("status") == "REJECTED":
+            reasons = "; ".join(str(reason) for reason in futures_plan.get("reasons", []))
+            typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | {reasons}")
+            return
+
+        store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
+        trade = create_paper_trade(
+            analysis.assessment.setup,
+            analysis_payload=serialize_symbol_analysis(analysis),
+            futures_plan=futures_plan,
+        )
+        store.upsert(trade)
+        typer.echo(
+            f"{canonical_symbol}: PAPER_RECORDED | id={trade.trade_id} | state={trade.state.value}"
         )
 
     @app.command("update")
@@ -33,8 +127,32 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         """Update paper trades, optionally filtering by a canonical symbol."""
 
         canonical = normalize_market_symbol(symbol) if symbol is not None else None
-        legacy_paper_update(
-            symbol=canonical,
-            timeframe=timeframe,
-            candle_limit=candle_limit,
-        )
+        try:
+            context = bootstrap()
+            store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
+            trades = store.load()
+            updated: list[PaperTrade] = []
+            with create_market_data_services(context.settings) as services:
+                for trade in trades:
+                    if canonical is not None and trade.signal.symbol != canonical:
+                        updated.append(trade)
+                        continue
+                    if not trade.is_open:
+                        updated.append(trade)
+                        continue
+                    candles = tuple(
+                        services.candles.fetch_candles(
+                            trade.signal.symbol,
+                            timeframe,
+                            limit=candle_limit,
+                        )
+                    )
+                    updated.append(update_paper_trade(trade, candles, config=PaperTradeConfig()))
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        except MarketDataProviderError as exc:
+            typer.echo(f"Paper update market-data request failed: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        store.save(tuple(updated))
+        typer.echo(f"PAPER_UPDATED | trades={len(updated)}")
