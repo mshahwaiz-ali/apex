@@ -272,3 +272,27 @@ eligibility claim is made by N3.
 - Sector/correlation exposure limits and higher-timeframe stop movement remain.
 - Forward-paper spot validation and final-test attachment/reporting remain separate later gates.
 - No funded, production, or real-money readiness is claimed.
+
+## N4.3 — Deterministic chronological dataset splitting
+
+### Implemented
+
+- Added provider-independent contracts for chronological train, validation, and final-test
+  dataset splits.
+- Added configurable validated ratios with deterministic integer allocation and a minimum
+  of one candle in every split.
+- Child datasets preserve the exact parent candle ordering and use deterministic parent-derived
+  identifiers ending in `-train`, `-validation`, and `-final-test`.
+- Added a schema-versioned split-set manifest containing parent identity and hash, child identities
+  and hashes, ratios, counts, and inclusive coverage boundaries.
+- Added verification that child datasets do not overlap, duplicate, reorder, omit, or introduce
+  candles and that their concatenation exactly reconstructs the loaded parent dataset.
+- Added atomic split-manifest persistence and complete reload verification for all four written
+  artifacts.
+- Added `apex dataset split` with explicit input, child-output, manifest-output, and optional ratio
+  flags.
+- The CLI reloads and verifies the parent, three children, and split-set manifest before reporting
+  `DATASET_SPLIT`.
+- Added focused coverage for deterministic boundaries, odd counts, ratio validation, minimum
+  sizes, reconstruction, overlap prevention, tampered hashes, JSON round trips, and CLI
+  registration.

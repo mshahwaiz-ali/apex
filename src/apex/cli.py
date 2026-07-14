@@ -33,12 +33,16 @@ from apex.application.analysis_records import write_analysis_record_sqlite
 from apex.backtesting import (
     MAXIMUM_DATASET_CANDLES,
     BacktestConfig,
+    FuturesDatasetSplitRatios,
     acquire_futures_dataset,
+    load_and_verify_futures_dataset_split,
     load_futures_dataset,
     signal_from_setup,
     simulate_trade,
+    split_futures_dataset,
     summarize_trades,
     write_futures_dataset,
+    write_futures_dataset_split_manifest,
 )
 from apex.config import load_settings
 from apex.data.providers.errors import MarketDataProviderError
@@ -382,6 +386,113 @@ def dataset_acquire(
         f"| end={manifest.end_time.isoformat()} "
         f"| hash={manifest.content_hash} "
         f"| file={output_file}"
+    )
+
+
+@dataset_app.command("split")
+def dataset_split(
+    input_file: Path = typer.Option(  # noqa: B008
+        ...,
+        "--input",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Existing parent futures dataset JSON file.",
+    ),
+    train_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--train-output",
+        dir_okay=False,
+        help="Destination train dataset JSON file.",
+    ),
+    validation_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--validation-output",
+        dir_okay=False,
+        help="Destination validation dataset JSON file.",
+    ),
+    test_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--test-output",
+        dir_okay=False,
+        help="Destination final-test dataset JSON file.",
+    ),
+    manifest_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--manifest-output",
+        dir_okay=False,
+        help="Destination split-set manifest JSON file.",
+    ),
+    train_ratio: float = typer.Option(
+        0.60,
+        "--train-ratio",
+        help="Chronological train ratio.",
+    ),
+    validation_ratio: float = typer.Option(
+        0.20,
+        "--validation-ratio",
+        help="Chronological validation ratio.",
+    ),
+    test_ratio: float = typer.Option(
+        0.20,
+        "--test-ratio",
+        help="Chronological final-test ratio.",
+    ),
+) -> None:
+    """Split and verify one historical dataset chronologically."""
+
+    output_paths = (
+        train_output,
+        validation_output,
+        test_output,
+        manifest_output,
+    )
+    if len(set(output_paths)) != len(output_paths):
+        raise typer.BadParameter("dataset split output paths must be unique")
+    if input_file in output_paths:
+        raise typer.BadParameter("dataset split outputs cannot overwrite the input dataset")
+
+    try:
+        parent = load_futures_dataset(input_file)
+        split_set = split_futures_dataset(
+            parent,
+            ratios=FuturesDatasetSplitRatios(
+                train=train_ratio,
+                validation=validation_ratio,
+                final_test=test_ratio,
+            ),
+        )
+
+        write_futures_dataset(train_output, split_set.train)
+        write_futures_dataset(validation_output, split_set.validation)
+        write_futures_dataset(test_output, split_set.final_test)
+        write_futures_dataset_split_manifest(
+            manifest_output,
+            split_set.manifest,
+        )
+
+        verified_parent, verified_split_set = load_and_verify_futures_dataset_split(
+            parent_path=input_file,
+            train_path=train_output,
+            validation_path=validation_output,
+            final_test_path=test_output,
+            manifest_path=manifest_output,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    manifest = verified_split_set.manifest
+    typer.echo(
+        "DATASET_SPLIT "
+        f"| parent_id={verified_parent.manifest.dataset_id} "
+        f"| parent_hash={verified_parent.manifest.content_hash} "
+        f"| train_id={manifest.train_dataset_id} "
+        f"| train_candles={manifest.train_candle_count} "
+        f"| validation_id={manifest.validation_dataset_id} "
+        f"| validation_candles={manifest.validation_candle_count} "
+        f"| final_test_id={manifest.final_test_dataset_id} "
+        f"| final_test_candles={manifest.final_test_candle_count} "
+        f"| manifest={manifest_output}"
     )
 
 
