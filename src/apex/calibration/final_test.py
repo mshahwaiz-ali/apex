@@ -49,8 +49,10 @@ def attach_final_test_results(
         assessments=report.assessments,
         selected_candidate_ids=report.selected_candidate_ids,
         final_test_assessments=final_assessments,
-        warnings=report.warnings
-        + ("final-test data was evaluated only after candidate selection",),
+        warnings=(
+            *report.warnings,
+            "final-test data was evaluated only after candidate selection",
+        ),
     )
 
 
