@@ -6,9 +6,23 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import Protocol
 
-from apex.backtesting import BacktestReport
-from apex.paper_trading import PaperPerformance
+
+class BacktestValidationMetrics(Protocol):
+    """Minimum modeled metrics required for P1 comparison."""
+
+    total_trades: int
+    win_rate: float
+    expectancy: float
+    maximum_drawdown: float
+
+
+class PaperValidationMetrics(Protocol):
+    """Minimum forward-paper metrics required for P1 comparison."""
+
+    closed_trades: int
+    win_rate: float
 
 
 class ProductionEligibility(StrEnum):
@@ -108,8 +122,8 @@ class ForwardValidationReport:
 
 def evaluate_forward_validation(
     *,
-    backtest: BacktestReport,
-    paper: PaperPerformance,
+    backtest: BacktestValidationMetrics,
+    paper: PaperValidationMetrics,
     evidence: ForwardValidationEvidence,
     thresholds: ForwardValidationThresholds,
     generated_at: datetime,
