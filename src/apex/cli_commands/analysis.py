@@ -15,6 +15,7 @@ from apex.application import (
     build_futures_plan_result,
     create_market_data_services,
     format_symbol_text,
+    format_trade_management_plan,
     load_default_risk_config,
     serialize_symbol_analysis,
     write_analysis_record,
@@ -132,6 +133,9 @@ def register_analysis_commands(app: typer.Typer) -> None:
         if isinstance(futures_plan, dict):
             status = futures_plan.get("status", "UNKNOWN")
             typer.echo(f"Futures plan: {status}")
+            management_plan = futures_plan.get("management_plan")
+            if status == "APPROVED" and isinstance(management_plan, dict):
+                typer.echo(format_trade_management_plan(management_plan))
             reasons = futures_plan.get("reasons", [])
             if isinstance(reasons, list):
                 for reason in reasons:
