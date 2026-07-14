@@ -90,6 +90,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=candle_limit,
                     risk_config=load_default_risk_config(),
+                    risk_mode=account.risk_mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     gainer_state_thresholds=getattr(
                         context.settings, "gainer_state_thresholds", None
