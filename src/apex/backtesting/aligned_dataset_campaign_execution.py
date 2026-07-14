@@ -6,6 +6,7 @@ import json
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Final
 
@@ -13,8 +14,13 @@ from apex.backtesting.aligned_dataset_campaign import (
     AlignedDatasetCampaignJob,
     AlignedDatasetCampaignPlan,
 )
-from apex.backtesting.dataset import build_futures_dataset, load_futures_dataset, write_futures_dataset
+from apex.backtesting.dataset import (
+    build_futures_dataset,
+    load_futures_dataset,
+    write_futures_dataset,
+)
 from apex.data.providers.base import HistoricalRangeMarketDataProvider
+from apex.domain.models import Candle
 
 ALIGNED_DATASET_CAMPAIGN_EXECUTION_SCHEMA_VERSION: Final = 1
 _TIMEFRAME_SECONDS: Final[dict[str, int]] = {
@@ -97,7 +103,13 @@ class AlignedDatasetCampaignExecutionResult:
             "analysis_end",
         ):
             _require_aware(getattr(self, name), name)
-        if not self.warmup_start < self.analysis_start < self.train_end < self.validation_end < self.analysis_end:
+        if (
+            not self.warmup_start
+            < self.analysis_start
+            < self.train_end
+            < self.validation_end
+            < self.analysis_end
+        ):
             raise ValueError("aligned execution boundaries must be strictly increasing")
         if not self.jobs:
             raise ValueError("aligned execution requires jobs")
@@ -145,7 +157,9 @@ def execute_aligned_dataset_campaign(
         raise ValueError("aligned campaign output paths must be unique")
     existing = sorted(str(path) for path in paths if path.exists())
     if existing:
-        raise FileExistsError(f"aligned campaign refuses to overwrite existing artifact: {existing[0]}")
+        raise FileExistsError(
+            f"aligned campaign refuses to overwrite existing artifact: {existing[0]}"
+        )
 
     created_paths: list[Path] = []
     results: list[AlignedDatasetCampaignJobResult] = []
@@ -239,7 +253,9 @@ def write_aligned_dataset_campaign_execution_result(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(result.to_payload(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(result.to_payload(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -322,22 +338,27 @@ def _execute_job(
 def _verify_dataset_coverage(
     plan: AlignedDatasetCampaignPlan,
     job: AlignedDatasetCampaignJob,
-    candles: tuple,
+    candles: tuple[Candle, ...],
 ) -> None:
+    if not candles:
+        raise ValueError("aligned campaign dataset is empty")
+
+    expected_step = _TIMEFRAME_SECONDS[job.timeframe]
+    for previous, current in pairwise(candles):
+        step = int((current.open_time - previous.open_time).total_seconds())
+        if step != expected_step:
+            raise ValueError("aligned campaign dataset contains a candle gap")
+
     if len(candles) < job.expected_minimum_candles:
         raise ValueError("aligned campaign dataset is missing expected range candles")
     if candles[0].open_time > plan.warmup_start:
         raise ValueError("aligned campaign dataset does not cover warmup start")
     if candles[-1].close_time < plan.boundaries.analysis_end:
         raise ValueError("aligned campaign dataset does not cover analysis end")
+
     warmup_count = sum(candle.close_time <= plan.boundaries.analysis_start for candle in candles)
     if warmup_count < plan.warmup_candles:
         raise ValueError("aligned campaign dataset has insufficient warmup candles")
-    expected_step = _TIMEFRAME_SECONDS[job.timeframe]
-    for previous, current in zip(candles, candles[1:], strict=False):
-        step = int((current.open_time - previous.open_time).total_seconds())
-        if step != expected_step:
-            raise ValueError("aligned campaign dataset contains a candle gap")
 
 
 def _require_aware(value: datetime, name: str) -> None:

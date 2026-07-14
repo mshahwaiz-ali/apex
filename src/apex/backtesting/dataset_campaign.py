@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from apex.backtesting.dataset_acquisition import MAXIMUM_DATASET_CANDLES
 from apex.backtesting.dataset_split import FuturesDatasetSplitRatios
@@ -27,6 +28,18 @@ _TIMEFRAME_PATTERN: Final = re.compile(r"^[1-9][0-9]*[mhdwM]$")
 _TIMEFRAME_ORDER: Final = {
     timeframe: index for index, timeframe in enumerate(CANONICAL_CAMPAIGN_TIMEFRAMES)
 }
+
+
+class CampaignMatrixJob(Protocol):
+    """Read-only structural contract for campaign matrix jobs."""
+
+    @property
+    def symbol(self) -> str:
+        """Return the normalized job symbol."""
+
+    @property
+    def timeframe(self) -> str:
+        """Return the normalized job timeframe."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,9 +185,7 @@ class FuturesDatasetCampaignPlan:
             FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION,
         ):
             raise ValueError("unsupported futures dataset campaign schema version")
-        if tuple(job.acquisition_order for job in self.jobs) != tuple(
-            range(1, len(self.jobs) + 1)
-        ):
+        if tuple(job.acquisition_order for job in self.jobs) != tuple(range(1, len(self.jobs) + 1)):
             raise ValueError("campaign acquisition order must be contiguous and deterministic")
         pairs = tuple((job.symbol, job.timeframe) for job in self.jobs)
         if len(set(pairs)) != len(pairs):
@@ -199,9 +210,7 @@ class FuturesDatasetCampaignPlan:
 
     def expected_matrix(self) -> tuple[tuple[str, str], ...]:
         return tuple(
-            (symbol, timeframe)
-            for symbol in self.symbols
-            for timeframe in self.timeframes
+            (symbol, timeframe) for symbol in self.symbols for timeframe in self.timeframes
         )
 
     def to_payload(self) -> dict[str, object]:
@@ -240,28 +249,24 @@ def normalize_campaign_timeframes(values: tuple[str, ...]) -> tuple[str, ...]:
 
 def verify_futures_dataset_campaign_matrix(
     plan: FuturesDatasetCampaignPlan,
-    jobs: tuple[object, ...] | None = None,
+    jobs: Sequence[CampaignMatrixJob] | None = None,
 ) -> None:
-    """Verify complete symbol × timeframe coverage for a plan or execution jobs."""
+    """Verify complete symbol x timeframe coverage for a plan or execution jobs."""
 
     selected = plan.jobs if jobs is None else jobs
-    actual = tuple(
-        (str(getattr(job, "symbol")), str(getattr(job, "timeframe"))) for job in selected
-    )
+    actual = tuple((str(job.symbol), str(job.timeframe)) for job in selected)
     expected = plan.expected_matrix()
     if len(set(actual)) != len(actual):
         raise ValueError("campaign matrix contains duplicate symbol/timeframe pairs")
     missing = tuple(pair for pair in expected if pair not in actual)
     if missing:
         raise ValueError(
-            "campaign matrix is missing symbol/timeframe pair: "
-            f"{missing[0][0]} {missing[0][1]}"
+            f"campaign matrix is missing symbol/timeframe pair: {missing[0][0]} {missing[0][1]}"
         )
     extra = tuple(pair for pair in actual if pair not in expected)
     if extra:
         raise ValueError(
-            "campaign matrix contains extra symbol/timeframe pair: "
-            f"{extra[0][0]} {extra[0][1]}"
+            f"campaign matrix contains extra symbol/timeframe pair: {extra[0][0]} {extra[0][1]}"
         )
     if actual != expected:
         raise ValueError("campaign matrix order does not match the frozen plan")
@@ -279,11 +284,13 @@ def plan_futures_dataset_campaign(
     split_ratios: FuturesDatasetSplitRatios | None = None,
     reserved_output_paths: tuple[Path, ...] = (),
 ) -> FuturesDatasetCampaignPlan:
-    """Build a deterministic symbol × timeframe campaign without acquiring data."""
+    """Build a deterministic symbol x timeframe campaign without acquiring data."""
 
     if timeframes is not None and timeframe is not None:
         raise ValueError("provide campaign timeframes or legacy timeframe, not both")
-    raw_timeframes = timeframes if timeframes is not None else (() if timeframe is None else (timeframe,))
+    raw_timeframes = (
+        timeframes if timeframes is not None else (() if timeframe is None else (timeframe,))
+    )
     normalized_timeframes = normalize_campaign_timeframes(raw_timeframes)
     normalized_campaign_id = _identifier_part(campaign_id)
     normalized_provider = provider.strip().lower()
@@ -352,6 +359,7 @@ def load_futures_dataset_campaign_plan(path: Path) -> FuturesDatasetCampaignPlan
     if not isinstance(payload, dict):
         raise ValueError("futures dataset campaign payload must be an object")
     schema_version = int(payload["schema_version"])
+    raw_timeframes: tuple[str, ...]
     if schema_version == LEGACY_FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION:
         raw_timeframes = (str(payload["timeframe"]),)
         raw_symbols: tuple[str, ...] | None = None

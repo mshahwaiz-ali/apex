@@ -64,7 +64,13 @@ class AlignedDatasetCampaignJob:
     def __post_init__(self) -> None:
         if self.acquisition_order < 1:
             raise ValueError("aligned campaign acquisition order must be positive")
-        for value in (self.symbol, self.timeframe, self.provider, self.dataset_id, self.dataset_path):
+        for value in (
+            self.symbol,
+            self.timeframe,
+            self.provider,
+            self.dataset_id,
+            self.dataset_path,
+        ):
             if not value.strip():
                 raise ValueError("aligned campaign job fields cannot be empty")
         if self.expected_minimum_candles < 1:
@@ -101,7 +107,11 @@ class AlignedDatasetCampaignPlan:
     def __post_init__(self) -> None:
         if self.schema_version != ALIGNED_DATASET_CAMPAIGN_SCHEMA_VERSION:
             raise ValueError("unsupported aligned dataset campaign schema version")
-        if not self.campaign_id.strip() or not self.provider.strip() or not self.output_directory.strip():
+        if (
+            not self.campaign_id.strip()
+            or not self.provider.strip()
+            or not self.output_directory.strip()
+        ):
             raise ValueError("aligned campaign fields cannot be empty")
         if self.warmup_candles < 40:
             raise ValueError("aligned campaign warmup must be at least 40 candles")
@@ -111,11 +121,15 @@ class AlignedDatasetCampaignPlan:
         )
         if self.warmup_start != expected_warmup_start:
             raise ValueError("aligned campaign warmup start does not match highest timeframe")
-        if self.symbols != tuple(sorted(self.symbols)) or len(set(self.symbols)) != len(self.symbols):
+        if self.symbols != tuple(sorted(self.symbols)) or len(set(self.symbols)) != len(
+            self.symbols
+        ):
             raise ValueError("aligned campaign symbols must be unique and sorted")
         if self.timeframes != normalize_campaign_timeframes(self.timeframes):
             raise ValueError("aligned campaign timeframes must use canonical order")
-        expected_pairs = tuple((symbol, timeframe) for symbol in self.symbols for timeframe in self.timeframes)
+        expected_pairs = tuple(
+            (symbol, timeframe) for symbol in self.symbols for timeframe in self.timeframes
+        )
         actual_pairs = tuple((job.symbol, job.timeframe) for job in self.jobs)
         if actual_pairs != expected_pairs:
             raise ValueError("aligned campaign jobs must match the frozen symbol/timeframe matrix")
@@ -179,7 +193,9 @@ def plan_aligned_dataset_campaign(
     normalized_campaign_id = _identifier_part(campaign_id)
     normalized_output = _normalize_path(output_directory)
     total_seconds = (analysis_end - warmup_start).total_seconds()
-    matrix = tuple((symbol, timeframe) for symbol in normalized_symbols for timeframe in normalized_timeframes)
+    matrix = tuple(
+        (symbol, timeframe) for symbol in normalized_symbols for timeframe in normalized_timeframes
+    )
     jobs = tuple(
         AlignedDatasetCampaignJob(
             acquisition_order=index,
@@ -191,7 +207,9 @@ def plan_aligned_dataset_campaign(
                 Path(normalized_output)
                 / f"{normalized_campaign_id}-{_identifier_part(symbol)}-{timeframe}-aligned.json"
             ),
-            expected_minimum_candles=max(1, math.floor(total_seconds / _TIMEFRAME_SECONDS[timeframe])),
+            expected_minimum_candles=max(
+                1, math.floor(total_seconds / _TIMEFRAME_SECONDS[timeframe])
+            ),
         )
         for index, (symbol, timeframe) in enumerate(matrix, start=1)
     )
@@ -212,7 +230,9 @@ def plan_aligned_dataset_campaign(
 def write_aligned_dataset_campaign_plan(path: Path, plan: AlignedDatasetCampaignPlan) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(plan.to_payload(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(plan.to_payload(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -223,7 +243,11 @@ def load_aligned_dataset_campaign_plan(path: Path) -> AlignedDatasetCampaignPlan
     raw_boundaries = payload["boundaries"]
     raw_ratios = payload["split_ratios"]
     raw_jobs = payload["jobs"]
-    if not isinstance(raw_boundaries, dict) or not isinstance(raw_ratios, dict) or not isinstance(raw_jobs, list):
+    if (
+        not isinstance(raw_boundaries, dict)
+        or not isinstance(raw_ratios, dict)
+        or not isinstance(raw_jobs, list)
+    ):
         raise ValueError("aligned campaign payload contains invalid objects")
     boundaries = AlignedDatasetSplitBoundaries(
         analysis_start=datetime.fromisoformat(str(raw_boundaries["analysis_start"])),

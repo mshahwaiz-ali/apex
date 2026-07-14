@@ -108,9 +108,9 @@ def test_tampered_conflicting_paths_are_rejected(tmp_path: Path) -> None:
     write_futures_dataset_campaign_plan(path, plan)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["jobs"][1]["datasets"]["parent"]["path"] = payload["jobs"][0]["datasets"][
-        "parent"
-    ]["path"]
+    payload["jobs"][1]["datasets"]["parent"]["path"] = payload["jobs"][0]["datasets"]["parent"][
+        "path"
+    ]
     path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="conflicting output paths"):

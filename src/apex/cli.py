@@ -485,7 +485,7 @@ def dataset_campaign_plan(
         "DATASET_CAMPAIGN_PLANNED "
         f"| campaign_id={verified.campaign_id} "
         f"| jobs={len(verified.jobs)} "
-        f"| timeframe={verified.timeframe} "
+        f"| timeframes={','.join(verified.timeframes)} "
         f"| candles={verified.candle_count} "
         f"| provider={verified.provider} "
         f"| manifest={manifest_output}"

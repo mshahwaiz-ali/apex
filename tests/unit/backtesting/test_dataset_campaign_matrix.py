@@ -88,9 +88,15 @@ def _plan(
 
 
 def test_timeframes_are_normalized_into_canonical_duration_order() -> None:
-    assert normalize_campaign_timeframes(
-        ("4h", "1m", "15m", "3m", "5m", "1h", "30m")
-    ) == ("1m", "3m", "5m", "15m", "30m", "1h", "4h")
+    assert normalize_campaign_timeframes(("4h", "1m", "15m", "3m", "5m", "1h", "30m")) == (
+        "1m",
+        "3m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "4h",
+    )
 
 
 def test_duplicate_timeframe_is_rejected_after_normalization() -> None:

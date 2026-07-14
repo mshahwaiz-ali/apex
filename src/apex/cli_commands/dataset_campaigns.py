@@ -68,7 +68,7 @@ def register_dataset_campaign_commands(dataset_app: typer.Typer) -> None:
         validation_ratio: Annotated[float, typer.Option("--validation-ratio")] = 0.20,
         test_ratio: Annotated[float, typer.Option("--test-ratio")] = 0.20,
     ) -> None:
-        """Plan and verify a deterministic symbol × timeframe campaign."""
+        """Plan and verify a deterministic symbol x timeframe campaign."""
 
         try:
             plan = plan_futures_dataset_campaign(
@@ -142,9 +142,7 @@ def register_dataset_campaign_commands(dataset_app: typer.Typer) -> None:
                 execution_manifest_output,
                 result,
             )
-            verified = load_futures_dataset_campaign_execution_result(
-                execution_manifest_output
-            )
+            verified = load_futures_dataset_campaign_execution_result(execution_manifest_output)
             verify_futures_dataset_campaign_matrix(plan, verified.jobs)
             verify_futures_dataset_campaign_execution(plan=plan, result=verified)
         except FuturesDatasetCampaignExecutionError as exc:

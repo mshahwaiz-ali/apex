@@ -106,16 +106,14 @@ def register_aligned_dataset_campaign_commands(dataset_app: typer.Typer) -> None
             if plan.provider != "binance":
                 raise ValueError("aligned CLI currently supports the binance provider only")
             with BinanceHistoricalRangeProvider() as provider:
-                result = execute_aligned_dataset_campaign(
+                execute_aligned_dataset_campaign(
                     plan=plan,
                     provider=provider,
                     plan_path=plan_file,
                     execution_manifest_path=execution_manifest_output,
                     extracted_at=datetime.now(UTC),
                 )
-            verified = load_aligned_dataset_campaign_execution_result(
-                execution_manifest_output
-            )
+            verified = load_aligned_dataset_campaign_execution_result(execution_manifest_output)
             verify_aligned_dataset_campaign_execution(plan=plan, result=verified)
         except (FileExistsError, KeyError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
