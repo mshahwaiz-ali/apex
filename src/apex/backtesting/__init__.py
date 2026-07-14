@@ -25,11 +25,16 @@ from apex.backtesting.dataset_acquisition import (
     build_dataset_id,
 )
 from apex.backtesting.dataset_campaign import (
+    CANONICAL_CAMPAIGN_TIMEFRAMES,
     FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION,
+    LEGACY_FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION,
     FuturesDatasetCampaignJob,
     FuturesDatasetCampaignPlan,
     load_futures_dataset_campaign_plan,
+    normalize_campaign_timeframe,
+    normalize_campaign_timeframes,
     plan_futures_dataset_campaign,
+    verify_futures_dataset_campaign_matrix,
     write_futures_dataset_campaign_plan,
 )
 from apex.backtesting.dataset_campaign_execution import (
@@ -100,6 +105,7 @@ from apex.backtesting.historical_edge_validation import (
 )
 
 __all__ = [
+    "CANONICAL_CAMPAIGN_TIMEFRAMES",
     "DEFAULT_EDGE_SEGMENTS",
     "DEFAULT_FINAL_TEST_RATIO",
     "DEFAULT_TRAIN_RATIO",
@@ -110,6 +116,7 @@ __all__ = [
     "FUTURES_DATASET_SPLIT_SCHEMA_VERSION",
     "HISTORICAL_EDGE_DB_SCHEMA_VERSION",
     "HISTORICAL_EDGE_REPORT_SCHEMA_VERSION",
+    "LEGACY_FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION",
     "MAXIMUM_DATASET_CANDLES",
     "BacktestConfig",
     "BacktestOutcome",
@@ -160,6 +167,8 @@ __all__ = [
     "load_futures_dataset_split_manifest",
     "load_historical_edge_report",
     "load_historical_edge_report_sqlite",
+    "normalize_campaign_timeframe",
+    "normalize_campaign_timeframes",
     "plan_futures_dataset_campaign",
     "signal_from_setup",
     "simulate_trade",
@@ -169,6 +178,7 @@ __all__ = [
     "validate_dataset_candles",
     "validate_out_of_sample_edges",
     "verify_futures_dataset_campaign_execution",
+    "verify_futures_dataset_campaign_matrix",
     "verify_futures_dataset_split",
     "write_futures_dataset",
     "write_futures_dataset_campaign_execution_result",
