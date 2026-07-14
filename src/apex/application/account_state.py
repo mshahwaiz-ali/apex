@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -39,6 +39,11 @@ class AccountStateSnapshot(BaseModel):
             raise ValueError("correlated exposure cannot exceed total open risk")
         return self
 
+    def _validated_update(self, **updates: Any) -> Self:
+        values = self.model_dump(mode="python")
+        values.update(updates)
+        return type(self).model_validate(values)
+
     def for_policy_evaluation(
         self,
         *,
@@ -71,12 +76,10 @@ class AccountStateSnapshot(BaseModel):
             raise ValueError("account state cannot roll backward to an earlier trading day")
         if trading_day == self.trading_day:
             return self
-        return self.model_copy(
-            update={
-                "trading_day": trading_day,
-                "start_of_day_equity": self.current_equity,
-                "trades_today": 0,
-            }
+        return self._validated_update(
+            trading_day=trading_day,
+            start_of_day_equity=self.current_equity,
+            trades_today=0,
         )
 
     def register_entry(
@@ -90,17 +93,15 @@ class AccountStateSnapshot(BaseModel):
 
         if min(risk_pct, directional_risk_pct, correlated_risk_pct) < 0:
             raise ValueError("registered exposure percentages cannot be negative")
-        return self.model_copy(
-            update={
-                "trades_today": self.trades_today + 1,
-                "total_open_risk_pct": self.total_open_risk_pct + risk_pct,
-                "directional_exposure_pct": (
-                    self.directional_exposure_pct + directional_risk_pct
-                ),
-                "correlated_exposure_pct": (
-                    self.correlated_exposure_pct + correlated_risk_pct
-                ),
-            }
+        return self._validated_update(
+            trades_today=self.trades_today + 1,
+            total_open_risk_pct=self.total_open_risk_pct + risk_pct,
+            directional_exposure_pct=(
+                self.directional_exposure_pct + directional_risk_pct
+            ),
+            correlated_exposure_pct=(
+                self.correlated_exposure_pct + correlated_risk_pct
+            ),
         )
 
     def register_close(
@@ -122,26 +123,19 @@ class AccountStateSnapshot(BaseModel):
             released_correlated_risk_pct,
         ) < 0:
             raise ValueError("released exposure percentages cannot be negative")
-        return self.model_copy(
-            update={
-                "current_balance": self.current_balance + realized_pnl,
-                "current_equity": current_equity,
-                "consecutive_losses": (
-                    self.consecutive_losses + 1 if realized_pnl < 0 else 0
-                ),
-                "total_open_risk_pct": max(
-                    0.0,
-                    self.total_open_risk_pct - released_risk_pct,
-                ),
-                "directional_exposure_pct": max(
-                    0.0,
-                    self.directional_exposure_pct - released_directional_risk_pct,
-                ),
-                "correlated_exposure_pct": max(
-                    0.0,
-                    self.correlated_exposure_pct - released_correlated_risk_pct,
-                ),
-            }
+        return self._validated_update(
+            current_balance=self.current_balance + realized_pnl,
+            current_equity=current_equity,
+            consecutive_losses=(self.consecutive_losses + 1 if realized_pnl < 0 else 0),
+            total_open_risk_pct=max(0.0, self.total_open_risk_pct - released_risk_pct),
+            directional_exposure_pct=max(
+                0.0,
+                self.directional_exposure_pct - released_directional_risk_pct,
+            ),
+            correlated_exposure_pct=max(
+                0.0,
+                self.correlated_exposure_pct - released_correlated_risk_pct,
+            ),
         )
 
 
