@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from apex.application.analysis_records import build_analysis_record
+from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.strategy_routing import (
     apply_strategy_routing,
@@ -52,7 +53,6 @@ from apex.risk import (
     load_risk_config,
 )
 from apex.risk.contracts import RiskApprovedSetup
-from apex.scoring import analyze_phase5
 from apex.strategies import (
     FeatureSnapshot,
     StrategyContext,
@@ -152,7 +152,7 @@ def analyze_symbol(
         gainer_result=gainer_result,
         routing_config=strategy_routing,
     )
-    phase5 = analyze_phase5(routed_phase4)
+    phase5 = analyze_futures_phase5(routed_phase4)
     assessment = analyze_phase6(
         phase5,
         config=risk_config,

@@ -47,16 +47,12 @@ class StrategyApprovalRule(BaseModel):
             labels = ", ".join(sorted(str(mode) for mode in extra))
             raise ValueError(f"unsupported strategy approval risk modes: {labels}")
         invalid = {
-            mode: score
-            for mode, score in self.minimum_scores.items()
-            if not 0 <= score <= 100
+            mode: score for mode, score in self.minimum_scores.items() if not 0 <= score <= 100
         }
         if invalid:
             ordered = sorted(invalid.items(), key=lambda item: item[0].value)
             details = ", ".join(f"{mode.value}={score}" for mode, score in ordered)
-            raise ValueError(
-                f"strategy approval scores must be between 0 and 100: {details}"
-            )
+            raise ValueError(f"strategy approval scores must be between 0 and 100: {details}")
         return self
 
     def minimum_score_for(self, risk_mode: RiskMode) -> float:

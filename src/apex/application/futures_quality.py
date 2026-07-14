@@ -30,4 +30,5 @@ def analyze_futures_phase5(
         config=scoring_config,
         risk_mode=risk_mode,
         strategy_approval_config=approval_config,
+        apply_strategy_quality=True,
     )

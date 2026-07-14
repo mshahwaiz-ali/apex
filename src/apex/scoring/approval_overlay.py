@@ -35,9 +35,7 @@ def apply_strategy_quality_gate(
             risk_mode=risk_mode,
             config=config,
         )
-        reason_text = tuple(
-            f"{reason.code.value}: {reason.message}" for reason in decision.reasons
-        )
+        reason_text = tuple(f"{reason.code.value}: {reason.message}" for reason in decision.reasons)
         if decision.approved:
             gated.append(replace(item, reasons=(*item.reasons, *reason_text)))
             continue

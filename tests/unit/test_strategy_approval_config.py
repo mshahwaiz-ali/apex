@@ -37,14 +37,20 @@ def test_default_strategy_approval_configuration_loads() -> None:
     assert config.rule_for(StrategyType.TREND_PULLBACK).quality_class is (
         StrategyQualityClass.PREFERRED
     )
-    assert config.minimum_score_for(
-        StrategyType.BREAKOUT_CONTINUATION,
-        RiskMode.STANDARD,
-    ) == 84.0
-    assert config.minimum_score_for(
-        StrategyType.MOMENTUM_GAINER_CONTINUATION,
-        RiskMode.EXTREME,
-    ) == 70.0
+    assert (
+        config.minimum_score_for(
+            StrategyType.BREAKOUT_CONTINUATION,
+            RiskMode.STANDARD,
+        )
+        == 84.0
+    )
+    assert (
+        config.minimum_score_for(
+            StrategyType.MOMENTUM_GAINER_CONTINUATION,
+            RiskMode.EXTREME,
+        )
+        == 70.0
+    )
 
 
 def test_all_risk_mode_thresholds_are_required() -> None:

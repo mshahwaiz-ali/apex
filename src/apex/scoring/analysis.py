@@ -27,14 +27,13 @@ def analyze_phase5(
     config: ScoringConfig = DEFAULT_SCORING_CONFIG,
     risk_mode: RiskMode = RiskMode.STANDARD,
     strategy_approval_config: StrategyApprovalConfig | None = None,
-    apply_strategy_quality: bool = True,
+    apply_strategy_quality: bool = False,
 ) -> Phase5AnalysisResult:
     """Consume immutable Phase 4 candidates and produce one deterministic decision.
 
-    Futures analysis applies the N3 strategy-quality gate in ``STANDARD`` mode by
-    default. Research and legacy callers may disable the overlay explicitly with
-    ``apply_strategy_quality=False``. ``AGGRESSIVE`` and ``EXTREME`` callers pass
-    their selected risk mode directly.
+    Raw Phase 5 scoring remains backward-compatible and does not apply N3 quality
+    gating unless ``apply_strategy_quality=True``. Futures orchestration enables the
+    gate explicitly through ``analyze_futures_phase5()``.
     """
 
     approval_config = strategy_approval_config

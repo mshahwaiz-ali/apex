@@ -161,8 +161,7 @@ def evaluate_strategy_approval(
         ApprovalReason(
             code=ApprovalReasonCode.STRATEGY_APPROVED,
             message=(
-                f"{strategy.value} clears the {risk_mode.value} threshold "
-                f"of {required_score:.2f}."
+                f"{strategy.value} clears the {risk_mode.value} threshold of {required_score:.2f}."
             ),
         )
     )

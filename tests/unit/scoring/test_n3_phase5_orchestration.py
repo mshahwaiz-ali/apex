@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from apex.application.futures_quality import analyze_futures_phase5
 from apex.domain import RiskMode
 from apex.scoring import analyze_phase5
 from apex.strategies import Phase4AnalysisResult, StrategyType
@@ -19,8 +20,8 @@ def _empty_phase4() -> Phase4AnalysisResult:
     )
 
 
-def test_phase5_enables_standard_quality_gate_by_default() -> None:
-    result = analyze_phase5(_empty_phase4())
+def test_futures_phase5_enables_standard_quality_gate_by_default() -> None:
+    result = analyze_futures_phase5(_empty_phase4())
 
     assert result.metadata["strategy_quality_gate_enabled"] is True
     assert result.metadata["strategy_quality_risk_mode"] == RiskMode.STANDARD.value
@@ -34,8 +35,11 @@ def test_phase5_allows_explicit_research_opt_out() -> None:
     assert result.metadata["strategy_quality_risk_mode"] == ""
 
 
-def test_phase5_supports_explicit_aggressive_mode() -> None:
-    result = analyze_phase5(_empty_phase4(), risk_mode=RiskMode.AGGRESSIVE)
+def test_futures_phase5_supports_explicit_aggressive_mode() -> None:
+    result = analyze_futures_phase5(
+        _empty_phase4(),
+        risk_mode=RiskMode.AGGRESSIVE,
+    )
 
     assert result.metadata["strategy_quality_gate_enabled"] is True
     assert result.metadata["strategy_quality_risk_mode"] == RiskMode.AGGRESSIVE.value

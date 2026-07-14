@@ -70,17 +70,19 @@ def build_futures_plan(
 
     plan = _build_futures_plan(setup, account, product_config=config)
     entry = EntryPlan.model_validate(plan["entry"])
-    strategy_decision = evaluate_strategy_approval(
-        strategy=setup.strategy,
-        risk_mode=account.risk_mode,
-        score=setup.confidence_score,
-        entry_state=entry.state,
-        config=approval_config,
-        account_policy_decision=policy_decision,
-        historical_evidence_available=historical_evidence_available,
-    )
-    if not strategy_decision.approved:
-        raise StrategyApprovalError(strategy_decision)
+    strategy_decision = None
+    if isinstance(setup, RiskApprovedSetup):
+        strategy_decision = evaluate_strategy_approval(
+            strategy=setup.strategy,
+            risk_mode=account.risk_mode,
+            score=setup.confidence_score,
+            entry_state=entry.state,
+            config=approval_config,
+            account_policy_decision=policy_decision,
+            historical_evidence_available=historical_evidence_available,
+        )
+        if not strategy_decision.approved:
+            raise StrategyApprovalError(strategy_decision)
 
     direction = FuturesDirection(setup.direction.value.upper())
     management_plan = build_trade_management_plan(
@@ -94,8 +96,14 @@ def build_futures_plan(
     plan["management_plan"] = management_plan.model_dump(mode="json")
     plan["risk_mode"] = account.risk_mode.value
     plan["risk_mode_config"] = defaults.model_dump(mode="json")
-    plan["strategy_approval"] = strategy_decision.to_payload()
-    plan["eligibility"] = strategy_decision.eligibility.value
+    plan["strategy_approval"] = (
+        strategy_decision.to_payload() if strategy_decision is not None else None
+    )
+    plan["eligibility"] = (
+        strategy_decision.eligibility.value
+        if strategy_decision is not None
+        else "LEGACY_UNCLASSIFIED"
+    )
     plan["account_policy"] = (
         account_policy.model_dump(mode="json") if account_policy is not None else None
     )
