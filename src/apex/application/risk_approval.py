@@ -52,6 +52,7 @@ def build_futures_plan(
         position=PositionPlan.model_validate(plan["position"]),
         targets=TargetPlan.model_validate(plan["targets"]),
         account=account,
+        generated_at=setup.decision_time,
     )
     plan["management_plan"] = management_plan.model_dump(mode="json")
     plan["risk_mode"] = account.risk_mode.value
