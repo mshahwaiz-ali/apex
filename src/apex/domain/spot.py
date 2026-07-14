@@ -8,6 +8,7 @@ semantics.
 from __future__ import annotations
 
 from enum import StrEnum
+from itertools import pairwise
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -129,7 +130,7 @@ class SpotEntryPlan(BaseModel):
         if len(labels) != len(set(labels)):
             raise ValueError("spot entry labels must be unique")
         prices = [entry.price for entry in self.entries]
-        if any(later > earlier for earlier, later in zip(prices, prices[1:], strict=False)):
+        if any(later > earlier for earlier, later in pairwise(prices)):
             raise ValueError("spot scale-in entry prices must be non-increasing")
         if self.maximum_chase_price < prices[0]:
             raise ValueError("spot maximum chase price cannot be below the first entry")
@@ -177,7 +178,7 @@ class SpotTargetPlan(BaseModel):
         if abs(total - 100.0) > 1e-9:
             raise ValueError("spot target sell percentages must total 100")
         prices = [target.price for target in self.targets]
-        if any(later <= earlier for earlier, later in zip(prices, prices[1:], strict=False)):
+        if any(later <= earlier for earlier, later in pairwise(prices)):
             raise ValueError("spot target prices must be strictly increasing")
         labels = [target.label for target in self.targets]
         if len(labels) != len(set(labels)):
@@ -231,7 +232,9 @@ class SpotLifecycleSnapshot(BaseModel):
         }
         if self.state in terminal and self.open_quantity != 0:
             raise ValueError("terminal spot lifecycle states cannot retain open quantity")
-        if self.state in {SpotLifecycleState.FILLED, SpotLifecycleState.PARTIALLY_REDUCED}:
-            if self.open_quantity <= 0:
-                raise ValueError("active spot lifecycle states require open quantity")
+        if (
+            self.state in {SpotLifecycleState.FILLED, SpotLifecycleState.PARTIALLY_REDUCED}
+            and self.open_quantity <= 0
+        ):
+            raise ValueError("active spot lifecycle states require open quantity")
         return self
