@@ -32,13 +32,10 @@ class SpotAllocationConfig(BaseModel):
         ):
             raise ValueError("correlated-sector exposure cannot exceed total spot exposure")
         if (
-            self.maximum_total_spot_exposure_percentage
-            + self.minimum_quote_reserve_percentage
+            self.maximum_total_spot_exposure_percentage + self.minimum_quote_reserve_percentage
             > 100
         ):
-            raise ValueError(
-                "spot exposure and minimum quote reserve cannot exceed 100 percent"
-            )
+            raise ValueError("spot exposure and minimum quote reserve cannot exceed 100 percent")
         return self
 
 
@@ -95,10 +92,7 @@ class SpotStructureConfig(BaseModel):
             raise ValueError("low timeframes cannot be approved for the spot thesis")
         if self.extension_atr_multiple >= self.terminal_extension_atr_multiple:
             raise ValueError("terminal extension threshold must be larger")
-        if (
-            self.risk_off_maximum_breadth_percentage
-            >= self.risk_on_minimum_breadth_percentage
-        ):
+        if self.risk_off_maximum_breadth_percentage >= self.risk_on_minimum_breadth_percentage:
             raise ValueError("risk-off breadth must be below risk-on breadth")
         return self
 

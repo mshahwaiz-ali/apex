@@ -94,9 +94,15 @@ def evaluate_spot_symbol_eligibility(
         reasons.append(SpotEligibilityReason.EXCLUDED_SYMBOL)
     if metadata.quote_volume_24h < thresholds.minimum_quote_volume_24h:
         reasons.append(SpotEligibilityReason.INSUFFICIENT_QUOTE_VOLUME)
-    if metadata.market_age_days is None or metadata.market_age_days < thresholds.minimum_market_age_days:
+    if (
+        metadata.market_age_days is None
+        or metadata.market_age_days < thresholds.minimum_market_age_days
+    ):
         reasons.append(SpotEligibilityReason.INSUFFICIENT_MARKET_HISTORY)
-    if metadata.spread_percentage is None or metadata.spread_percentage > thresholds.maximum_spread_percentage:
+    if (
+        metadata.spread_percentage is None
+        or metadata.spread_percentage > thresholds.maximum_spread_percentage
+    ):
         reasons.append(SpotEligibilityReason.SPREAD_TOO_WIDE)
     if metadata.available_candle_count < thresholds.minimum_candle_count:
         reasons.append(SpotEligibilityReason.INSUFFICIENT_CANDLE_HISTORY)
@@ -104,7 +110,10 @@ def evaluate_spot_symbol_eligibility(
         reasons.append(SpotEligibilityReason.DATA_GAPS)
     if metadata.terminal_extension:
         reasons.append(SpotEligibilityReason.TERMINAL_EXTENSION)
-    if metadata.atr_percentage is None or metadata.atr_percentage < thresholds.minimum_atr_percentage:
+    if (
+        metadata.atr_percentage is None
+        or metadata.atr_percentage < thresholds.minimum_atr_percentage
+    ):
         reasons.append(SpotEligibilityReason.INSUFFICIENT_ATR)
     if (
         metadata.downside_volatility_percentage is None

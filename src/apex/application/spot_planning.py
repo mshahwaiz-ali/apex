@@ -79,9 +79,7 @@ def build_spot_plan(
         )
         for index, (price, allocation) in enumerate(zip(prices, allocations, strict=True))
     )
-    maximum_chase = request.current_price * (
-        1 + config.entry.maximum_chase_percentage / 100
-    )
+    maximum_chase = request.current_price * (1 + config.entry.maximum_chase_percentage / 100)
     entry_plan = SpotEntryPlan(
         state=SpotEntryState.READY_NOW,
         current_price=request.current_price,
@@ -90,9 +88,7 @@ def build_spot_plan(
         invalidation_price=invalidation,
     )
 
-    average_entry = sum(
-        leg.price * leg.allocation_percentage / 100 for leg in entry_plan.entries
-    )
+    average_entry = sum(leg.price * leg.allocation_percentage / 100 for leg in entry_plan.entries)
     risk_per_unit = average_entry - invalidation
     if risk_per_unit <= 0:
         raise ValueError("spot risk per unit must be positive")
@@ -110,9 +106,7 @@ def build_spot_plan(
     )
     remaining_sector_exposure = max(
         0.0,
-        equity
-        * config.allocation.maximum_correlated_sector_exposure_percentage
-        / 100
+        equity * config.allocation.maximum_correlated_sector_exposure_percentage / 100
         - request.correlated_sector_exposure,
     )
     reserve_floor = equity * config.allocation.minimum_quote_reserve_percentage / 100

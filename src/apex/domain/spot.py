@@ -138,7 +138,10 @@ class SpotEntryPlan(BaseModel):
             raise ValueError("spot invalidation must be below every planned entry")
         if self.state is SpotEntryState.READY_NOW and self.current_price > self.maximum_chase_price:
             raise ValueError("READY_NOW cannot be beyond the maximum chase price")
-        if self.state is SpotEntryState.MISSED_ENTRY and self.current_price <= self.maximum_chase_price:
+        if (
+            self.state is SpotEntryState.MISSED_ENTRY
+            and self.current_price <= self.maximum_chase_price
+        ):
             raise ValueError("MISSED_ENTRY requires price beyond maximum chase")
         return self
 

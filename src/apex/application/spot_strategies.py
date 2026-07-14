@@ -16,7 +16,6 @@ from apex.domain.spot_strategy import (
 )
 from apex.domain.spot_structure import SpotExtensionState, SpotTrendState
 
-
 Evaluator = Callable[[SpotStrategyInput, SpotStrategyConfig], SpotStrategyCandidate]
 
 

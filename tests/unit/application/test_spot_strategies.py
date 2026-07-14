@@ -111,10 +111,7 @@ def test_risk_off_rejects_standard_strategies() -> None:
 def test_terminal_extension_rejects_standard_entries() -> None:
     result = evaluate_spot_strategies(_input(extension=SpotExtensionState.TERMINAL))
 
-    assert all(
-        item.decision is not SpotStrategyDecision.APPROVE
-        for item in result.candidates[:-1]
-    )
+    assert all(item.decision is not SpotStrategyDecision.APPROVE for item in result.candidates[:-1])
 
 
 def test_post_capitulation_recovery_is_paper_only() -> None:
