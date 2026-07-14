@@ -14,7 +14,6 @@ from apex.application.historical_edge import (
     build_dataset_metadata,
 )
 
-
 BASE_TIME = datetime(2024, 1, 1, tzinfo=UTC)
 
 
@@ -208,7 +207,5 @@ def test_futures_and_spot_are_segmented_by_setup() -> None:
         (MarketType.FUTURES, "trend_pullback"),
         (MarketType.SPOT, "trend_pullback"),
     )
-    assert result[(MarketType.FUTURES, "trend_pullback")].dataset_ids == (
-        "futures-dataset",
-    )
+    assert result[(MarketType.FUTURES, "trend_pullback")].dataset_ids == ("futures-dataset",)
     assert result[(MarketType.SPOT, "trend_pullback")].dataset_ids == ("spot-dataset",)

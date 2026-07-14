@@ -13,6 +13,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from itertools import pairwise
 from types import MappingProxyType
 
 
@@ -134,6 +135,9 @@ class EvidenceThresholds:
             raise ValueError("established threshold cannot be below preliminary threshold")
 
 
+DEFAULT_EVIDENCE_THRESHOLDS = EvidenceThresholds()
+
+
 @dataclass(frozen=True, slots=True)
 class HistoricalEdgeMetrics:
     """Setup-specific aggregate metrics for one exact evidence segment."""
@@ -203,7 +207,7 @@ def aggregate_historical_edge(
     symbol: str | None = None,
     regime: str | None = None,
     score_band: str | None = None,
-    thresholds: EvidenceThresholds = EvidenceThresholds(),
+    thresholds: EvidenceThresholds = DEFAULT_EVIDENCE_THRESHOLDS,
 ) -> HistoricalEdgeMetrics:
     """Aggregate completed outcomes for one exact, leakage-safe segment."""
 
@@ -276,7 +280,7 @@ def aggregate_by_setup(
     outcomes: Iterable[HistoricalOutcome],
     *,
     split: DatasetSplit,
-    thresholds: EvidenceThresholds = EvidenceThresholds(),
+    thresholds: EvidenceThresholds = DEFAULT_EVIDENCE_THRESHOLDS,
 ) -> Mapping[tuple[MarketType, str], HistoricalEdgeMetrics]:
     """Aggregate futures and spot outcomes separately by strategy."""
 
@@ -320,7 +324,7 @@ def _validate_partitions(partitions: Sequence[DatasetPartition]) -> None:
         split_counts[partition.split] += 1
     if set(split_counts) != set(DatasetSplit) or any(count != 1 for count in split_counts.values()):
         raise ValueError("dataset requires exactly one TRAIN, VALIDATION, and TEST partition")
-    for previous, current in zip(ordered, ordered[1:], strict=False):
+    for previous, current in pairwise(ordered):
         if current.start_at < previous.end_at:
             raise ValueError("dataset partitions must not overlap")
     if tuple(partition.split for partition in ordered) != (

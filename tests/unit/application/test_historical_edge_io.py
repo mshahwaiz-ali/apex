@@ -161,9 +161,7 @@ def test_futures_and_spot_reports_remain_separate(tmp_path: Path) -> None:
     futures_metadata = _metadata(MarketType.FUTURES)
     spot_metadata = _metadata(MarketType.SPOT)
     futures_metrics = _metrics()
-    spot_outcomes = tuple(
-        _outcome(index, market_type=MarketType.SPOT) for index in range(2)
-    )
+    spot_outcomes = tuple(_outcome(index, market_type=MarketType.SPOT) for index in range(2))
     spot_metrics = aggregate_historical_edge(
         spot_outcomes,
         market_type=MarketType.SPOT,

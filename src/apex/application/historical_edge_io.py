@@ -74,9 +74,7 @@ def dumps_historical_edge_report(
 ) -> str:
     """Serialize one historical-edge report deterministically."""
 
-    return dumps_report(
-        historical_edge_report_payload(metrics, dataset_metadata=dataset_metadata)
-    )
+    return dumps_report(historical_edge_report_payload(metrics, dataset_metadata=dataset_metadata))
 
 
 def write_historical_edge_report(
@@ -99,9 +97,7 @@ def write_historical_edge_report(
     temporary.replace(path)
 
 
-def write_historical_dataset_sqlite(
-    path: Path, metadata: HistoricalDatasetMetadata
-) -> None:
+def write_historical_dataset_sqlite(path: Path, metadata: HistoricalDatasetMetadata) -> None:
     """Upsert one curated dataset identity and split definition."""
 
     payload = _dataset_payload(metadata)
@@ -136,9 +132,7 @@ def write_historical_dataset_sqlite(
         )
 
 
-def write_historical_outcomes_sqlite(
-    path: Path, outcomes: Iterable[HistoricalOutcome]
-) -> int:
+def write_historical_outcomes_sqlite(path: Path, outcomes: Iterable[HistoricalOutcome]) -> int:
     """Upsert completed chronological outcomes and return the written row count."""
 
     materialized = tuple(outcomes)
@@ -189,9 +183,7 @@ def write_historical_edge_report_sqlite(
 ) -> None:
     """Upsert one aggregate report keyed by its deterministic result hash."""
 
-    payload = historical_edge_report_payload(
-        metrics, dataset_metadata=dataset_metadata
-    )
+    payload = historical_edge_report_payload(metrics, dataset_metadata=dataset_metadata)
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path) as connection:
         _ensure_schema(connection)
@@ -227,9 +219,7 @@ def write_historical_edge_report_sqlite(
         )
 
 
-def load_historical_edge_report_sqlite(
-    path: Path, result_hash: str
-) -> dict[str, Any] | None:
+def load_historical_edge_report_sqlite(path: Path, result_hash: str) -> dict[str, Any] | None:
     """Load one aggregate report by deterministic result hash."""
 
     if not path.exists():

@@ -202,9 +202,7 @@ def test_zero_sample_query_remains_explicitly_insufficient(tmp_path: Path) -> No
     assert result.datasets == ()
     assert result.metrics.sample_count == 0
     assert result.metrics.evidence_quality is EvidenceQuality.INSUFFICIENT
-    assert result.metrics.insufficient_reason == (
-        "requires at least 20 completed samples; found 0"
-    )
+    assert result.metrics.insufficient_reason == ("requires at least 20 completed samples; found 0")
 
 
 def test_final_test_query_is_allowed_only_with_explicit_flag(tmp_path: Path) -> None:

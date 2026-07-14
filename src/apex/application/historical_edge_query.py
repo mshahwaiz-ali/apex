@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -41,7 +41,7 @@ class HistoricalEdgeQueryRequest:
     regime: str | None = None
     score_band: str | None = None
     dataset_id: str | None = None
-    thresholds: EvidenceThresholds = EvidenceThresholds()
+    thresholds: EvidenceThresholds = field(default_factory=EvidenceThresholds)
     allow_final_test: bool = False
 
     def __post_init__(self) -> None:
@@ -50,9 +50,7 @@ class HistoricalEdgeQueryRequest:
         if self.dataset_id is not None and not self.dataset_id.strip():
             raise ValueError("historical-edge dataset id cannot be blank")
         if self.split is DatasetSplit.TEST and not self.allow_final_test:
-            raise ValueError(
-                "final TEST split access requires allow_final_test=True"
-            )
+            raise ValueError("final TEST split access requires allow_final_test=True")
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,9 +159,7 @@ def run_historical_edge_query(
     found_ids = {item.dataset_id for item in datasets}
     missing_ids = sorted(set(metrics.dataset_ids) - found_ids)
     if missing_ids:
-        raise ValueError(
-            "missing persisted dataset metadata: " + ", ".join(missing_ids)
-        )
+        raise ValueError("missing persisted dataset metadata: " + ", ".join(missing_ids))
     payload = historical_edge_report_payload(
         metrics,
         dataset_metadata=datasets,
@@ -198,12 +194,8 @@ def _outcome_from_json(raw: str) -> HistoricalOutcome:
         closed_at=_aware_datetime(payload, "closed_at"),
         net_return=float(payload["net_return"]),
         r_multiple=float(payload["r_multiple"]),
-        maximum_favorable_excursion_r=float(
-            payload["maximum_favorable_excursion_r"]
-        ),
-        maximum_adverse_excursion_r=float(
-            payload["maximum_adverse_excursion_r"]
-        ),
+        maximum_favorable_excursion_r=float(payload["maximum_favorable_excursion_r"]),
+        maximum_adverse_excursion_r=float(payload["maximum_adverse_excursion_r"]),
         won=bool(payload["won"]),
     )
 
@@ -218,9 +210,7 @@ def _dataset_from_json(raw: str) -> HistoricalDatasetMetadata:
     timeframes = payload.get("timeframes")
     if not isinstance(symbols, list) or not all(isinstance(item, str) for item in symbols):
         raise ValueError("historical dataset symbols must be strings")
-    if not isinstance(timeframes, list) or not all(
-        isinstance(item, str) for item in timeframes
-    ):
+    if not isinstance(timeframes, list) or not all(isinstance(item, str) for item in timeframes):
         raise ValueError("historical dataset timeframes must be strings")
     return HistoricalDatasetMetadata(
         dataset_id=_required_string(payload, "dataset_id"),

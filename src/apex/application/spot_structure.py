@@ -90,9 +90,7 @@ def analyze_spot_structure(
         SpotTrendState.STRONG_DOWNTREND: -2,
     }
     weights = {"1w": 5, "1d": 4, "12h": 3, "8h": 3, "4h": 2}
-    score: float = float(
-        sum(weights[item.timeframe] * trend_score[item.trend] for item in items)
-    )
+    score: float = float(sum(weights[item.timeframe] * trend_score[item.trend] for item in items))
     score /= sum(weights[item.timeframe] for item in items)
     if score >= 1.25:
         trend = SpotTrendState.STRONG_UPTREND
