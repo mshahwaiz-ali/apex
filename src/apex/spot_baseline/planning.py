@@ -11,6 +11,7 @@ from apex.spot_baseline.contracts import (
     SpotCampaignCell,
     SpotCostVariant,
     SpotDatasetReference,
+    SpotDatasetRole,
 )
 
 
@@ -31,6 +32,8 @@ def build_spot_baseline_plan(
     normalized_allocations = tuple(
         sorted(allocation_variants, key=lambda item: item.identifier)
     )
+    if not normalized_datasets or not normalized_costs or not normalized_allocations:
+        raise ValueError("spot baseline plan requires datasets and scenario variants")
     _require_unique(
         [dataset.dataset_id for dataset in normalized_datasets], "dataset ids"
     )
@@ -41,13 +44,27 @@ def build_spot_baseline_plan(
         [variant.identifier for variant in normalized_allocations],
         "allocation variant ids",
     )
+    roles = {dataset.role for dataset in normalized_datasets}
+    missing_roles = set(SpotDatasetRole) - roles
+    if missing_roles:
+        raise ValueError(
+            "spot baseline datasets are missing roles: "
+            f"{sorted(role.value for role in missing_roles)}"
+        )
     known_symbols = set(normalized_symbols)
+    covered_symbols: set[str] = set()
     for dataset in normalized_datasets:
         unknown = set(dataset.symbols) - known_symbols
         if unknown:
             raise ValueError(
                 f"dataset {dataset.dataset_id} contains unplanned symbols: {sorted(unknown)}"
             )
+        covered_symbols.update(dataset.symbols)
+    missing_symbols = known_symbols - covered_symbols
+    if missing_symbols:
+        raise ValueError(
+            f"spot baseline datasets are missing symbols: {sorted(missing_symbols)}"
+        )
 
     assumptions_hash = _stable_hash(dict(assumptions))
     cells = tuple(
@@ -89,7 +106,9 @@ def build_spot_baseline_plan(
         "allocation_variants": [
             {
                 "identifier": variant.identifier,
-                "maximum_allocation_per_position_pct": variant.maximum_allocation_per_position_pct,
+                "maximum_allocation_per_position_pct": (
+                    variant.maximum_allocation_per_position_pct
+                ),
                 "maximum_total_exposure_pct": variant.maximum_total_exposure_pct,
                 "maximum_concurrent_positions": variant.maximum_concurrent_positions,
             }
