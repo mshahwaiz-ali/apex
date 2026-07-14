@@ -142,6 +142,21 @@ class SpotEntryPlan(BaseModel):
         return self
 
 
+class SpotStopPlan(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    structural_invalidation_price: float = Field(gt=0)
+    protective_stop_price: float = Field(gt=0)
+    thesis_failure_reason: str = Field(min_length=1)
+    market_regime_exit_required: bool = True
+
+    @model_validator(mode="after")
+    def validate_stop_geometry(self) -> Self:
+        if self.protective_stop_price > self.structural_invalidation_price:
+            raise ValueError("spot protective stop cannot exceed structural invalidation")
+        return self
+
+
 class SpotTargetLeg(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -189,4 +204,34 @@ class SpotPositionPlan(BaseModel):
             raise ValueError("spot capital allocated must equal average entry price times quantity")
         if self.planned_loss_amount >= self.capital_allocated:
             raise ValueError("spot planned loss must be below allocated capital")
+        return self
+
+
+class SpotLifecycleSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    state: SpotLifecycleState
+    filled_entry_labels: tuple[str, ...] = ()
+    completed_target_labels: tuple[str, ...] = ()
+    open_quantity: float = Field(default=0.0, ge=0)
+    active_stop_price: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_lifecycle_snapshot(self) -> Self:
+        if len(self.filled_entry_labels) != len(set(self.filled_entry_labels)):
+            raise ValueError("filled spot entry labels must be unique")
+        if len(self.completed_target_labels) != len(set(self.completed_target_labels)):
+            raise ValueError("completed spot target labels must be unique")
+        terminal = {
+            SpotLifecycleState.CLOSED,
+            SpotLifecycleState.STOPPED,
+            SpotLifecycleState.EXPIRED,
+            SpotLifecycleState.CANCELLED,
+            SpotLifecycleState.INVALIDATED,
+        }
+        if self.state in terminal and self.open_quantity != 0:
+            raise ValueError("terminal spot lifecycle states cannot retain open quantity")
+        if self.state in {SpotLifecycleState.FILLED, SpotLifecycleState.PARTIALLY_REDUCED}:
+            if self.open_quantity <= 0:
+                raise ValueError("active spot lifecycle states require open quantity")
         return self
