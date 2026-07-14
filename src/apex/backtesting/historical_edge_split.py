@@ -112,10 +112,11 @@ class HistoricalEdgeSplitSet:
 def split_historical_edge_trades(
     trades: tuple[SimulatedTrade, ...],
     *,
-    config: HistoricalEdgeSplitConfig = HistoricalEdgeSplitConfig(),
+    config: HistoricalEdgeSplitConfig | None = None,
 ) -> HistoricalEdgeSplitSet:
     """Chronologically split completed trades and remove boundary leakage."""
 
+    resolved_config = config or HistoricalEdgeSplitConfig()
     ordered = tuple(
         sorted(
             trades,
@@ -127,8 +128,8 @@ def split_historical_edge_trades(
         )
     )
     total = len(ordered)
-    train_end = int(total * config.train_ratio)
-    validation_end = train_end + int(total * config.validation_ratio)
+    train_end = int(total * resolved_config.train_ratio)
+    validation_end = train_end + int(total * resolved_config.validation_ratio)
 
     raw_train = ordered[:train_end]
     raw_validation = ordered[train_end:validation_end]
@@ -141,7 +142,7 @@ def split_historical_edge_trades(
         prior_end=train.end_time,
         source_start=train_end,
         source_end=validation_end,
-        purge_trades=config.purge_trades,
+        purge_trades=resolved_config.purge_trades,
     )
     test_prior_end = validation.end_time or train.end_time
     test = _guard_later_split(
@@ -150,7 +151,7 @@ def split_historical_edge_trades(
         prior_end=test_prior_end,
         source_start=validation_end,
         source_end=total,
-        purge_trades=config.purge_trades,
+        purge_trades=resolved_config.purge_trades,
     )
     return HistoricalEdgeSplitSet(
         train=train,
