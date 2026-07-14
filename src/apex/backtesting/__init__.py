@@ -9,6 +9,16 @@ from apex.backtesting.contracts import (
     BacktestStudy,
     SimulatedTrade,
 )
+from apex.backtesting.dataset import (
+    FUTURES_DATASET_SCHEMA_VERSION,
+    FuturesCandleDataset,
+    FuturesDatasetManifest,
+    build_futures_dataset,
+    hash_candles,
+    load_futures_dataset,
+    validate_dataset_candles,
+    write_futures_dataset,
+)
 from apex.backtesting.engine import (
     HistoricalBacktestRunner,
     signal_from_setup,
@@ -50,6 +60,7 @@ from apex.backtesting.historical_edge_validation import (
 
 __all__ = [
     "DEFAULT_EDGE_SEGMENTS",
+    "FUTURES_DATASET_SCHEMA_VERSION",
     "HISTORICAL_EDGE_DB_SCHEMA_VERSION",
     "HISTORICAL_EDGE_REPORT_SCHEMA_VERSION",
     "BacktestConfig",
@@ -59,6 +70,8 @@ __all__ = [
     "BacktestSignal",
     "BacktestStudy",
     "EvidenceQuality",
+    "FuturesCandleDataset",
+    "FuturesDatasetManifest",
     "HistoricalBacktestRunner",
     "HistoricalEdgeProfile",
     "HistoricalEdgeSplit",
@@ -71,17 +84,22 @@ __all__ = [
     "HistoricalEdgeValidationStatus",
     "SimulatedTrade",
     "aggregate_historical_edges",
+    "build_futures_dataset",
     "build_historical_edge_profile",
     "build_historical_edge_report",
     "evaluate_historical_edge_splits",
+    "hash_candles",
     "list_historical_edge_report_metadata_sqlite",
+    "load_futures_dataset",
     "load_historical_edge_report",
     "load_historical_edge_report_sqlite",
     "signal_from_setup",
     "simulate_trade",
     "split_historical_edge_trades",
     "summarize_trades",
+    "validate_dataset_candles",
     "validate_out_of_sample_edges",
+    "write_futures_dataset",
     "write_historical_edge_report",
     "write_historical_edge_report_sqlite",
 ]

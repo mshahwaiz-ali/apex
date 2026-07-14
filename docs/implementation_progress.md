@@ -182,17 +182,33 @@ Observed locally after pulling commit `de022ea` on 2026-07-14:
 - Added focused tests for threshold routing, funded/paper/experimental eligibility,
   breakout-retest treatment, direct-breakout restrictions, and provisional gainer rejection.
 
-### Remaining integration and validation
+### Completed integration and validation
 
-- Replace the central futures analysis call from `analyze_phase5(routed_phase4)` to
-  `analyze_futures_phase5(routed_phase4, risk_mode=...)` in the local checkout, where the complete
-  large orchestration module can be edited safely without full-file API replacement.
-- Propagate the selected risk mode through scanner and selected-symbol entry points.
-- Run the complete end-of-N3 local quality gate once all N3 integration is present:
-  `ruff format .`, `ruff check .`, `mypy src`, and `pytest`.
-- Repair all findings before declaring N3 complete.
+- Futures approval is integrated with typed historical and forward-paper evidence.
+- Exact matching `STANDARD` setup segments may become `FUNDED_ELIGIBLE` only after both historical
+  out-of-sample and forward-paper validation pass.
+- `AGGRESSIVE` remains `PAPER_ONLY`; `EXTREME` remains `EXPERIMENTAL_ONLY`.
+- Canonical setup-segment identity is centrally derived from the approved setup, account risk mode,
+  scanner context, market regime, and deterministic score band.
+- Arbitrary caller-authored segment mappings are no longer accepted by futures-plan approval.
+- The complete local quality gate passed with 930 tests after canonical segment integration.
 
-No historical profitability, funded readiness, or production eligibility claim is made by N3.
+No historical profitability, execution readiness, funded-account readiness, or production
+eligibility claim is made by N3.
+
+## N4 — Reproducible Futures Evidence Campaigns
+
+### Batch N4.1 dataset foundation
+
+- Added immutable futures candle dataset manifests.
+- Dataset identity includes symbol, timeframe, provider, extraction timestamp, coverage bounds,
+  candle count, schema version, and deterministic SHA-256 content hash.
+- Dataset construction rejects mixed symbols, mixed timeframes, mixed providers, active candles,
+  duplicate timestamps, and non-chronological candles.
+- JSON persistence uses atomic replacement and fully revalidates manifest-to-content consistency
+  when loading.
+- This foundation does not claim historical edge; empirical baseline campaigns remain the next
+  stage.
 
 ## V2 Spot Portfolio Backtester and Baseline Campaign Pipeline
 
