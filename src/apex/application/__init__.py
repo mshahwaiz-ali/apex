@@ -78,6 +78,10 @@ from apex.application.spot_account import (
     DEFAULT_SPOT_CONFIG_PATH,
     build_spot_account_input,
 )
+from apex.application.spot_entry_eligibility import (
+    SpotEntryEligibilityResult,
+    evaluate_spot_entry_eligibility,
+)
 from apex.application.spot_structure import (
     analyze_spot_structure,
     classify_spot_market_regime,
@@ -111,6 +115,7 @@ __all__ = [
     "MarketDataServices",
     "MultiSymbolBacktestCampaignRequest",
     "ScanResult",
+    "SpotEntryEligibilityResult",
     "StrategyApprovalError",
     "SymbolAnalysis",
     "analyze_futures_phase5",
@@ -130,6 +135,7 @@ __all__ = [
     "classify_spot_timeframe",
     "create_market_data_services",
     "default_campaign_variants",
+    "evaluate_spot_entry_eligibility",
     "format_scan_text",
     "format_symbol_text",
     "format_trade_management_plan",
