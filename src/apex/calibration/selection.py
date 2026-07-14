@@ -10,6 +10,7 @@ from apex.calibration.contracts import (
     CalibrationAssessment,
     CalibrationCandidate,
     CalibrationDecision,
+    CalibrationMetrics,
     CalibrationPolicy,
     CalibrationReason,
     WalkForwardCalibrationReport,
@@ -165,7 +166,7 @@ def _assessment_payload(item: CalibrationAssessment) -> dict[str, object]:
     }
 
 
-def _metrics_payload(metrics) -> dict[str, object]:
+def _metrics_payload(metrics: CalibrationMetrics) -> dict[str, object]:
     return {
         "sample_size": metrics.sample_size,
         "expectancy": metrics.expectancy,
