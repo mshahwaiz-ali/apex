@@ -139,6 +139,7 @@ class FuturesDatasetCampaignPlan:
     """Immutable acquisition plan for a reproducible historical campaign."""
 
     campaign_id: str
+    symbols: tuple[str, ...]
     timeframes: tuple[str, ...]
     provider: str
     candle_count: int
@@ -151,6 +152,13 @@ class FuturesDatasetCampaignPlan:
         for name in ("campaign_id", "provider", "output_directory"):
             if not getattr(self, name).strip():
                 raise ValueError(f"campaign {name.replace('_', ' ')} cannot be empty")
+        if not self.symbols:
+            raise ValueError("campaign requires at least one symbol")
+        normalized_symbols = tuple(_normalize_symbol(symbol) for symbol in self.symbols)
+        if len(set(normalized_symbols)) != len(normalized_symbols):
+            raise ValueError("campaign symbols contain duplicates after normalization")
+        if normalized_symbols != self.symbols or self.symbols != tuple(sorted(self.symbols)):
+            raise ValueError("campaign symbols must be normalized in deterministic order")
         if self.timeframes != normalize_campaign_timeframes(self.timeframes):
             raise ValueError("campaign timeframes must be normalized in canonical order")
         if not 1 <= self.candle_count <= MAXIMUM_DATASET_CANDLES:
@@ -189,10 +197,6 @@ class FuturesDatasetCampaignPlan:
             if job.candle_count != self.candle_count:
                 raise ValueError("campaign job candle count does not match campaign")
 
-    @property
-    def symbols(self) -> tuple[str, ...]:
-        return tuple(sorted({job.symbol for job in self.jobs}))
-
     def expected_matrix(self) -> tuple[tuple[str, str], ...]:
         return tuple(
             (symbol, timeframe)
@@ -204,6 +208,7 @@ class FuturesDatasetCampaignPlan:
         return {
             "schema_version": FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION,
             "campaign_id": self.campaign_id,
+            "symbols": list(self.symbols),
             "provider": self.provider,
             "timeframes": list(self.timeframes),
             "candle_count": self.candle_count,
@@ -318,6 +323,7 @@ def plan_futures_dataset_campaign(
         raise ValueError(f"campaign output path conflicts with a reserved path: {conflicts[0]}")
     return FuturesDatasetCampaignPlan(
         campaign_id=normalized_campaign_id,
+        symbols=ordered_symbols,
         timeframes=normalized_timeframes,
         provider=normalized_provider,
         candle_count=candle_count,
@@ -348,11 +354,16 @@ def load_futures_dataset_campaign_plan(path: Path) -> FuturesDatasetCampaignPlan
     schema_version = int(payload["schema_version"])
     if schema_version == LEGACY_FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION:
         raw_timeframes = (str(payload["timeframe"]),)
+        raw_symbols: tuple[str, ...] | None = None
     elif schema_version == FUTURES_DATASET_CAMPAIGN_SCHEMA_VERSION:
-        value = payload.get("timeframes")
-        if not isinstance(value, list):
+        timeframe_values = payload.get("timeframes")
+        symbol_values = payload.get("symbols")
+        if not isinstance(timeframe_values, list):
             raise ValueError("campaign timeframes must be a list")
-        raw_timeframes = tuple(str(item) for item in value)
+        if not isinstance(symbol_values, list):
+            raise ValueError("campaign symbols must be a list")
+        raw_timeframes = tuple(str(item) for item in timeframe_values)
+        raw_symbols = tuple(str(item) for item in symbol_values)
     else:
         raise ValueError("unsupported futures dataset campaign schema version")
     raw_ratios = payload.get("split_ratios")
@@ -367,9 +378,15 @@ def load_futures_dataset_campaign_plan(path: Path) -> FuturesDatasetCampaignPlan
         final_test=float(raw_ratios["final_test"]),
     )
     jobs = tuple(_load_job(raw_job) for raw_job in raw_jobs)
+    symbols = (
+        tuple(sorted({job.symbol for job in jobs}))
+        if raw_symbols is None
+        else tuple(_normalize_symbol(symbol) for symbol in raw_symbols)
+    )
     return FuturesDatasetCampaignPlan(
         schema_version=schema_version,
         campaign_id=str(payload["campaign_id"]),
+        symbols=symbols,
         timeframes=normalize_campaign_timeframes(raw_timeframes),
         provider=str(payload["provider"]),
         candle_count=int(payload["candle_count"]),
