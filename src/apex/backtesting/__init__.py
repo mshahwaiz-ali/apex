@@ -103,6 +103,21 @@ from apex.backtesting.historical_edge_validation import (
     evaluate_historical_edge_splits,
     validate_out_of_sample_edges,
 )
+from apex.backtesting.historical_signal_campaign import (
+    HistoricalSignalCampaignInputs,
+    HistoricalSourceDataset,
+    build_historical_signal_replay_points,
+    load_historical_signal_campaign_inputs,
+)
+from apex.backtesting.historical_signal_replay import (
+    HistoricalCandleSeries,
+    HistoricalCandleStore,
+    HistoricalReplayBoundaries,
+    HistoricalReplayPoint,
+    HistoricalReplayProvider,
+    HistoricalSignalSplit,
+    build_replay_points,
+)
 
 __all__ = [
     "CANONICAL_CAMPAIGN_TIMEFRAMES",
@@ -139,6 +154,8 @@ __all__ = [
     "FuturesDatasetSplitRatios",
     "FuturesDatasetSplitSet",
     "HistoricalBacktestRunner",
+    "HistoricalCandleSeries",
+    "HistoricalCandleStore",
     "HistoricalEdgeProfile",
     "HistoricalEdgeSplit",
     "HistoricalEdgeSplitConfig",
@@ -148,6 +165,12 @@ __all__ = [
     "HistoricalEdgeValidationReason",
     "HistoricalEdgeValidationResult",
     "HistoricalEdgeValidationStatus",
+    "HistoricalReplayBoundaries",
+    "HistoricalReplayPoint",
+    "HistoricalReplayProvider",
+    "HistoricalSignalCampaignInputs",
+    "HistoricalSignalSplit",
+    "HistoricalSourceDataset",
     "SimulatedTrade",
     "acquire_futures_dataset",
     "aggregate_historical_edges",
@@ -156,6 +179,8 @@ __all__ = [
     "build_futures_dataset",
     "build_historical_edge_profile",
     "build_historical_edge_report",
+    "build_historical_signal_replay_points",
+    "build_replay_points",
     "evaluate_historical_edge_splits",
     "execute_futures_dataset_campaign",
     "hash_candles",
@@ -167,6 +192,7 @@ __all__ = [
     "load_futures_dataset_split_manifest",
     "load_historical_edge_report",
     "load_historical_edge_report_sqlite",
+    "load_historical_signal_campaign_inputs",
     "normalize_campaign_timeframe",
     "normalize_campaign_timeframes",
     "plan_futures_dataset_campaign",

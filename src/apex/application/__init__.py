@@ -71,6 +71,21 @@ from apex.application.futures_quality import (
     DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH,
     analyze_futures_phase5,
 )
+from apex.application.historical_signal_generation import (
+    HistoricalSignalGenerationResult,
+    HistoricalSignalRecord,
+    build_historical_signal_record,
+    generate_historical_signals,
+)
+from apex.application.historical_signal_io import (
+    HISTORICAL_SIGNAL_EXECUTION_SCHEMA_VERSION,
+    HistoricalSignalExecutionManifest,
+    hash_configuration_files,
+    hash_historical_signal_records,
+    load_historical_signal_execution_manifest,
+    load_historical_signal_record_payloads,
+    write_historical_signal_generation,
+)
 from apex.application.market_data import MarketDataServices, create_market_data_services
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.risk_approval import (
@@ -128,6 +143,7 @@ __all__ = [
     "DEFAULT_QUOTE_ASSETS",
     "DEFAULT_SPOT_CONFIG_PATH",
     "DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH",
+    "HISTORICAL_SIGNAL_EXECUTION_SCHEMA_VERSION",
     "AccountStateSnapshot",
     "AccountStateStore",
     "ApplicationContext",
@@ -141,6 +157,9 @@ __all__ = [
     "ChronologicalBacktestRequest",
     "ChronologicalBacktestResult",
     "FuturesPlanSafetyError",
+    "HistoricalSignalExecutionManifest",
+    "HistoricalSignalGenerationResult",
+    "HistoricalSignalRecord",
     "MarketDataServices",
     "MultiSymbolBacktestCampaignRequest",
     "ScanResult",
@@ -160,6 +179,7 @@ __all__ = [
     "build_futures_account_input",
     "build_futures_plan",
     "build_futures_plan_result",
+    "build_historical_signal_record",
     "build_precision_entry_plan",
     "build_spot_account_input",
     "build_spot_plan",
@@ -180,6 +200,9 @@ __all__ = [
     "format_scan_text",
     "format_symbol_text",
     "format_trade_management_plan",
+    "generate_historical_signals",
+    "hash_configuration_files",
+    "hash_historical_signal_records",
     "list_analysis_record_metadata_sqlite",
     "list_backtest_campaign_metadata_sqlite",
     "list_backtest_report_metadata_sqlite",
@@ -187,6 +210,8 @@ __all__ = [
     "load_backtest_campaign_sqlite",
     "load_backtest_report_sqlite",
     "load_default_risk_config",
+    "load_historical_signal_execution_manifest",
+    "load_historical_signal_record_payloads",
     "load_symbols",
     "normalize_market_symbol",
     "parse_campaign_variants",
@@ -202,5 +227,6 @@ __all__ = [
     "write_analysis_record_sqlite",
     "write_backtest_campaign_sqlite",
     "write_backtest_report_sqlite",
+    "write_historical_signal_generation",
     "write_json_report",
 ]
