@@ -108,11 +108,26 @@ profitability or production readiness.
 - Both report commands support optional deterministic JSON file output.
 - Policy-aware account-state synchronization and canonical symbol handling remain unchanged.
 
+### Batch N2.6 expiry and advanced lifecycle guidance implemented
+
+- Approved public futures plans now derive a timezone-aware entry expiry from the setup decision
+  timestamp using a deterministic 15-minute default validity window.
+- Rejected entry instructions remain non-actionable and carry no expiry.
+- The public paper update API now routes through an expiry-aware candle-by-candle advancement
+  wrapper, preventing a candle at or after expiry from filling a stale waiting setup.
+- Explicit expiry produces a canonical `EXPIRED` lifecycle event and terminal paper state.
+- Paper guidance now exposes the exact entry deadline, replayed lifecycle reason, runner-active
+  flag, trailing-stop price, active stop, next target, and completed targets.
+- Replayed runner events produce runner-hold guidance; trailing-stop events produce `MOVE_STOP`
+  guidance with an explicit never-loosen instruction.
+- Emergency and momentum-failure terminal reasons produce explicit emergency-close verification.
+- Guidance report schema advanced to version 2.
+- Added focused unit coverage for explicit expiry and replayed runner/trailing-stop guidance.
+
 ### N2 remaining work
 
-- Add emergency-close, runner, and trailing guidance when those lifecycle events are generated.
-- Add explicit entry expiry timestamps and cancellation execution.
 - Add corrected-overlay CLI coverage for record, update, report, and replay-report.
-- Run and observe the complete Ruff, mypy, and pytest gate for the N2 batches.
+- Run and observe the complete Ruff, mypy, and pytest gate for all N2 batches.
+- Repair any quality-gate findings before declaring N2 complete.
 
 No external or forward-validation claim is made by this implementation.
