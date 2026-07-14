@@ -37,11 +37,14 @@ from apex.backtesting import (
     acquire_futures_dataset,
     load_and_verify_futures_dataset_split,
     load_futures_dataset,
+    load_futures_dataset_campaign_plan,
+    plan_futures_dataset_campaign,
     signal_from_setup,
     simulate_trade,
     split_futures_dataset,
     summarize_trades,
     write_futures_dataset,
+    write_futures_dataset_campaign_plan,
     write_futures_dataset_split_manifest,
 )
 from apex.config import load_settings
@@ -386,6 +389,101 @@ def dataset_acquire(
         f"| end={manifest.end_time.isoformat()} "
         f"| hash={manifest.content_hash} "
         f"| file={output_file}"
+    )
+
+
+@dataset_app.command("campaign-plan")
+def dataset_campaign_plan(
+    campaign_id: str = typer.Option(
+        ...,
+        "--campaign-id",
+        help="Stable campaign identifier.",
+    ),
+    symbols_file: Path = typer.Option(  # noqa: B008
+        Path("config/symbols.yaml"),
+        "--symbols-file",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="YAML symbol-universe file.",
+    ),
+    timeframe: str = typer.Option(
+        "5m",
+        "--timeframe",
+        "-t",
+        help="Historical candle timeframe for every job.",
+    ),
+    candle_count: int = typer.Option(
+        1_000,
+        "--candles",
+        "-c",
+        min=1,
+        max=MAXIMUM_DATASET_CANDLES,
+        help="Provider candle limit for every parent dataset.",
+    ),
+    provider: str = typer.Option(
+        "binance",
+        "--provider",
+        help="Expected market-data provider identifier.",
+    ),
+    output_directory: Path = typer.Option(  # noqa: B008
+        Path("data/datasets/futures"),
+        "--output-dir",
+        file_okay=False,
+        help="Directory containing expected campaign artifacts.",
+    ),
+    train_ratio: float = typer.Option(
+        0.60,
+        "--train-ratio",
+        help="Chronological train ratio.",
+    ),
+    validation_ratio: float = typer.Option(
+        0.20,
+        "--validation-ratio",
+        help="Chronological validation ratio.",
+    ),
+    test_ratio: float = typer.Option(
+        0.20,
+        "--test-ratio",
+        help="Chronological final-test ratio.",
+    ),
+    manifest_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--manifest-output",
+        dir_okay=False,
+        help="Destination campaign-plan manifest JSON file.",
+    ),
+) -> None:
+    """Plan and verify a deterministic historical dataset campaign."""
+
+    try:
+        plan = plan_futures_dataset_campaign(
+            campaign_id=campaign_id,
+            symbols=tuple(load_symbols(symbols_file)),
+            timeframe=timeframe,
+            provider=provider,
+            candle_count=candle_count,
+            output_directory=output_directory,
+            split_ratios=FuturesDatasetSplitRatios(
+                train=train_ratio,
+                validation=validation_ratio,
+                final_test=test_ratio,
+            ),
+            reserved_output_paths=(manifest_output,),
+        )
+        write_futures_dataset_campaign_plan(manifest_output, plan)
+        verified = load_futures_dataset_campaign_plan(manifest_output)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(
+        "DATASET_CAMPAIGN_PLANNED "
+        f"| campaign_id={verified.campaign_id} "
+        f"| jobs={len(verified.jobs)} "
+        f"| timeframe={verified.timeframe} "
+        f"| candles={verified.candle_count} "
+        f"| provider={verified.provider} "
+        f"| manifest={manifest_output}"
     )
 
 

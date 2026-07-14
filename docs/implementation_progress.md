@@ -296,3 +296,29 @@ eligibility claim is made by N3.
 - Added focused coverage for deterministic boundaries, odd counts, ratio validation, minimum
   sizes, reconstruction, overlap prevention, tampered hashes, JSON round trips, and CLI
   registration.
+
+## N4.4 — Deterministic historical dataset campaign planning
+
+### Implemented
+
+- Added provider-independent contracts for reproducible multi-symbol historical dataset campaigns.
+- Campaigns define a stable campaign ID, symbol universe, timeframe, provider, candle count, output
+  directory, chronological split ratios, and deterministic acquisition order.
+- Planning is intentionally candle-count based because the current provider abstraction does not
+  expose historical start/end-period acquisition.
+- Symbols are normalized, duplicate symbols are rejected, and jobs are sorted deterministically
+  regardless of input ordering.
+- Every job declares the expected parent dataset, train dataset, validation dataset, final-test
+  dataset, and split-manifest identifiers and output paths.
+- Parent IDs are deterministically derived from campaign ID, symbol, and timeframe; child IDs retain
+  the canonical `-train`, `-validation`, and `-final-test` suffixes.
+- Campaign construction rejects conflicting artifact paths and conflicts with the campaign manifest
+  output path.
+- Added schema-versioned atomic campaign-plan persistence with complete reload validation.
+- Added `apex dataset campaign-plan` with symbols-file, timeframe, candle-count, provider,
+  output-directory, split-ratio, and manifest-output options.
+- Campaign planning remains separate from acquisition, splitting, signal generation, backtesting,
+  calibration, and campaign execution.
+- Added focused tests for deterministic ordering, stable IDs, duplicate symbols, invalid ratios,
+  conflicting paths, JSON round trips, tamper detection, CLI registration, and CLI persistence.
+
