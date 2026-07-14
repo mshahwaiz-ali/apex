@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from apex.domain import (
     CurrentAction,
     EmergencyExitRule,
@@ -22,6 +24,8 @@ from apex.domain import (
     entry_action_for_state,
 )
 
+DEFAULT_ENTRY_VALIDITY = timedelta(minutes=15)
+
 
 def build_trade_management_plan(
     *,
@@ -30,11 +34,19 @@ def build_trade_management_plan(
     position: PositionPlan,
     targets: TargetPlan,
     account: FuturesAccountInput,
+    generated_at: datetime,
+    entry_validity: timedelta = DEFAULT_ENTRY_VALIDITY,
 ) -> TradeManagementPlan:
     """Build complete, deterministic manual instructions from an approved plan."""
 
+    if generated_at.tzinfo is None or generated_at.utcoffset() is None:
+        raise ValueError("trade-management generation time must be timezone-aware")
+    if entry_validity <= timedelta(0):
+        raise ValueError("entry validity must be positive")
+
     entry_action, current_action = entry_action_for_state(entry.state)
     order_type = _order_type_for_action(entry_action)
+    expires_at = None if entry_action is EntryInstructionAction.REJECT else generated_at + entry_validity
     entry_instruction = EntryInstruction(
         action=entry_action,
         entry_state=entry.state,
@@ -43,10 +55,12 @@ def build_trade_management_plan(
         ideal_entry=entry.ideal_entry,
         maximum_chase_price=entry.maximum_chase_price,
         order_type=order_type,
+        expires_at=expires_at,
         cancellation_conditions=(
             _invalidation_condition(direction, position.structural_stop),
             "cancel if price moves beyond the configured maximum chase price before entry",
-            "cancel if the setup lifecycle becomes invalidated, expired, or account-locked",
+            "cancel automatically when the timezone-aware entry expiry is reached",
+            "cancel if the setup lifecycle becomes invalidated or account-locked",
         ),
     )
     protection = InitialProtectionInstruction(
