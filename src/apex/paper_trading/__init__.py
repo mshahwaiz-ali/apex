@@ -16,7 +16,6 @@ from apex.paper_trading.engine import (
     generate_paper_report,
     paper_lifecycle_snapshot,
     summarize_paper_trades,
-    update_paper_trade,
 )
 from apex.paper_trading.guidance import (
     PaperTradeGuidance,
@@ -29,6 +28,8 @@ from apex.paper_trading.management import (
     paper_entry_expiry,
 )
 from apex.paper_trading.store import PaperTradeStore
+
+update_paper_trade = advance_paper_trade
 
 __all__ = [
     "TERMINAL_STATES",
