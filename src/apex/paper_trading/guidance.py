@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from apex.domain import CurrentAction
@@ -112,6 +113,32 @@ def derive_paper_trade_guidance(trade: PaperTrade) -> PaperTradeGuidance:
         next_target_price=None,
         completed_targets=completed,
     )
+
+
+def build_paper_guidance_report(
+    trades: tuple[PaperTrade, ...],
+    *,
+    generated_at: datetime | None = None,
+) -> dict[str, object]:
+    """Build a deterministic operational report for stored paper trades."""
+
+    timestamp = generated_at or datetime.now(UTC)
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError("paper guidance report time must be timezone-aware")
+    return {
+        "schema_version": 1,
+        "generated_at": timestamp.isoformat(),
+        "trade_count": len(trades),
+        "trades": [
+            {
+                "trade_id": trade.trade_id,
+                "symbol": trade.signal.symbol,
+                "paper_state": trade.state.value,
+                **derive_paper_trade_guidance(trade).to_payload(),
+            }
+            for trade in trades
+        ],
+    }
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
