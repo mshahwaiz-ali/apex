@@ -96,11 +96,23 @@ profitability or production readiness.
 - Added focused tests for waiting, entered, partial, invalidated, cancelled, expired, stopped,
   target-complete, next-target progression, stop movement, and timezone validation.
 
+### Batch N2.5 paper CLI integration implemented
+
+- The corrected paper-command overlay now owns `record`, `update`, `report`, and `replay-report`.
+- Legacy paper report commands are removed before corrected commands are registered, preventing
+  duplicate command implementations.
+- `paper record` prints the initial canonical operator action after persistence.
+- `paper update` prints state, current action, and instruction for each selected trade after replay.
+- `paper report` emits performance plus a schema-versioned guidance report in text or JSON.
+- `paper replay-report` attaches lifecycle-backed guidance to the canonical replay audit payload.
+- Both report commands support optional deterministic JSON file output.
+- Policy-aware account-state synchronization and canonical symbol handling remain unchanged.
+
 ### N2 remaining work
 
-- Integrate paper guidance into the active paper CLI/report commands.
 - Add emergency-close, runner, and trailing guidance when those lifecycle events are generated.
 - Add explicit entry expiry timestamps and cancellation execution.
+- Add corrected-overlay CLI coverage for record, update, report, and replay-report.
 - Run and observe the complete Ruff, mypy, and pytest gate for the N2 batches.
 
 No external or forward-validation claim is made by this implementation.
