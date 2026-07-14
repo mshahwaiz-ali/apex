@@ -25,6 +25,14 @@ from apex.scoring.contracts import (
     ScoreBreakdown,
     ScoredCandidate,
 )
+from apex.scoring.forward_approval import (
+    ForwardApprovalReason,
+    ForwardApprovalReasonCode,
+    ForwardEvidenceAwareStrategyApprovalDecision,
+    ForwardPaperEvidenceAttachment,
+    ForwardPaperValidationView,
+    evaluate_strategy_approval_with_forward_paper_evidence,
+)
 from apex.scoring.historical_approval import (
     EvidenceAwareStrategyApprovalDecision,
     HistoricalApprovalReason,
@@ -49,6 +57,11 @@ __all__ = [
     "ConflictSummary",
     "DirectionalConsensus",
     "EvidenceAwareStrategyApprovalDecision",
+    "ForwardApprovalReason",
+    "ForwardApprovalReasonCode",
+    "ForwardEvidenceAwareStrategyApprovalDecision",
+    "ForwardPaperEvidenceAttachment",
+    "ForwardPaperValidationView",
     "HistoricalApprovalReason",
     "HistoricalApprovalReasonCode",
     "HistoricalEdgeValidationView",
@@ -69,5 +82,6 @@ __all__ = [
     "apply_strategy_quality_gate",
     "evaluate_candidate_quality_gate",
     "evaluate_strategy_approval",
+    "evaluate_strategy_approval_with_forward_paper_evidence",
     "evaluate_strategy_approval_with_historical_evidence",
 ]

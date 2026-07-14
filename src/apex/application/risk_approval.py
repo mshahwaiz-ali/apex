@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from apex.application.futures_plan import (
@@ -29,6 +30,11 @@ from apex.domain import (
 )
 from apex.risk.contracts import RiskApprovedSetup
 from apex.scoring.approval import StrategyApprovalDecision, evaluate_strategy_approval
+from apex.scoring.forward_approval import (
+    ForwardEvidenceAwareStrategyApprovalDecision,
+    ForwardPaperValidationView,
+    evaluate_strategy_approval_with_forward_paper_evidence,
+)
 from apex.scoring.historical_approval import (
     EvidenceAwareStrategyApprovalDecision,
     HistoricalEdgeValidationView,
@@ -37,7 +43,11 @@ from apex.scoring.historical_approval import (
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
-StrategyDecision = StrategyApprovalDecision | EvidenceAwareStrategyApprovalDecision
+StrategyDecision = (
+    StrategyApprovalDecision
+    | EvidenceAwareStrategyApprovalDecision
+    | ForwardEvidenceAwareStrategyApprovalDecision
+)
 
 
 class StrategyApprovalError(FuturesPlanSafetyError):
@@ -58,6 +68,8 @@ def build_futures_plan(
     account_policy_state: AccountPolicyState | None = None,
     historical_evidence_available: bool = False,
     historical_edge_validation: HistoricalEdgeValidationView | None = None,
+    forward_paper_validation: ForwardPaperValidationView | None = None,
+    setup_segment_dimensions: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     """Build a futures plan after quality, mode, and account-policy checks."""
 
@@ -66,6 +78,16 @@ def build_futures_plan(
             "historical_evidence_available and historical_edge_validation "
             "cannot be supplied together"
         )
+    if historical_evidence_available and forward_paper_validation is not None:
+        raise ValueError(
+            "historical_evidence_available and forward_paper_validation cannot be supplied together"
+        )
+    if forward_paper_validation is not None and historical_edge_validation is None:
+        raise ValueError("forward_paper_validation requires historical_edge_validation")
+    if forward_paper_validation is not None and setup_segment_dimensions is None:
+        raise ValueError("forward_paper_validation requires setup_segment_dimensions")
+    if setup_segment_dimensions is not None and forward_paper_validation is None:
+        raise ValueError("setup_segment_dimensions requires forward_paper_validation")
 
     config = product_config or load_futures_product_config("config/futures.yaml")
     approval_config = strategy_approval_config or load_strategy_approval_config(
@@ -86,7 +108,21 @@ def build_futures_plan(
     entry = EntryPlan.model_validate(plan["entry"])
     strategy_decision: StrategyDecision | None = None
     if isinstance(setup, RiskApprovedSetup):
-        if historical_edge_validation is not None:
+        if forward_paper_validation is not None:
+            assert historical_edge_validation is not None
+            assert setup_segment_dimensions is not None
+            strategy_decision = evaluate_strategy_approval_with_forward_paper_evidence(
+                strategy=setup.strategy,
+                risk_mode=account.risk_mode,
+                score=setup.confidence_score,
+                entry_state=entry.state,
+                config=approval_config,
+                account_policy_decision=policy_decision,
+                setup_segment_dimensions=setup_segment_dimensions,
+                historical_edge_validation=historical_edge_validation,
+                forward_paper_validation=forward_paper_validation,
+            )
+        elif historical_edge_validation is not None:
             strategy_decision = evaluate_strategy_approval_with_historical_evidence(
                 strategy=setup.strategy,
                 risk_mode=account.risk_mode,
@@ -148,6 +184,8 @@ def build_futures_plan_result(
     account_policy_state: AccountPolicyState | None = None,
     historical_evidence_available: bool = False,
     historical_edge_validation: HistoricalEdgeValidationView | None = None,
+    forward_paper_validation: ForwardPaperValidationView | None = None,
+    setup_segment_dimensions: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     """Return an approved or rejected policy-aware futures-plan payload."""
 
@@ -161,6 +199,8 @@ def build_futures_plan_result(
             account_policy_state=account_policy_state,
             historical_evidence_available=historical_evidence_available,
             historical_edge_validation=historical_edge_validation,
+            forward_paper_validation=forward_paper_validation,
+            setup_segment_dimensions=setup_segment_dimensions,
         )
     except StrategyApprovalError as exc:
         return {
@@ -182,6 +222,13 @@ def build_futures_plan_result(
 def _strategy_decision_reason_messages(
     decision: StrategyDecision,
 ) -> tuple[str, ...]:
+    if isinstance(decision, ForwardEvidenceAwareStrategyApprovalDecision):
+        historical = decision.historical_decision
+        return (
+            *(reason.message for reason in historical.base_decision.reasons),
+            *(reason.message for reason in historical.historical_reasons),
+            *(reason.message for reason in decision.forward_paper_reasons),
+        )
     if isinstance(decision, EvidenceAwareStrategyApprovalDecision):
         return (
             *(reason.message for reason in decision.base_decision.reasons),
