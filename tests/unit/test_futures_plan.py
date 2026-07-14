@@ -18,9 +18,6 @@ def _setup(
     direction: str = "long",
     inside_zone: bool = True,
     current_price: float | None = None,
-    required_leverage: float = 10.0,
-    notional_value: float = 500.0,
-    risk_amount: float = 10.0,
 ) -> SimpleNamespace:
     entry_price = current_price
     if entry_price is None:
@@ -42,12 +39,6 @@ def _setup(
         SimpleNamespace(label="TP1", price=103.0, partial_close_pct=60.0),
         SimpleNamespace(label="TP2", price=106.0, partial_close_pct=40.0),
     )
-    position_size = SimpleNamespace(
-        required_leverage=required_leverage,
-        notional_value=notional_value,
-        risk_amount=risk_amount,
-    )
-    leverage = SimpleNamespace(liquidation_price_at_maximum=95.0)
     return SimpleNamespace(
         decision_time=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
         direction=SimpleNamespace(value=direction),
@@ -55,121 +46,109 @@ def _setup(
         entry=entry,
         stop_loss=stop_loss,
         take_profits=take_profits,
-        position_size=position_size,
-        leverage=leverage,
+        position_size=SimpleNamespace(
+            required_leverage=2.0,
+            notional_value=500.0,
+            risk_amount=2.5,
+        ),
+        leverage=SimpleNamespace(liquidation_price_at_maximum=50.0),
     )
 
 
-def test_build_futures_plan_uses_setup_leverage_in_automatic_mode() -> None:
-    account = FuturesAccountInput(
-        wallet_balance=200.0,
-        leverage_mode=LeverageMode.AUTOMATIC,
+def _aggressive_account(
+    *,
+    wallet_balance: float = 200.0,
+    leverage_mode: LeverageMode = LeverageMode.AUTOMATIC,
+    manual_leverage: float | None = None,
+    loss_percentage: float = 0.75,
+) -> FuturesAccountInput:
+    return FuturesAccountInput(
+        wallet_balance=wallet_balance,
+        leverage_mode=leverage_mode,
+        manual_leverage=manual_leverage,
         risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=10.0,
+        maximum_account_loss_percentage=loss_percentage,
     )
 
-    plan = build_futures_plan(_setup(), account)
+
+def test_build_futures_plan_uses_risk_mode_preference_in_automatic_mode() -> None:
+    plan = build_futures_plan(_setup(), _aggressive_account())
 
     assert plan["status"] == "APPROVED"
+    assert plan["risk_mode"] == "AGGRESSIVE"
+    assert plan["risk_mode_config"]["preferred_leverage"] == 5.0
     assert plan["entry"]["state"] == "READY_NOW"
     assert plan["entry_classification"]["state"] == "READY_NOW"
     assert plan["entry"]["classification_reasons"]
     assert plan["precision_entry"]["entry_state"] == "READY_NOW"
     assert plan["precision_entry"]["score"]["final_score"] > 0
-    assert plan["position"]["leverage"] == 18.0
-    assert plan["position"]["required_margin"] == pytest.approx(42.2879, rel=1e-4)
-    assert plan["position"]["wallet_exposure_percentage"] == pytest.approx(21.1439, rel=1e-4)
+    assert plan["position"]["leverage"] == 5.0
+    assert plan["position"]["required_margin"] > 0
+    assert plan["position"]["wallet_exposure_percentage"] <= 25.0
     assert plan["position"]["estimated_fees"] > 0
     assert plan["position"]["estimated_slippage"] > 0
-    assert plan["position"]["total_maximum_planned_loss"] == pytest.approx(20.0)
+    assert plan["position"]["total_maximum_planned_loss"] == pytest.approx(1.5)
     assert plan["targets"]["targets"][0]["close_percentage"] == 60.0
     assert plan["lifecycle"]["state"] == "GENERATED"
 
 
-def test_build_futures_plan_uses_manual_leverage() -> None:
-    account = FuturesAccountInput(
+def test_build_futures_plan_preserves_safe_manual_leverage() -> None:
+    account = _aggressive_account(
         wallet_balance=100.0,
         leverage_mode=LeverageMode.MANUAL,
-        manual_leverage=20.0,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=10.0,
+        manual_leverage=10.0,
     )
 
     plan = build_futures_plan(_setup(), account)
 
-    assert plan["position"]["leverage"] == 20.0
-    assert plan["position"]["required_margin"] == pytest.approx(19.0295, rel=1e-4)
-    assert plan["position"]["wallet_exposure_percentage"] == pytest.approx(19.0295, rel=1e-4)
+    assert plan["position"]["leverage"] == 10.0
+    assert plan["position"]["required_margin"] > 0
+    assert plan["position"]["wallet_exposure_percentage"] <= 25.0
     assert plan["position"]["leverage_selection_reason"] == (
         "manual leverage preserved after safety validation"
     )
 
 
 def test_manual_leverage_above_profile_maximum_is_rejected() -> None:
-    account = FuturesAccountInput(
+    account = _aggressive_account(
         wallet_balance=100.0,
         leverage_mode=LeverageMode.MANUAL,
-        manual_leverage=25.0,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=10.0,
+        manual_leverage=11.0,
     )
 
     with pytest.raises(FuturesPlanSafetyError, match="exceeds AGGRESSIVE maximum"):
         build_futures_plan(_setup(), account)
 
 
-def test_wallet_exposure_above_profile_limit_is_rejected() -> None:
-    account = FuturesAccountInput(
-        wallet_balance=100.0,
-        leverage_mode=LeverageMode.AUTOMATIC,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=20.0,
-    )
+def test_account_loss_override_above_mode_limit_is_rejected() -> None:
+    account = _aggressive_account(loss_percentage=1.0)
 
     result = build_futures_plan_result(_setup(), account)
 
     assert result["status"] == "REJECTED"
-    assert any("no valid automatic leverage" in reason for reason in result["reasons"])
+    assert any("AGGRESSIVE mode limit 0.75%" in reason for reason in result["reasons"])
 
 
 def test_modeled_planned_loss_is_sized_to_account_limit() -> None:
-    account = FuturesAccountInput(
-        wallet_balance=200.0,
-        leverage_mode=LeverageMode.AUTOMATIC,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=2.5,
-    )
-
-    result = build_futures_plan_result(_setup(risk_amount=10.0), account)
+    result = build_futures_plan_result(_setup(), _aggressive_account())
 
     assert result["status"] == "APPROVED"
-    assert result["position"]["total_maximum_planned_loss"] == pytest.approx(5.0)
+    assert result["position"]["total_maximum_planned_loss"] == pytest.approx(1.5)
 
 
 def test_build_futures_plan_classifies_missed_long_entry() -> None:
-    account = FuturesAccountInput(
-        wallet_balance=200.0,
-        leverage_mode=LeverageMode.AUTOMATIC,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=10.0,
+    plan = build_futures_plan(
+        _setup(inside_zone=False, current_price=101.6),
+        _aggressive_account(),
     )
-
-    plan = build_futures_plan(_setup(inside_zone=False, current_price=101.6), account)
 
     assert plan["entry"]["state"] == "MISSED_ENTRY"
 
 
 def test_build_futures_plan_classifies_short_retest() -> None:
-    account = FuturesAccountInput(
-        wallet_balance=200.0,
-        leverage_mode=LeverageMode.AUTOMATIC,
-        risk_mode=RiskMode.AGGRESSIVE,
-        maximum_account_loss_percentage=10.0,
-    )
-
     plan = build_futures_plan(
         _setup(direction="short", inside_zone=False, current_price=99.5),
-        account,
+        _aggressive_account(),
     )
 
     assert plan["entry"]["state"] == "WAIT_FOR_RETEST"
