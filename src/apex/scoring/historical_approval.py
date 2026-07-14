@@ -10,8 +10,6 @@ from typing import Protocol
 from apex.config.strategy_approval import StrategyApprovalConfig
 from apex.domain import AccountPolicyDecision, EntryState, RiskMode
 from apex.scoring.approval import (
-    ApprovalReason,
-    ApprovalReasonCode,
     SetupEligibility,
     StrategyApprovalDecision,
     evaluate_strategy_approval,
