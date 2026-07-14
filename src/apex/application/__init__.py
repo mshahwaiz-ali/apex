@@ -82,6 +82,15 @@ from apex.application.spot_entry_eligibility import (
     SpotEntryEligibilityResult,
     evaluate_spot_entry_eligibility,
 )
+from apex.application.spot_strategies import (
+    evaluate_accumulation_range_breakout,
+    evaluate_breakout_retest,
+    evaluate_higher_timeframe_trend_pullback,
+    evaluate_liquidity_sweep_daily_recovery,
+    evaluate_post_capitulation_recovery,
+    evaluate_relative_strength_leader_pullback,
+    evaluate_spot_strategies,
+)
 from apex.application.spot_structure import (
     analyze_spot_structure,
     classify_spot_market_regime,
@@ -135,7 +144,14 @@ __all__ = [
     "classify_spot_timeframe",
     "create_market_data_services",
     "default_campaign_variants",
+    "evaluate_accumulation_range_breakout",
+    "evaluate_breakout_retest",
+    "evaluate_higher_timeframe_trend_pullback",
+    "evaluate_liquidity_sweep_daily_recovery",
+    "evaluate_post_capitulation_recovery",
+    "evaluate_relative_strength_leader_pullback",
     "evaluate_spot_entry_eligibility",
+    "evaluate_spot_strategies",
     "format_scan_text",
     "format_symbol_text",
     "format_trade_management_plan",
