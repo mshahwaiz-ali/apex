@@ -117,17 +117,19 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
                 directional_override_pct=proposed_directional_exposure_pct,
                 correlated_override_pct=proposed_correlated_exposure_pct,
             )
-            account_context = resolve_account_context(
-                wallet_balance=wallet_balance,
-                risk_mode=risk_mode,
-                account_policy_name=account_policy,
-                account_state_file=account_state_file,
-                account_policies_file=account_policies_file,
-                proposed_directional_exposure_pct=exposure.directional_exposure_pct,
-                proposed_correlated_exposure_pct=exposure.correlated_exposure_pct,
-                session=session,
-                is_weekend=is_weekend,
-            )
+            account_context = preliminary_context
+            if preliminary_context.snapshot is not None:
+                account_context = resolve_account_context(
+                    wallet_balance=wallet_balance,
+                    risk_mode=risk_mode,
+                    account_policy_name=account_policy,
+                    account_state_file=account_state_file,
+                    account_policies_file=account_policies_file,
+                    proposed_directional_exposure_pct=exposure.directional_exposure_pct,
+                    proposed_correlated_exposure_pct=exposure.correlated_exposure_pct,
+                    session=session,
+                    is_weekend=is_weekend,
+                )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
