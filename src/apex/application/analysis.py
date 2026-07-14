@@ -298,13 +298,13 @@ def _build_risk_rejection_diagnostics(
             ),
             "entry_price": entry_price,
             "candidate_invalidation_price": candidate.invalidation.price,
-            "structural_stop_buffer_percentage": (config.structural_stop_buffer_pct),
+            "structural_stop_buffer_percentage": config.structural_stop_buffer_pct,
             "structural_stop_buffer_distance": structural_buffer,
             "stop_price": stop_price,
             "absolute_stop_distance": absolute_stop_distance,
             "stop_distance_percentage": stop_distance_percentage,
-            "configured_minimum_noise_floor_percentage": (config.minimum_stop_distance_pct),
-            "configured_minimum_stop_atr_multiple": (config.minimum_stop_atr_multiple),
+            "configured_minimum_noise_floor_percentage": config.minimum_stop_distance_pct,
+            "configured_minimum_stop_atr_multiple": config.minimum_stop_atr_multiple,
             "required_minimum_stop_distance": required_minimum_stop_distance,
             "required_minimum_stop_percentage": (
                 required_minimum_stop_distance / entry_price * 100.0
@@ -319,12 +319,32 @@ def _build_risk_rejection_diagnostics(
             ),
             "atr": atr,
             "atr_percentage": atr_percentage,
-            "stop_distance_in_atr": (absolute_stop_distance / atr if atr > 0.0 else None),
+            "stop_distance_in_atr": absolute_stop_distance / atr if atr > 0.0 else None,
             "invalidation_distance_in_atr": (
                 abs(entry_price - candidate.invalidation.price) / atr if atr > 0.0 else None
             ),
             "noise_floor_model": noise_floor_model,
             "atr_used_by_noise_floor": atr_used_by_noise_floor,
+            "configured_risk_amount": configured_risk_amount,
+            "configured_entry_fee_percentage": config.entry_fee_pct,
+            "configured_exit_fee_percentage": config.exit_fee_pct,
+            "configured_entry_slippage_percentage": config.entry_slippage_pct,
+            "configured_exit_slippage_percentage": config.exit_slippage_pct,
+            "structural_loss_fraction": structural_loss_fraction,
+            "execution_cost_fraction": execution_cost_fraction,
+            "modeled_total_loss_fraction": modeled_total_loss_fraction,
+            "modeled_position_notional": modeled_position_notional,
+            "modeled_quantity": modeled_position_notional / entry_price,
+            "modeled_structural_loss_amount": (
+                modeled_position_notional * structural_loss_fraction
+            ),
+            "modeled_execution_cost_amount": (
+                modeled_position_notional * execution_cost_fraction
+            ),
+            "modeled_total_loss_amount": (
+                modeled_position_notional * modeled_total_loss_fraction
+            ),
+            "modeled_required_leverage": modeled_required_leverage,
             "rejection_codes": [code.value for code in assessment.rejection_codes],
             "rejection_reasons": list(assessment.reasons),
         },
@@ -830,7 +850,8 @@ def _strategy_routing_payload(
 
 
 def _approved_payload(
-    setup: RiskApprovedSetup, precision_entry_payload: Mapping[str, Any] | None = None
+    setup: RiskApprovedSetup,
+    precision_entry_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     max_risk_reward = max(target.risk_reward for target in setup.take_profits)
     entry_classification = classify_entry_state(
