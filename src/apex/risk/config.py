@@ -1,4 +1,10 @@
-"""Validated configuration for the deterministic Phase 6 risk engine."""
+"""Validated configuration for the deterministic Phase 6 risk engine.
+
+``RiskConfig`` remains the compatibility contract consumed by the existing
+Phase-6 setup engine. Runtime account and futures limits are resolved from the
+canonical futures risk-mode and account-policy configuration files instead of
+being duplicated in ``config/risk.yaml``.
+"""
 
 from __future__ import annotations
 
@@ -10,11 +16,24 @@ from typing import Any, Self
 
 import yaml
 
+from apex.config.account_policies import load_account_policies_config
+from apex.config.futures import load_futures_product_config
+from apex.domain.futures import RiskMode
+
+DEFAULT_FUTURES_CONFIG_PATH = Path("config/futures.yaml")
+DEFAULT_ACCOUNT_POLICIES_PATH = Path("config/account_policies.yaml")
+
 
 class RiskProfile(StrEnum):
     CONTROLLED = "controlled"
     AGGRESSIVE = "aggressive"
     EXTREME = "extreme"
+
+    @property
+    def risk_mode(self) -> RiskMode:
+        if self is RiskProfile.CONTROLLED:
+            return RiskMode.STANDARD
+        return RiskMode(self.value.upper())
 
 
 def _positive(name: str, value: float) -> None:
@@ -24,10 +43,12 @@ def _positive(name: str, value: float) -> None:
 
 @dataclass(frozen=True, slots=True)
 class RiskConfig:
-    identifier: str = "phase6-controlled-v1"
+    """Compatibility view combining setup geometry with canonical risk limits."""
+
+    identifier: str = "phase6-standard-v2"
     profile: RiskProfile = RiskProfile.CONTROLLED
     account_equity: float = 10_000.0
-    risk_per_trade_pct: float = 0.5
+    risk_per_trade_pct: float = 0.25
     minimum_risk_reward: float = 1.5
     minimum_stop_distance_pct: float = 0.15
     maximum_stop_distance_pct: float = 3.0
@@ -37,15 +58,15 @@ class RiskConfig:
     maintenance_margin_pct: float = 0.5
     liquidation_buffer_ratio: float = 0.35
     maximum_concurrent_trades: int = 3
-    maximum_open_risk_pct: float = 2.0
-    maximum_directional_risk_pct: float = 1.5
-    maximum_correlated_risk_pct: float = 1.0
-    maximum_daily_loss_pct: float = 3.0
-    maximum_consecutive_losses: int = 4
+    maximum_open_risk_pct: float = 0.75
+    maximum_directional_risk_pct: float = 0.30
+    maximum_correlated_risk_pct: float = 0.20
+    maximum_daily_loss_pct: float = 1.0
+    maximum_consecutive_losses: int = 2
 
     @classmethod
     def from_mapping(cls, values: dict[str, Any]) -> Self:
-        """Build validated risk configuration from parsed configuration data."""
+        """Build validated risk configuration from fully resolved values."""
 
         values = dict(values)
         if "profile" in values:
@@ -121,15 +142,59 @@ class ExposureState:
             raise ValueError("correlated risk cannot exceed total open risk")
 
 
-DEFAULT_RISK_CONFIG = RiskConfig()
-
-
-def load_risk_config(path: str | Path) -> RiskConfig:
-    """Load and validate Phase 6 risk configuration from YAML."""
-
+def _load_mapping(path: str | Path) -> dict[str, Any]:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if raw is None:
-        raw = {}
+        return {}
     if not isinstance(raw, dict):
         raise ValueError("risk configuration file must contain a mapping")
-    return RiskConfig.from_mapping(raw)
+    return dict(raw)
+
+
+def load_risk_config(
+    path: str | Path,
+    *,
+    futures_config_path: str | Path = DEFAULT_FUTURES_CONFIG_PATH,
+    account_policies_path: str | Path = DEFAULT_ACCOUNT_POLICIES_PATH,
+    account_policy_name: str | None = None,
+) -> RiskConfig:
+    """Load setup geometry and inject canonical mode and account-policy limits."""
+
+    raw = _load_mapping(path)
+    profile = RiskProfile(raw.get("profile", RiskProfile.CONTROLLED.value))
+    futures = load_futures_product_config(futures_config_path)
+    mode_defaults = futures.defaults_for(profile.risk_mode)
+    policies = load_account_policies_config(account_policies_path)
+    policy = policies.policy_for(account_policy_name)
+
+    canonical_values: dict[str, Any] = {
+        "profile": profile,
+        "risk_per_trade_pct": mode_defaults.account_loss_percentage,
+        "maximum_leverage": mode_defaults.maximum_leverage,
+        "maintenance_margin_pct": futures.execution_costs.maintenance_margin_percentage,
+        "maximum_concurrent_trades": policy.maximum_trades_per_day,
+        "maximum_open_risk_pct": min(
+            mode_defaults.maximum_open_risk_percentage,
+            policy.maximum_total_open_risk_pct,
+        ),
+        "maximum_directional_risk_pct": policy.maximum_directional_exposure_pct,
+        "maximum_correlated_risk_pct": policy.maximum_correlated_exposure_pct,
+        "maximum_daily_loss_pct": min(
+            mode_defaults.maximum_daily_loss_percentage,
+            policy.internal_daily_stop_pct,
+        ),
+        "maximum_consecutive_losses": min(
+            mode_defaults.maximum_consecutive_losses,
+            policy.maximum_consecutive_losses,
+        ),
+    }
+    conflicting = set(raw).intersection(canonical_values) - {"profile"}
+    if conflicting:
+        labels = ", ".join(sorted(conflicting))
+        raise ValueError(
+            "risk configuration duplicates canonical futures/account-policy fields: " + labels
+        )
+    return RiskConfig.from_mapping({**raw, **canonical_values})
+
+
+DEFAULT_RISK_CONFIG = RiskConfig()
