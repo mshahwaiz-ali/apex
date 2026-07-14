@@ -18,6 +18,12 @@ from apex.config.settings import (
     FileSettings,
     load_settings,
 )
+from apex.config.strategy_approval import (
+    StrategyApprovalConfig,
+    StrategyApprovalRule,
+    StrategyQualityClass,
+    load_strategy_approval_config,
+)
 
 __all__ = [
     "DEFAULT_STRATEGY_ROUTING",
@@ -29,7 +35,11 @@ __all__ = [
     "FuturesExecutionCostConfig",
     "FuturesProductConfig",
     "RiskModeDefaults",
+    "StrategyApprovalConfig",
+    "StrategyApprovalRule",
+    "StrategyQualityClass",
     "load_account_policies_config",
     "load_futures_product_config",
     "load_settings",
+    "load_strategy_approval_config",
 ]
