@@ -34,19 +34,25 @@ def build_trade_management_plan(
     position: PositionPlan,
     targets: TargetPlan,
     account: FuturesAccountInput,
-    generated_at: datetime,
+    generated_at: datetime | None = None,
     entry_validity: timedelta = DEFAULT_ENTRY_VALIDITY,
 ) -> TradeManagementPlan:
     """Build complete, deterministic manual instructions from an approved plan."""
 
-    if generated_at.tzinfo is None or generated_at.utcoffset() is None:
+    if generated_at is not None and (
+        generated_at.tzinfo is None or generated_at.utcoffset() is None
+    ):
         raise ValueError("trade-management generation time must be timezone-aware")
     if entry_validity <= timedelta(0):
         raise ValueError("entry validity must be positive")
 
     entry_action, current_action = entry_action_for_state(entry.state)
     order_type = _order_type_for_action(entry_action)
-    expires_at = None if entry_action is EntryInstructionAction.REJECT else generated_at + entry_validity
+    expires_at = (
+        None
+        if generated_at is None or entry_action is EntryInstructionAction.REJECT
+        else generated_at + entry_validity
+    )
     entry_instruction = EntryInstruction(
         action=entry_action,
         entry_state=entry.state,
