@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from apex.paper_trading import PaperTrade
-from apex.validation import ForwardValidationReport
+from apex.validation.forward import ForwardValidationReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +89,7 @@ def _record_from_payload(value: Any) -> DailyValidationRecord:
     report_value = value["report"]
     if not isinstance(report_value, dict):
         raise ValueError("daily validation report must be a mapping")
-    from apex.validation import ProductionEligibility, ValidationReason
+    from apex.validation.forward import ProductionEligibility, ValidationReason
 
     report = ForwardValidationReport(
         schema_version=int(report_value["schema_version"]),
