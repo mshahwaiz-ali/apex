@@ -8,29 +8,12 @@ from typing import Annotated
 
 import typer
 
-from apex.application import (
-    BacktestCampaignRequest,
-    MultiSymbolBacktestCampaignRequest,
-    bootstrap,
-    campaign_result_to_payload,
-    create_market_data_services,
-    load_default_risk_config,
-    parse_campaign_variants,
-    run_backtest_campaign,
-    run_multi_symbol_backtest_campaign,
-    split_campaign_candles_by_symbol,
-)
-from apex.application.backtest_report_io import (
-    dumps_report,
-    write_backtest_campaign_sqlite,
-    write_backtest_report,
-)
+from apex.application import BacktestCampaignRequest, MultiSymbolBacktestCampaignRequest
 from apex.application.futures_risk_mode import futures_risk_mode_scope
-from apex.application.historical_dataset import load_historical_candles
-from apex.cli_commands.backtesting import _parse_campaign_symbols
+from apex.cli_commands import backtesting as backtesting_cli
 from apex.data.providers.errors import MarketDataProviderError
 from apex.domain import Candle, RiskMode
-from apex.risk import resolve_risk_config_for_mode
+from apex.risk import RiskConfig, resolve_risk_config_for_mode
 
 
 def register_risk_mode_campaign_command(app: typer.Typer) -> None:
@@ -98,12 +81,14 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
         """Run chronological variants under one explicit futures risk mode."""
 
         try:
-            symbols = _parse_campaign_symbols(symbol)
-            parsed_variants = parse_campaign_variants(variants)
-            context = bootstrap()
-            risk_config = resolve_risk_config_for_mode(
-                load_default_risk_config(),
-                risk_mode,
+            symbols = backtesting_cli._parse_campaign_symbols(symbol)
+            parsed_variants = backtesting_cli.parse_campaign_variants(variants)
+            context = backtesting_cli.bootstrap()
+            base_risk_config = backtesting_cli.load_default_risk_config()
+            risk_config = (
+                resolve_risk_config_for_mode(base_risk_config, risk_mode)
+                if isinstance(base_risk_config, RiskConfig)
+                else base_risk_config
             )
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             replay_timeframes = tuple(variant.replay_timeframe for variant in parsed_variants)
@@ -111,7 +96,7 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
             candles: Mapping[str, tuple[Candle, ...]]
             candles_by_symbol: Mapping[str, Mapping[str, tuple[Candle, ...]]]
             if dataset is None:
-                with create_market_data_services(context.settings) as services:
+                with backtesting_cli.create_market_data_services(context.settings) as services:
                     candles_by_symbol = {
                         item: {
                             timeframe: tuple(
@@ -127,16 +112,19 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
                     }
                 dataset_source = "live-provider"
             else:
-                candles = load_historical_candles(
+                candles = backtesting_cli.load_historical_candles(
                     dataset,
                     required_timeframes=required_timeframes,
                 )
-                candles_by_symbol = split_campaign_candles_by_symbol(candles, symbols)
+                candles_by_symbol = backtesting_cli.split_campaign_candles_by_symbol(
+                    candles,
+                    symbols,
+                )
                 dataset_source = str(dataset)
 
             with futures_risk_mode_scope(risk_mode):
                 if len(symbols) == 1:
-                    result = run_backtest_campaign(
+                    result = backtesting_cli.run_backtest_campaign(
                         BacktestCampaignRequest(
                             symbol=symbols[0],
                             candles_by_timeframe=candles_by_symbol[symbols[0]],
@@ -153,7 +141,7 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
                         )
                     )
                 else:
-                    result = run_multi_symbol_backtest_campaign(
+                    result = backtesting_cli.run_multi_symbol_backtest_campaign(
                         MultiSymbolBacktestCampaignRequest(
                             symbols=symbols,
                             candles_by_symbol=candles_by_symbol,
@@ -175,14 +163,16 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
             typer.echo(f"Chronological campaign market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = campaign_result_to_payload(result)
+        payload = backtesting_cli.campaign_result_to_payload(result)
         payload["risk_mode"] = risk_mode.value
-        payload["risk_configuration_id"] = risk_config.identifier
+        configuration_id = getattr(risk_config, "identifier", None)
+        if isinstance(configuration_id, str):
+            payload["risk_configuration_id"] = configuration_id
         if report_output is not None:
             try:
-                write_backtest_report(report_output, payload, force=force)
+                backtesting_cli.write_backtest_report(report_output, payload, force=force)
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc
         if record_db is not None:
-            write_backtest_campaign_sqlite(record_db, payload)
-        typer.echo(dumps_report(payload), nl=False)
+            backtesting_cli.write_backtest_campaign_sqlite(record_db, payload)
+        typer.echo(backtesting_cli.dumps_report(payload), nl=False)
