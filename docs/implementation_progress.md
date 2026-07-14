@@ -58,18 +58,26 @@ profitability or production readiness.
   - account-policy selection;
   - persistent account-state file selection;
   - optional wallet-balance override;
-  - explicit proposed directional and correlated exposure;
+  - optional proposed directional and correlated exposure overrides;
   - session and weekend state.
 - CLI account context derives policy state from the validated JSON snapshot rather than
   duplicating every persistent account-state field as a separate command option.
 - Policy lockouts are evaluated before a paper trade is recorded; rejected plans expose
   the deterministic risk-mode or account-policy reasons.
-- Account-policy evaluation now checks projected exposure rather than existing exposure alone:
+- Account-policy evaluation checks projected exposure rather than existing exposure alone:
   - current total open risk plus proposed risk;
   - current directional exposure plus proposed directional exposure;
   - current correlated exposure plus proposed correlated exposure.
 - Serialized account-policy decisions include all three projected exposure totals.
-- Policy-aware paper plans preserve explicit account-state registration metadata.
+- Proposed exposure classification is deterministic and auditable:
+  - every trade contributes its full modeled risk to its `LONG` or `SHORT` direction bucket;
+  - stablecoin-quoted crypto pairs contribute full modeled risk to the shared
+    `CRYPTO_STABLE_QUOTE` correlation bucket;
+  - crypto cross pairs use `CRYPTO_CROSS` and do not fabricate statistical correlation;
+  - explicit CLI values override automatic directional or correlated contributions.
+- Approved futures plans serialize the selected buckets, exposure values, and whether each
+  value came from automatic classification or an override.
+- Policy-aware paper plans preserve account-state registration metadata.
 - `paper update --account-state-file` synchronizes persistent state when lifecycle changes
   occur:
   - an actual entry increments daily trade count and total open risk;
@@ -77,10 +85,10 @@ profitability or production readiness.
   - terminal closes release remaining exposure and apply realized P&L;
   - losing closes increment the consecutive-loss counter;
   - profitable and breakeven closes reset the consecutive-loss counter.
-- Directional and correlated exposure are not inferred by the paper lifecycle. They remain
-  zero unless explicit deterministic values are supplied and preserved in plan metadata.
 - Existing paper trades without account-state registration metadata remain readable and do
   not mutate an account-state file.
+- Paper recording without an account-state file remains compatible; classification is still
+  serialized, but account-policy exposure mutation is not attempted.
 
 ### Tests added or updated
 
@@ -107,7 +115,9 @@ profitability or production readiness.
 - paper entry, partial-close, terminal-close, loss-streak, metadata-compatibility, and
   non-fabricated exposure transitions;
 - projected directional and correlated exposure approval, rejection, serialization, and
-  proposed-exposure geometry validation.
+  proposed-exposure geometry validation;
+- automatic stable-quote classification, conservative cross-pair handling, override
+  preservation, and override geometry validation.
 
 ### Configuration ownership
 
@@ -122,8 +132,8 @@ profitability or production readiness.
 
 ### Known limitations / remaining N1 work
 
-- Proposed directional and correlated exposure must still be supplied explicitly; automatic
-  symbol-correlation classification is not implemented.
+- Correlation classification is intentionally bucket-based and conservative; it is not a
+  rolling statistical correlation matrix or portfolio beta model.
 - Paper-trade and account-state files are each written atomically, but the two-file update is
   not a transactional database commit.
 - Execution/testnet lifecycle events do not yet update persistent account state.
