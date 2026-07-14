@@ -6,7 +6,7 @@ from apex.application.futures_plan import (
     FuturesPlanSafetyError,
     build_futures_plan as _build_futures_plan,
 )
-from apex.config import FuturesProductConfig, load_futures_product_config
+from apex.config import FuturesProductConfig, RiskModeDefaults, load_futures_product_config
 from apex.domain import (
     AccountPolicy,
     AccountPolicyDecision,
@@ -35,7 +35,10 @@ def build_futures_plan(
 
     policy_decision = _evaluate_policy(account, account_policy, account_policy_state)
     if policy_decision is not None and not policy_decision.approved:
-        reasons = tuple(f"account policy lockout: {reason.value}" for reason in policy_decision.lockout_reasons)
+        reasons = tuple(
+            f"account policy lockout: {reason.value}"
+            for reason in policy_decision.lockout_reasons
+        )
         raise FuturesPlanSafetyError(reasons)
 
     plan = _build_futures_plan(setup, account, product_config=config)
@@ -98,18 +101,14 @@ def _evaluate_policy(
 
 def _risk_mode_rejection_reasons(
     account: FuturesAccountInput,
-    defaults: object,
+    defaults: RiskModeDefaults,
     state: AccountPolicyState | None,
 ) -> tuple[str, ...]:
-    account_loss_percentage = getattr(defaults, "account_loss_percentage")
-    maximum_open_risk_percentage = getattr(defaults, "maximum_open_risk_percentage")
-    maximum_daily_loss_percentage = getattr(defaults, "maximum_daily_loss_percentage")
-    maximum_consecutive_losses = getattr(defaults, "maximum_consecutive_losses")
     reasons: list[str] = []
-    if account.maximum_account_loss_percentage > account_loss_percentage:
+    if account.maximum_account_loss_percentage > defaults.account_loss_percentage:
         reasons.append(
             f"account loss {account.maximum_account_loss_percentage:.2f}% exceeds "
-            f"{account.risk_mode.value} mode limit {account_loss_percentage:.2f}%"
+            f"{account.risk_mode.value} mode limit {defaults.account_loss_percentage:.2f}%"
         )
     if state is not None:
         daily_drawdown = max(
@@ -118,20 +117,25 @@ def _risk_mode_rejection_reasons(
             / state.start_of_day_equity
             * 100.0,
         )
-        if daily_drawdown >= maximum_daily_loss_percentage:
+        if daily_drawdown >= defaults.maximum_daily_loss_percentage:
             reasons.append(
                 f"daily drawdown {daily_drawdown:.2f}% reached "
-                f"{account.risk_mode.value} mode limit {maximum_daily_loss_percentage:.2f}%"
+                f"{account.risk_mode.value} mode limit "
+                f"{defaults.maximum_daily_loss_percentage:.2f}%"
             )
-        if state.consecutive_losses >= maximum_consecutive_losses:
+        if state.consecutive_losses >= defaults.maximum_consecutive_losses:
             reasons.append(
                 f"consecutive losses {state.consecutive_losses} reached "
-                f"{account.risk_mode.value} mode limit {maximum_consecutive_losses}"
+                f"{account.risk_mode.value} mode limit "
+                f"{defaults.maximum_consecutive_losses}"
             )
-        projected_open_risk = state.total_open_risk_pct + account.maximum_account_loss_percentage
-        if projected_open_risk > maximum_open_risk_percentage:
+        projected_open_risk = (
+            state.total_open_risk_pct + account.maximum_account_loss_percentage
+        )
+        if projected_open_risk > defaults.maximum_open_risk_percentage:
             reasons.append(
                 f"projected open risk {projected_open_risk:.2f}% exceeds "
-                f"{account.risk_mode.value} mode limit {maximum_open_risk_percentage:.2f}%"
+                f"{account.risk_mode.value} mode limit "
+                f"{defaults.maximum_open_risk_percentage:.2f}%"
             )
     return tuple(reasons)
