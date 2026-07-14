@@ -19,6 +19,11 @@ from apex.backtesting.dataset import (
     validate_dataset_candles,
     write_futures_dataset,
 )
+from apex.backtesting.dataset_acquisition import (
+    MAXIMUM_DATASET_CANDLES,
+    acquire_futures_dataset,
+    build_dataset_id,
+)
 from apex.backtesting.engine import (
     HistoricalBacktestRunner,
     signal_from_setup,
@@ -63,6 +68,7 @@ __all__ = [
     "FUTURES_DATASET_SCHEMA_VERSION",
     "HISTORICAL_EDGE_DB_SCHEMA_VERSION",
     "HISTORICAL_EDGE_REPORT_SCHEMA_VERSION",
+    "MAXIMUM_DATASET_CANDLES",
     "BacktestConfig",
     "BacktestOutcome",
     "BacktestReport",
@@ -83,7 +89,9 @@ __all__ = [
     "HistoricalEdgeValidationResult",
     "HistoricalEdgeValidationStatus",
     "SimulatedTrade",
+    "acquire_futures_dataset",
     "aggregate_historical_edges",
+    "build_dataset_id",
     "build_futures_dataset",
     "build_historical_edge_profile",
     "build_historical_edge_report",

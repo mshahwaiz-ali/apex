@@ -210,6 +210,21 @@ eligibility claim is made by N3.
 - This foundation does not claim historical edge; empirical baseline campaigns remain the next
   stage.
 
+### Batch N4.2 historical acquisition CLI
+
+- Added provider-independent historical dataset acquisition using the canonical candle provider.
+- Acquisition accepts up to 10,000 provider candles per dataset.
+- The currently active candle is excluded before reproducibility validation.
+- Empty symbols, empty timeframes, invalid limits, naive extraction timestamps, and provider
+  responses without closed candles fail explicitly.
+- Dataset identifiers may be supplied by the operator or generated deterministically from symbol,
+  timeframe, and extraction timestamp.
+- Added `apex dataset acquire` with explicit timeframe, candle limit, output file, and optional
+  dataset identifier.
+- The CLI writes atomically, reloads the completed file, and verifies manifest/content consistency
+  before reporting success.
+- Acquiring a dataset does not establish historical edge or trading eligibility.
+
 ## V2 Spot Portfolio Backtester and Baseline Campaign Pipeline
 
 ### Implemented in the current large batch

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
@@ -30,7 +30,16 @@ from apex.application import (
     write_json_report,
 )
 from apex.application.analysis_records import write_analysis_record_sqlite
-from apex.backtesting import BacktestConfig, signal_from_setup, simulate_trade, summarize_trades
+from apex.backtesting import (
+    MAXIMUM_DATASET_CANDLES,
+    BacktestConfig,
+    acquire_futures_dataset,
+    load_futures_dataset,
+    signal_from_setup,
+    simulate_trade,
+    summarize_trades,
+    write_futures_dataset,
+)
 from apex.config import load_settings
 from apex.data.providers.errors import MarketDataProviderError
 from apex.execution import (
@@ -84,10 +93,15 @@ intelligence_app = typer.Typer(
 )
 execute_app = typer.Typer(help="Testnet-only execution commands.", no_args_is_help=True)
 kill_switch_app = typer.Typer(help="Execution kill-switch commands.", no_args_is_help=True)
+dataset_app = typer.Typer(
+    help="Reproducible historical dataset commands.",
+    no_args_is_help=True,
+)
 app.add_typer(paper_app, name="paper")
 app.add_typer(optimize_app, name="optimize")
 app.add_typer(intelligence_app, name="intelligence")
 app.add_typer(execute_app, name="execute")
+app.add_typer(dataset_app, name="dataset")
 execute_app.add_typer(kill_switch_app, name="kill-switch")
 
 
@@ -299,6 +313,76 @@ def scan(
         if record_db is not None:
             write_analysis_record_sqlite(record_db, analysis_record)
     _emit_output(payload, format_scan_text(result), output)
+
+
+@dataset_app.command("acquire")
+def dataset_acquire(
+    symbol: str = typer.Argument(
+        ...,
+        help="Trading pair, for example BTC/USDT.",
+    ),
+    timeframe: str = typer.Option(
+        "5m",
+        "--timeframe",
+        "-t",
+        help="Historical candle timeframe.",
+    ),
+    candle_limit: int = typer.Option(
+        1_000,
+        "--candles",
+        "-c",
+        min=1,
+        max=MAXIMUM_DATASET_CANDLES,
+        help="Maximum provider candles to request.",
+    ),
+    output_file: Path = typer.Option(  # noqa: B008
+        ...,
+        "--output-file",
+        "-f",
+        dir_okay=False,
+        help="Destination dataset JSON file.",
+    ),
+    dataset_id: str | None = typer.Option(
+        None,
+        "--dataset-id",
+        help="Optional stable dataset identifier.",
+    ),
+) -> None:
+    """Acquire and verify one reproducible historical futures dataset."""
+
+    extracted_at = datetime.now(UTC)
+
+    try:
+        context = bootstrap()
+        with create_market_data_services(context.settings) as services:
+            dataset = acquire_futures_dataset(
+                provider=services.candles,
+                symbol=symbol,
+                timeframe=timeframe,
+                candle_limit=candle_limit,
+                extracted_at=extracted_at,
+                dataset_id=dataset_id,
+            )
+
+        write_futures_dataset(output_file, dataset)
+        verified = load_futures_dataset(output_file)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except MarketDataProviderError as exc:
+        _exit_for_provider_error("Dataset acquisition failed", exc)
+
+    manifest = verified.manifest
+    typer.echo(
+        "DATASET_ACQUIRED "
+        f"| id={manifest.dataset_id} "
+        f"| symbol={manifest.symbol} "
+        f"| timeframe={manifest.timeframe} "
+        f"| candles={manifest.candle_count} "
+        f"| start={manifest.start_time.isoformat()} "
+        f"| end={manifest.end_time.isoformat()} "
+        f"| hash={manifest.content_hash} "
+        f"| file={output_file}"
+    )
 
 
 @app.command("backtest")
