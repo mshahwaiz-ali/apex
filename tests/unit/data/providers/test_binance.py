@@ -92,7 +92,7 @@ def test_rejects_unsupported_timeframe() -> None:
         provider.fetch_candles("BTC/USDT", "2m")
 
 
-@pytest.mark.parametrize("limit", [0, 1001])
+@pytest.mark.parametrize("limit", [0, 10_001])
 def test_rejects_invalid_limit(limit: int) -> None:
     provider = BinanceMarketDataProvider(
         client=httpx.Client(
@@ -101,8 +101,56 @@ def test_rejects_invalid_limit(limit: int) -> None:
         )
     )
 
-    with pytest.raises(ValueError, match="limit must be between 1 and 1000"):
+    with pytest.raises(ValueError, match="limit must be between 1 and 10000"):
         provider.fetch_candles("BTC/USDT", "15m", limit=limit)
+
+
+def test_fetch_candles_paginates_large_history_requests() -> None:
+    requests: list[dict[str, str]] = []
+    base_open_time = 1_700_000_000_000
+
+    def row(index: int) -> list[object]:
+        open_time = base_open_time + index * 60_000
+        return [
+            open_time,
+            "100.0",
+            "101.0",
+            "99.0",
+            "100.5",
+            "10.0",
+            open_time + 59_999,
+        ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = dict(request.url.params)
+        requests.append(params)
+
+        if "endTime" not in params:
+            assert params["limit"] == "1000"
+            return httpx.Response(200, json=[row(index) for index in range(205, 1205)])
+
+        assert params["limit"] == "205"
+        assert int(params["endTime"]) == base_open_time + 205 * 60_000 - 1
+        return httpx.Response(200, json=[row(index) for index in range(205)])
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    candles = provider.fetch_candles("BTC/USDT", "1m", limit=1205)
+
+    assert len(requests) == 2
+    assert len(candles) == 1205
+    assert candles[0].open_time == datetime.fromtimestamp(base_open_time / 1000, tz=UTC)
+    assert candles[-1].open_time == datetime.fromtimestamp(
+        (base_open_time + 1204 * 60_000) / 1000,
+        tz=UTC,
+    )
+    assert candles == sorted(candles, key=lambda candle: candle.open_time)
+
+    client.close()
 
 
 def test_fetch_ticker_normalizes_binance_responses() -> None:

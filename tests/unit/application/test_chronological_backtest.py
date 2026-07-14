@@ -100,4 +100,14 @@ def test_chronological_runner_passes_only_prefix_candles(monkeypatch) -> None:
         "overlap": 0,
         "no_future_candles": 0,
     }
+    assert result.phase5_outcome_counts == {}
+    assert result.phase5_reason_counts == {}
+    assert result.phase5_strategy_counts == {}
+    assert result.phase5_score_bands == {
+        "below_40": 0,
+        "40_to_49_99": 0,
+        "50_to_59_99": 0,
+        "60_to_69_99": 0,
+        "70_plus": 0,
+    }
     assert captured_lengths == [40, 40, 40, 40, 40]

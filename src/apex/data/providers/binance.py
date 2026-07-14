@@ -75,48 +75,71 @@ class BinanceMarketDataProvider:
         timeframe: str,
         limit: int = 100,
     ) -> list[Candle]:
-        """Fetch and normalize Binance Spot candlesticks."""
+        """Fetch and normalize Binance Spot candlesticks with backward pagination."""
 
         if timeframe not in self.SUPPORTED_TIMEFRAMES:
             supported = ", ".join(sorted(self.SUPPORTED_TIMEFRAMES))
             raise ValueError(f"Unsupported timeframe: {timeframe}. Supported: {supported}")
 
-        if not 1 <= limit <= 1000:
-            raise ValueError("limit must be between 1 and 1000")
+        if not 1 <= limit <= 10_000:
+            raise ValueError("limit must be between 1 and 10000")
 
         normalized_symbol = self._normalize_symbol(symbol)
+        now = datetime.now(UTC)
+        candles_by_open_time: dict[datetime, Candle] = {}
+        end_time_ms: int | None = None
 
-        payload = request_json(
-            self._client,
-            "GET",
-            "/api/v3/klines",
-            provider=self.name,
-            operation="fetch candles",
-            retry_policy=self._retry_policy,
-            sleep=self._sleep,
-            params={
+        while len(candles_by_open_time) < limit:
+            page_limit = min(1000, limit - len(candles_by_open_time))
+            params: dict[str, str | int] = {
                 "symbol": normalized_symbol,
                 "interval": timeframe,
-                "limit": limit,
-            },
-        )
-        if not isinstance(payload, list):
-            raise ProviderResponseError(
-                "Binance candle response must be a list",
+                "limit": page_limit,
+            }
+            if end_time_ms is not None:
+                params["endTime"] = end_time_ms
+
+            payload = request_json(
+                self._client,
+                "GET",
+                "/api/v3/klines",
                 provider=self.name,
                 operation="fetch candles",
+                retry_policy=self._retry_policy,
+                sleep=self._sleep,
+                params=params,
             )
+            if not isinstance(payload, list):
+                raise ProviderResponseError(
+                    "Binance candle response must be a list",
+                    provider=self.name,
+                    operation="fetch candles",
+                )
+            if not payload:
+                break
 
-        now = datetime.now(UTC)
-        candles = [
-            self._parse_candle(
-                row=row,
-                display_symbol=symbol.upper(),
-                timeframe=timeframe,
-                now=now,
-            )
-            for row in payload
-        ]
+            page = [
+                self._parse_candle(
+                    row=row,
+                    display_symbol=symbol.upper(),
+                    timeframe=timeframe,
+                    now=now,
+                )
+                for row in payload
+            ]
+            page.sort(key=lambda candle: candle.open_time)
+
+            for candle in page:
+                candles_by_open_time[candle.open_time] = candle
+
+            next_end_time_ms = int(page[0].open_time.timestamp() * 1000) - 1
+            if end_time_ms is not None and next_end_time_ms >= end_time_ms:
+                break
+            if len(payload) < page_limit:
+                break
+            end_time_ms = next_end_time_ms
+
+        candles = sorted(candles_by_open_time.values(), key=lambda candle: candle.open_time)
 
         if not candles:
             raise ProviderResponseError(
@@ -125,7 +148,7 @@ class BinanceMarketDataProvider:
                 operation="fetch candles",
             )
 
-        return candles
+        return candles[-limit:]
 
     def fetch_ticker(self, symbol: str) -> TickerSnapshot:
         """Fetch and normalize Binance Spot ticker data."""

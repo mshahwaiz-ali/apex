@@ -79,6 +79,7 @@ class SymbolAnalysis:
     gainer_evidence: Mapping[str, Any] | None = None
     strategy_routing: Mapping[str, Any] | None = None
     precision_entry: Mapping[str, Any] | None = None
+    phase5_diagnostics: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +190,24 @@ def analyze_symbol(
             scanner_type, assessment, gainer_result, routed_phase4, strategy_routing
         ),
         precision_entry=precision_entry,
+        phase5_diagnostics={
+            "candidate_count": len(phase5.all_scored_candidates),
+            "ranked_count": len(phase5.ranked_candidates),
+            "rejected_count": len(phase5.rejected_candidates),
+            "selected": phase5.selected_candidate is not None,
+            "no_trade_reason": phase5.no_trade_reason,
+            "candidates": [
+                {
+                    "candidate_id": item.scored.candidate_id,
+                    "strategy": item.candidate.strategy.value,
+                    "direction": item.candidate.direction.value,
+                    "outcome": item.outcome.value,
+                    "final_score": item.final_score,
+                    "reasons": list(item.reasons),
+                }
+                for item in phase5.ranked_candidates
+            ],
+        },
     )
 
 
@@ -325,6 +344,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             "gainer_state": analysis.gainer_state,
             "gainer_evidence": dict(analysis.gainer_evidence or {}),
             "strategy_routing": dict(analysis.strategy_routing or {}),
+            "phase5_diagnostics": dict(analysis.phase5_diagnostics or {}),
             "candidate_count": analysis.candidate_count,
             "evaluated_timeframes": list(analysis.evaluated_timeframes),
             "market_regime": dict(analysis.regime_by_timeframe),

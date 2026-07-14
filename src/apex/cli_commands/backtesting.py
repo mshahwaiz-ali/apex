@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import ceil
 from pathlib import Path
 from typing import Annotated
 
@@ -33,10 +34,12 @@ from apex.application.backtest_report_io import (
     write_backtest_report_sqlite,
 )
 from apex.application.chronological_metadata import build_chronological_metadata
+from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.application.historical_dataset import load_historical_candles
 from apex.cli import backtest as legacy_simulate_current_setup
 from apex.data.providers.errors import MarketDataProviderError
-from apex.domain import Candle
+from apex.data.timeframes import timeframe_delta
+from apex.domain import Candle, RiskMode
 
 
 def register_backtesting_commands(app: typer.Typer) -> None:
@@ -96,6 +99,14 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             int,
             typer.Option("--candidate-cooldown", min=0),
         ] = 3,
+        risk_mode: Annotated[
+            RiskMode,
+            typer.Option(
+                "--risk-mode",
+                case_sensitive=False,
+                help="Strategy approval mode: STANDARD, AGGRESSIVE, or EXTREME.",
+            ),
+        ] = RiskMode.STANDARD,
         dataset: Annotated[
             Path | None,
             typer.Option(
@@ -135,13 +146,22 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             required_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
             candles: Mapping[str, tuple[Candle, ...]]
             if dataset is None:
+                history_limits = {
+                    timeframe: _aligned_history_limit(
+                        timeframe=timeframe,
+                        replay_timeframe=replay_timeframe,
+                        replay_history_candles=history_limit,
+                        analysis_candles=candle_limit,
+                    )
+                    for timeframe in required_timeframes
+                }
                 with create_market_data_services(context.settings) as services:
                     candles = {
                         timeframe: tuple(
                             services.candles.fetch_candles(
                                 canonical,
                                 timeframe,
-                                limit=history_limit,
+                                limit=history_limits[timeframe],
                             )
                         )
                         for timeframe in required_timeframes
@@ -167,7 +187,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
                 gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
-            result = run_chronological_pipeline_backtest(request)
+            with futures_risk_mode_scope(risk_mode):
+                result = run_chronological_pipeline_backtest(request)
             metadata = build_chronological_metadata(
                 symbol=canonical,
                 candles_by_timeframe=candles,
@@ -195,6 +216,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         payload = {
             "symbol": canonical,
             "dataset_source": dataset_source,
+            "risk_mode": risk_mode.value,
             "metadata": metadata_payload,
             "decision_count": result.decision_count,
             "approved_count": result.approved_count,
@@ -208,6 +230,10 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "rejection_code_counts": dict(result.rejection_code_counts),
                 "rejection_reason_counts": dict(result.rejection_reason_counts),
                 "skipped_by_stage": dict(result.skipped_by_stage),
+                "phase5_outcome_counts": dict(result.phase5_outcome_counts),
+                "phase5_reason_counts": dict(result.phase5_reason_counts),
+                "phase5_strategy_counts": dict(result.phase5_strategy_counts),
+                "phase5_score_bands": dict(result.phase5_score_bands),
             },
             "metrics": to_json_value(result.report),
             "trades": to_json_value(result.trades),
@@ -374,6 +400,46 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         if record_db is not None:
             write_backtest_campaign_sqlite(record_db, payload)
         typer.echo(dumps_report(payload), nl=False)
+
+
+MAX_LIVE_HISTORY_CANDLES = 10_000
+
+
+def _aligned_history_limit(
+    *,
+    timeframe: str,
+    replay_timeframe: str,
+    replay_history_candles: int,
+    analysis_candles: int,
+) -> int:
+    """Return candles needed for full warmup across the replay horizon."""
+
+    if replay_history_candles < 1:
+        raise ValueError("replay history candles must be positive")
+    if analysis_candles < 1:
+        raise ValueError("analysis candles must be positive")
+    if replay_history_candles < analysis_candles:
+        raise ValueError("replay history candles must be greater than or equal to analysis candles")
+
+    replay_delta = timeframe_delta(replay_timeframe)
+    analysis_delta = timeframe_delta(timeframe)
+
+    replay_span_after_first_decision = (replay_history_candles - analysis_candles) * replay_delta
+    required_span = replay_span_after_first_decision + analysis_candles * analysis_delta
+    required_candles = max(
+        analysis_candles,
+        ceil(required_span / analysis_delta),
+    )
+
+    if required_candles > MAX_LIVE_HISTORY_CANDLES:
+        raise ValueError(
+            "aligned live history requires "
+            f"{required_candles} candles for {timeframe}, exceeding the "
+            f"{MAX_LIVE_HISTORY_CANDLES} candle live-provider limit; "
+            "reduce --history-candles or use --dataset"
+        )
+
+    return required_candles
 
 
 def _parse_campaign_symbols(value: str) -> tuple[str, ...]:

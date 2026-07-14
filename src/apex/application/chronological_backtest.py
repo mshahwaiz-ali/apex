@@ -78,6 +78,10 @@ class ChronologicalBacktestResult:
     rejection_code_counts: Mapping[str, int]
     rejection_reason_counts: Mapping[str, int]
     skipped_by_stage: Mapping[str, int]
+    phase5_outcome_counts: Mapping[str, int]
+    phase5_reason_counts: Mapping[str, int]
+    phase5_strategy_counts: Mapping[str, int]
+    phase5_score_bands: Mapping[str, int]
 
     def __post_init__(self) -> None:
         if self.report.total_trades != len(self.trades):
@@ -101,6 +105,10 @@ class ChronologicalBacktestResult:
             self.rejection_code_counts,
             self.rejection_reason_counts,
             self.skipped_by_stage,
+            self.phase5_outcome_counts,
+            self.phase5_reason_counts,
+            self.phase5_strategy_counts,
+            self.phase5_score_bands,
         )
         if any(value < 0 for mapping in diagnostic_maps for value in mapping.values()):
             raise ValueError("chronological diagnostic counts cannot be negative")
@@ -125,6 +133,26 @@ class ChronologicalBacktestResult:
             "skipped_by_stage",
             MappingProxyType(dict(self.skipped_by_stage)),
         )
+        object.__setattr__(
+            self,
+            "phase5_outcome_counts",
+            MappingProxyType(dict(self.phase5_outcome_counts)),
+        )
+        object.__setattr__(
+            self,
+            "phase5_reason_counts",
+            MappingProxyType(dict(self.phase5_reason_counts)),
+        )
+        object.__setattr__(
+            self,
+            "phase5_strategy_counts",
+            MappingProxyType(dict(self.phase5_strategy_counts)),
+        )
+        object.__setattr__(
+            self,
+            "phase5_score_bands",
+            MappingProxyType(dict(self.phase5_score_bands)),
+        )
 
 
 def run_chronological_pipeline_backtest(
@@ -142,6 +170,16 @@ def run_chronological_pipeline_backtest(
     candidate_count_distribution = {"0": 0, "1": 0, "2_plus": 0}
     rejection_code_counts: dict[str, int] = {}
     rejection_reason_counts: dict[str, int] = {}
+    phase5_outcome_counts: dict[str, int] = {}
+    phase5_reason_counts: dict[str, int] = {}
+    phase5_strategy_counts: dict[str, int] = {}
+    phase5_score_bands = {
+        "below_40": 0,
+        "40_to_49_99": 0,
+        "50_to_59_99": 0,
+        "60_to_69_99": 0,
+        "70_plus": 0,
+    }
     skipped_by_stage = {
         "insufficient_warmup": 0,
         "no_candidates": 0,
@@ -188,6 +226,41 @@ def run_chronological_pipeline_backtest(
             else "2_plus"
         )
         candidate_count_distribution[candidate_bucket] += 1
+
+        phase5 = dict(analysis.phase5_diagnostics or {})
+        candidates = phase5.get("candidates", [])
+        if isinstance(candidates, list):
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+
+                outcome = candidate.get("outcome")
+                if isinstance(outcome, str) and outcome:
+                    phase5_outcome_counts[outcome] = phase5_outcome_counts.get(outcome, 0) + 1
+
+                strategy = candidate.get("strategy")
+                if isinstance(strategy, str) and strategy:
+                    phase5_strategy_counts[strategy] = phase5_strategy_counts.get(strategy, 0) + 1
+
+                reasons = candidate.get("reasons", [])
+                if isinstance(reasons, list):
+                    for reason in reasons:
+                        if isinstance(reason, str) and reason:
+                            phase5_reason_counts[reason] = phase5_reason_counts.get(reason, 0) + 1
+
+                score = candidate.get("final_score")
+                if isinstance(score, int | float):
+                    if score < 40.0:
+                        score_band = "below_40"
+                    elif score < 50.0:
+                        score_band = "40_to_49_99"
+                    elif score < 60.0:
+                        score_band = "50_to_59_99"
+                    elif score < 70.0:
+                        score_band = "60_to_69_99"
+                    else:
+                        score_band = "70_plus"
+                    phase5_score_bands[score_band] += 1
 
         if analysis.assessment.decision is not RiskDecision.APPROVED:
             skipped_count += 1
@@ -265,6 +338,10 @@ def run_chronological_pipeline_backtest(
         rejection_code_counts=rejection_code_counts,
         rejection_reason_counts=rejection_reason_counts,
         skipped_by_stage=skipped_by_stage,
+        phase5_outcome_counts=phase5_outcome_counts,
+        phase5_reason_counts=phase5_reason_counts,
+        phase5_strategy_counts=phase5_strategy_counts,
+        phase5_score_bands=phase5_score_bands,
     )
 
 
