@@ -35,9 +35,7 @@ def select_calibration_candidates(
         for candidate in sorted(candidates, key=lambda item: item.identifier)
     )
     selected = tuple(
-        item.candidate_id
-        for item in assessments
-        if item.decision is CalibrationDecision.ACCEPT
+        item.candidate_id for item in assessments if item.decision is CalibrationDecision.ACCEPT
     )
     payload = {
         "assessments": [_assessment_payload(item) for item in assessments],
@@ -93,8 +91,7 @@ def _assess_candidate(
         reasons.append(CalibrationReason.VALIDATION_SAMPLE_INSUFFICIENT)
 
     expectancy_improvement = (
-        candidate.candidate_validation.expectancy
-        - candidate.baseline_validation.expectancy
+        candidate.candidate_validation.expectancy - candidate.baseline_validation.expectancy
     )
     drawdown_change = (
         candidate.candidate_validation.maximum_drawdown_r

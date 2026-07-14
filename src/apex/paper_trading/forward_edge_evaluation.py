@@ -138,9 +138,7 @@ def evaluate_forward_paper_edge(
         expectancy_degradation_from_test=degradation,
         consistent_edge_direction=consistent_direction,
         evidence_stable=passed,
-        promoted_evidence_quality=(
-            EvidenceQuality.VALIDATED_FORWARD_PAPER if passed else None
-        ),
+        promoted_evidence_quality=(EvidenceQuality.VALIDATED_FORWARD_PAPER if passed else None),
         rejection_reasons=tuple(reasons),
         warnings=(ForwardPaperValidationReason.PRODUCTION_ELIGIBILITY_NOT_INCLUDED,)
         if passed

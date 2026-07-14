@@ -136,7 +136,9 @@ class SpotOrderPlan:
             raise ValueError("protective stop must be finite and positive")
         if any(entry.price <= self.protective_stop for entry in self.entries):
             raise ValueError("long-only spot entries must remain above the protective stop")
-        if any(target.price <= min(entry.price for entry in self.entries) for target in self.targets):
+        if any(
+            target.price <= min(entry.price for entry in self.entries) for target in self.targets
+        ):
             raise ValueError("long-only spot targets must remain above planned entries")
 
 

@@ -1,4 +1,5 @@
 """Deterministic chronological simulator for long-only spot portfolios."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -113,9 +114,7 @@ def run_spot_backtest(
             )
         curve.append(_equity_point(final_time, cash, positions, latest))
 
-    metrics = compute_spot_portfolio_metrics(
-        trades, curve, starting_cash=config.starting_cash
-    )
+    metrics = compute_spot_portfolio_metrics(trades, curve, starting_cash=config.starting_cash)
     return SpotBacktestResult(
         config=config,
         starting_cash=config.starting_cash,
@@ -127,9 +126,7 @@ def run_spot_backtest(
     )
 
 
-def _validate_inputs(
-    plans: Sequence[SpotOrderPlan], bars: Sequence[SpotBar]
-) -> None:
+def _validate_inputs(plans: Sequence[SpotOrderPlan], bars: Sequence[SpotBar]) -> None:
     identifiers = [plan.plan_id for plan in plans]
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("spot plan ids must be unique")
@@ -221,9 +218,7 @@ def _fill_entries(
             continue
         target_cash = min(
             config.starting_cash * plan.allocation_pct / 100.0,
-            config.starting_cash
-            * config.maximum_allocation_per_position_pct
-            / 100.0,
+            config.starting_cash * config.maximum_allocation_per_position_pct / 100.0,
         )
         leg_cash = target_cash * entry.allocation_fraction
         reserve = config.starting_cash * config.minimum_cash_reserve_pct / 100.0
@@ -359,9 +354,7 @@ def _exposure_room(
     return max(0.0, cap - market_value)
 
 
-def _market_value(
-    positions: dict[str, SpotPosition], latest: dict[str, float]
-) -> float:
+def _market_value(positions: dict[str, SpotPosition], latest: dict[str, float]) -> float:
     return sum(
         position.quantity * latest.get(position.plan.symbol, position.average_entry)
         for position in positions.values()

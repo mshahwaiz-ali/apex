@@ -1,4 +1,5 @@
 """Deterministic coverage for the separate long-only spot simulator."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

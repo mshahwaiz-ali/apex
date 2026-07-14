@@ -1,4 +1,5 @@
 """Deterministic coverage for V2 spot baseline planning and reports."""
+
 from __future__ import annotations
 
 from dataclasses import replace

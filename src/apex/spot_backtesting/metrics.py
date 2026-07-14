@@ -1,4 +1,5 @@
 """Portfolio-level metrics for deterministic spot backtests."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -52,9 +53,7 @@ def compute_spot_portfolio_metrics(
         symbol_breakdown=_breakdown(trades, lambda trade: trade.symbol),
         regime_breakdown=_breakdown(trades, lambda trade: trade.market_regime),
         score_band_breakdown=_breakdown(trades, lambda trade: trade.score_band),
-        exit_reason_breakdown=_count_breakdown(
-            trades, lambda trade: trade.exit_reason.value
-        ),
+        exit_reason_breakdown=_count_breakdown(trades, lambda trade: trade.exit_reason.value),
     )
 
 

@@ -1,4 +1,5 @@
 """Public long-only spot portfolio backtesting API."""
+
 from apex.spot_backtesting.contracts import (
     SpotBacktestConfig,
     SpotBacktestResult,

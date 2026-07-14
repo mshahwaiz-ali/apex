@@ -1,4 +1,5 @@
 """Typed contracts for frozen V2 spot baseline campaigns."""
+
 from __future__ import annotations
 
 import math
@@ -178,11 +179,7 @@ class SpotBaselineEvaluationPolicy:
     maximum_average_exposure_pct: float = 80.0
 
     def __post_init__(self) -> None:
-        if (
-            self.minimum_strategy_trades < 1
-            or self.minimum_symbols < 1
-            or self.minimum_regimes < 1
-        ):
+        if self.minimum_strategy_trades < 1 or self.minimum_symbols < 1 or self.minimum_regimes < 1:
             raise ValueError("spot baseline minimum counts must be positive")
         for name in (
             "minimum_profit_factor",

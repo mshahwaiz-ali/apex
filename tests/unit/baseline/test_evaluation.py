@@ -135,7 +135,9 @@ def test_cost_collapse_restricts_strategy() -> None:
     )
 
     assert all(item.verdict is BaselineVerdict.RESTRICT for item in report.assessments)
-    assert all(BaselineReason.COST_SENSITIVITY_EXCESSIVE in item.reasons for item in report.assessments)
+    assert all(
+        BaselineReason.COST_SENSITIVITY_EXCESSIVE in item.reasons for item in report.assessments
+    )
 
 
 def test_non_positive_expectancy_rejects_strategy() -> None:

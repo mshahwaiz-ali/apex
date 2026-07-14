@@ -110,9 +110,7 @@ class EvidenceAwareStrategyApprovalDecision:
         payload = self.base_decision.to_payload()
         payload["eligibility"] = self.eligibility.value
         payload["historical_evidence"] = (
-            self.historical_evidence.to_payload()
-            if self.historical_evidence is not None
-            else None
+            self.historical_evidence.to_payload() if self.historical_evidence is not None else None
         )
         payload["historical_evidence_reasons"] = [
             reason.to_payload() for reason in self.historical_reasons

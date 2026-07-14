@@ -1,4 +1,5 @@
 """Validation and evaluation of completed frozen spot baseline campaigns."""
+
 from __future__ import annotations
 
 import hashlib
@@ -92,9 +93,7 @@ def _validate_results(
         raise ValueError(f"unplanned spot campaign cells: {sorted(extra)}")
     dataset_hashes = {dataset.dataset_id: dataset.content_hash for dataset in plan.datasets}
     costs = {variant.identifier: variant for variant in plan.cost_variants}
-    allocations = {
-        variant.identifier: variant for variant in plan.allocation_variants
-    }
+    allocations = {variant.identifier: variant for variant in plan.allocation_variants}
     for result in results:
         if result.plan_id != plan.plan_id:
             raise ValueError("spot campaign result plan drift detected")
@@ -110,10 +109,8 @@ def _validate_results(
         if (
             config.maximum_allocation_per_position_pct
             != allocation.maximum_allocation_per_position_pct
-            or config.maximum_total_exposure_pct
-            != allocation.maximum_total_exposure_pct
-            or config.maximum_concurrent_positions
-            != allocation.maximum_concurrent_positions
+            or config.maximum_total_exposure_pct != allocation.maximum_total_exposure_pct
+            or config.maximum_concurrent_positions != allocation.maximum_concurrent_positions
         ):
             raise ValueError("spot campaign result allocation assumptions mismatch")
     return result_map
@@ -126,9 +123,7 @@ def _require_variant(
 ) -> None:
     if cost_variant_id not in {item.identifier for item in plan.cost_variants}:
         raise ValueError("baseline cost variant is not present in the frozen plan")
-    if allocation_variant_id not in {
-        item.identifier for item in plan.allocation_variants
-    }:
+    if allocation_variant_id not in {item.identifier for item in plan.allocation_variants}:
         raise ValueError("baseline allocation variant is not present in the frozen plan")
 
 
@@ -296,23 +291,22 @@ def _cost_sensitivity(
     degradation = None
     if baseline_expectancy > 0.0:
         degradation = (baseline_expectancy - expectancy) / baseline_expectancy
-    stable = expectancy > 0.0 and (
-        degradation is None or degradation <= maximum_degradation
-    )
+    stable = expectancy > 0.0 and (degradation is None or degradation <= maximum_degradation)
     return SpotCostSensitivity(cost_id, expectancy, degradation, stable)
 
 
-def _weighted_metric(
-    results: Sequence[SpotCampaignResult], metric_name: str
-) -> float:
+def _weighted_metric(results: Sequence[SpotCampaignResult], metric_name: str) -> float:
     weights = [max(1, result.backtest.metrics.trade_count) for result in results]
     total = sum(weights)
     if total == 0:
         return 0.0
-    return sum(
-        float(getattr(result.backtest.metrics, metric_name)) * weight
-        for result, weight in zip(results, weights, strict=True)
-    ) / total
+    return (
+        sum(
+            float(getattr(result.backtest.metrics, metric_name)) * weight
+            for result, weight in zip(results, weights, strict=True)
+        )
+        / total
+    )
 
 
 def _score_band_expectancy(

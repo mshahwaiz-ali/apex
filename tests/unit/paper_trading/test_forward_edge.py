@@ -45,9 +45,7 @@ def _historical(
         test_expectancy_degradation=0.375,
         consistent_edge_direction=passed,
         evidence_stable=passed,
-        promoted_evidence_quality=(
-            EvidenceQuality.VALIDATED_OUT_OF_SAMPLE if passed else None
-        ),
+        promoted_evidence_quality=(EvidenceQuality.VALIDATED_OUT_OF_SAMPLE if passed else None),
         rejection_reasons=()
         if passed
         else (HistoricalEdgeValidationReason.TEST_EXPECTANCY_NOT_POSITIVE,),
@@ -85,7 +83,8 @@ def _trade(index: int, realized_r: float, *, state: PaperTradeState | None = Non
         entry_time=generated_at + timedelta(minutes=5) if entered else None,
         entry_price=100.0 if entered else None,
         exit_time=generated_at + timedelta(minutes=30)
-        if resolved_state in {PaperTradeState.TARGET_HIT, PaperTradeState.STOPPED, PaperTradeState.EXPIRED}
+        if resolved_state
+        in {PaperTradeState.TARGET_HIT, PaperTradeState.STOPPED, PaperTradeState.EXPIRED}
         else None,
         exit_price=102.0 if realized_r > 0.0 and entered else 99.0 if entered else None,
         net_pnl=realized_r if entered else 0.0,
@@ -107,9 +106,7 @@ def test_forward_paper_evidence_promotes_only_to_validated_forward_paper() -> No
     assert result.forward_profile is not None
     assert result.forward_profile.sample_size == 4
     assert result.forward_profile.expectancy == pytest.approx(0.5)
-    assert result.warnings == (
-        ForwardPaperValidationReason.PRODUCTION_ELIGIBILITY_NOT_INCLUDED,
-    )
+    assert result.warnings == (ForwardPaperValidationReason.PRODUCTION_ELIGIBILITY_NOT_INCLUDED,)
     assert result.promoted_evidence_quality is not EvidenceQuality.PRODUCTION_ELIGIBLE
 
 
@@ -134,8 +131,7 @@ def test_failed_historical_validation_blocks_forward_promotion() -> None:
 
     assert result.status is ForwardPaperValidationStatus.INSUFFICIENT_SAMPLE
     assert (
-        ForwardPaperValidationReason.HISTORICAL_OUT_OF_SAMPLE_REQUIRED
-        in result.rejection_reasons
+        ForwardPaperValidationReason.HISTORICAL_OUT_OF_SAMPLE_REQUIRED in result.rejection_reasons
     )
 
 

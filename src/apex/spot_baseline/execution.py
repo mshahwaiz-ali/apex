@@ -1,4 +1,5 @@
 """Execution binding for frozen V2 spot baseline campaign cells."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -49,9 +50,7 @@ def execute_spot_baseline_plan(
         raise ValueError(f"unplanned spot campaign inputs: {sorted(extra)}")
 
     costs = {variant.identifier: variant for variant in plan.cost_variants}
-    allocations = {
-        variant.identifier: variant for variant in plan.allocation_variants
-    }
+    allocations = {variant.identifier: variant for variant in plan.allocation_variants}
     datasets = {dataset.dataset_id: dataset for dataset in plan.datasets}
     completed: list[SpotCampaignResult] = []
     for cell in sorted(plan.cells, key=lambda item: item.key):
@@ -61,9 +60,7 @@ def execute_spot_baseline_plan(
         allocation = allocations[cell.allocation_variant_id]
         config = SpotBacktestConfig(
             starting_cash=starting_cash,
-            maximum_allocation_per_position_pct=(
-                allocation.maximum_allocation_per_position_pct
-            ),
+            maximum_allocation_per_position_pct=(allocation.maximum_allocation_per_position_pct),
             maximum_total_exposure_pct=allocation.maximum_total_exposure_pct,
             maximum_concurrent_positions=allocation.maximum_concurrent_positions,
             minimum_cash_reserve_pct=minimum_cash_reserve_pct,

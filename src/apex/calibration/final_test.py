@@ -70,9 +70,7 @@ def _evaluate_final_test(
     reasons: list[CalibrationReason] = []
     degraded = candidate.expectancy <= 0.0
     if degradation is not None:
-        degraded = degraded or (
-            degradation > policy.maximum_final_test_expectancy_degradation
-        )
+        degraded = degraded or (degradation > policy.maximum_final_test_expectancy_degradation)
     degraded = degraded or candidate.maximum_drawdown_r > baseline.maximum_drawdown_r
     if degraded:
         decision = CalibrationDecision.REJECT

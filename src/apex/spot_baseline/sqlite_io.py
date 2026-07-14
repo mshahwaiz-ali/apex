@@ -1,4 +1,5 @@
 """SQLite persistence for frozen spot baseline reports."""
+
 from __future__ import annotations
 
 import json
@@ -64,9 +65,7 @@ def list_spot_baseline_report_metadata_sqlite(
         rows = connection.execute(
             "SELECT report_id, plan_id FROM spot_baseline_reports ORDER BY report_id"
         ).fetchall()
-    return tuple(
-        {"report_id": str(row[0]), "plan_id": str(row[1])} for row in rows
-    )
+    return tuple({"report_id": str(row[0]), "plan_id": str(row[1])} for row in rows)
 
 
 def _ensure_schema(connection: sqlite3.Connection) -> None:
@@ -79,6 +78,4 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
-    connection.execute(
-        "PRAGMA user_version = " + str(SPOT_BASELINE_REPORT_DB_SCHEMA_VERSION)
-    )
+    connection.execute("PRAGMA user_version = " + str(SPOT_BASELINE_REPORT_DB_SCHEMA_VERSION))

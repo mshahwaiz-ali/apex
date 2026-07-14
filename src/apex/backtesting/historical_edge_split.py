@@ -174,9 +174,7 @@ def _guard_later_split(
     if prior_end is None:
         filtered = purged
     else:
-        filtered = tuple(
-            trade for trade in purged if trade.signal.generated_at > prior_end
-        )
+        filtered = tuple(trade for trade in purged if trade.signal.generated_at > prior_end)
     return _make_split(
         role,
         filtered,

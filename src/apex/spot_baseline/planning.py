@@ -1,4 +1,5 @@
 """Frozen deterministic planning for V2 spot baseline campaigns."""
+
 from __future__ import annotations
 
 import hashlib
@@ -29,17 +30,11 @@ def build_spot_baseline_plan(
     normalized_symbols = _unique_sorted(symbols, "symbols")
     normalized_datasets = tuple(sorted(datasets, key=lambda item: item.dataset_id))
     normalized_costs = tuple(sorted(cost_variants, key=lambda item: item.identifier))
-    normalized_allocations = tuple(
-        sorted(allocation_variants, key=lambda item: item.identifier)
-    )
+    normalized_allocations = tuple(sorted(allocation_variants, key=lambda item: item.identifier))
     if not normalized_datasets or not normalized_costs or not normalized_allocations:
         raise ValueError("spot baseline plan requires datasets and scenario variants")
-    _require_unique(
-        [dataset.dataset_id for dataset in normalized_datasets], "dataset ids"
-    )
-    _require_unique(
-        [variant.identifier for variant in normalized_costs], "cost variant ids"
-    )
+    _require_unique([dataset.dataset_id for dataset in normalized_datasets], "dataset ids")
+    _require_unique([variant.identifier for variant in normalized_costs], "cost variant ids")
     _require_unique(
         [variant.identifier for variant in normalized_allocations],
         "allocation variant ids",
@@ -62,9 +57,7 @@ def build_spot_baseline_plan(
         covered_symbols.update(dataset.symbols)
     missing_symbols = known_symbols - covered_symbols
     if missing_symbols:
-        raise ValueError(
-            f"spot baseline datasets are missing symbols: {sorted(missing_symbols)}"
-        )
+        raise ValueError(f"spot baseline datasets are missing symbols: {sorted(missing_symbols)}")
 
     assumptions_hash = _stable_hash(dict(assumptions))
     cells = tuple(

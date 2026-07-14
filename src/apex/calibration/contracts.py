@@ -75,7 +75,9 @@ class CalibrationMetrics:
         for mapping_name in ("expectancy_by_symbol", "expectancy_by_regime"):
             mapping = getattr(self, mapping_name)
             if any(not key.strip() or not math.isfinite(value) for key, value in mapping.items()):
-                raise ValueError(f"{mapping_name.replace('_', ' ')} must contain finite named values")
+                raise ValueError(
+                    f"{mapping_name.replace('_', ' ')} must contain finite named values"
+                )
             object.__setattr__(self, mapping_name, MappingProxyType(dict(mapping)))
 
 
@@ -94,7 +96,9 @@ class CalibrationCandidate:
             raise ValueError("calibration candidate identity and strategy are required")
         if not self.parameter_changes:
             raise ValueError("calibration candidate requires parameter changes")
-        object.__setattr__(self, "parameter_changes", MappingProxyType(dict(self.parameter_changes)))
+        object.__setattr__(
+            self, "parameter_changes", MappingProxyType(dict(self.parameter_changes))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,5 +154,8 @@ class WalkForwardCalibrationReport:
         known = {item.candidate_id for item in self.assessments}
         if not set(self.selected_candidate_ids).issubset(known):
             raise ValueError("selected calibration candidates must refer to assessments")
-        if any(item.candidate_id not in self.selected_candidate_ids for item in self.final_test_assessments):
+        if any(
+            item.candidate_id not in self.selected_candidate_ids
+            for item in self.final_test_assessments
+        ):
             raise ValueError("final-test results may only be attached to preselected candidates")

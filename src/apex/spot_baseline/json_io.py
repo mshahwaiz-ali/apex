@@ -1,4 +1,5 @@
 """JSON persistence for frozen spot baseline reports."""
+
 from __future__ import annotations
 
 import json

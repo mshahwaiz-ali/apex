@@ -1,4 +1,5 @@
 """Public V2 spot baseline campaign API."""
+
 from apex.spot_baseline.contracts import (
     SpotAllocationVariant,
     SpotBaselineCampaignPlan,

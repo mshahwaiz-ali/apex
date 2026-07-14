@@ -87,6 +87,4 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
-    connection.execute(
-        "PRAGMA user_version = " + str(CALIBRATION_REPORT_DB_SCHEMA_VERSION)
-    )
+    connection.execute("PRAGMA user_version = " + str(CALIBRATION_REPORT_DB_SCHEMA_VERSION))

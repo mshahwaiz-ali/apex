@@ -41,9 +41,7 @@ class HistoricalEdgeValidationReason(StrEnum):
     TEST_EXPECTANCY_NOT_POSITIVE = "TEST_EXPECTANCY_NOT_POSITIVE"
     VALIDATION_PROFIT_FACTOR_INADEQUATE = "VALIDATION_PROFIT_FACTOR_INADEQUATE"
     TEST_PROFIT_FACTOR_INADEQUATE = "TEST_PROFIT_FACTOR_INADEQUATE"
-    VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE = (
-        "VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE"
-    )
+    VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE = "VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE"
     TEST_EXPECTANCY_DEGRADATION_EXCESSIVE = "TEST_EXPECTANCY_DEGRADATION_EXCESSIVE"
     EDGE_DIRECTION_INCONSISTENT = "EDGE_DIRECTION_INCONSISTENT"
     FORWARD_PAPER_VALIDATION_REQUIRED = "FORWARD_PAPER_VALIDATION_REQUIRED"
@@ -112,9 +110,7 @@ class HistoricalEdgeValidationResult:
     consistent_edge_direction: bool
     evidence_stable: bool
     promoted_evidence_quality: EvidenceQuality | None
-    rejection_reasons: tuple[HistoricalEdgeValidationReason, ...] = field(
-        default_factory=tuple
-    )
+    rejection_reasons: tuple[HistoricalEdgeValidationReason, ...] = field(default_factory=tuple)
     warnings: tuple[HistoricalEdgeValidationReason, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -247,13 +243,9 @@ def _evaluate_segment(
 
     if validation is not None:
         if validation.expectancy <= 0.0:
-            reasons.append(
-                HistoricalEdgeValidationReason.VALIDATION_EXPECTANCY_NOT_POSITIVE
-            )
+            reasons.append(HistoricalEdgeValidationReason.VALIDATION_EXPECTANCY_NOT_POSITIVE)
         if not _profit_factor_exceeds(validation.profit_factor, policy.minimum_profit_factor):
-            reasons.append(
-                HistoricalEdgeValidationReason.VALIDATION_PROFIT_FACTOR_INADEQUATE
-            )
+            reasons.append(HistoricalEdgeValidationReason.VALIDATION_PROFIT_FACTOR_INADEQUATE)
     if test is not None:
         if test.expectancy <= 0.0:
             reasons.append(HistoricalEdgeValidationReason.TEST_EXPECTANCY_NOT_POSITIVE)
@@ -266,16 +258,12 @@ def _evaluate_segment(
         validation_degradation is not None
         and validation_degradation > policy.maximum_validation_expectancy_degradation
     ):
-        reasons.append(
-            HistoricalEdgeValidationReason.VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE
-        )
+        reasons.append(HistoricalEdgeValidationReason.VALIDATION_EXPECTANCY_DEGRADATION_EXCESSIVE)
     if (
         test_degradation is not None
         and test_degradation > policy.maximum_test_expectancy_degradation
     ):
-        reasons.append(
-            HistoricalEdgeValidationReason.TEST_EXPECTANCY_DEGRADATION_EXCESSIVE
-        )
+        reasons.append(HistoricalEdgeValidationReason.TEST_EXPECTANCY_DEGRADATION_EXCESSIVE)
 
     consistent_direction = bool(
         train is not None
@@ -312,11 +300,7 @@ def _evaluate_segment(
         status = HistoricalEdgeValidationStatus.PASSED_VALIDATION
 
     evidence_stable = status is HistoricalEdgeValidationStatus.PASSED_VALIDATION
-    promoted = (
-        EvidenceQuality.VALIDATED_OUT_OF_SAMPLE
-        if evidence_stable
-        else None
-    )
+    promoted = EvidenceQuality.VALIDATED_OUT_OF_SAMPLE if evidence_stable else None
     if promoted is EvidenceQuality.VALIDATED_OUT_OF_SAMPLE:
         warnings.append(HistoricalEdgeValidationReason.FORWARD_PAPER_VALIDATION_REQUIRED)
 

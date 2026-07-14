@@ -92,9 +92,7 @@ def test_successful_out_of_sample_promotion_preserves_profiles() -> None:
     assert result.train_profile is train
     assert result.validation_profile is validation
     assert result.test_profile is test
-    assert result.warnings == (
-        HistoricalEdgeValidationReason.FORWARD_PAPER_VALIDATION_REQUIRED,
-    )
+    assert result.warnings == (HistoricalEdgeValidationReason.FORWARD_PAPER_VALIDATION_REQUIRED,)
 
 
 @pytest.mark.parametrize(
@@ -162,9 +160,7 @@ def test_non_positive_out_of_sample_expectancy_fails(
 
 
 def test_profit_factor_failure_is_machine_readable() -> None:
-    mixed = tuple(
-        _trade(index, 1.0 if index < 20 else -1.0) for index in range(50)
-    )
+    mixed = tuple(_trade(index, 1.0 if index < 20 else -1.0) for index in range(50))
     validation = build_historical_edge_profile(mixed, dimensions={"symbol": "BTC/USDT"})
     result = _validate(validation=validation)
 
@@ -223,8 +219,7 @@ def test_mismatched_dimension_identity_cannot_be_combined() -> None:
         for result in results
     )
     assert any(
-        HistoricalEdgeValidationReason.MISSING_VALIDATION_SEGMENT
-        in result.rejection_reasons
+        HistoricalEdgeValidationReason.MISSING_VALIDATION_SEGMENT in result.rejection_reasons
         for result in results
     )
     assert any(
