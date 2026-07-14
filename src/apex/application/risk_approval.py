@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
 from apex.application.futures_plan import (
@@ -40,6 +39,7 @@ from apex.scoring.historical_approval import (
     HistoricalEdgeValidationView,
     evaluate_strategy_approval_with_historical_evidence,
 )
+from apex.scoring.setup_segment import SetupSegmentContext, SetupSegmentIdentity
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
@@ -69,7 +69,7 @@ def build_futures_plan(
     historical_evidence_available: bool = False,
     historical_edge_validation: HistoricalEdgeValidationView | None = None,
     forward_paper_validation: ForwardPaperValidationView | None = None,
-    setup_segment_dimensions: Mapping[str, str] | None = None,
+    setup_segment_context: SetupSegmentContext | None = None,
 ) -> dict[str, object]:
     """Build a futures plan after quality, mode, and account-policy checks."""
 
@@ -84,10 +84,10 @@ def build_futures_plan(
         )
     if forward_paper_validation is not None and historical_edge_validation is None:
         raise ValueError("forward_paper_validation requires historical_edge_validation")
-    if forward_paper_validation is not None and setup_segment_dimensions is None:
-        raise ValueError("forward_paper_validation requires setup_segment_dimensions")
-    if setup_segment_dimensions is not None and forward_paper_validation is None:
-        raise ValueError("setup_segment_dimensions requires forward_paper_validation")
+    if forward_paper_validation is not None and setup_segment_context is None:
+        raise ValueError("forward_paper_validation requires setup_segment_context")
+    if setup_segment_context is not None and forward_paper_validation is None:
+        raise ValueError("setup_segment_context requires forward_paper_validation")
 
     config = product_config or load_futures_product_config("config/futures.yaml")
     approval_config = strategy_approval_config or load_strategy_approval_config(
@@ -110,7 +110,12 @@ def build_futures_plan(
     if isinstance(setup, RiskApprovedSetup):
         if forward_paper_validation is not None:
             assert historical_edge_validation is not None
-            assert setup_segment_dimensions is not None
+            assert setup_segment_context is not None
+            setup_segment = SetupSegmentIdentity.from_setup(
+                setup=setup,
+                risk_mode=account.risk_mode,
+                context=setup_segment_context,
+            )
             strategy_decision = evaluate_strategy_approval_with_forward_paper_evidence(
                 strategy=setup.strategy,
                 risk_mode=account.risk_mode,
@@ -118,7 +123,7 @@ def build_futures_plan(
                 entry_state=entry.state,
                 config=approval_config,
                 account_policy_decision=policy_decision,
-                setup_segment_dimensions=setup_segment_dimensions,
+                setup_segment=setup_segment,
                 historical_edge_validation=historical_edge_validation,
                 forward_paper_validation=forward_paper_validation,
             )
@@ -185,7 +190,7 @@ def build_futures_plan_result(
     historical_evidence_available: bool = False,
     historical_edge_validation: HistoricalEdgeValidationView | None = None,
     forward_paper_validation: ForwardPaperValidationView | None = None,
-    setup_segment_dimensions: Mapping[str, str] | None = None,
+    setup_segment_context: SetupSegmentContext | None = None,
 ) -> dict[str, object]:
     """Return an approved or rejected policy-aware futures-plan payload."""
 
@@ -200,7 +205,7 @@ def build_futures_plan_result(
             historical_evidence_available=historical_evidence_available,
             historical_edge_validation=historical_edge_validation,
             forward_paper_validation=forward_paper_validation,
-            setup_segment_dimensions=setup_segment_dimensions,
+            setup_segment_context=setup_segment_context,
         )
     except StrategyApprovalError as exc:
         return {

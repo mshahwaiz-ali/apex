@@ -12,7 +12,7 @@ from apex.backtesting import (
     HistoricalEdgeValidationResult,
     HistoricalEdgeValidationStatus,
 )
-from apex.domain import FuturesAccountInput, RiskMode
+from apex.domain import FuturesAccountInput, RiskMode, ScannerMode
 from apex.paper_trading import (
     ForwardPaperEdgeProfile,
     ForwardPaperValidationReason,
@@ -29,6 +29,7 @@ from apex.risk.contracts import (
     StopLoss,
     TakeProfit,
 )
+from apex.scoring import SetupSegmentContext
 from apex.strategies import StrategyType, TradeDirection
 
 DIMENSIONS = {
@@ -40,6 +41,12 @@ DIMENSIONS = {
     "market_regime": "trend",
     "score_band": "85_89",
 }
+
+
+SEGMENT_CONTEXT = SetupSegmentContext(
+    scanner_type=ScannerMode.NORMAL,
+    market_regime="trend",
+)
 
 
 def _account(risk_mode: RiskMode = RiskMode.STANDARD) -> FuturesAccountInput:
@@ -180,7 +187,7 @@ def test_exact_standard_segment_can_become_funded_eligible() -> None:
         _account(),
         historical_edge_validation=historical,
         forward_paper_validation=_forward(historical),
-        setup_segment_dimensions=DIMENSIONS,
+        setup_segment_context=SEGMENT_CONTEXT,
     )
 
     assert result["status"] == "APPROVED"
@@ -205,7 +212,7 @@ def test_mismatched_forward_segment_remains_paper_only() -> None:
             historical,
             dimensions=mismatched,
         ),
-        setup_segment_dimensions=DIMENSIONS,
+        setup_segment_context=SEGMENT_CONTEXT,
     )
 
     assert result["status"] == "APPROVED"
@@ -228,7 +235,7 @@ def test_failed_forward_validation_remains_paper_only() -> None:
             historical,
             status=ForwardPaperValidationStatus.FAILED_VALIDATION,
         ),
-        setup_segment_dimensions=DIMENSIONS,
+        setup_segment_context=SEGMENT_CONTEXT,
     )
 
     assert result["status"] == "APPROVED"
@@ -237,17 +244,12 @@ def test_failed_forward_validation_remains_paper_only() -> None:
 
 def test_aggressive_mode_cannot_become_funded_eligible() -> None:
     historical = _historical()
-    aggressive_dimensions = {
-        **DIMENSIONS,
-        "risk_mode": RiskMode.AGGRESSIVE.value,
-    }
-
     result = build_futures_plan_result(
         _setup(),
         _account(RiskMode.AGGRESSIVE),
         historical_edge_validation=historical,
         forward_paper_validation=_forward(historical),
-        setup_segment_dimensions=aggressive_dimensions,
+        setup_segment_context=SEGMENT_CONTEXT,
     )
 
     assert result["status"] == "APPROVED"
@@ -265,5 +267,5 @@ def test_forward_evidence_requires_historical_evidence() -> None:
             _setup(),
             _account(),
             forward_paper_validation=_forward(historical),
-            setup_segment_dimensions=DIMENSIONS,
+            setup_segment_context=SEGMENT_CONTEXT,
         )

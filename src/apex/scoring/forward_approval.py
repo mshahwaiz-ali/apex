@@ -15,6 +15,7 @@ from apex.scoring.historical_approval import (
     HistoricalEdgeValidationView,
     evaluate_strategy_approval_with_historical_evidence,
 )
+from apex.scoring.setup_segment import SetupSegmentIdentity
 from apex.strategies import StrategyType
 
 
@@ -154,15 +155,12 @@ def evaluate_strategy_approval_with_forward_paper_evidence(
     score: float,
     entry_state: EntryState,
     config: StrategyApprovalConfig,
-    setup_segment_dimensions: Mapping[str, str],
+    setup_segment: SetupSegmentIdentity,
     historical_edge_validation: HistoricalEdgeValidationView,
     forward_paper_validation: ForwardPaperValidationView,
     account_policy_decision: AccountPolicyDecision | None = None,
 ) -> ForwardEvidenceAwareStrategyApprovalDecision:
     """Apply exact-segment historical and forward-paper eligibility gates."""
-
-    if not setup_segment_dimensions:
-        raise ValueError("setup segment dimensions cannot be empty")
 
     historical = evaluate_strategy_approval_with_historical_evidence(
         strategy=strategy,
@@ -191,7 +189,7 @@ def evaluate_strategy_approval_with_forward_paper_evidence(
             forward_paper_reasons=(),
         )
 
-    expected_dimensions = dict(setup_segment_dimensions)
+    expected_dimensions = dict(setup_segment.to_dimensions())
     historical_dimensions = (
         dict(historical.historical_evidence.dimensions)
         if historical.historical_evidence is not None

@@ -47,6 +47,11 @@ from apex.scoring.quality_gate import (
     QualityGateReasonCode,
     evaluate_candidate_quality_gate,
 )
+from apex.scoring.setup_segment import (
+    SetupSegmentContext,
+    SetupSegmentIdentity,
+    score_band_for,
+)
 
 __all__ = [
     "DEFAULT_SCORING_CONFIG",
@@ -76,6 +81,8 @@ __all__ = [
     "ScoringConfig",
     "ScoringWeights",
     "SetupEligibility",
+    "SetupSegmentContext",
+    "SetupSegmentIdentity",
     "StrategyApprovalDecision",
     "StrategyProfile",
     "analyze_phase5",
@@ -84,4 +91,5 @@ __all__ = [
     "evaluate_strategy_approval",
     "evaluate_strategy_approval_with_forward_paper_evidence",
     "evaluate_strategy_approval_with_historical_evidence",
+    "score_band_for",
 ]
