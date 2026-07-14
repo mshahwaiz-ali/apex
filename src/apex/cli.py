@@ -33,17 +33,22 @@ from apex.application.analysis_records import write_analysis_record_sqlite
 from apex.backtesting import (
     MAXIMUM_DATASET_CANDLES,
     BacktestConfig,
+    FuturesDatasetCampaignExecutionError,
     FuturesDatasetSplitRatios,
     acquire_futures_dataset,
+    execute_futures_dataset_campaign,
     load_and_verify_futures_dataset_split,
     load_futures_dataset,
+    load_futures_dataset_campaign_execution_result,
     load_futures_dataset_campaign_plan,
     plan_futures_dataset_campaign,
     signal_from_setup,
     simulate_trade,
     split_futures_dataset,
     summarize_trades,
+    verify_futures_dataset_campaign_execution,
     write_futures_dataset,
+    write_futures_dataset_campaign_execution_result,
     write_futures_dataset_campaign_plan,
     write_futures_dataset_split_manifest,
 )
@@ -484,6 +489,81 @@ def dataset_campaign_plan(
         f"| candles={verified.candle_count} "
         f"| provider={verified.provider} "
         f"| manifest={manifest_output}"
+    )
+
+
+@dataset_app.command("campaign-execute")
+def dataset_campaign_execute(
+    plan_file: Path = typer.Option(  # noqa: B008
+        ...,
+        "--plan",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Frozen N4.4 campaign-plan manifest.",
+    ),
+    execution_manifest_output: Path = typer.Option(  # noqa: B008
+        ...,
+        "--execution-manifest-output",
+        dir_okay=False,
+        help="Destination completed execution manifest JSON file.",
+    ),
+) -> None:
+    """Execute and verify one frozen historical dataset campaign."""
+
+    try:
+        plan = load_futures_dataset_campaign_plan(plan_file)
+        configured_provider = "binance"
+        if plan.provider != configured_provider:
+            raise ValueError(
+                "campaign provider does not match configured provider: "
+                f"plan={plan.provider}, configured={configured_provider}"
+            )
+
+        context = bootstrap()
+        with create_market_data_services(
+            context.settings,
+            provider_name=configured_provider,
+        ) as services:
+            result = execute_futures_dataset_campaign(
+                plan=plan,
+                provider=services.candles,
+                configured_provider=configured_provider,
+                extracted_at=datetime.now(UTC),
+                execution_manifest_path=execution_manifest_output,
+            )
+
+        verify_futures_dataset_campaign_execution(plan=plan, result=result)
+        write_futures_dataset_campaign_execution_result(
+            execution_manifest_output,
+            result,
+        )
+        verified = load_futures_dataset_campaign_execution_result(execution_manifest_output)
+        verify_futures_dataset_campaign_execution(plan=plan, result=verified)
+    except FuturesDatasetCampaignExecutionError as exc:
+        typer.echo(
+            "DATASET_CAMPAIGN_EXECUTION_FAILED "
+            f"| campaign_id={exc.result.campaign_id} "
+            f"| completed_jobs={exc.result.completed_jobs} "
+            f"| failed_jobs={exc.result.failed_jobs} "
+            f"| reason={exc}",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    except MarketDataProviderError as exc:
+        _exit_for_provider_error("Dataset campaign execution failed", exc)
+    except (FileExistsError, KeyError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    typer.echo(
+        "DATASET_CAMPAIGN_EXECUTED "
+        f"| campaign_id={verified.campaign_id} "
+        f"| provider={verified.provider} "
+        f"| planned_jobs={verified.total_planned_jobs} "
+        f"| completed_jobs={verified.completed_jobs} "
+        f"| failed_jobs={verified.failed_jobs} "
+        f"| status={verified.status.value} "
+        f"| manifest={execution_manifest_output}"
     )
 
 

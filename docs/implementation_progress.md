@@ -322,3 +322,29 @@ eligibility claim is made by N3.
 - Added focused tests for deterministic ordering, stable IDs, duplicate symbols, invalid ratios,
   conflicting paths, JSON round trips, tamper detection, CLI registration, and CLI persistence.
 
+## N4.5 — Deterministic historical dataset campaign execution
+
+Implemented provider-independent, fail-fast execution of frozen N4.4 campaign
+plans.
+
+Capabilities:
+
+- consumes a loaded and validated `FuturesDatasetCampaignPlan`
+- validates the frozen provider against the configured provider
+- rejects all pre-existing planned artifacts before acquisition starts
+- executes jobs strictly in frozen acquisition order
+- uses exact planned symbols, timeframes, candle counts, dataset IDs, split
+  ratios, and artifact paths
+- reloads and verifies every parent dataset
+- reloads and verifies every complete chronological split set
+- verifies generated child IDs against the frozen campaign plan
+- removes artifacts created by the current attempt after a job failure
+- never writes a completed execution manifest after partial failure
+- persists schema-versioned completed execution manifests atomically
+- reloads and validates completed execution manifests
+- exposes `apex dataset campaign-execute`
+
+N4.5 remains limited to historical dataset acquisition and splitting. It does
+not perform feature generation, signal generation, strategy replay,
+backtesting, calibration, paper trading, or execution.
+
