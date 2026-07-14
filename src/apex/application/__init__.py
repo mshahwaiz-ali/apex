@@ -74,6 +74,10 @@ from apex.application.risk_approval import (
     build_futures_plan_result,
 )
 from apex.application.selected_symbol import analyze_selected_symbol
+from apex.application.spot_account import (
+    DEFAULT_SPOT_CONFIG_PATH,
+    build_spot_account_input,
+)
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
 from apex.application.trade_management import build_trade_management_plan
 from apex.application.trade_management_reporting import format_trade_management_plan
@@ -87,6 +91,7 @@ __all__ = [
     "BACKTEST_REPORT_DB_SCHEMA_VERSION",
     "DEFAULT_FUTURES_CONFIG_PATH",
     "DEFAULT_QUOTE_ASSETS",
+    "DEFAULT_SPOT_CONFIG_PATH",
     "DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH",
     "AccountStateSnapshot",
     "AccountStateStore",
@@ -112,6 +117,7 @@ __all__ = [
     "build_futures_plan",
     "build_futures_plan_result",
     "build_precision_entry_plan",
+    "build_spot_account_input",
     "build_trade_management_plan",
     "campaign_result_to_payload",
     "create_market_data_services",
