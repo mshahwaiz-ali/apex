@@ -29,16 +29,23 @@ from apex.domain import (
 )
 from apex.risk.contracts import RiskApprovedSetup
 from apex.scoring.approval import StrategyApprovalDecision, evaluate_strategy_approval
+from apex.scoring.historical_approval import (
+    EvidenceAwareStrategyApprovalDecision,
+    HistoricalEdgeValidationView,
+    evaluate_strategy_approval_with_historical_evidence,
+)
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
+
+StrategyDecision = StrategyApprovalDecision | EvidenceAwareStrategyApprovalDecision
 
 
 class StrategyApprovalError(FuturesPlanSafetyError):
     """Raised when a setup fails deterministic N3 strategy approval."""
 
-    def __init__(self, decision: StrategyApprovalDecision) -> None:
+    def __init__(self, decision: StrategyDecision) -> None:
         self.decision = decision
-        super().__init__(tuple(reason.message for reason in decision.reasons))
+        super().__init__(_strategy_decision_reason_messages(decision))
 
 
 def build_futures_plan(
@@ -50,8 +57,15 @@ def build_futures_plan(
     account_policy: AccountPolicy | None = None,
     account_policy_state: AccountPolicyState | None = None,
     historical_evidence_available: bool = False,
+    historical_edge_validation: HistoricalEdgeValidationView | None = None,
 ) -> dict[str, object]:
     """Build a futures plan after quality, mode, and account-policy checks."""
+
+    if historical_evidence_available and historical_edge_validation is not None:
+        raise ValueError(
+            "historical_evidence_available and historical_edge_validation "
+            "cannot be supplied together"
+        )
 
     config = product_config or load_futures_product_config("config/futures.yaml")
     approval_config = strategy_approval_config or load_strategy_approval_config(
@@ -70,17 +84,28 @@ def build_futures_plan(
 
     plan = _build_futures_plan(setup, account, product_config=config)
     entry = EntryPlan.model_validate(plan["entry"])
-    strategy_decision = None
+    strategy_decision: StrategyDecision | None = None
     if isinstance(setup, RiskApprovedSetup):
-        strategy_decision = evaluate_strategy_approval(
-            strategy=setup.strategy,
-            risk_mode=account.risk_mode,
-            score=setup.confidence_score,
-            entry_state=entry.state,
-            config=approval_config,
-            account_policy_decision=policy_decision,
-            historical_evidence_available=historical_evidence_available,
-        )
+        if historical_edge_validation is not None:
+            strategy_decision = evaluate_strategy_approval_with_historical_evidence(
+                strategy=setup.strategy,
+                risk_mode=account.risk_mode,
+                score=setup.confidence_score,
+                entry_state=entry.state,
+                config=approval_config,
+                account_policy_decision=policy_decision,
+                historical_edge_validation=historical_edge_validation,
+            )
+        else:
+            strategy_decision = evaluate_strategy_approval(
+                strategy=setup.strategy,
+                risk_mode=account.risk_mode,
+                score=setup.confidence_score,
+                entry_state=entry.state,
+                config=approval_config,
+                account_policy_decision=policy_decision,
+                historical_evidence_available=historical_evidence_available,
+            )
         if not strategy_decision.approved:
             raise StrategyApprovalError(strategy_decision)
 
@@ -122,6 +147,7 @@ def build_futures_plan_result(
     account_policy: AccountPolicy | None = None,
     account_policy_state: AccountPolicyState | None = None,
     historical_evidence_available: bool = False,
+    historical_edge_validation: HistoricalEdgeValidationView | None = None,
 ) -> dict[str, object]:
     """Return an approved or rejected policy-aware futures-plan payload."""
 
@@ -134,6 +160,7 @@ def build_futures_plan_result(
             account_policy=account_policy,
             account_policy_state=account_policy_state,
             historical_evidence_available=historical_evidence_available,
+            historical_edge_validation=historical_edge_validation,
         )
     except StrategyApprovalError as exc:
         return {
@@ -141,7 +168,7 @@ def build_futures_plan_result(
             "risk_mode": account.risk_mode.value,
             "eligibility": exc.decision.eligibility.value,
             "strategy_approval": exc.decision.to_payload(),
-            "reasons": [reason.message for reason in exc.decision.reasons],
+            "reasons": list(_strategy_decision_reason_messages(exc.decision)),
         }
     except FuturesPlanSafetyError as exc:
         return {
@@ -150,6 +177,17 @@ def build_futures_plan_result(
             "eligibility": "REJECTED",
             "reasons": list(exc.reasons),
         }
+
+
+def _strategy_decision_reason_messages(
+    decision: StrategyDecision,
+) -> tuple[str, ...]:
+    if isinstance(decision, EvidenceAwareStrategyApprovalDecision):
+        return (
+            *(reason.message for reason in decision.base_decision.reasons),
+            *(reason.message for reason in decision.historical_reasons),
+        )
+    return tuple(reason.message for reason in decision.reasons)
 
 
 def _evaluate_policy(
