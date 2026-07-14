@@ -83,12 +83,24 @@ profitability or production readiness.
   emergency rules, and entry cancellation conditions.
 - JSON behavior remains unchanged and continues to serialize the full management plan.
 
+### Batch N2.4 paper guidance implemented
+
+- Added immutable `PaperTradeGuidance` output with one canonical current action, instruction,
+  active stop, next target, and completed target labels.
+- Guidance is derived from existing `PaperTradeState` and the serialized management plan without
+  creating or mutating a second lifecycle state machine.
+- Waiting trades return `WAIT`; entered trades return `HOLD`; partial trades return `MOVE_STOP`;
+  invalidated and cancelled setups return `CANCEL_SETUP`; expired setups return `DO_NOT_ENTER`;
+  completed trades return `CLOSE_ALL`.
+- Added a schema-versioned operational report for batches of stored paper trades.
+- Added focused tests for waiting, entered, partial, invalidated, cancelled, expired, stopped,
+  target-complete, next-target progression, stop movement, and timezone validation.
+
 ### N2 remaining work
 
-- Derive one current action for paper trades from canonical lifecycle replay.
-- Add explicit paper-report display for expiry, cancellation, invalidation, stop movement,
-  emergency close, runner, and trailing state.
-- Add focused formatter and paper current-action tests.
+- Integrate paper guidance into the active paper CLI/report commands.
+- Add emergency-close, runner, and trailing guidance when those lifecycle events are generated.
+- Add explicit entry expiry timestamps and cancellation execution.
 - Run and observe the complete Ruff, mypy, and pytest gate for the N2 batches.
 
 No external or forward-validation claim is made by this implementation.
