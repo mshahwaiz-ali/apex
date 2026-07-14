@@ -8,7 +8,7 @@ from enum import StrEnum
 
 from apex.domain import AccountPolicyDecision, AccountPolicyType, RiskMode
 from apex.execution.contracts import KillSwitchState
-from apex.validation import ForwardValidationReport, ProductionEligibility
+from apex.validation import AggregateHistoryReport, ForwardValidationReport, ProductionEligibility
 
 
 class FundedReadinessReason(StrEnum):
@@ -98,7 +98,7 @@ class FundedReadinessReport:
 def evaluate_funded_readiness(
     *,
     provider_limits: FundedProviderLimits,
-    forward_validation: ForwardValidationReport,
+    forward_validation: ForwardValidationReport | AggregateHistoryReport,
     risk_mode: RiskMode,
     account_policy_type: AccountPolicyType,
     account_policy_decision: AccountPolicyDecision,
@@ -109,12 +109,17 @@ def evaluate_funded_readiness(
     kill_switch_state: KillSwitchState,
     generated_at: datetime,
 ) -> FundedReadinessReport:
-    """Evaluate R1 readiness without enabling autonomous real-money execution."""
+    """Evaluate R1 readiness, preferring aggregate P1 history while retaining legacy input."""
 
     reasons: list[FundedReadinessReason] = []
     if not provider_limits.limits_verified:
         reasons.append(FundedReadinessReason.PROVIDER_LIMITS_UNVERIFIED)
-    if forward_validation.eligibility is not ProductionEligibility.READY_FOR_FUNDED_REVIEW:
+    validation_ready = (
+        forward_validation.ready_for_funded_review
+        if isinstance(forward_validation, AggregateHistoryReport)
+        else forward_validation.eligibility is ProductionEligibility.READY_FOR_FUNDED_REVIEW
+    )
+    if not validation_ready:
         reasons.append(FundedReadinessReason.FORWARD_VALIDATION_INCOMPLETE)
     if risk_mode is not RiskMode.STANDARD:
         reasons.append(FundedReadinessReason.STANDARD_MODE_REQUIRED)
