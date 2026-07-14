@@ -70,6 +70,7 @@ from apex.application.risk_approval import (
 )
 from apex.application.selected_symbol import analyze_selected_symbol
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
+from apex.application.trade_management import build_trade_management_plan
 
 __all__ = [
     "ACCOUNT_STATE_SCHEMA_VERSION",
@@ -102,6 +103,7 @@ __all__ = [
     "build_futures_plan",
     "build_futures_plan_result",
     "build_precision_entry_plan",
+    "build_trade_management_plan",
     "campaign_result_to_payload",
     "create_market_data_services",
     "default_campaign_variants",
