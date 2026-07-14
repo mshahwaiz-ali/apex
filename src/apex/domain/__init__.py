@@ -1,5 +1,13 @@
 """Domain public API."""
 
+from apex.domain.account import (
+    AccountLockoutReason,
+    AccountPolicy,
+    AccountPolicyDecision,
+    AccountPolicyState,
+    AccountPolicyType,
+    evaluate_account_policy,
+)
 from apex.domain.entry import (
     EntryClassificationInput,
     EntryClassificationResult,
@@ -58,6 +66,11 @@ from apex.domain.precision import (
 __all__ = [
     "ALLOWED_LIFECYCLE_TRANSITIONS",
     "TERMINAL_LIFECYCLE_STATES",
+    "AccountLockoutReason",
+    "AccountPolicy",
+    "AccountPolicyDecision",
+    "AccountPolicyState",
+    "AccountPolicyType",
     "AnalysisResult",
     "Candle",
     "Decision",
@@ -96,6 +109,7 @@ __all__ = [
     "TradeLifecycleState",
     "classify_entry_state",
     "classify_gainer_state",
+    "evaluate_account_policy",
     "replay_lifecycle_events",
     "weighted_precision_score",
 ]
