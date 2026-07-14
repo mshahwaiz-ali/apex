@@ -90,7 +90,7 @@ def test_per_position_allocation_cap_and_insufficient_cash_are_enforced() -> Non
         SpotBacktestConfig(
             starting_cash=1_000.0,
             maximum_allocation_per_position_pct=10.0,
-            maximum_total_exposure_pct=90.0,
+            maximum_total_exposure_pct=20.0,
             minimum_cash_reserve_pct=80.0,
             fee_pct=0.0,
             slippage_pct=0.0,
@@ -236,7 +236,10 @@ def test_same_timestamp_ordering_is_deterministic() -> None:
         fee_pct=0.0,
         slippage_pct=0.0,
     )
-    plans = (_plan("b", "BTCUSDT", allocation_pct=30.0), _plan("a", "ADAUSDT", allocation_pct=30.0))
+    plans = (
+        _plan("b", "BTCUSDT", allocation_pct=30.0),
+        _plan("a", "ADAUSDT", allocation_pct=30.0),
+    )
     bars = (_bar(START, "BTCUSDT"), _bar(START, "ADAUSDT"))
     forward = run_spot_backtest(config, plans, bars)
     reverse = run_spot_backtest(config, tuple(reversed(plans)), tuple(reversed(bars)))
