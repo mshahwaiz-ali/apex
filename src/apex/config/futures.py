@@ -1,8 +1,8 @@
-"""Validated futures-only product configuration.
+"""Validated futures product configuration.
 
-This module translates Phase 1 product decisions into configuration without
-changing strategy or risk-engine behavior. Runtime integration can consume this
-contract incrementally.
+Risk modes own trade aggressiveness. Account-level restrictions are defined in
+``apex.domain.account`` and loaded separately so funded-account rules do not
+become another risk mode.
 """
 
 from __future__ import annotations
@@ -17,15 +17,18 @@ from apex.domain import LeverageMode, MarginMode, RiskMode
 
 
 class RiskModeDefaults(BaseModel):
-    """Default account-loss and leverage bounds for one risk mode."""
+    """Canonical trade-risk defaults for one of the three supported modes."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     account_loss_percentage: float = Field(gt=0, le=100)
-    minimum_leverage: float = Field(gt=0)
-    preferred_leverage: float = Field(gt=0)
-    maximum_leverage: float = Field(gt=0)
+    minimum_leverage: float = Field(default=1.0, ge=1.0, le=1.0)
+    preferred_leverage: float = Field(ge=1.0)
+    maximum_leverage: float = Field(ge=1.0)
     maximum_wallet_exposure_percentage: float = Field(gt=0, le=100)
+    maximum_open_risk_percentage: float = Field(gt=0, le=100)
+    maximum_daily_loss_percentage: float = Field(gt=0, le=100)
+    maximum_consecutive_losses: int = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_leverage_order(self) -> Self:
@@ -58,27 +61,33 @@ class FuturesExecutionCostConfig(BaseModel):
 
 
 class FuturesProductConfig(BaseModel):
-    """Frozen Phase 1 futures product behavior."""
+    """Validated futures product behavior and canonical risk-mode defaults."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     futures_only: bool = True
     margin_mode: MarginMode = MarginMode.ISOLATED
     default_leverage_mode: LeverageMode = LeverageMode.AUTOMATIC
-    default_risk_mode: RiskMode = RiskMode.AGGRESSIVE
+    default_risk_mode: RiskMode = RiskMode.STANDARD
     execution_costs: FuturesExecutionCostConfig = Field(default_factory=FuturesExecutionCostConfig)
     risk_modes: dict[RiskMode, RiskModeDefaults]
 
     @model_validator(mode="after")
     def validate_product_contract(self) -> Self:
         if not self.futures_only:
-            raise ValueError("Apex Phase 1 must remain futures-only")
+            raise ValueError("Apex futures product configuration must remain futures-only")
         if self.margin_mode is not MarginMode.ISOLATED:
-            raise ValueError("Apex Phase 1 must use isolated margin")
-        missing = set(RiskMode) - set(self.risk_modes)
+            raise ValueError("Apex futures positions must use isolated margin")
+        configured = set(self.risk_modes)
+        required = set(RiskMode)
+        missing = required - configured
+        extra = configured - required
         if missing:
             labels = ", ".join(sorted(mode.value for mode in missing))
             raise ValueError(f"missing risk-mode configuration: {labels}")
+        if extra:
+            labels = ", ".join(sorted(str(mode) for mode in extra))
+            raise ValueError(f"unsupported risk-mode configuration: {labels}")
         return self
 
     def defaults_for(self, risk_mode: RiskMode) -> RiskModeDefaults:
