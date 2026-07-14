@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from apex.domain.models import (
@@ -31,6 +32,24 @@ class MarketDataProvider(Protocol):
 
     def fetch_ticker(self, symbol: str) -> TickerSnapshot:
         """Fetch normalized current-market ticker data."""
+
+
+class HistoricalRangeMarketDataProvider(Protocol):
+    """Optional provider contract for explicit historical time ranges."""
+
+    @property
+    def name(self) -> str:
+        """Return the provider identifier."""
+
+    def fetch_candles_range(
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> list[Candle]:
+        """Fetch closed candles whose open times fall in ``[start_time, end_time)``."""
 
 
 class DerivativesDataProvider(Protocol):
