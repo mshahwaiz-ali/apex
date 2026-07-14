@@ -61,10 +61,15 @@ from apex.application.futures_account import (
     DEFAULT_FUTURES_CONFIG_PATH,
     build_futures_account_input,
 )
+from apex.application.futures_quality import (
+    DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH,
+    analyze_futures_phase5,
+)
 from apex.application.market_data import MarketDataServices, create_market_data_services
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.risk_approval import (
     FuturesPlanSafetyError,
+    StrategyApprovalError,
     build_futures_plan,
     build_futures_plan_result,
 )
@@ -82,6 +87,7 @@ __all__ = [
     "BACKTEST_REPORT_DB_SCHEMA_VERSION",
     "DEFAULT_FUTURES_CONFIG_PATH",
     "DEFAULT_QUOTE_ASSETS",
+    "DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH",
     "AccountStateSnapshot",
     "AccountStateStore",
     "ApplicationContext",
@@ -95,7 +101,9 @@ __all__ = [
     "MarketDataServices",
     "MultiSymbolBacktestCampaignRequest",
     "ScanResult",
+    "StrategyApprovalError",
     "SymbolAnalysis",
+    "analyze_futures_phase5",
     "analyze_selected_symbol",
     "analyze_symbol",
     "bootstrap",
