@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime
 
 from apex.backtesting.contracts import (
     BacktestConfig,
@@ -37,7 +38,11 @@ def simulate_trade_with_evidence(
     if trade.outcome is BacktestOutcome.MISSED_ENTRY:
         return trade
 
-    entry_index = _entry_index(signal, candles, maximum_holding_candles=effective_config.maximum_holding_candles)
+    entry_index = _entry_index(
+        signal,
+        candles,
+        maximum_holding_candles=effective_config.maximum_holding_candles,
+    )
     if entry_index is None:
         raise ValueError("entered simulated trade is missing an entry-touch candle")
     entry_candle = candles[entry_index]
@@ -83,7 +88,7 @@ def _excursions_in_r(
     candles: Sequence[Candle],
     *,
     executed_entry: float,
-    exit_time: object,
+    exit_time: datetime,
     exit_price: float,
 ) -> tuple[float, float]:
     favorable_prices = [executed_entry]
