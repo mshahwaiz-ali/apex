@@ -124,7 +124,7 @@ def test_standard_approved_setup_without_historical_edge_is_paper_only() -> None
     }
 
 
-def test_standard_validated_setup_can_be_funded_eligible() -> None:
+def test_standard_historical_edge_still_requires_forward_paper_evidence() -> None:
     decision = evaluate_strategy_approval(
         strategy=StrategyType.TREND_PULLBACK,
         risk_mode=RiskMode.STANDARD,
@@ -135,7 +135,10 @@ def test_standard_validated_setup_can_be_funded_eligible() -> None:
     )
 
     assert decision.approved is True
-    assert decision.eligibility is SetupEligibility.FUNDED_ELIGIBLE
+    assert decision.eligibility is SetupEligibility.PAPER_ONLY
+    assert ApprovalReasonCode.FORWARD_PAPER_EVIDENCE_REQUIRED in {
+        reason.code for reason in decision.reasons
+    }
 
 
 def test_strategy_score_below_mode_threshold_is_rejected() -> None:
