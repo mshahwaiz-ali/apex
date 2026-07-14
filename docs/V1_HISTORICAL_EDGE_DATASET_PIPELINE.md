@@ -2,8 +2,8 @@
 
 ## Status
 
-Implementation foundation and SQLite/report persistence are present on `main`.
-The complete local quality gate remains pending.
+Implementation foundation, SQLite/report persistence, and leakage-safe query orchestration are
+present on `main`. The complete local quality gate remains pending.
 
 ## Implemented scope
 
@@ -54,10 +54,41 @@ Storage behavior includes:
 
 Futures and spot rows remain explicitly separated by `market_type`.
 
+### Leakage-safe query orchestration
+
+`HistoricalEdgeQueryRequest` defines one exact evidence segment using:
+
+- market type;
+- strategy;
+- split;
+- optional dataset ID;
+- optional symbol;
+- optional regime;
+- optional score band;
+- explicit evidence thresholds.
+
+Stored outcomes are queried with exact SQL filters and returned in deterministic chronological
+order. No fallback query broadens the requested segment.
+
+`run_historical_edge_query()`:
+
+1. loads only the requested completed outcomes;
+2. aggregates only the requested split;
+3. loads metadata for the exact referenced datasets;
+4. fails closed when referenced dataset metadata is missing;
+5. builds a deterministic self-contained report;
+6. optionally persists the aggregate report by result hash.
+
+Final `TEST` access is blocked by default. A caller must set `allow_final_test=True` explicitly.
+This prevents normal training or validation workflows from consuming the held-out final partition
+accidentally.
+
+Zero-sample queries remain valid `INSUFFICIENT` evidence results and do not create edge claims.
+
 ## Important boundaries
 
-V1 does not fabricate edge from incomplete or active trades.
-Only completed chronological outcomes may enter aggregation.
+V1 does not fabricate edge from incomplete or active trades. Only completed chronological outcomes
+may enter aggregation.
 
 An `INSUFFICIENT` result is valid evidence output. It must not be converted into a positive,
 negative, funded, or production-readiness claim.
@@ -65,13 +96,18 @@ negative, funded, or production-readiness claim.
 The `TEST` split is reserved for final out-of-sample evaluation. Training and validation reports
 must be generated independently and must not consume final-test outcomes.
 
+Explicit final-test access prevents accidental leakage but does not itself establish organizational
+approval or production readiness. That policy remains outside the aggregation engine.
+
 ## Important files
 
 ```text
 src/apex/application/historical_edge.py
 src/apex/application/historical_edge_io.py
+src/apex/application/historical_edge_query.py
 tests/unit/application/test_historical_edge.py
 tests/unit/application/test_historical_edge_io.py
+tests/unit/application/test_historical_edge_query.py
 ```
 
 ## Validation commands
@@ -82,6 +118,7 @@ ruff check .
 mypy src
 pytest --import-mode=importlib tests/unit/application/test_historical_edge.py
 pytest --import-mode=importlib tests/unit/application/test_historical_edge_io.py
+pytest --import-mode=importlib tests/unit/application/test_historical_edge_query.py
 pytest --import-mode=importlib
 ```
 
@@ -90,9 +127,8 @@ Do not declare V1 validated until the complete local quality gate passes.
 ## Remaining V1 work
 
 - connect curated candle/backtest datasets to `HistoricalOutcome` generation;
-- add read/query APIs for stored datasets and completed outcomes;
-- add an orchestration service that generates segmented reports from stored outcomes;
 - add CLI commands for dataset registration, aggregation, report export, and inspection;
-- define immutable final-test consumption rules at orchestration level;
 - update application-level public exports after local gate validation;
-- integrate validated historical evidence into futures and spot eligibility decisions.
+- integrate validated historical evidence into futures and spot eligibility decisions;
+- define one-time final-test consumption/audit policy above the query engine;
+- add dataset curation manifests and source-file hash generation.
