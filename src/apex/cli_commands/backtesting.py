@@ -203,6 +203,12 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "overlap_skipped_count": result.overlap_skipped_count,
             "failure_count": result.failure_count,
             "failures": dict(result.failures),
+            "diagnostics": {
+                "candidate_count_distribution": dict(result.candidate_count_distribution),
+                "rejection_code_counts": dict(result.rejection_code_counts),
+                "rejection_reason_counts": dict(result.rejection_reason_counts),
+                "skipped_by_stage": dict(result.skipped_by_stage),
+            },
             "metrics": to_json_value(result.report),
             "trades": to_json_value(result.trades),
         }

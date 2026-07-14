@@ -49,6 +49,11 @@ def test_chronological_runner_executes_real_analysis_pipeline_without_ticker_fai
     assert result.decision_count == 5
     assert result.failure_count == 0
     assert result.failures == {}
+    assert sum(result.candidate_count_distribution.values()) == (
+        result.decision_count - result.failure_count
+    )
+    assert result.skipped_by_stage["risk_rejected"] == result.skipped_count
+    assert sum(result.rejection_code_counts.values()) >= result.skipped_count
     assert (
         result.approved_count
         + result.skipped_count

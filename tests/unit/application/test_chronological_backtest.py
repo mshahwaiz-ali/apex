@@ -87,4 +87,17 @@ def test_chronological_runner_passes_only_prefix_candles(monkeypatch) -> None:
     assert result.decision_count == 5
     assert result.skipped_count == 5
     assert result.approved_count == 0
+    assert result.candidate_count_distribution == {"0": 5, "1": 0, "2_plus": 0}
+    assert result.rejection_code_counts == {"no_selected_candidate": 5}
+    assert result.rejection_reason_counts == {
+        "no selected candidate in fixture": 5,
+    }
+    assert result.skipped_by_stage == {
+        "insufficient_warmup": 0,
+        "no_candidates": 5,
+        "risk_rejected": 5,
+        "cooldown": 0,
+        "overlap": 0,
+        "no_future_candles": 0,
+    }
     assert captured_lengths == [40, 40, 40, 40, 40]

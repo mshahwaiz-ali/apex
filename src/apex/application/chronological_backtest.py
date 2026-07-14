@@ -74,6 +74,10 @@ class ChronologicalBacktestResult:
     overlap_skipped_count: int
     failure_count: int
     failures: Mapping[str, str]
+    candidate_count_distribution: Mapping[str, int]
+    rejection_code_counts: Mapping[str, int]
+    rejection_reason_counts: Mapping[str, int]
+    skipped_by_stage: Mapping[str, int]
 
     def __post_init__(self) -> None:
         if self.report.total_trades != len(self.trades):
@@ -92,7 +96,35 @@ class ChronologicalBacktestResult:
             raise ValueError("chronological counts cannot be negative")
         if self.failure_count != len(self.failures):
             raise ValueError("failure count must match failure details")
+        diagnostic_maps = (
+            self.candidate_count_distribution,
+            self.rejection_code_counts,
+            self.rejection_reason_counts,
+            self.skipped_by_stage,
+        )
+        if any(value < 0 for mapping in diagnostic_maps for value in mapping.values()):
+            raise ValueError("chronological diagnostic counts cannot be negative")
         object.__setattr__(self, "failures", MappingProxyType(dict(self.failures)))
+        object.__setattr__(
+            self,
+            "candidate_count_distribution",
+            MappingProxyType(dict(self.candidate_count_distribution)),
+        )
+        object.__setattr__(
+            self,
+            "rejection_code_counts",
+            MappingProxyType(dict(self.rejection_code_counts)),
+        )
+        object.__setattr__(
+            self,
+            "rejection_reason_counts",
+            MappingProxyType(dict(self.rejection_reason_counts)),
+        )
+        object.__setattr__(
+            self,
+            "skipped_by_stage",
+            MappingProxyType(dict(self.skipped_by_stage)),
+        )
 
 
 def run_chronological_pipeline_backtest(
@@ -107,6 +139,17 @@ def run_chronological_pipeline_backtest(
     )
     trades: list[SimulatedTrade] = []
     failures: dict[str, str] = {}
+    candidate_count_distribution = {"0": 0, "1": 0, "2_plus": 0}
+    rejection_code_counts: dict[str, int] = {}
+    rejection_reason_counts: dict[str, int] = {}
+    skipped_by_stage = {
+        "insufficient_warmup": 0,
+        "no_candidates": 0,
+        "risk_rejected": 0,
+        "cooldown": 0,
+        "overlap": 0,
+        "no_future_candles": 0,
+    }
     last_fingerprint: tuple[str, str, str] | None = None
     last_accepted_index: int | None = None
     decision_count = skipped_count = cooldown_skipped_count = overlap_skipped_count = 0
@@ -120,6 +163,7 @@ def run_chronological_pipeline_backtest(
             provider, request.symbol, request.analysis_timeframes, request.candle_limit
         ):
             skipped_count += 1
+            skipped_by_stage["insufficient_warmup"] += 1
             continue
         try:
             analysis = analyze_symbol(
@@ -135,8 +179,25 @@ def run_chronological_pipeline_backtest(
         except Exception as exc:
             failures[decision_time.isoformat()] = str(exc)
             continue
+
+        candidate_bucket = (
+            "0"
+            if analysis.candidate_count == 0
+            else "1"
+            if analysis.candidate_count == 1
+            else "2_plus"
+        )
+        candidate_count_distribution[candidate_bucket] += 1
+
         if analysis.assessment.decision is not RiskDecision.APPROVED:
             skipped_count += 1
+            skipped_by_stage["risk_rejected"] += 1
+            if analysis.candidate_count == 0:
+                skipped_by_stage["no_candidates"] += 1
+            for code in analysis.assessment.rejection_codes:
+                rejection_code_counts[code.value] = rejection_code_counts.get(code.value, 0) + 1
+            for reason in analysis.assessment.reasons:
+                rejection_reason_counts[reason] = rejection_reason_counts.get(reason, 0) + 1
             continue
         if analysis.assessment.setup is None:
             failures[decision_time.isoformat()] = "approved assessment is missing setup"
@@ -146,6 +207,7 @@ def run_chronological_pipeline_backtest(
         fingerprint = _signal_fingerprint(signal)
         if _is_overlapping(trades, decision_time):
             overlap_skipped_count += 1
+            skipped_by_stage["overlap"] += 1
             continue
         if _is_in_cooldown(
             fingerprint,
@@ -155,6 +217,7 @@ def run_chronological_pipeline_backtest(
             request.candidate_cooldown_candles,
         ):
             cooldown_skipped_count += 1
+            skipped_by_stage["cooldown"] += 1
             continue
 
         future = tuple(
@@ -162,6 +225,7 @@ def run_chronological_pipeline_backtest(
         )
         if not future:
             skipped_count += 1
+            skipped_by_stage["no_future_candles"] += 1
             continue
         trades.append(
             simulate_trade(
@@ -197,6 +261,10 @@ def run_chronological_pipeline_backtest(
         overlap_skipped_count=overlap_skipped_count,
         failure_count=len(failures),
         failures=failures,
+        candidate_count_distribution=candidate_count_distribution,
+        rejection_code_counts=rejection_code_counts,
+        rejection_reason_counts=rejection_reason_counts,
+        skipped_by_stage=skipped_by_stage,
     )
 
 
