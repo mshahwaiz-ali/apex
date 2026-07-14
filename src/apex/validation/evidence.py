@@ -28,9 +28,7 @@ def generate_paper_evidence(trades: tuple[PaperTrade, ...]) -> GeneratedPaperEvi
         )
     )
     wins = sum(1 for trade in closed if trade.net_pnl > 0.0)
-    expectancy = (
-        sum(trade.realized_r_multiple for trade in closed) / len(closed) if closed else 0.0
-    )
+    expectancy = sum(trade.realized_r_multiple for trade in closed) / len(closed) if closed else 0.0
 
     cumulative = 0.0
     peak = 0.0

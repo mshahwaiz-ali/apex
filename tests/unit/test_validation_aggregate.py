@@ -53,7 +53,8 @@ def test_aggregate_history_becomes_ready_from_consistent_cumulative_evidence() -
 
 
 def test_aggregate_history_reports_deterioration_and_failed_streak() -> None:
-    records = tuple(_record(day) for day in range(1, 9)) + (
+    records = (
+        *(_record(day) for day in range(1, 9)),
         _record(9, eligibility=ProductionEligibility.REJECTED),
         _record(
             10,

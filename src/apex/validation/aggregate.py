@@ -37,12 +37,15 @@ class AggregateHistoryThresholds:
     maximum_drawdown_deterioration: float = 0.05
 
     def __post_init__(self) -> None:
-        if min(
-            self.minimum_validation_days,
-            self.minimum_total_samples,
-            self.minimum_samples_per_strategy,
-            self.minimum_consecutive_failure_free_days,
-        ) < 1:
+        if (
+            min(
+                self.minimum_validation_days,
+                self.minimum_total_samples,
+                self.minimum_samples_per_strategy,
+                self.minimum_consecutive_failure_free_days,
+            )
+            < 1
+        ):
             raise ValueError("aggregate history count thresholds must be positive")
         if not 0.0 <= self.minimum_ready_day_ratio <= 1.0:
             raise ValueError("minimum ready-day ratio must be between zero and one")

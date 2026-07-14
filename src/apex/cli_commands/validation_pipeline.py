@@ -42,9 +42,7 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
         critical_risk_control_failures: int = typer.Option(
             0, "--critical-risk-control-failures", min=0
         ),
-        manual_instruction_failures: int = typer.Option(
-            0, "--manual-instruction-failures", min=0
-        ),
+        manual_instruction_failures: int = typer.Option(0, "--manual-instruction-failures", min=0),
     ) -> None:
         """Generate auditable paper evidence and immediately evaluate P1."""
 
@@ -129,7 +127,7 @@ def _load_mapping(path: Path) -> dict[str, Any]:
 
 
 def _jsonable_report(value: object) -> dict[str, Any]:
-    payload = json.loads(json.dumps(asdict(value), default=str))
+    payload = json.loads(json.dumps(asdict(cast(Any, value)), default=str))
     if not isinstance(payload, dict):
         raise TypeError("report serialization must produce an object")
     return cast(dict[str, Any], payload)

@@ -115,24 +115,18 @@ def _forward_report_from_input(payload: dict[str, Any]) -> ForwardValidationRepo
     )
     evidence = ForwardValidationEvidence(
         critical_lifecycle_failures=int(evidence_data.get("critical_lifecycle_failures", 0)),
-        critical_risk_control_failures=int(
-            evidence_data.get("critical_risk_control_failures", 0)
-        ),
+        critical_risk_control_failures=int(evidence_data.get("critical_risk_control_failures", 0)),
         manual_instruction_failures=int(evidence_data.get("manual_instruction_failures", 0)),
         paper_expectancy=float(evidence_data["paper_expectancy"]),
         paper_maximum_drawdown=float(evidence_data["paper_maximum_drawdown"]),
     )
     thresholds = ForwardValidationThresholds(
         minimum_closed_trades=int(thresholds_data.get("minimum_closed_trades", 30)),
-        maximum_win_rate_deviation=float(
-            thresholds_data.get("maximum_win_rate_deviation", 0.15)
-        ),
+        maximum_win_rate_deviation=float(thresholds_data.get("maximum_win_rate_deviation", 0.15)),
         maximum_expectancy_deviation=float(
             thresholds_data.get("maximum_expectancy_deviation", 0.50)
         ),
-        maximum_drawdown_increase=float(
-            thresholds_data.get("maximum_drawdown_increase", 0.25)
-        ),
+        maximum_drawdown_increase=float(thresholds_data.get("maximum_drawdown_increase", 0.25)),
     )
     return evaluate_forward_validation(
         backtest=backtest,
@@ -152,12 +146,8 @@ def _funded_report_from_input(payload: dict[str, Any]) -> FundedReadinessReport:
     provider_limits = FundedProviderLimits(
         provider_name=str(provider_data["provider_name"]),
         verified_on=date.fromisoformat(str(provider_data["verified_on"])),
-        external_daily_drawdown_limit_pct=float(
-            provider_data["external_daily_drawdown_limit_pct"]
-        ),
-        external_total_drawdown_limit_pct=float(
-            provider_data["external_total_drawdown_limit_pct"]
-        ),
+        external_daily_drawdown_limit_pct=float(provider_data["external_daily_drawdown_limit_pct"]),
+        external_total_drawdown_limit_pct=float(provider_data["external_total_drawdown_limit_pct"]),
         maximum_trades_per_day=int(provider_data["maximum_trades_per_day"]),
         limits_verified=bool(provider_data["limits_verified"]),
     )
@@ -221,7 +211,7 @@ def _timestamp(value: object) -> datetime:
 
 
 def _serialize(value: object) -> dict[str, Any]:
-    serialized = json.loads(json.dumps(asdict(value), default=str))
+    serialized = json.loads(json.dumps(asdict(cast(Any, value)), default=str))
     if not isinstance(serialized, dict):
         raise TypeError("report serialization must produce an object")
     return cast(dict[str, Any], serialized)

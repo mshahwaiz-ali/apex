@@ -12,17 +12,27 @@ from typing import Protocol
 class BacktestValidationMetrics(Protocol):
     """Minimum modeled metrics required for P1 comparison."""
 
-    total_trades: int
-    win_rate: float
-    expectancy: float
-    maximum_drawdown: float
+    @property
+    def total_trades(self) -> int: ...
+
+    @property
+    def win_rate(self) -> float: ...
+
+    @property
+    def expectancy(self) -> float: ...
+
+    @property
+    def maximum_drawdown(self) -> float: ...
 
 
 class PaperValidationMetrics(Protocol):
     """Minimum forward-paper metrics required for P1 comparison."""
 
-    closed_trades: int
-    win_rate: float
+    @property
+    def closed_trades(self) -> int: ...
+
+    @property
+    def win_rate(self) -> float: ...
 
 
 class ProductionEligibility(StrEnum):
@@ -135,12 +145,17 @@ def evaluate_forward_validation(
 
     win_rate_deviation = abs(paper.win_rate - backtest.win_rate)
     expectancy_denominator = max(abs(backtest.expectancy), 1e-9)
-    expectancy_deviation = abs(evidence.paper_expectancy - backtest.expectancy) / expectancy_denominator
+    expectancy_deviation = (
+        abs(evidence.paper_expectancy - backtest.expectancy) / expectancy_denominator
+    )
     drawdown_denominator = max(backtest.maximum_drawdown, 1e-9)
-    drawdown_increase = max(
-        0.0,
-        evidence.paper_maximum_drawdown - backtest.maximum_drawdown,
-    ) / drawdown_denominator
+    drawdown_increase = (
+        max(
+            0.0,
+            evidence.paper_maximum_drawdown - backtest.maximum_drawdown,
+        )
+        / drawdown_denominator
+    )
 
     reasons: list[ValidationReason] = []
     if paper.closed_trades < thresholds.minimum_closed_trades:

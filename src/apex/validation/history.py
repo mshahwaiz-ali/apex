@@ -24,8 +24,13 @@ class DailyValidationRecord:
     def __post_init__(self) -> None:
         if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
             raise ValueError("daily validation generation time must be timezone-aware")
-        if any(not key.strip() or value < 0 for key, value in self.closed_trades_by_strategy.items()):
-            raise ValueError("strategy sample counts require non-empty names and non-negative values")
+        invalid_counts = any(
+            not key.strip() or value < 0 for key, value in self.closed_trades_by_strategy.items()
+        )
+        if invalid_counts:
+            raise ValueError(
+                "strategy sample counts require non-empty names and non-negative values"
+            )
 
 
 class DailyValidationStore:

@@ -65,12 +65,8 @@ def _evaluate(payload: dict[str, Any], history: dict[str, Any]) -> object:
     provider_limits = FundedProviderLimits(
         provider_name=str(provider_data["provider_name"]),
         verified_on=date.fromisoformat(str(provider_data["verified_on"])),
-        external_daily_drawdown_limit_pct=float(
-            provider_data["external_daily_drawdown_limit_pct"]
-        ),
-        external_total_drawdown_limit_pct=float(
-            provider_data["external_total_drawdown_limit_pct"]
-        ),
+        external_daily_drawdown_limit_pct=float(provider_data["external_daily_drawdown_limit_pct"]),
+        external_total_drawdown_limit_pct=float(provider_data["external_total_drawdown_limit_pct"]),
         maximum_trades_per_day=int(provider_data["maximum_trades_per_day"]),
         limits_verified=bool(provider_data["limits_verified"]),
     )
@@ -114,7 +110,7 @@ def _int_mapping(payload: dict[str, Any], key: str) -> dict[str, int]:
 
 
 def _serialize(value: object) -> dict[str, Any]:
-    serialized = json.loads(json.dumps(asdict(value), default=str))
+    serialized = json.loads(json.dumps(asdict(cast(Any, value)), default=str))
     if not isinstance(serialized, dict):
         raise TypeError("report serialization must produce an object")
     return cast(dict[str, Any], serialized)

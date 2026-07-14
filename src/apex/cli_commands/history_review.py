@@ -77,7 +77,7 @@ def register_history_review_commands(app: typer.Typer) -> None:
 
 
 def _serialize(value: object) -> dict[str, Any]:
-    payload = json.loads(json.dumps(asdict(value), default=str))
+    payload = json.loads(json.dumps(asdict(cast(Any, value)), default=str))
     if not isinstance(payload, dict):
         raise TypeError("aggregate report serialization must produce an object")
     return cast(dict[str, Any], payload)
