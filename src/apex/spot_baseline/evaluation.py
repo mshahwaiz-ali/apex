@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 from collections.abc import Sequence
 
+from apex.spot_backtesting import SpotTradeRecord
 from apex.spot_baseline.contracts import (
     SpotBaselineCampaignPlan,
     SpotBaselineEvaluationPolicy,
@@ -14,6 +15,7 @@ from apex.spot_baseline.contracts import (
     SpotBaselineVerdict,
     SpotCampaignResult,
     SpotCostSensitivity,
+    SpotDatasetRole,
     SpotStrategyAssessment,
 )
 
@@ -26,7 +28,7 @@ def evaluate_spot_baseline_campaigns(
     baseline_allocation_variant_id: str,
     policy: SpotBaselineEvaluationPolicy | None = None,
 ) -> SpotBaselineReport:
-    """Validate a complete campaign matrix and freeze strategy verdicts."""
+    """Validate the full matrix while selecting on train and validation only."""
     resolved = policy or SpotBaselineEvaluationPolicy()
     result_map = _validate_results(plan, results)
     _require_variant(plan, baseline_cost_variant_id, baseline_allocation_variant_id)
@@ -82,32 +84,26 @@ def _validate_results(
     if len(result_map) != len(results):
         raise ValueError("duplicate spot campaign cells are not allowed")
     planned_keys = {cell.key for cell in plan.cells}
-    observed_keys = set(result_map)
-    missing = planned_keys - observed_keys
-    extra = observed_keys - planned_keys
+    missing = planned_keys - set(result_map)
+    extra = set(result_map) - planned_keys
     if missing:
         raise ValueError(f"missing spot campaign cells: {sorted(missing)}")
     if extra:
         raise ValueError(f"unplanned spot campaign cells: {sorted(extra)}")
     dataset_hashes = {dataset.dataset_id: dataset.content_hash for dataset in plan.datasets}
+    costs = {variant.identifier: variant for variant in plan.cost_variants}
+    allocations = {
+        variant.identifier: variant for variant in plan.allocation_variants
+    }
     for result in results:
         if result.plan_id != plan.plan_id:
             raise ValueError("spot campaign result plan drift detected")
         if result.assumptions_hash != plan.assumptions_hash:
             raise ValueError("spot campaign result assumptions drift detected")
-        expected_hash = dataset_hashes[result.cell.dataset_id]
-        if result.dataset_content_hash != expected_hash:
+        if result.dataset_content_hash != dataset_hashes[result.cell.dataset_id]:
             raise ValueError("spot campaign result dataset drift detected")
-        cost = next(
-            variant
-            for variant in plan.cost_variants
-            if variant.identifier == result.cell.cost_variant_id
-        )
-        allocation = next(
-            variant
-            for variant in plan.allocation_variants
-            if variant.identifier == result.cell.allocation_variant_id
-        )
+        cost = costs[result.cell.cost_variant_id]
+        allocation = allocations[result.cell.allocation_variant_id]
         config = result.backtest.config
         if config.fee_pct != cost.fee_pct or config.slippage_pct != cost.slippage_pct:
             raise ValueError("spot campaign result cost assumptions mismatch")
@@ -136,6 +132,23 @@ def _require_variant(
         raise ValueError("baseline allocation variant is not present in the frozen plan")
 
 
+def _selection_results(
+    result_map: dict[str, SpotCampaignResult],
+    *,
+    strategy: str,
+    cost_id: str,
+    allocation_id: str,
+) -> tuple[SpotCampaignResult, ...]:
+    return tuple(
+        result
+        for result in result_map.values()
+        if result.cell.strategy == strategy
+        and result.cell.cost_variant_id == cost_id
+        and result.cell.allocation_variant_id == allocation_id
+        and result.cell.dataset_role in {SpotDatasetRole.TRAIN, SpotDatasetRole.VALIDATION}
+    )
+
+
 def _assess_strategy(
     strategy: str,
     plan: SpotBaselineCampaignPlan,
@@ -144,12 +157,11 @@ def _assess_strategy(
     baseline_allocation_id: str,
     policy: SpotBaselineEvaluationPolicy,
 ) -> SpotStrategyAssessment:
-    baseline = tuple(
-        result
-        for result in result_map.values()
-        if result.cell.strategy == strategy
-        and result.cell.cost_variant_id == baseline_cost_id
-        and result.cell.allocation_variant_id == baseline_allocation_id
+    baseline = _selection_results(
+        result_map,
+        strategy=strategy,
+        cost_id=baseline_cost_id,
+        allocation_id=baseline_allocation_id,
     )
     trades = tuple(trade for result in baseline for trade in result.backtest.trades)
     sample_size = len(trades)
@@ -184,24 +196,17 @@ def _assess_strategy(
         )
         for cost in plan.cost_variants
     )
-
-    reasons: list[SpotBaselineReason] = []
-    if sample_size < policy.minimum_strategy_trades:
-        reasons.append(SpotBaselineReason.SAMPLE_INSUFFICIENT)
-    if expectancy <= 0.0:
-        reasons.append(SpotBaselineReason.EXPECTANCY_NOT_POSITIVE)
-    if profit_factor is not None and profit_factor <= policy.minimum_profit_factor:
-        reasons.append(SpotBaselineReason.PROFIT_FACTOR_INADEQUATE)
-    if maximum_drawdown > policy.maximum_drawdown_pct:
-        reasons.append(SpotBaselineReason.DRAWDOWN_EXCESSIVE)
-    if len(symbols) < policy.minimum_symbols:
-        reasons.append(SpotBaselineReason.SYMBOL_COVERAGE_INSUFFICIENT)
-    if len(regimes) < policy.minimum_regimes:
-        reasons.append(SpotBaselineReason.REGIME_COVERAGE_INSUFFICIENT)
-    if any(not item.stable for item in sensitivity):
-        reasons.append(SpotBaselineReason.COST_SENSITIVITY_EXCESSIVE)
-    if average_exposure > policy.maximum_average_exposure_pct:
-        reasons.append(SpotBaselineReason.EXPOSURE_EXCESSIVE)
+    reasons = _reasons(
+        sample_size=sample_size,
+        expectancy=expectancy,
+        profit_factor=profit_factor,
+        maximum_drawdown=maximum_drawdown,
+        symbols=len(symbols),
+        regimes=len(regimes),
+        sensitivity=sensitivity,
+        average_exposure=average_exposure,
+        policy=policy,
+    )
     verdict = _verdict(reasons)
     if not reasons:
         reasons.append(SpotBaselineReason.BASELINE_ACCEPTED)
@@ -223,6 +228,38 @@ def _assess_strategy(
         cost_sensitivity=sensitivity,
         reasons=tuple(reasons),
     )
+
+
+def _reasons(
+    *,
+    sample_size: int,
+    expectancy: float,
+    profit_factor: float | None,
+    maximum_drawdown: float,
+    symbols: int,
+    regimes: int,
+    sensitivity: Sequence[SpotCostSensitivity],
+    average_exposure: float,
+    policy: SpotBaselineEvaluationPolicy,
+) -> list[SpotBaselineReason]:
+    reasons: list[SpotBaselineReason] = []
+    if sample_size < policy.minimum_strategy_trades:
+        reasons.append(SpotBaselineReason.SAMPLE_INSUFFICIENT)
+    if expectancy <= 0.0:
+        reasons.append(SpotBaselineReason.EXPECTANCY_NOT_POSITIVE)
+    if profit_factor is not None and profit_factor <= policy.minimum_profit_factor:
+        reasons.append(SpotBaselineReason.PROFIT_FACTOR_INADEQUATE)
+    if maximum_drawdown > policy.maximum_drawdown_pct:
+        reasons.append(SpotBaselineReason.DRAWDOWN_EXCESSIVE)
+    if symbols < policy.minimum_symbols:
+        reasons.append(SpotBaselineReason.SYMBOL_COVERAGE_INSUFFICIENT)
+    if regimes < policy.minimum_regimes:
+        reasons.append(SpotBaselineReason.REGIME_COVERAGE_INSUFFICIENT)
+    if any(not item.stable for item in sensitivity):
+        reasons.append(SpotBaselineReason.COST_SENSITIVITY_EXCESSIVE)
+    if average_exposure > policy.maximum_average_exposure_pct:
+        reasons.append(SpotBaselineReason.EXPOSURE_EXCESSIVE)
+    return reasons
 
 
 def _verdict(reasons: Sequence[SpotBaselineReason]) -> SpotBaselineVerdict:
@@ -248,12 +285,11 @@ def _cost_sensitivity(
     baseline_expectancy: float,
     maximum_degradation: float,
 ) -> SpotCostSensitivity:
-    results = tuple(
-        result
-        for result in result_map.values()
-        if result.cell.strategy == strategy
-        and result.cell.cost_variant_id == cost_id
-        and result.cell.allocation_variant_id == allocation_id
+    results = _selection_results(
+        result_map,
+        strategy=strategy,
+        cost_id=cost_id,
+        allocation_id=allocation_id,
     )
     trades = tuple(trade for result in results for trade in result.backtest.trades)
     expectancy = _average([trade.return_pct for trade in trades])
@@ -279,11 +315,12 @@ def _weighted_metric(
     ) / total
 
 
-def _score_band_expectancy(trades: Sequence[object]) -> dict[str, float]:
+def _score_band_expectancy(
+    trades: Sequence[SpotTradeRecord],
+) -> dict[str, float]:
     grouped: dict[str, list[float]] = defaultdict(list)
     for trade in trades:
-        score_band = str(getattr(trade, "score_band"))
-        grouped[score_band].append(float(getattr(trade, "return_pct")))
+        grouped[trade.score_band].append(trade.return_pct)
     return {key: _average(grouped[key]) for key in sorted(grouped)}
 
 
