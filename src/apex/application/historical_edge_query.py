@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Iterable
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -92,7 +93,7 @@ def query_historical_outcomes_sqlite(
         + " AND ".join(clauses)
         + " ORDER BY closed_at ASC, setup_id ASC"
     )
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         if not _table_exists(connection, "historical_outcomes"):
             return ()
         rows = connection.execute(query, tuple(parameters)).fetchall()
@@ -125,7 +126,7 @@ def load_historical_datasets_sqlite(
         + where
         + " ORDER BY market_type ASC, dataset_id ASC"
     )
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         if not _table_exists(connection, "historical_datasets"):
             return ()
         rows = connection.execute(query, tuple(parameters)).fetchall()

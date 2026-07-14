@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ def write_curated_dataset_manifest_sqlite(
 
     payload = _mapping_payload(manifest)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         connection.execute(
             """
@@ -52,7 +53,7 @@ def load_curated_dataset_manifest_sqlite(path: Path, dataset_id: str) -> dict[st
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         row = connection.execute(
             "SELECT manifest_json FROM historical_dataset_manifests WHERE dataset_id = ?",
@@ -69,7 +70,7 @@ def write_historical_outcome_import_sqlite(
 
     payload = _mapping_payload(summary)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         for outcome in summary.outcomes:
             connection.execute(
@@ -136,7 +137,7 @@ def load_historical_outcome_import_sqlite(path: Path, result_hash: str) -> dict[
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         row = connection.execute(
             "SELECT import_json FROM historical_outcome_imports WHERE result_hash = ?",

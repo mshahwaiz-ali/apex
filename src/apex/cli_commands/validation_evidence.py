@@ -66,7 +66,7 @@ def _load_backtest_metrics(path: Path) -> dict[str, int | float]:
     if not isinstance(value, dict):
         raise TypeError("backtest report must be a JSON object")
     payload = cast(dict[str, Any], value)
-    report_value = payload.get("report", payload)
+    report_value = payload.get("report", payload.get("metrics", payload))
     if not isinstance(report_value, dict):
         raise TypeError("backtest report payload must be an object")
     report = cast(dict[str, Any], report_value)

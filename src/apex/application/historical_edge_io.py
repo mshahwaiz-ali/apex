@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Iterable
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +103,7 @@ def write_historical_dataset_sqlite(path: Path, metadata: HistoricalDatasetMetad
 
     payload = _dataset_payload(metadata)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         connection.execute(
             """
@@ -137,7 +138,7 @@ def write_historical_outcomes_sqlite(path: Path, outcomes: Iterable[HistoricalOu
 
     materialized = tuple(outcomes)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         for outcome in materialized:
             connection.execute(
@@ -185,7 +186,7 @@ def write_historical_edge_report_sqlite(
 
     payload = historical_edge_report_payload(metrics, dataset_metadata=dataset_metadata)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         connection.execute(
             """
@@ -224,7 +225,7 @@ def load_historical_edge_report_sqlite(path: Path, result_hash: str) -> dict[str
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         row = connection.execute(
             "SELECT report_json FROM historical_edge_reports WHERE result_hash = ?",
@@ -247,7 +248,7 @@ def list_historical_edge_report_metadata_sqlite(
         raise ValueError("historical-edge report metadata limit must be positive")
     if not path.exists():
         return ()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_schema(connection)
         rows = connection.execute(
             """

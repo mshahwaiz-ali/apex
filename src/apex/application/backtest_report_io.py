@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
+from contextlib import closing
 from dataclasses import fields, is_dataclass
 from datetime import datetime
 from enum import Enum
@@ -75,7 +76,7 @@ def write_backtest_report_sqlite(path: Path, payload: Mapping[str, Any]) -> None
         raise ValueError("backtest report payload must be a mapping")
     run_id = _report_run_id(normalized)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_schema(connection)
         metadata = normalized.get("metadata", {})
         metrics = normalized.get("metrics", {})
@@ -130,7 +131,7 @@ def load_backtest_report_sqlite(path: Path, run_id: str) -> dict[str, Any] | Non
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_schema(connection)
         row = connection.execute(
             "SELECT report_json FROM backtest_reports WHERE run_id = ?",
@@ -153,7 +154,7 @@ def list_backtest_report_metadata_sqlite(
         raise ValueError("backtest report metadata limit must be positive")
     if not path.exists():
         return ()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_schema(connection)
         rows = connection.execute(
             """
@@ -199,7 +200,7 @@ def write_backtest_campaign_sqlite(path: Path, payload: Mapping[str, Any]) -> No
         raise ValueError("backtest campaign payload must be a mapping")
     campaign_id = _campaign_id_from_payload(normalized)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_campaign_schema(connection)
         rankings = normalized.get("rankings", [])
         if not isinstance(rankings, list):
@@ -250,7 +251,7 @@ def load_backtest_campaign_sqlite(path: Path, campaign_id: str) -> dict[str, Any
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_campaign_schema(connection)
         row = connection.execute(
             "SELECT campaign_json FROM backtest_campaigns WHERE campaign_id = ?",
@@ -273,7 +274,7 @@ def list_backtest_campaign_metadata_sqlite(
         raise ValueError("backtest campaign metadata limit must be positive")
     if not path.exists():
         return ()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_backtest_campaign_schema(connection)
         rows = connection.execute(
             """

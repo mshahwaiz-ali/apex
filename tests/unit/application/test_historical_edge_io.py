@@ -1,8 +1,10 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+import apex.application.historical_edge_io as historical_edge_io
 from apex.application.historical_edge import (
     DatasetPartition,
     DatasetSplit,
@@ -185,3 +187,44 @@ def test_futures_and_spot_reports_remain_separate(tmp_path: Path) -> None:
 
     assert tuple(item["market_type"] for item in listed) == ("FUTURES", "SPOT")
     assert listed[0]["result_hash"] != listed[1]["result_hash"]
+
+
+def test_sqlite_connections_are_closed_deterministically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "historical-edge.sqlite3"
+    metadata = _metadata()
+    outcomes = tuple(_outcome(index) for index in range(3))
+    metrics = _metrics()
+    original_connect = sqlite3.connect
+
+    class TrackedConnection(sqlite3.Connection):
+        closed_by_store = False
+
+        def close(self) -> None:
+            self.closed_by_store = True
+            super().close()
+
+    opened_connections: list[TrackedConnection] = []
+
+    def tracked_connect(*args, **kwargs):
+        kwargs["factory"] = TrackedConnection
+        connection = original_connect(*args, **kwargs)
+        opened_connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(historical_edge_io.sqlite3, "connect", tracked_connect)
+
+    write_historical_dataset_sqlite(path, metadata)
+    write_historical_outcomes_sqlite(path, outcomes)
+    write_historical_edge_report_sqlite(
+        path,
+        metrics,
+        dataset_metadata=(metadata,),
+    )
+    assert load_historical_edge_report_sqlite(path, metrics.result_hash) is not None
+    assert list_historical_edge_report_metadata_sqlite(path)
+
+    assert len(opened_connections) == 5
+    assert all(connection.closed_by_store for connection in opened_connections)

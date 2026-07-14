@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -125,7 +126,7 @@ def test_manifest_round_trip_and_idempotent_upsert(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded["content_hash"] == built.manifest.content_hash
     assert loaded["market_type"] == MarketType.FUTURES.value
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection, connection:
         count = connection.execute("SELECT COUNT(*) FROM historical_dataset_manifests").fetchone()
         version = connection.execute(
             "SELECT value FROM historical_edge_metadata WHERE key = 'schema_version'"
@@ -145,7 +146,7 @@ def test_outcome_import_round_trip_is_atomic_and_idempotent(tmp_path: Path) -> N
     assert loaded is not None
     assert loaded["accepted_count"] == 1
     assert loaded["dataset_id"] == "dataset-001"
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection, connection:
         import_count = connection.execute(
             "SELECT COUNT(*) FROM historical_outcome_imports"
         ).fetchone()
@@ -186,7 +187,7 @@ def test_manifest_warning_state_is_persisted(tmp_path: Path) -> None:
         validation_state=built.validation.state.value,
     )
 
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection, connection:
         state = connection.execute(
             "SELECT validation_state FROM historical_dataset_manifests WHERE dataset_id = ?",
             (built.manifest.dataset_id,),

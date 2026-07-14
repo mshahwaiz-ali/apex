@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Mapping
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -76,7 +77,7 @@ def write_analysis_record_sqlite(path: Path, record: Mapping[str, Any]) -> None:
     normalized = _json_roundtrip(record)
     _validate_record(normalized)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_sqlite_schema(connection)
         connection.execute(
             """
@@ -127,7 +128,7 @@ def load_analysis_record_sqlite(path: Path, analysis_id: str) -> dict[str, Any] 
 
     if not path.exists():
         return None
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_sqlite_schema(connection)
         row = connection.execute(
             "SELECT record_json FROM analysis_records WHERE analysis_id = ?",
@@ -147,7 +148,7 @@ def list_analysis_record_metadata_sqlite(
         raise ValueError("analysis record metadata limit must be positive")
     if not path.exists():
         return ()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         _ensure_sqlite_schema(connection)
         rows = connection.execute(
             """

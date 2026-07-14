@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,6 +14,12 @@ from apex.cli_commands.readiness import _forward_report_from_input, _funded_repo
 from apex.cli_commands.validation_evidence import _load_backtest_metrics
 from apex.paper_trading import PaperTradeStore
 from apex.validation.evidence import generate_paper_evidence
+from apex.validation.history import (
+    DailyValidationRecord,
+    DailyValidationStore,
+    closed_trades_by_strategy,
+    strategy_sample_shortfalls,
+)
 
 
 def register_validation_pipeline_commands(app: typer.Typer) -> None:
@@ -28,6 +34,23 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
             dir_okay=False,
         ),
         report: Path | None = typer.Option(None, "--report", dir_okay=False),
+        history: Path = typer.Option(
+            Path("data/validation/daily.json"),
+            "--history",
+            dir_okay=False,
+            help="Persistent date-keyed P1 validation history.",
+        ),
+        trading_date: str | None = typer.Option(
+            None,
+            "--date",
+            help="Validation trading date in YYYY-MM-DD format; defaults to UTC today.",
+        ),
+        minimum_per_strategy: int = typer.Option(
+            10,
+            "--minimum-per-strategy",
+            min=1,
+            help="Minimum closed samples required for each observed strategy.",
+        ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
         minimum_closed_trades: int = typer.Option(30, "--minimum-closed-trades", min=1),
         maximum_win_rate_deviation: float = typer.Option(
@@ -44,11 +67,12 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
         ),
         manual_instruction_failures: int = typer.Option(0, "--manual-instruction-failures", min=0),
     ) -> None:
-        """Generate auditable paper evidence and immediately evaluate P1."""
+        """Generate, evaluate, and persist one auditable daily P1 snapshot."""
 
         try:
+            trades = PaperTradeStore(paper_store).load()
             backtest = _load_backtest_metrics(backtest_report)
-            evidence = generate_paper_evidence(PaperTradeStore(paper_store).load())
+            evidence = generate_paper_evidence(trades)
             payload: dict[str, Any] = {
                 "generated_at": datetime.now(UTC).isoformat(),
                 "backtest": backtest,
@@ -71,19 +95,51 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
                 },
             }
             result = _forward_report_from_input(payload)
+            counts = closed_trades_by_strategy(trades)
+            record = DailyValidationRecord(
+                trading_date=(
+                    date.fromisoformat(trading_date)
+                    if trading_date is not None
+                    else datetime.now(UTC).date()
+                ),
+                generated_at=datetime.now(UTC),
+                report=result,
+                closed_trades_by_strategy=counts,
+            )
+            records = DailyValidationStore(history).upsert(record)
+            shortfalls = strategy_sample_shortfalls(
+                counts,
+                minimum_per_strategy=minimum_per_strategy,
+            )
         except (KeyError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
         serialized = _jsonable_report(result)
         _write_json(report, serialized)
         if output == "json":
-            typer.echo(json.dumps(serialized, indent=2, sort_keys=True))
+            typer.echo(
+                json.dumps(
+                    {
+                        "report": serialized,
+                        "daily_history": {
+                            "trading_date": record.trading_date.isoformat(),
+                            "history_count": len(records),
+                            "minimum_per_strategy": minimum_per_strategy,
+                            "strategy_sample_shortfalls": shortfalls,
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
             return
         reasons = ",".join(str(reason) for reason in serialized["reasons"]) or "none"
         typer.echo(
             f"PAPER_VALIDATION | eligibility={serialized['eligibility']} "
             f"| closed={serialized['closed_paper_trades']} "
-            f"| modeled={serialized['modeled_trades']} | reasons={reasons}"
+            f"| modeled={serialized['modeled_trades']} | reasons={reasons} "
+            f"| history_days={len(records)} "
+            f"| strategy_shortfalls={len(shortfalls)}"
         )
 
     @app.command("funded-readiness-from-report")
