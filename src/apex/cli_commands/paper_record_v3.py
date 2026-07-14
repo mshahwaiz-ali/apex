@@ -80,27 +80,29 @@ def register_paper_record_v3(app: typer.Typer) -> None:
             )
             context = bootstrap()
             risk_config = load_default_risk_config()
-            with futures_risk_mode_scope(preliminary_context.account.risk_mode):
-                with create_market_data_services(context.settings) as services:
-                    analysis = analyze_symbol(
-                        canonical_symbol,
-                        services.candles,
-                        timeframes=context.settings.analysis_timeframes,
-                        timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                        timeframe_max_staleness_seconds=getattr(
-                            context.settings,
-                            "timeframe_max_staleness_seconds",
-                            None,
-                        ),
-                        candle_limit=candle_limit,
-                        risk_config=risk_config,
-                        strategy_routing=getattr(context.settings, "strategy_routing", None),
-                        gainer_state_thresholds=getattr(
-                            context.settings,
-                            "gainer_state_thresholds",
-                            None,
-                        ),
-                    )
+            with (
+                futures_risk_mode_scope(preliminary_context.account.risk_mode),
+                create_market_data_services(context.settings) as services,
+            ):
+                analysis = analyze_symbol(
+                    canonical_symbol,
+                    services.candles,
+                    timeframes=context.settings.analysis_timeframes,
+                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                    timeframe_max_staleness_seconds=getattr(
+                        context.settings,
+                        "timeframe_max_staleness_seconds",
+                        None,
+                    ),
+                    candle_limit=candle_limit,
+                    risk_config=risk_config,
+                    strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    gainer_state_thresholds=getattr(
+                        context.settings,
+                        "gainer_state_thresholds",
+                        None,
+                    ),
+                )
             if analysis.assessment.setup is None:
                 typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | no approved setup")
                 return
