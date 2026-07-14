@@ -193,3 +193,51 @@ Observed locally after pulling commit `de022ea` on 2026-07-14:
 - Repair all findings before declaring N3 complete.
 
 No historical profitability, funded readiness, or production eligibility claim is made by N3.
+
+## V2 Spot Portfolio Backtester and Baseline Campaign Pipeline
+
+### Implemented in the current large batch
+
+- Added a separate `src/apex/spot_backtesting/` package. It does not reuse futures margin,
+  leverage, liquidation, short-direction, or wallet-exposure logic.
+- Added immutable long-only spot contracts for cash, allocation, entries, targets, regimes,
+  holding duration, trades, equity points, and portfolio metrics.
+- Added chronological multi-symbol portfolio simulation with stable timestamp, symbol, and plan
+  ordering.
+- Added portfolio-wide available-cash, stablecoin-reserve, per-position allocation, total
+  exposure, and concurrent-position constraints.
+- Added deterministic transaction fees and adverse entry/exit slippage.
+- Added bounded planned scale-ins, partial exits, target ladders, protective stops, setup expiry,
+  time exits, broad-market regime exits, and final marking.
+- Stops and regime exits are processed before targets on ambiguous existing-position candles;
+  newly opened positions cannot claim a target on the same candle.
+- Added expectancy-focused metrics: trade count, win rate, average return, expectancy, profit
+  factor, maximum portfolio drawdown, ending equity, total return, exposure utilization,
+  concurrent positions, holding duration, and strategy/symbol/regime/score/exit breakdowns.
+- Added `src/apex/spot_baseline/` with deterministic frozen campaign planning across strategies,
+  symbols, train/validation/test datasets, fee/slippage variants, and allocation variants.
+- Frozen plans require all three dataset roles, complete symbol coverage, unique variants, stable
+  dataset hashes, a stable assumptions hash, a complete campaign-cell matrix, and a deterministic
+  plan ID.
+- Added campaign execution that binds strategy-generated plans and bars to every frozen cell and
+  rejects missing or extra inputs and strategy/symbol mismatches.
+- Added completed-result validation for missing/duplicate cells, plan drift, assumptions drift,
+  dataset drift, and cost/allocation mismatch.
+- Strategy verdicts use only train and validation cells. Frozen final-test cells are executed,
+  validated, and retained but cannot influence baseline selection.
+- Added frozen reports with `ACCEPT`, `RESTRICT`, `REJECT`, and `INSUFFICIENT_EVIDENCE` verdicts,
+  machine-readable reasons, portfolio expectancy/drawdown/return, coverage, score bands, cost
+  sensitivity, exposure statistics, deterministic report IDs, and explicit research warnings.
+- Added JSON and SQLite report persistence with deterministic upsert/load behavior.
+- Added focused deterministic tests for long-only separation, allocation and exposure caps,
+  insufficient cash, fees/slippage, bounded scale-ins, partial exits, regime exits, conservative
+  same-candle ordering, drawdown/exposure metrics, campaign completeness/drift, deterministic IDs,
+  JSON round-trip, and SQLite upsert/load.
+
+### Explicitly remaining
+
+- Full local Ruff, strict mypy, and pytest validation for this batch has not yet been reported.
+- Live spot strategy generation, provider integration, and user-facing CLI commands remain.
+- Sector/correlation exposure limits and higher-timeframe stop movement remain.
+- Forward-paper spot validation and final-test attachment/reporting remain separate later gates.
+- No funded, production, or real-money readiness is claimed.
