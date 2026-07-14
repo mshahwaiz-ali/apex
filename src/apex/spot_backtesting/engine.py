@@ -58,7 +58,6 @@ def run_spot_backtest(
                     cash,
                     invested,
                     proceeds,
-                    bought_quantity,
                     trades,
                 )
         for bar in timestamp_bars:
@@ -70,6 +69,7 @@ def run_spot_backtest(
                 position = positions[plan.plan_id]
                 if position.closed_at is not None:
                     continue
+                was_open = position.quantity > 0.0
                 cash = _fill_entries(
                     config,
                     position,
@@ -80,16 +80,17 @@ def run_spot_backtest(
                     invested,
                     bought_quantity,
                 )
-                cash = _fill_targets(
-                    config,
-                    position,
-                    bar,
-                    cash,
-                    invested,
-                    proceeds,
-                    bought_quantity,
-                    trades,
-                )
+                if was_open:
+                    cash = _fill_targets(
+                        config,
+                        position,
+                        bar,
+                        cash,
+                        invested,
+                        proceeds,
+                        bought_quantity,
+                        trades,
+                    )
         curve.append(_equity_point(timestamp, cash, positions, latest))
 
     if bars:
@@ -144,7 +145,6 @@ def _process_exits(
     cash: float,
     invested: dict[str, float],
     proceeds: dict[str, float],
-    bought_quantity: dict[str, float],
     trades: list[SpotTradeRecord],
 ) -> float:
     plan = position.plan
@@ -154,19 +154,40 @@ def _process_exits(
         return cash
     if bar.regime in plan.exit_regimes:
         return _close_position(
-            config, position, bar.open, bar.timestamp, cash, SpotExitReason.REGIME,
-            invested, proceeds, trades
+            config,
+            position,
+            bar.open,
+            bar.timestamp,
+            cash,
+            SpotExitReason.REGIME,
+            invested,
+            proceeds,
+            trades,
         )
     holding = plan.maximum_holding or config.maximum_holding
     if position.opened_at is not None and bar.timestamp - position.opened_at >= holding:
         return _close_position(
-            config, position, bar.open, bar.timestamp, cash, SpotExitReason.TIME,
-            invested, proceeds, trades
+            config,
+            position,
+            bar.open,
+            bar.timestamp,
+            cash,
+            SpotExitReason.TIME,
+            invested,
+            proceeds,
+            trades,
         )
     if bar.low <= plan.protective_stop:
         return _close_position(
-            config, position, plan.protective_stop, bar.timestamp, cash,
-            SpotExitReason.STOP, invested, proceeds, trades
+            config,
+            position,
+            plan.protective_stop,
+            bar.timestamp,
+            cash,
+            SpotExitReason.STOP,
+            invested,
+            proceeds,
+            trades,
         )
     return cash
 
@@ -258,7 +279,14 @@ def _fill_targets(
     if position.quantity <= 1e-12:
         position.quantity = 0.0
         position.cost_basis = 0.0
-        _record_closed(position, bar.timestamp, SpotExitReason.TARGET, invested, proceeds, trades)
+        _record_closed(
+            position,
+            bar.timestamp,
+            SpotExitReason.TARGET,
+            invested,
+            proceeds,
+            trades,
+        )
     return cash
 
 
