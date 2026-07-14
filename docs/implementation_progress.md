@@ -134,21 +134,7 @@ profitability or production readiness.
   and attached guidance.
 - Test fixtures use typed pytest `MonkeyPatch` and `Path` inputs for strict-mypy compatibility.
 
-### N2 remaining work
-
-- Run and observe the complete Ruff format, Ruff lint, strict mypy, and pytest gate for all N2
-  batches.
-- Repair any quality-gate findings before declaring N2 complete.
-- Add deeper mocked execution-path coverage for network-dependent `paper record` and `paper update`
-  only if the quality gate exposes gaps in those paths.
-
-The attempted local gate run on 2026-07-14 did not execute because the isolated runner could not
-resolve `github.com` to clone the repository. No passing or failing quality result is claimed.
-
-No external or forward-validation claim is made by this implementation.
-
-
-## N2 quality-gate repair
+### N2 quality-gate repair
 
 Observed locally after pulling commit `de022ea` on 2026-07-14:
 
@@ -165,15 +151,45 @@ Observed locally after pulling commit `de022ea` on 2026-07-14:
 - `tests/unit/test_paper_cli_overlay.py` contained only partial command
   registration scaffolding and lacked JSON coverage for `report` and
   `replay-report`.
+- The repair was completed and the full local quality gate passed with 668 tests.
 
-Repair direction:
+## N3 — Futures Standard-Mode Quality Pass
 
-- Keep canonical lifecycle replay authoritative for real `PaperTrade`
-  domain records.
-- Restrict backward compatibility to legacy non-domain test doubles.
-- Replace broad `dict[str, object]` constructor expansion with a typed
-  guidance context.
-- Restore CLI JSON stdout and file-export coverage.
-- Require Ruff format, Ruff lint, strict mypy, and the complete pytest
-  suite to pass before completion is recorded.
+### Implemented
 
+- Added canonical strategy approval configuration in `config/strategy_approval.yaml`.
+- Added strict typed configuration contracts in `src/apex/config/strategy_approval.py`.
+- Every registered futures strategy must define `STANDARD`, `AGGRESSIVE`, and `EXTREME`
+  thresholds; incomplete or unknown configuration fails validation.
+- Strategies are classified as `PREFERRED`, `CONTROLLED`, or `RESTRICTED`.
+- Added deterministic setup eligibility states:
+  `FUNDED_ELIGIBLE`, `PAPER_ONLY`, `EXPERIMENTAL_ONLY`, and `REJECTED`.
+- Added stable machine-readable approval and rejection reason codes.
+- Added strategy-specific score-versus-threshold explanations.
+- `STANDARD` setups without validated historical evidence remain `PAPER_ONLY`.
+- `AGGRESSIVE` setups remain `PAPER_ONLY`; `EXTREME` setups remain
+  `EXPERIMENTAL_ONLY`.
+- Added a candidate-level quality gate that preserves raw Phase 5 scoring while enforcing:
+  - a controlled threshold adjustment for breakout retests;
+  - stricter direct-breakout extension, volume, and target-space requirements;
+  - stricter momentum extension, volume, and momentum-quality requirements;
+  - rejection of provisional gainer evidence in `STANDARD` mode.
+- Added an optional Phase 5 approval overlay that preserves deterministic rank order and legacy
+  scoring behavior unless a futures risk mode and strategy approval configuration are supplied.
+- Added `analyze_futures_phase5()` as the application-level N3 orchestration helper.
+- Policy-aware futures plans now serialize `strategy_approval` and `eligibility` and return
+  structured strategy rejection payloads.
+- Added focused tests for threshold routing, funded/paper/experimental eligibility,
+  breakout-retest treatment, direct-breakout restrictions, and provisional gainer rejection.
+
+### Remaining integration and validation
+
+- Replace the central futures analysis call from `analyze_phase5(routed_phase4)` to
+  `analyze_futures_phase5(routed_phase4, risk_mode=...)` in the local checkout, where the complete
+  large orchestration module can be edited safely without full-file API replacement.
+- Propagate the selected risk mode through scanner and selected-symbol entry points.
+- Run the complete end-of-N3 local quality gate once all N3 integration is present:
+  `ruff format .`, `ruff check .`, `mypy src`, and `pytest`.
+- Repair all findings before declaring N3 complete.
+
+No historical profitability, funded readiness, or production eligibility claim is made by N3.
