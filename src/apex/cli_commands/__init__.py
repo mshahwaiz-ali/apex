@@ -14,7 +14,7 @@ from apex.cli_overlay import remove_commands
 
 def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     remove_commands(app, {"fetch", "ticker", "analyze", "backtest"})
-    remove_commands(paper_app, {"record", "update"})
+    remove_commands(paper_app, {"record", "update", "report", "replay-report"})
     register_market_data_commands(app)
     register_analysis_commands(app)
     register_dataset_commands(app)
