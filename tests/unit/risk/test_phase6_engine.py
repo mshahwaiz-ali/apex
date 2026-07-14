@@ -415,12 +415,8 @@ def test_risk_config_loads_checked_in_yaml() -> None:
 
 def test_loader_and_mode_resolver_use_canonical_execution_costs(tmp_path) -> None:
     futures_text = Path("config/futures.yaml").read_text(encoding="utf-8")
-    futures_text = futures_text.replace(
-        "entry_fee_percentage: 0.04", "entry_fee_percentage: 0.11"
-    )
-    futures_text = futures_text.replace(
-        "exit_fee_percentage: 0.04", "exit_fee_percentage: 0.12"
-    )
+    futures_text = futures_text.replace("entry_fee_percentage: 0.04", "entry_fee_percentage: 0.11")
+    futures_text = futures_text.replace("exit_fee_percentage: 0.04", "exit_fee_percentage: 0.12")
     futures_text = futures_text.replace(
         "entry_slippage_percentage: 0.03", "entry_slippage_percentage: 0.13"
     )

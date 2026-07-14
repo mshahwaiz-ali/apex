@@ -338,12 +338,8 @@ def _build_risk_rejection_diagnostics(
             "modeled_structural_loss_amount": (
                 modeled_position_notional * structural_loss_fraction
             ),
-            "modeled_execution_cost_amount": (
-                modeled_position_notional * execution_cost_fraction
-            ),
-            "modeled_total_loss_amount": (
-                modeled_position_notional * modeled_total_loss_fraction
-            ),
+            "modeled_execution_cost_amount": (modeled_position_notional * execution_cost_fraction),
+            "modeled_total_loss_amount": (modeled_position_notional * modeled_total_loss_fraction),
             "modeled_required_leverage": modeled_required_leverage,
             "rejection_codes": [code.value for code in assessment.rejection_codes],
             "rejection_reasons": list(assessment.reasons),

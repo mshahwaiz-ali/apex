@@ -178,9 +178,7 @@ def _build_profile(
         maximum_drawdown_r=_maximum_drawdown(r_values),
         maximum_losing_streak=_maximum_losing_streak(r_values),
         average_holding_candles=fmean(trade.holding_candles for trade in trades),
-        average_execution_cost_r=fmean(
-            trade.fees / trade.signal.risk_amount for trade in trades
-        ),
+        average_execution_cost_r=fmean(trade.fees / trade.signal.risk_amount for trade in trades),
         evidence_quality=evidence_quality,
         warnings=warnings,
     )
