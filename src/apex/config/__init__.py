@@ -18,6 +18,13 @@ from apex.config.settings import (
     FileSettings,
     load_settings,
 )
+from apex.config.spot import (
+    SpotAllocationConfig,
+    SpotEntryConfig,
+    SpotExitConfig,
+    SpotProductConfig,
+    load_spot_product_config,
+)
 from apex.config.strategy_approval import (
     StrategyApprovalConfig,
     StrategyApprovalRule,
@@ -35,11 +42,16 @@ __all__ = [
     "FuturesExecutionCostConfig",
     "FuturesProductConfig",
     "RiskModeDefaults",
+    "SpotAllocationConfig",
+    "SpotEntryConfig",
+    "SpotExitConfig",
+    "SpotProductConfig",
     "StrategyApprovalConfig",
     "StrategyApprovalRule",
     "StrategyQualityClass",
     "load_account_policies_config",
     "load_futures_product_config",
     "load_settings",
+    "load_spot_product_config",
     "load_strategy_approval_config",
 ]
