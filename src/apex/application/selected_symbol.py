@@ -8,7 +8,7 @@ from datetime import datetime
 from apex.application.analysis import SymbolAnalysis, analyze_symbol
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
-from apex.domain import GainerStateThresholds
+from apex.domain import GainerStateThresholds, RiskMode
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
 
@@ -21,6 +21,7 @@ def analyze_selected_symbol(
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
+    risk_mode: RiskMode = RiskMode.STANDARD,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -37,6 +38,7 @@ def analyze_selected_symbol(
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
         candle_limit=candle_limit,
         risk_config=risk_config,
+        risk_mode=risk_mode,
         exposure=exposure,
         generated_at=generated_at,
         strategy_routing=strategy_routing,
