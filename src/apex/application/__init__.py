@@ -78,6 +78,11 @@ from apex.application.spot_account import (
     DEFAULT_SPOT_CONFIG_PATH,
     build_spot_account_input,
 )
+from apex.application.spot_structure import (
+    analyze_spot_structure,
+    classify_spot_market_regime,
+    classify_spot_timeframe,
+)
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
 from apex.application.trade_management import build_trade_management_plan
 from apex.application.trade_management_reporting import format_trade_management_plan
@@ -110,6 +115,7 @@ __all__ = [
     "SymbolAnalysis",
     "analyze_futures_phase5",
     "analyze_selected_symbol",
+    "analyze_spot_structure",
     "analyze_symbol",
     "bootstrap",
     "build_analysis_record",
@@ -120,6 +126,8 @@ __all__ = [
     "build_spot_account_input",
     "build_trade_management_plan",
     "campaign_result_to_payload",
+    "classify_spot_market_regime",
+    "classify_spot_timeframe",
     "create_market_data_services",
     "default_campaign_variants",
     "format_scan_text",
