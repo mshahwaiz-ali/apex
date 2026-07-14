@@ -9,7 +9,10 @@ from apex.domain import (
     SpotEntryLeg,
     SpotEntryPlan,
     SpotEntryState,
+    SpotLifecycleSnapshot,
+    SpotLifecycleState,
     SpotPositionPlan,
+    SpotStopPlan,
     SpotTargetLeg,
     SpotTargetPlan,
 )
@@ -83,11 +86,40 @@ def test_spot_entry_plan_rejects_uncontrolled_averaging_down() -> None:
         )
 
 
+def test_spot_stop_plan_keeps_protection_below_structural_invalidation() -> None:
+    plan = SpotStopPlan(
+        structural_invalidation_price=90.0,
+        protective_stop_price=89.0,
+        thesis_failure_reason="daily structure failed",
+    )
+
+    assert plan.market_regime_exit_required is True
+
+
+def test_spot_stop_plan_rejects_invalid_long_geometry() -> None:
+    with pytest.raises(ValidationError, match="cannot exceed structural invalidation"):
+        SpotStopPlan(
+            structural_invalidation_price=90.0,
+            protective_stop_price=91.0,
+            thesis_failure_reason="daily structure failed",
+        )
+
+
 def test_spot_targets_must_sell_exactly_the_full_position_in_order() -> None:
     plan = SpotTargetPlan(
         targets=(
-            SpotTargetLeg(label="TP1", price=110.0, sell_percentage=40.0, rationale="first resistance"),
-            SpotTargetLeg(label="TP2", price=120.0, sell_percentage=60.0, rationale="major resistance"),
+            SpotTargetLeg(
+                label="TP1",
+                price=110.0,
+                sell_percentage=40.0,
+                rationale="first resistance",
+            ),
+            SpotTargetLeg(
+                label="TP2",
+                price=120.0,
+                sell_percentage=60.0,
+                rationale="major resistance",
+            ),
         )
     )
 
@@ -109,3 +141,19 @@ def test_spot_position_plan_contains_no_futures_geometry() -> None:
     assert "leverage" not in payload
     assert "liquidation_price" not in payload
     assert "required_margin" not in payload
+
+
+def test_spot_terminal_lifecycle_cannot_retain_open_quantity() -> None:
+    with pytest.raises(ValidationError, match="cannot retain open quantity"):
+        SpotLifecycleSnapshot(
+            state=SpotLifecycleState.CLOSED,
+            open_quantity=1.0,
+        )
+
+
+def test_spot_active_lifecycle_requires_open_quantity() -> None:
+    with pytest.raises(ValidationError, match="require open quantity"):
+        SpotLifecycleSnapshot(
+            state=SpotLifecycleState.FILLED,
+            open_quantity=0.0,
+        )
