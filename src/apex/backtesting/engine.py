@@ -21,10 +21,19 @@ from apex.risk.contracts import RiskApprovedSetup
 from apex.strategies import TradeDirection
 
 
-def signal_from_setup(setup: RiskApprovedSetup) -> BacktestSignal:
-    """Convert a risk-approved setup to the first-target replay signal."""
+def signal_from_setup(
+    setup: RiskApprovedSetup,
+    *,
+    config: BacktestConfig | None = None,
+) -> BacktestSignal:
+    """Convert a risk-approved setup into a cost-aware replay signal."""
+
+    if config is None:
+        config = BacktestConfig()
 
     first_target = setup.take_profits[0]
+    quantity = _cost_aware_replay_quantity(setup, config)
+
     return BacktestSignal(
         symbol=setup.symbol,
         strategy=setup.strategy,
@@ -33,12 +42,43 @@ def signal_from_setup(setup: RiskApprovedSetup) -> BacktestSignal:
         entry_price=setup.entry.preferred,
         stop_price=setup.stop_loss.price,
         target_price=first_target.price,
-        quantity=setup.position_size.quantity,
+        quantity=quantity,
         risk_amount=setup.position_size.risk_amount,
         confidence_score=setup.confidence_score,
         target_prices=tuple(target.price for target in setup.take_profits),
         partial_close_percentages=tuple(target.partial_close_pct for target in setup.take_profits),
     )
+
+
+def _cost_aware_replay_quantity(
+    setup: RiskApprovedSetup,
+    config: BacktestConfig,
+) -> float:
+    """Size quantity so modeled stop loss including costs equals the wallet cap."""
+
+    entry_price = setup.entry.preferred
+    stop_price = setup.stop_loss.price
+
+    entry_slippage = entry_price * config.slippage_pct / 100.0
+    stop_slippage = stop_price * config.slippage_pct / 100.0
+
+    if setup.direction is TradeDirection.LONG:
+        modeled_entry = entry_price + entry_slippage
+        modeled_stop_exit = stop_price - stop_slippage
+        movement_loss_per_unit = modeled_entry - modeled_stop_exit
+    else:
+        modeled_entry = entry_price - entry_slippage
+        modeled_stop_exit = stop_price + stop_slippage
+        movement_loss_per_unit = modeled_stop_exit - modeled_entry
+
+    entry_fee_per_unit = modeled_entry * config.fee_pct / 100.0
+    exit_fee_per_unit = modeled_stop_exit * config.fee_pct / 100.0
+
+    total_loss_per_unit = movement_loss_per_unit + entry_fee_per_unit + exit_fee_per_unit
+    if total_loss_per_unit <= 0.0:
+        raise ValueError("modeled replay loss per unit must be positive")
+
+    return setup.position_size.risk_amount / total_loss_per_unit
 
 
 def simulate_trade(
@@ -416,6 +456,60 @@ def _trade_from_components(
         "closed_percentage",
         min(100.0, sum(signal.partial_close_percentages[:partial_target_count])),
     )
+
+    planned_entry = signal.entry_price
+    planned_stop = signal.stop_price
+    modeled_entry = _slipped_entry(signal, config)
+    modeled_stop_exit = _slipped_exit(signal, planned_stop, config)
+
+    planned_stop_gross_pnl = _gross_for_fill(
+        signal,
+        entry=planned_entry,
+        exit_price=planned_stop,
+        quantity=signal.quantity,
+    )
+    modeled_stop_gross_pnl = _gross_for_fill(
+        signal,
+        entry=modeled_entry,
+        exit_price=modeled_stop_exit,
+        quantity=signal.quantity,
+    )
+
+    planned_entry_fee = modeled_entry * signal.quantity * config.fee_pct / 100.0
+    planned_stop_exit_fee = modeled_stop_exit * signal.quantity * config.fee_pct / 100.0
+    modeled_slippage_loss = max(
+        0.0,
+        planned_stop_gross_pnl - modeled_stop_gross_pnl,
+    )
+    expected_total_loss_at_stop = max(
+        0.0,
+        -(modeled_stop_gross_pnl - planned_entry_fee - planned_stop_exit_fee),
+    )
+
+    output_metadata.setdefault("configured_wallet_loss_cap", signal.risk_amount)
+    output_metadata.setdefault(
+        "gross_stop_loss_at_planned_stop",
+        max(0.0, -planned_stop_gross_pnl),
+    )
+    output_metadata.setdefault("entry_fee", planned_entry_fee)
+    output_metadata.setdefault("planned_stop_exit_fee", planned_stop_exit_fee)
+    output_metadata.setdefault("modeled_slippage_loss", modeled_slippage_loss)
+    output_metadata.setdefault(
+        "expected_total_loss_at_stop",
+        expected_total_loss_at_stop,
+    )
+    output_metadata.setdefault("expected_r", -expected_total_loss_at_stop / signal.risk_amount)
+    output_metadata.setdefault("actual_simulated_fill_loss", max(0.0, -gross))
+    output_metadata.setdefault("actual_fees", fees)
+    output_metadata.setdefault("actual_net_loss", max(0.0, -net))
+    output_metadata.setdefault("realized_r", net / signal.risk_amount)
+    output_metadata.setdefault("planned_entry_price", planned_entry)
+    output_metadata.setdefault("modeled_entry_fill_price", modeled_entry)
+    output_metadata.setdefault("planned_stop_price", planned_stop)
+    output_metadata.setdefault("modeled_stop_fill_price", modeled_stop_exit)
+    output_metadata.setdefault("configured_fee_pct", config.fee_pct)
+    output_metadata.setdefault("configured_slippage_pct", config.slippage_pct)
+
     return SimulatedTrade(
         signal=signal,
         outcome=outcome,

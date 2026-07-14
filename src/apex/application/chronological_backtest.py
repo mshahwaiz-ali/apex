@@ -12,6 +12,7 @@ from apex.application.chronological_metadata import (
     ChronologicalBacktestMetadata,
     build_chronological_metadata,
 )
+from apex.application.futures_risk_mode import current_futures_risk_mode
 from apex.backtesting import (
     BacktestConfig,
     BacktestReport,
@@ -284,7 +285,10 @@ def run_chronological_pipeline_backtest(
             failures[decision_time.isoformat()] = "approved assessment is missing setup"
             continue
 
-        signal = signal_from_setup(analysis.assessment.setup)
+        signal = signal_from_setup(
+            analysis.assessment.setup,
+            config=request.backtest_config,
+        )
         fingerprint = _signal_fingerprint(signal)
         if _is_overlapping(trades, decision_time):
             overlap_skipped_count += 1
@@ -313,7 +317,11 @@ def run_chronological_pipeline_backtest(
                 signal,
                 future,
                 config=request.backtest_config,
-                metadata=_backtest_trade_metadata(analysis),
+                metadata=_backtest_trade_metadata(
+                    analysis,
+                    request,
+                    signal,
+                ),
             )
         )
         last_fingerprint = fingerprint
@@ -358,17 +366,54 @@ def _signal_fingerprint(signal: BacktestSignal) -> tuple[str, str, str]:
     return signal.symbol, signal.strategy.value, signal.direction.value
 
 
-def _backtest_trade_metadata(analysis: SymbolAnalysis) -> dict[str, str | int | float | bool]:
+def _backtest_trade_metadata(
+    analysis: SymbolAnalysis,
+    request: ChronologicalBacktestRequest,
+    signal: BacktestSignal,
+) -> dict[str, str | int | float | bool]:
     payload = serialize_symbol_analysis(analysis)
     metadata: dict[str, str | int | float | bool] = {
         "configuration_id": str(payload.get("configuration_id", "")),
+        "active_risk_configuration_id": analysis.assessment.configuration_id,
+        "active_risk_mode": current_futures_risk_mode().value,
         "scanner_type": str(payload.get("scanner_type", "")),
         "entry_state": str(payload.get("entry_state", "")),
+        "configured_account_equity": request.risk_config.account_equity,
+        "configured_account_loss_pct": request.risk_config.risk_per_trade_pct,
     }
+
+    setup = analysis.assessment.setup
+    if setup is not None:
+        position_notional = signal.quantity * signal.entry_price
+        minimum_funding_leverage = max(
+            1.0,
+            position_notional / request.risk_config.account_equity,
+        )
+        required_margin = position_notional / minimum_funding_leverage
+
+        metadata.update(
+            {
+                "configured_wallet_loss_cap": signal.risk_amount,
+                "position_quantity": signal.quantity,
+                "position_notional": position_notional,
+                "required_margin": required_margin,
+                "leverage_used": minimum_funding_leverage,
+                "leverage_used_model": "minimum_funding_leverage",
+                "legacy_phase6_quantity": setup.position_size.quantity,
+                "legacy_phase6_position_notional": setup.position_size.notional_value,
+                "phase6_minimum_leverage": setup.leverage.minimum,
+                "phase6_maximum_leverage": setup.leverage.maximum,
+                "phase6_modeled_maximum_leverage": setup.leverage.modeled_maximum,
+            }
+        )
+
     precision = payload.get("precision_entry")
     if isinstance(precision, dict):
         score = precision.get("score")
-        if isinstance(score, dict) and isinstance(score.get("final_score"), int | float):
+        if isinstance(score, dict) and isinstance(
+            score.get("final_score"),
+            int | float,
+        ):
             metadata["precision_entry_score"] = float(score["final_score"])
     return metadata
 

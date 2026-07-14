@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,6 +9,7 @@ from apex.backtesting import (
     BacktestRequest,
     BacktestSignal,
     HistoricalBacktestRunner,
+    signal_from_setup,
     simulate_trade,
     summarize_trades,
 )
@@ -237,3 +239,223 @@ def test_backtest_request_requires_chronological_signals() -> None:
             signals=(later, earlier),
             candles_by_symbol={"BTC/USDT": ()},
         )
+
+
+def test_stop_diagnostics_separate_wallet_cap_fees_and_slippage() -> None:
+    signal = replace(
+        _signal(),
+        entry_price=100.0,
+        stop_price=99.0,
+        target_price=102.0,
+        target_prices=(102.0,),
+        partial_close_percentages=(100.0,),
+        quantity=10.0,
+        risk_amount=10.0,
+    )
+    candle = _candle(
+        open_price=100.0,
+        high=100.5,
+        low=98.5,
+        close=99.0,
+    )
+
+    trade = simulate_trade(
+        signal,
+        (candle,),
+        config=BacktestConfig(
+            fee_pct=0.04,
+            slippage_pct=0.02,
+            maximum_holding_candles=1,
+        ),
+    )
+
+    metadata = trade.metadata
+    assert trade.outcome is BacktestOutcome.STOP
+    assert metadata["configured_wallet_loss_cap"] == pytest.approx(10.0)
+    assert metadata["gross_stop_loss_at_planned_stop"] == pytest.approx(10.0)
+    assert metadata["entry_fee"] == pytest.approx(0.40008)
+    assert metadata["planned_stop_exit_fee"] == pytest.approx(0.3959208)
+    assert metadata["modeled_slippage_loss"] == pytest.approx(0.398)
+    expected_total_loss = (
+        metadata["gross_stop_loss_at_planned_stop"]
+        + metadata["modeled_slippage_loss"]
+        + metadata["entry_fee"]
+        + metadata["planned_stop_exit_fee"]
+    )
+    assert metadata["expected_total_loss_at_stop"] == pytest.approx(expected_total_loss)
+    assert metadata["actual_simulated_fill_loss"] == pytest.approx(-trade.gross_pnl)
+    assert metadata["actual_fees"] == pytest.approx(trade.fees)
+    assert metadata["actual_net_loss"] == pytest.approx(-trade.net_pnl)
+    assert metadata["expected_r"] == pytest.approx(
+        -metadata["expected_total_loss_at_stop"] / signal.risk_amount
+    )
+    assert metadata["realized_r"] == pytest.approx(trade.realized_r_multiple)
+
+
+def test_signal_from_setup_reserves_wallet_cap_for_fees_and_slippage() -> None:
+    from apex.risk.contracts import (
+        ActionableEntry,
+        LeverageRange,
+        ManagementPolicy,
+        ManagementPolicyType,
+        PositionSize,
+        RiskApprovedSetup,
+        StopLoss,
+        TakeProfit,
+    )
+
+    setup = RiskApprovedSetup(
+        symbol="BTC/USDT",
+        direction=TradeDirection.LONG,
+        strategy=StrategyType.TREND_PULLBACK,
+        decision_time=NOW,
+        candidate_id="candidate-1",
+        confidence_score=80.0,
+        entry=ActionableEntry(
+            lower=99.5,
+            upper=100.5,
+            preferred=100.0,
+            current_price=100.0,
+            maximum_chase_price=101.0,
+            current_price_inside_zone=True,
+        ),
+        stop_loss=StopLoss(
+            price=99.0,
+            distance=1.0,
+            distance_pct=1.0,
+            rationale=("fixture stop",),
+        ),
+        take_profits=(
+            TakeProfit(
+                label="TP1",
+                price=102.0,
+                reward=2.0,
+                risk_reward=2.0,
+                rationale=("fixture target",),
+            ),
+        ),
+        position_size=PositionSize(
+            risk_amount=10.0,
+            quantity=10.0,
+            notional_value=1000.0,
+            account_risk_pct=0.1,
+            required_leverage=1.0,
+        ),
+        leverage=LeverageRange(
+            minimum=1.0,
+            maximum=5.0,
+            modeled_maximum=10.0,
+            liquidation_price_at_maximum=80.0,
+            stop_to_liquidation_buffer_pct=19.0,
+        ),
+        management_policies=(
+            ManagementPolicy(
+                kind=ManagementPolicyType.TIME_EXIT,
+                trigger="fixture trigger",
+                action="fixture action",
+                rationale=("fixture rationale",),
+            ),
+        ),
+    )
+    config = BacktestConfig(
+        fee_pct=0.04,
+        slippage_pct=0.02,
+        maximum_holding_candles=1,
+    )
+
+    signal = signal_from_setup(setup, config=config)
+    trade = simulate_trade(
+        signal,
+        (_candle(high=100.5, low=98.5, close=99.0),),
+        config=config,
+    )
+
+    assert signal.quantity < setup.position_size.quantity
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.net_pnl == pytest.approx(-10.0)
+    assert trade.realized_r_multiple == pytest.approx(-1.0)
+    assert trade.metadata["expected_total_loss_at_stop"] == pytest.approx(10.0)
+
+
+def test_cost_aware_replay_quantity_supports_short_setup() -> None:
+    from apex.risk.contracts import (
+        ActionableEntry,
+        LeverageRange,
+        ManagementPolicy,
+        ManagementPolicyType,
+        PositionSize,
+        RiskApprovedSetup,
+        StopLoss,
+        TakeProfit,
+    )
+
+    setup = RiskApprovedSetup(
+        symbol="BTC/USDT",
+        direction=TradeDirection.SHORT,
+        strategy=StrategyType.TREND_PULLBACK,
+        decision_time=NOW,
+        candidate_id="candidate-short",
+        confidence_score=80.0,
+        entry=ActionableEntry(
+            lower=99.5,
+            upper=100.5,
+            preferred=100.0,
+            current_price=100.0,
+            maximum_chase_price=99.0,
+            current_price_inside_zone=True,
+        ),
+        stop_loss=StopLoss(
+            price=101.0,
+            distance=1.0,
+            distance_pct=1.0,
+            rationale=("fixture stop",),
+        ),
+        take_profits=(
+            TakeProfit(
+                label="TP1",
+                price=98.0,
+                reward=2.0,
+                risk_reward=2.0,
+                rationale=("fixture target",),
+            ),
+        ),
+        position_size=PositionSize(
+            risk_amount=10.0,
+            quantity=10.0,
+            notional_value=1000.0,
+            account_risk_pct=0.1,
+            required_leverage=1.0,
+        ),
+        leverage=LeverageRange(
+            minimum=1.0,
+            maximum=5.0,
+            modeled_maximum=10.0,
+            liquidation_price_at_maximum=120.0,
+            stop_to_liquidation_buffer_pct=19.0,
+        ),
+        management_policies=(
+            ManagementPolicy(
+                kind=ManagementPolicyType.TIME_EXIT,
+                trigger="fixture trigger",
+                action="fixture action",
+                rationale=("fixture rationale",),
+            ),
+        ),
+    )
+    config = BacktestConfig(
+        fee_pct=0.04,
+        slippage_pct=0.02,
+        maximum_holding_candles=1,
+    )
+
+    signal = signal_from_setup(setup, config=config)
+    trade = simulate_trade(
+        signal,
+        (_candle(high=101.5, low=99.5, close=101.0),),
+        config=config,
+    )
+
+    assert signal.quantity < setup.position_size.quantity
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.net_pnl == pytest.approx(-10.0)
+    assert trade.realized_r_multiple == pytest.approx(-1.0)

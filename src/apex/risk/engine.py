@@ -197,16 +197,39 @@ def _management_policies(targets: tuple[TakeProfit, ...]) -> tuple[ManagementPol
     )
 
 
-def _position_size(config: RiskConfig, entry: ActionableEntry, stop: StopLoss) -> PositionSize:
+def _position_size(
+    config: RiskConfig,
+    entry: ActionableEntry,
+    stop: StopLoss,
+) -> PositionSize:
+    """Size the position so structural loss plus execution costs equals the cap."""
+
     risk_amount = config.account_equity * config.risk_per_trade_pct / 100.0
-    quantity = risk_amount / stop.distance
-    notional_value = quantity * entry.preferred
+
+    structural_loss_fraction = stop.distance / entry.preferred
+    execution_cost_fraction = (
+        config.entry_fee_pct
+        + config.exit_fee_pct
+        + config.entry_slippage_pct
+        + config.exit_slippage_pct
+    ) / 100.0
+    total_loss_fraction = structural_loss_fraction + execution_cost_fraction
+
+    if total_loss_fraction <= 0.0:
+        raise ValueError("modeled Phase 6 loss fraction must be positive")
+
+    notional_value = risk_amount / total_loss_fraction
+    quantity = notional_value / entry.preferred
+
     return PositionSize(
         risk_amount=risk_amount,
         quantity=quantity,
         notional_value=notional_value,
         account_risk_pct=config.risk_per_trade_pct,
-        required_leverage=max(1.0, notional_value / config.account_equity),
+        required_leverage=max(
+            1.0,
+            notional_value / config.account_equity,
+        ),
     )
 
 

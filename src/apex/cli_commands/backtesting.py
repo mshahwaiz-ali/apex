@@ -40,6 +40,7 @@ from apex.cli import backtest as legacy_simulate_current_setup
 from apex.data.providers.errors import MarketDataProviderError
 from apex.data.timeframes import timeframe_delta
 from apex.domain import Candle, RiskMode
+from apex.risk import resolve_risk_config_for_mode
 
 
 def register_backtesting_commands(app: typer.Typer) -> None:
@@ -141,7 +142,10 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         canonical = normalize_market_symbol(symbol)
         try:
             context = bootstrap()
-            risk_config = load_default_risk_config()
+            risk_config = resolve_risk_config_for_mode(
+                load_default_risk_config(),
+                risk_mode,
+            )
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             required_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
             candles: Mapping[str, tuple[Candle, ...]]

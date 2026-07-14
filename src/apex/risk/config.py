@@ -9,7 +9,7 @@ being duplicated in ``config/risk.yaml``.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Self
@@ -57,6 +57,10 @@ class RiskConfig:
     maximum_entry_chase_pct: float = 0.25
     maximum_leverage: float = 5.0
     maintenance_margin_pct: float = 0.5
+    entry_fee_pct: float = 0.04
+    exit_fee_pct: float = 0.04
+    entry_slippage_pct: float = 0.03
+    exit_slippage_pct: float = 0.03
     liquidation_buffer_ratio: float = 0.35
     maximum_concurrent_trades: int = 3
     maximum_open_risk_pct: float = 0.75
@@ -94,6 +98,10 @@ class RiskConfig:
             "maximum_entry_chase_pct",
             "maximum_leverage",
             "maintenance_margin_pct",
+            "entry_fee_pct",
+            "exit_fee_pct",
+            "entry_slippage_pct",
+            "exit_slippage_pct",
             "liquidation_buffer_ratio",
             "maximum_open_risk_pct",
             "maximum_directional_risk_pct",
@@ -197,6 +205,63 @@ def load_risk_config(
             "risk configuration duplicates canonical futures/account-policy fields: " + labels
         )
     return RiskConfig.from_mapping({**raw, **canonical_values})
+
+
+def resolve_risk_config_for_mode(
+    base_config: RiskConfig,
+    risk_mode: RiskMode | str,
+    *,
+    futures_config_path: str | Path = DEFAULT_FUTURES_CONFIG_PATH,
+    account_policies_path: str | Path = DEFAULT_ACCOUNT_POLICIES_PATH,
+    account_policy_name: str | None = None,
+) -> RiskConfig:
+    """Resolve canonical Phase 6 limits for a selected futures risk mode."""
+
+    selected_mode = (
+        risk_mode if isinstance(risk_mode, RiskMode) else RiskMode(str(risk_mode).upper())
+    )
+    futures = load_futures_product_config(futures_config_path)
+    defaults = futures.defaults_for(selected_mode)
+    policies = load_account_policies_config(account_policies_path)
+    policy = policies.policy_for(account_policy_name)
+
+    profile = {
+        RiskMode.STANDARD: RiskProfile.CONTROLLED,
+        RiskMode.AGGRESSIVE: RiskProfile.AGGRESSIVE,
+        RiskMode.EXTREME: RiskProfile.EXTREME,
+    }[selected_mode]
+
+    # Phase 6 requires per-trade risk not to exceed the open-risk ceiling.
+    # Preserve the selected mode's per-trade allowance while still applying
+    # the tighter policy ceiling whenever it remains compatible.
+    maximum_open_risk_pct = max(
+        defaults.account_loss_percentage,
+        min(
+            defaults.maximum_open_risk_percentage,
+            policy.maximum_total_open_risk_pct,
+        ),
+    )
+
+    return replace(
+        base_config,
+        identifier=f"phase6-{selected_mode.value.lower()}-v2",
+        profile=profile,
+        risk_per_trade_pct=defaults.account_loss_percentage,
+        maximum_leverage=defaults.maximum_leverage,
+        maintenance_margin_pct=(futures.execution_costs.maintenance_margin_percentage),
+        maximum_concurrent_trades=policy.maximum_trades_per_day,
+        maximum_open_risk_pct=maximum_open_risk_pct,
+        maximum_directional_risk_pct=policy.maximum_directional_exposure_pct,
+        maximum_correlated_risk_pct=policy.maximum_correlated_exposure_pct,
+        maximum_daily_loss_pct=min(
+            defaults.maximum_daily_loss_percentage,
+            policy.internal_daily_stop_pct,
+        ),
+        maximum_consecutive_losses=min(
+            defaults.maximum_consecutive_losses,
+            policy.maximum_consecutive_losses,
+        ),
+    )
 
 
 DEFAULT_RISK_CONFIG = RiskConfig()

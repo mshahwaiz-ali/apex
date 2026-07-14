@@ -6,6 +6,7 @@ from apex.risk.config import (
     RiskConfig,
     RiskProfile,
     load_risk_config,
+    resolve_risk_config_for_mode,
 )
 from apex.risk.contracts import (
     ActionableEntry,
@@ -42,4 +43,5 @@ __all__ = [
     "TakeProfit",
     "analyze_phase6",
     "load_risk_config",
+    "resolve_risk_config_for_mode",
 ]

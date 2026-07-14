@@ -92,6 +92,28 @@ def _result(
         overlap_skipped_count=0,
         failure_count=0,
         failures={},
+        candidate_count_distribution={"0": 1, "1": 0, "2_plus": 0},
+        rejection_code_counts={},
+        rejection_reason_counts={},
+        skipped_by_stage={
+            "insufficient_warmup": 0,
+            "no_candidates": 1,
+            "risk_rejected": 0,
+            "cooldown": 0,
+            "overlap": 0,
+            "no_future_candles": 0,
+        },
+        phase5_outcome_counts={},
+        phase5_reason_counts={},
+        phase5_strategy_counts={},
+        phase5_score_bands={
+            "below_40": 0,
+            "40_to_49_99": 0,
+            "50_to_59_99": 0,
+            "60_to_69_99": 0,
+            "70_plus": 0,
+        },
+        risk_rejection_diagnostics=(),
     )
 
 

@@ -247,6 +247,25 @@ def _build_risk_rejection_diagnostics(
     absolute_stop_distance = abs(entry_price - stop_price)
     stop_distance_percentage = absolute_stop_distance / entry_price * 100.0
 
+    configured_risk_amount = config.account_equity * config.risk_per_trade_pct / 100.0
+    structural_loss_fraction = absolute_stop_distance / entry_price
+    execution_cost_fraction = (
+        config.entry_fee_pct
+        + config.exit_fee_pct
+        + config.entry_slippage_pct
+        + config.exit_slippage_pct
+    ) / 100.0
+    modeled_total_loss_fraction = structural_loss_fraction + execution_cost_fraction
+    modeled_position_notional = (
+        configured_risk_amount / modeled_total_loss_fraction
+        if modeled_total_loss_fraction > 0.0
+        else 0.0
+    )
+    modeled_required_leverage = max(
+        1.0,
+        modeled_position_notional / config.account_equity,
+    )
+
     atr_value = candidate.metadata.get("decision_atr")
     candidate_atr = (
         float(atr_value) if isinstance(atr_value, int | float) and atr_value > 0.0 else None
