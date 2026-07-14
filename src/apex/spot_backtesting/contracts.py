@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Mapping
 
 
 class SpotMarketRegime(StrEnum):

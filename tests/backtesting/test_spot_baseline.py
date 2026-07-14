@@ -167,11 +167,11 @@ def test_evaluation_rejects_missing_duplicate_and_drifted_results() -> None:
     with pytest.raises(ValueError, match="duplicate"):
         evaluate_spot_baseline_campaigns(
             plan,
-            results + (results[0],),
+            (*results, results[0]),
             baseline_cost_variant_id="baseline",
             baseline_allocation_variant_id="base",
         )
-    drifted = (replace(results[0], plan_id="different"),) + results[1:]
+    drifted = (replace(results[0], plan_id="different"), *results[1:])
     with pytest.raises(ValueError, match="plan drift"):
         evaluate_spot_baseline_campaigns(
             plan,
