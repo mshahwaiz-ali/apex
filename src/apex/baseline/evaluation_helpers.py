@@ -91,9 +91,7 @@ def profiles_for_strategy(
     strategy: str,
 ) -> tuple[HistoricalEdgeProfile, ...]:
     return tuple(
-        profile
-        for profile in scenario.profiles
-        if profile.dimensions.get("strategy") == strategy
+        profile for profile in scenario.profiles if profile.dimensions.get("strategy") == strategy
     )
 
 
@@ -115,14 +113,22 @@ def weighted_optional_metric(
 ) -> float | None:
     if name != "profit_factor":
         raise ValueError(f"unsupported optional metric: {name}")
-    available = tuple(profile for profile in profiles if profile.profit_factor is not None)
-    if not available:
+
+    weighted_values: list[tuple[float, int]] = []
+
+    for profile in profiles:
+        profit_factor = profile.profit_factor
+        if profit_factor is not None:
+            weighted_values.append((profit_factor, profile.sample_size))
+
+    if not weighted_values:
         return None
-    total = sum(profile.sample_size for profile in available)
-    numerator = sum(
-        float(profile.profit_factor) * profile.sample_size for profile in available
+
+    total_sample_size = sum(sample_size for _, sample_size in weighted_values)
+    weighted_total = sum(
+        profit_factor * sample_size for profit_factor, sample_size in weighted_values
     )
-    return numerator / total
+    return weighted_total / total_sample_size
 
 
 def dimension_values(
@@ -138,10 +144,7 @@ def score_band_expectancy(
     grouped: dict[str, list[HistoricalEdgeProfile]] = defaultdict(list)
     for profile in profiles:
         grouped[profile.dimensions.get("score_band", "unknown")].append(profile)
-    return {
-        key: weighted_metric(grouped[key], "expectancy")
-        for key in sorted(grouped)
-    }
+    return {key: weighted_metric(grouped[key], "expectancy") for key in sorted(grouped)}
 
 
 def sensitivity_result(
@@ -155,9 +158,7 @@ def sensitivity_result(
     degradation = None
     if baseline_expectancy > 0.0:
         degradation = (baseline_expectancy - expectancy) / baseline_expectancy
-    stable = expectancy > 0.0 and (
-        degradation is None or degradation <= maximum_degradation
-    )
+    stable = expectancy > 0.0 and (degradation is None or degradation <= maximum_degradation)
     return CostSensitivityResult(
         scenario_id=scenario.identifier,
         expectancy=expectancy,
