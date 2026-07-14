@@ -81,7 +81,10 @@ def test_boundary_purge_removes_configured_trades() -> None:
 
 def test_overlap_guard_removes_later_entries_before_prior_exit() -> None:
     trades = tuple(
-        _trade(index, hold_minutes=12 if index in {5, 7} else 2)
+        _trade(
+            index,
+            hold_minutes=18 if index == 5 else 12 if index == 7 else 2,
+        )
         for index in range(10)
     )
 
