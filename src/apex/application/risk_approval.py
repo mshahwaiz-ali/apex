@@ -6,12 +6,17 @@ from apex.application.futures_plan import (
     FuturesPlanSafetyError as FuturesPlanSafetyError,
 )
 from apex.application.futures_plan import build_futures_plan as _build_futures_plan
+from apex.application.trade_management import build_trade_management_plan
 from apex.config import FuturesProductConfig, RiskModeDefaults, load_futures_product_config
 from apex.domain import (
     AccountPolicy,
     AccountPolicyDecision,
     AccountPolicyState,
+    EntryPlan,
     FuturesAccountInput,
+    FuturesDirection,
+    PositionPlan,
+    TargetPlan,
     evaluate_account_policy,
 )
 from apex.risk.contracts import RiskApprovedSetup
@@ -40,6 +45,15 @@ def build_futures_plan(
         raise FuturesPlanSafetyError(tuple(mode_reasons))
 
     plan = _build_futures_plan(setup, account, product_config=config)
+    direction = FuturesDirection(setup.direction.value.upper())
+    management_plan = build_trade_management_plan(
+        direction=direction,
+        entry=EntryPlan.model_validate(plan["entry"]),
+        position=PositionPlan.model_validate(plan["position"]),
+        targets=TargetPlan.model_validate(plan["targets"]),
+        account=account,
+    )
+    plan["management_plan"] = management_plan.model_dump(mode="json")
     plan["risk_mode"] = account.risk_mode.value
     plan["risk_mode_config"] = defaults.model_dump(mode="json")
     plan["account_policy"] = (
