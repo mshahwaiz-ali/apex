@@ -14,7 +14,7 @@ from apex.backtesting.dataset_campaign import (
 from apex.backtesting.dataset_campaign_execution import (
     load_futures_dataset_campaign_execution_result,
 )
-from apex.cli import app
+from apex.cli_app import app
 from apex.domain.models import Candle
 
 
@@ -25,13 +25,22 @@ class FakeProvider:
         timeframe: str,
         limit: int = 200,
     ) -> list[Candle]:
+        minutes = {
+            "1m": 1,
+            "3m": 3,
+            "5m": 5,
+            "15m": 15,
+            "30m": 30,
+            "1h": 60,
+            "4h": 240,
+        }[timeframe]
         start = datetime(2026, 1, 1, tzinfo=UTC)
         return [
             Candle(
                 symbol=symbol,
                 timeframe=timeframe,
-                open_time=start + timedelta(minutes=5 * index),
-                close_time=start + timedelta(minutes=5 * (index + 1)),
+                open_time=start + timedelta(minutes=minutes * index),
+                close_time=start + timedelta(minutes=minutes * (index + 1)),
                 open=100.0 + index,
                 high=101.0 + index,
                 low=99.0 + index,
@@ -58,11 +67,16 @@ class FakeServices:
         return None
 
 
-def _plan_file(tmp_path: Path, *, provider: str = "binance") -> Path:
+def _plan_file(
+    tmp_path: Path,
+    *,
+    provider: str = "binance",
+    timeframes: tuple[str, ...] = ("5m",),
+) -> Path:
     plan = plan_futures_dataset_campaign(
-        campaign_id="cli-n45",
+        campaign_id="cli-n46",
         symbols=("BTC/USDT",),
-        timeframe="5m",
+        timeframes=timeframes,
         provider=provider,
         candle_count=9,
         output_directory=tmp_path / "datasets",
@@ -79,15 +93,15 @@ def test_campaign_execute_is_registered() -> None:
     assert "campaign-execute" in result.stdout
 
 
-def test_campaign_execute_cli_success(
+def test_campaign_execute_cli_multi_timeframe_success(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    plan_file = _plan_file(tmp_path)
+    plan_file = _plan_file(tmp_path, timeframes=("4h", "1m", "5m"))
     manifest = tmp_path / "execution.json"
 
     monkeypatch.setattr(
-        "apex.cli.create_market_data_services",
+        "apex.cli_commands.dataset_campaigns.create_market_data_services",
         lambda settings, provider_name="binance": FakeServices(),
     )
 
@@ -105,9 +119,17 @@ def test_campaign_execute_cli_success(
 
     assert result.exit_code == 0, result.output
     assert "DATASET_CAMPAIGN_EXECUTED" in result.stdout
+    assert "symbols=1" in result.stdout
+    assert "timeframes=1m,5m,4h" in result.stdout
+    assert "planned_jobs=3" in result.stdout
     loaded = load_futures_dataset_campaign_execution_result(manifest)
-    assert loaded.completed_jobs == 1
+    assert loaded.completed_jobs == 3
     assert loaded.failed_jobs == 0
+    assert tuple((job.symbol, job.timeframe) for job in loaded.jobs) == (
+        ("BTC/USDT", "1m"),
+        ("BTC/USDT", "5m"),
+        ("BTC/USDT", "4h"),
+    )
 
 
 def test_campaign_execute_cli_rejects_provider_mismatch(tmp_path: Path) -> None:
@@ -140,7 +162,7 @@ def test_campaign_execute_cli_rejects_existing_artifact(
     manifest.write_text("{}\n", encoding="utf-8")
 
     monkeypatch.setattr(
-        "apex.cli.create_market_data_services",
+        "apex.cli_commands.dataset_campaigns.create_market_data_services",
         lambda settings, provider_name="binance": FakeServices(),
     )
 
