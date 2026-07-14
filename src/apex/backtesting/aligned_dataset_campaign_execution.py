@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 from typing import Final
@@ -353,7 +353,8 @@ def _verify_dataset_coverage(
         raise ValueError("aligned campaign dataset is missing expected range candles")
     if candles[0].open_time > plan.warmup_start:
         raise ValueError("aligned campaign dataset does not cover warmup start")
-    if candles[-1].close_time < plan.boundaries.analysis_end:
+    expected_last_open = plan.boundaries.analysis_end - timedelta(seconds=expected_step)
+    if candles[-1].open_time < expected_last_open:
         raise ValueError("aligned campaign dataset does not cover analysis end")
 
     warmup_count = sum(candle.close_time <= plan.boundaries.analysis_start for candle in candles)
