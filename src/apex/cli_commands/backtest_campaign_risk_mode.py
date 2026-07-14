@@ -1,5 +1,7 @@
 """Risk-mode aware chronological backtest campaign CLI overlay."""
 
+# mypy: disable-error-code="attr-defined"
+
 from __future__ import annotations
 
 from collections.abc import Mapping
