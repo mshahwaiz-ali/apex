@@ -21,10 +21,24 @@ class SpotAllocationConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_allocation_limits(self) -> Self:
-        if self.maximum_allocation_per_position_percentage > self.maximum_total_spot_exposure_percentage:
+        if (
+            self.maximum_allocation_per_position_percentage
+            > self.maximum_total_spot_exposure_percentage
+        ):
             raise ValueError("per-position allocation cannot exceed total spot exposure")
-        if self.maximum_total_spot_exposure_percentage + self.minimum_quote_reserve_percentage > 100:
-            raise ValueError("spot exposure and minimum quote reserve cannot exceed 100 percent")
+        if (
+            self.maximum_correlated_sector_exposure_percentage
+            > self.maximum_total_spot_exposure_percentage
+        ):
+            raise ValueError("correlated-sector exposure cannot exceed total spot exposure")
+        if (
+            self.maximum_total_spot_exposure_percentage
+            + self.minimum_quote_reserve_percentage
+            > 100
+        ):
+            raise ValueError(
+                "spot exposure and minimum quote reserve cannot exceed 100 percent"
+            )
         return self
 
 
@@ -62,6 +76,33 @@ class SpotExitConfig(BaseModel):
         return self
 
 
+class SpotStructureConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    approved_timeframes: tuple[str, ...] = ("1w", "1d", "12h", "8h", "4h")
+    extension_atr_multiple: float = Field(default=2.5, gt=0)
+    terminal_extension_atr_multiple: float = Field(default=4.0, gt=0)
+    downside_risk_atr_multiple: float = Field(default=1.5, gt=0)
+    zone_half_width_atr_multiple: float = Field(default=0.35, gt=0)
+    risk_on_minimum_breadth_percentage: float = Field(default=60.0, ge=0, le=100)
+    risk_off_maximum_breadth_percentage: float = Field(default=35.0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_structure_thresholds(self) -> Self:
+        if len(set(self.approved_timeframes)) != len(self.approved_timeframes):
+            raise ValueError("spot structure timeframes must be unique")
+        if any(timeframe in {"1m", "3m", "5m"} for timeframe in self.approved_timeframes):
+            raise ValueError("low timeframes cannot be approved for the spot thesis")
+        if self.extension_atr_multiple >= self.terminal_extension_atr_multiple:
+            raise ValueError("terminal extension threshold must be larger")
+        if (
+            self.risk_off_maximum_breadth_percentage
+            >= self.risk_on_minimum_breadth_percentage
+        ):
+            raise ValueError("risk-off breadth must be below risk-on breadth")
+        return self
+
+
 class SpotProductConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -75,6 +116,7 @@ class SpotProductConfig(BaseModel):
     allocation: SpotAllocationConfig
     entry: SpotEntryConfig
     exit: SpotExitConfig
+    structure: SpotStructureConfig
 
     @model_validator(mode="after")
     def validate_product_contract(self) -> Self:
@@ -92,6 +134,8 @@ class SpotProductConfig(BaseModel):
             raise ValueError("forbidden lower timeframes cannot influence the spot thesis")
         if len(thesis) != len(self.primary_timeframes):
             raise ValueError("spot primary timeframes must be unique")
+        if not thesis.issubset(set(self.structure.approved_timeframes)):
+            raise ValueError("primary spot timeframes must be approved by structure config")
         return self
 
 
