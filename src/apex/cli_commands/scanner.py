@@ -43,28 +43,30 @@ def register_scanner_commands(app: typer.Typer) -> None:
             symbols = load_symbols(symbols_file)
             context = bootstrap()
             risk_config = load_default_risk_config()
-            with futures_risk_mode_scope(risk_mode):
-                with create_market_data_services(context.settings) as services:
-                    result = scan_symbols(
-                        symbols,
-                        services.candles,
-                        timeframes=context.settings.analysis_timeframes,
-                        timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                        timeframe_max_staleness_seconds=getattr(
-                            context.settings,
-                            "timeframe_max_staleness_seconds",
-                            None,
-                        ),
-                        candle_limit=candle_limit,
-                        risk_config=risk_config,
-                        scanner_mode=mode,
-                        strategy_routing=getattr(context.settings, "strategy_routing", None),
-                        gainer_state_thresholds=getattr(
-                            context.settings,
-                            "gainer_state_thresholds",
-                            None,
-                        ),
-                    )
+            with (
+                futures_risk_mode_scope(risk_mode),
+                create_market_data_services(context.settings) as services,
+            ):
+                result = scan_symbols(
+                    symbols,
+                    services.candles,
+                    timeframes=context.settings.analysis_timeframes,
+                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                    timeframe_max_staleness_seconds=getattr(
+                        context.settings,
+                        "timeframe_max_staleness_seconds",
+                        None,
+                    ),
+                    candle_limit=candle_limit,
+                    risk_config=risk_config,
+                    scanner_mode=mode,
+                    strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    gainer_state_thresholds=getattr(
+                        context.settings,
+                        "gainer_state_thresholds",
+                        None,
+                    ),
+                )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
