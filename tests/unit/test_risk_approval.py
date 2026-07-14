@@ -41,9 +41,9 @@ def _setup() -> SimpleNamespace:
 
 def _state(**overrides: object) -> AccountPolicyState:
     values: dict[str, object] = {
-        "current_balance": 10000.0,
-        "current_equity": 10000.0,
-        "start_of_day_equity": 10000.0,
+        "current_balance": 50000.0,
+        "current_equity": 50000.0,
+        "start_of_day_equity": 50000.0,
         "trades_today": 0,
         "consecutive_losses": 0,
         "total_open_risk_pct": 0.0,
@@ -62,7 +62,7 @@ def test_approved_plan_serializes_risk_and_policy_snapshots() -> None:
     policies = load_account_policies_config("config/account_policies.yaml")
     policy = policies.policy_for("FUNDED_GENERIC")
     account = FuturesAccountInput(
-        wallet_balance=10000.0,
+        wallet_balance=50000.0,
         risk_mode=RiskMode.STANDARD,
         maximum_account_loss_percentage=0.25,
     )
@@ -85,7 +85,7 @@ def test_account_policy_lockout_rejects_plan_before_position_approval() -> None:
     policies = load_account_policies_config("config/account_policies.yaml")
     policy = policies.policy_for("FUNDED_GENERIC")
     account = FuturesAccountInput(
-        wallet_balance=10000.0,
+        wallet_balance=50000.0,
         risk_mode=RiskMode.STANDARD,
         maximum_account_loss_percentage=0.25,
     )
@@ -94,7 +94,7 @@ def test_account_policy_lockout_rejects_plan_before_position_approval() -> None:
         _setup(),
         account,
         account_policy=policy,
-        account_policy_state=_state(current_equity=9850.0),
+        account_policy_state=_state(current_equity=49250.0),
     )
 
     assert result["status"] == "REJECTED"
@@ -117,7 +117,7 @@ def test_risk_mode_limit_rejects_oversized_account_loss_override() -> None:
 def test_policy_and_state_must_be_supplied_together() -> None:
     policies = load_account_policies_config("config/account_policies.yaml")
     account = FuturesAccountInput(
-        wallet_balance=10000.0,
+        wallet_balance=50000.0,
         risk_mode=RiskMode.STANDARD,
         maximum_account_loss_percentage=0.25,
     )
