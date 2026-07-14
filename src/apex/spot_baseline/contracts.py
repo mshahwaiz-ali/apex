@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Mapping
 
 from apex.spot_backtesting import SpotBacktestResult
 
@@ -137,7 +137,14 @@ class SpotBaselineCampaignPlan:
     def __post_init__(self) -> None:
         if not self.plan_id.strip() or not self.assumptions_hash.strip():
             raise ValueError("spot baseline plan identity cannot be empty")
-        for name in ("strategies", "symbols", "datasets", "cost_variants", "allocation_variants", "cells"):
+        for name in (
+            "strategies",
+            "symbols",
+            "datasets",
+            "cost_variants",
+            "allocation_variants",
+            "cells",
+        ):
             if not getattr(self, name):
                 raise ValueError(f"spot baseline plan requires {name.replace('_', ' ')}")
         keys = [cell.key for cell in self.cells]
@@ -171,7 +178,11 @@ class SpotBaselineEvaluationPolicy:
     maximum_average_exposure_pct: float = 80.0
 
     def __post_init__(self) -> None:
-        if self.minimum_strategy_trades < 1 or self.minimum_symbols < 1 or self.minimum_regimes < 1:
+        if (
+            self.minimum_strategy_trades < 1
+            or self.minimum_symbols < 1
+            or self.minimum_regimes < 1
+        ):
             raise ValueError("spot baseline minimum counts must be positive")
         for name in (
             "minimum_profit_factor",
@@ -225,6 +236,8 @@ class SpotBaselineReport:
     warnings: tuple[str, ...] = field(
         default=(
             "historical spot results do not guarantee future returns",
-            "out-of-sample and forward-paper validation remain required",
+            "strategy verdicts use train and validation cells only",
+            "frozen final-test cells remain untouched by baseline selection",
+            "forward-paper validation remains required",
         )
     )
