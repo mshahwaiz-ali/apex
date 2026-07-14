@@ -113,9 +113,7 @@ def _excursions_in_r(
     else:
         favorable_pnl = (executed_entry - min(favorable_prices)) * signal.quantity
         adverse_pnl = (executed_entry - max(adverse_prices)) * signal.quantity
-    return max(0.0, favorable_pnl / signal.risk_amount), min(
-        0.0, adverse_pnl / signal.risk_amount
-    )
+    return max(0.0, favorable_pnl / signal.risk_amount), min(0.0, adverse_pnl / signal.risk_amount)
 
 
 def _slipped_entry(signal: BacktestSignal, config: BacktestConfig) -> float:

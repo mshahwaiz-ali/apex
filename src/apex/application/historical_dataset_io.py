@@ -131,9 +131,7 @@ def write_historical_outcome_import_sqlite(
     return summary.accepted_count
 
 
-def load_historical_outcome_import_sqlite(
-    path: Path, result_hash: str
-) -> dict[str, Any] | None:
+def load_historical_outcome_import_sqlite(path: Path, result_hash: str) -> dict[str, Any] | None:
     """Load an audited import by deterministic result hash."""
 
     if not path.exists():

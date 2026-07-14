@@ -146,7 +146,9 @@ def test_outcome_import_round_trip_is_atomic_and_idempotent(tmp_path: Path) -> N
     assert loaded["accepted_count"] == 1
     assert loaded["dataset_id"] == "dataset-001"
     with sqlite3.connect(database) as connection:
-        import_count = connection.execute("SELECT COUNT(*) FROM historical_outcome_imports").fetchone()
+        import_count = connection.execute(
+            "SELECT COUNT(*) FROM historical_outcome_imports"
+        ).fetchone()
         outcome_count = connection.execute("SELECT COUNT(*) FROM historical_outcomes").fetchone()
     assert import_count == (1,)
     assert outcome_count == (1,)
