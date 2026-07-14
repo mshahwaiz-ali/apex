@@ -36,8 +36,15 @@ def _setup(
         rationale=("structure invalidation",),
     )
     take_profits = (
-        SimpleNamespace(label="TP1", price=103.0, partial_close_pct=60.0),
-        SimpleNamespace(label="TP2", price=106.0, partial_close_pct=40.0),
+        (
+            SimpleNamespace(label="TP1", price=103.0, partial_close_pct=60.0),
+            SimpleNamespace(label="TP2", price=106.0, partial_close_pct=40.0),
+        )
+        if direction == "long"
+        else (
+            SimpleNamespace(label="TP1", price=98.0, partial_close_pct=60.0),
+            SimpleNamespace(label="TP2", price=95.0, partial_close_pct=40.0),
+        )
     )
     return SimpleNamespace(
         decision_time=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
@@ -91,6 +98,18 @@ def test_build_futures_plan_uses_risk_mode_preference_in_automatic_mode() -> Non
     assert plan["targets"]["targets"][0]["close_percentage"] == 60.0
     assert plan["lifecycle"]["state"] == "GENERATED"
 
+    management = plan["management_plan"]
+    assert management["current_action"] == "ENTER"
+    assert management["entry"]["action"] == "ENTER_NOW"
+    assert management["entry"]["order_type"] == "MARKET"
+    assert management["initial_protection"]["risk_percentage"] == 0.75
+    assert management["initial_protection"]["risk_amount"] == pytest.approx(1.5)
+    assert management["targets"][0]["cumulative_close_percentage"] == 60.0
+    assert management["targets"][1]["cumulative_close_percentage"] == 100.0
+    assert management["targets"][0]["expected_r_multiple"] > 0
+    assert management["stop_management"][0]["action"] == "MOVE_STOP"
+    assert management["emergency_exits"]
+
 
 def test_build_futures_plan_preserves_safe_manual_leverage() -> None:
     account = _aggressive_account(
@@ -107,6 +126,7 @@ def test_build_futures_plan_preserves_safe_manual_leverage() -> None:
     assert plan["position"]["leverage_selection_reason"] == (
         "manual leverage preserved after safety validation"
     )
+    assert plan["management_plan"]["initial_protection"]["leverage"] == 10.0
 
 
 def test_manual_leverage_above_profile_maximum_is_rejected() -> None:
@@ -143,6 +163,8 @@ def test_build_futures_plan_classifies_missed_long_entry() -> None:
     )
 
     assert plan["entry"]["state"] == "MISSED_ENTRY"
+    assert plan["management_plan"]["current_action"] == "DO_NOT_ENTER"
+    assert plan["management_plan"]["entry"]["order_type"] == "NONE"
 
 
 def test_build_futures_plan_classifies_short_retest() -> None:
@@ -152,3 +174,9 @@ def test_build_futures_plan_classifies_short_retest() -> None:
     )
 
     assert plan["entry"]["state"] == "WAIT_FOR_RETEST"
+    management = plan["management_plan"]
+    assert management["current_action"] == "WAIT"
+    assert management["entry"]["action"] == "WAIT_FOR_RETEST"
+    assert management["targets"][0]["price"] == 98.0
+    assert management["targets"][0]["expected_r_multiple"] > 0
+    assert "at or above 103" in management["entry"]["cancellation_conditions"][0]
