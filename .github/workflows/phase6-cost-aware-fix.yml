@@ -1,0 +1,22 @@
+name: Complete Phase 6 cost-aware risk modeling
+
+on:
+  push:
+    paths:
+      - ".github/workflows/phase6-cost-aware-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version
