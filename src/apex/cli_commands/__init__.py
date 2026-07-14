@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from apex.cli_commands.analysis import register_analysis_commands
+from apex.cli_commands.backtest_campaign_risk_mode import register_risk_mode_campaign_command
 from apex.cli_commands.backtesting import register_backtesting_commands
 from apex.cli_commands.daily_validation import register_daily_validation_commands
 from apex.cli_commands.datasets import register_dataset_commands
@@ -28,6 +29,8 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_scanner_commands(app)
     register_dataset_commands(app)
     register_backtesting_commands(app)
+    remove_commands(app, {"chronological-backtest-campaign"})
+    register_risk_mode_campaign_command(app)
     register_readiness_commands(app)
     register_validation_evidence_commands(app)
     register_validation_pipeline_commands(app)
