@@ -47,7 +47,7 @@ def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
         return "no Phase 4 candidates were generated"
     outcomes = {item.outcome for item in ranked}
     if outcomes == {CandidateOutcome.REJECTED_BELOW_THRESHOLD}:
-        return "all candidates scored below the aggressive selection floor"
+        return "all candidates scored below their configured approval thresholds"
     if CandidateOutcome.DOWNGRADED in outcomes:
         return "opposing candidates remain unresolved inside the conflict margin"
     if CandidateOutcome.REJECTED_CONTRADICTION in outcomes:
