@@ -89,6 +89,12 @@ profitability or production readiness.
   not mutate an account-state file.
 - Paper recording without an account-state file remains compatible; classification is still
   serialized, but account-policy exposure mutation is not attempted.
+- `.github/workflows/quality.yml` now defines the canonical repository quality gate for pushes
+  to `main` and pull requests:
+  - Ruff formatting check;
+  - Ruff lint check;
+  - strict mypy;
+  - pytest.
 
 ### Tests added or updated
 
@@ -130,6 +136,15 @@ profitability or production readiness.
   liquidation-distance multiplier used by setup pre-screening.
 - `config/default.yaml`: general application, routing, provider, and timeframe settings.
 
+### N1 acceptance status
+
+- Substantive N1 behavior is implemented.
+- The canonical automated quality gate is committed to the repository.
+- N1 is not formally marked complete until one full gate run is observed passing on `main`.
+- The current execution environment could not clone GitHub because DNS resolution for
+  `github.com` was unavailable, and Ruff/mypy were not installed locally. No false passing
+  claim is made.
+
 ### Known limitations / remaining N1 work
 
 - Correlation classification is intentionally bucket-based and conservative; it is not a
@@ -139,7 +154,7 @@ profitability or production readiness.
 - Execution/testnet lifecycle events do not yet update persistent account state.
 - `DEFAULT_RISK_CONFIG` remains a safe import-time fallback; production-style runs should
   use `load_risk_config()` so canonical mode and policy values are injected.
-- The complete local quality gate is intentionally deferred until the end of the current
-  implementation sequence or until a high-risk compatibility change requires it.
+- Observe and repair the first complete GitHub Actions quality-gate run before declaring N1
+  complete and starting N2.
 
 No external or forward-validation claim is made by this implementation.
