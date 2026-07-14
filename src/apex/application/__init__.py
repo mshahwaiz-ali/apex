@@ -71,6 +71,7 @@ from apex.application.risk_approval import (
 from apex.application.selected_symbol import analyze_selected_symbol
 from apex.application.symbols import DEFAULT_QUOTE_ASSETS, normalize_market_symbol
 from apex.application.trade_management import build_trade_management_plan
+from apex.application.trade_management_reporting import format_trade_management_plan
 
 __all__ = [
     "ACCOUNT_STATE_SCHEMA_VERSION",
@@ -109,6 +110,7 @@ __all__ = [
     "default_campaign_variants",
     "format_scan_text",
     "format_symbol_text",
+    "format_trade_management_plan",
     "list_analysis_record_metadata_sqlite",
     "list_backtest_campaign_metadata_sqlite",
     "list_backtest_report_metadata_sqlite",
