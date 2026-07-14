@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from apex.domain import RiskMode
 from apex.strategies import StrategyType
@@ -52,10 +52,11 @@ class StrategyApprovalRule(BaseModel):
             if not 0 <= score <= 100
         }
         if invalid:
-            details = ", ".join(
-                f"{mode.value}={score}" for mode, score in sorted(invalid.items(), key=lambda item: item[0].value)
+            ordered = sorted(invalid.items(), key=lambda item: item[0].value)
+            details = ", ".join(f"{mode.value}={score}" for mode, score in ordered)
+            raise ValueError(
+                f"strategy approval scores must be between 0 and 100: {details}"
             )
-            raise ValueError(f"strategy approval scores must be between 0 and 100: {details}")
         return self
 
     def minimum_score_for(self, risk_mode: RiskMode) -> float:
