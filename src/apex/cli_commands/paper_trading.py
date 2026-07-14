@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from apex.application import (
+    AccountStateStore,
     analyze_symbol,
     bootstrap,
     build_futures_plan_result,
@@ -16,6 +17,11 @@ from apex.application import (
     serialize_symbol_analysis,
 )
 from apex.application.account_context import resolve_account_context
+from apex.application.paper_account_state import (
+    PaperAccountExposure,
+    apply_paper_account_transition,
+    attach_account_state_registration,
+)
 from apex.data.providers.errors import MarketDataProviderError
 from apex.paper_trading import (
     PaperTrade,
@@ -35,13 +41,13 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
         risk_mode: str | None = typer.Option(None, "--risk-mode"),
         account_policy: str | None = typer.Option(None, "--account-policy"),
-        account_state_file: Path | None = typer.Option(  # noqa: B008
+        account_state_file: Path | None = typer.Option(
             None,
             "--account-state-file",
             dir_okay=False,
             help="Persistent account-state JSON file used for policy lockouts.",
         ),
-        account_policies_file: Path = typer.Option(  # noqa: B008
+        account_policies_file: Path = typer.Option(
             Path("config/account_policies.yaml"),
             "--account-policies-file",
             exists=True,
@@ -106,6 +112,14 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             reasons = "; ".join(str(reason) for reason in futures_plan.get("reasons", []))
             typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | {reasons}")
             return
+        if account_context.snapshot is not None:
+            futures_plan = attach_account_state_registration(
+                futures_plan,
+                PaperAccountExposure(
+                    policy_name=account_context.snapshot.policy_name,
+                    risk_pct=account_context.account.maximum_account_loss_percentage,
+                ),
+            )
 
         store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
         trade = create_paper_trade(
@@ -123,14 +137,26 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         symbol: str | None = typer.Argument(None, help="Optional market symbol filter."),
         timeframe: str = typer.Option("5m", "--timeframe"),
         candle_limit: int = typer.Option(80, "--candles", min=1, max=1000),
+        account_state_file: Path | None = typer.Option(
+            None,
+            "--account-state-file",
+            dir_okay=False,
+            help="Optional persistent account-state JSON file to update with lifecycle events.",
+        ),
     ) -> None:
-        """Update paper trades, optionally filtering by a canonical symbol."""
+        """Update paper trades and optionally synchronize persistent account state."""
 
         canonical = normalize_market_symbol(symbol) if symbol is not None else None
         try:
             context = bootstrap()
             store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
             trades = store.load()
+            account_store = (
+                AccountStateStore(account_state_file) if account_state_file is not None else None
+            )
+            account_state = account_store.load() if account_store is not None else None
+            if account_store is not None and account_state is None:
+                raise ValueError(f"account-state file does not exist: {account_state_file}")
             updated: list[PaperTrade] = []
             with create_market_data_services(context.settings) as services:
                 for trade in trades:
@@ -147,7 +173,18 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
                             limit=candle_limit,
                         )
                     )
-                    updated.append(update_paper_trade(trade, candles, config=PaperTradeConfig()))
+                    next_trade = update_paper_trade(
+                        trade,
+                        candles,
+                        config=PaperTradeConfig(),
+                    )
+                    if account_state is not None:
+                        account_state = apply_paper_account_transition(
+                            account_state,
+                            trade,
+                            next_trade,
+                        )
+                    updated.append(next_trade)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
@@ -155,4 +192,6 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             raise typer.Exit(code=1) from exc
 
         store.save(tuple(updated))
+        if account_store is not None and account_state is not None:
+            account_store.save(account_state)
         typer.echo(f"PAPER_UPDATED | trades={len(updated)}")

@@ -104,6 +104,33 @@ class AccountStateSnapshot(BaseModel):
             ),
         )
 
+    def release_exposure(
+        self,
+        *,
+        released_risk_pct: float,
+        released_directional_risk_pct: float,
+        released_correlated_risk_pct: float,
+    ) -> Self:
+        """Release open exposure without changing balance or loss streak."""
+
+        if min(
+            released_risk_pct,
+            released_directional_risk_pct,
+            released_correlated_risk_pct,
+        ) < 0:
+            raise ValueError("released exposure percentages cannot be negative")
+        return self._validated_update(
+            total_open_risk_pct=max(0.0, self.total_open_risk_pct - released_risk_pct),
+            directional_exposure_pct=max(
+                0.0,
+                self.directional_exposure_pct - released_directional_risk_pct,
+            ),
+            correlated_exposure_pct=max(
+                0.0,
+                self.correlated_exposure_pct - released_correlated_risk_pct,
+            ),
+        )
+
     def register_close(
         self,
         *,
@@ -117,25 +144,15 @@ class AccountStateSnapshot(BaseModel):
 
         if current_equity <= 0:
             raise ValueError("current equity must remain greater than zero")
-        if min(
-            released_risk_pct,
-            released_directional_risk_pct,
-            released_correlated_risk_pct,
-        ) < 0:
-            raise ValueError("released exposure percentages cannot be negative")
-        return self._validated_update(
-            current_balance=self.current_balance + realized_pnl,
+        released = self.release_exposure(
+            released_risk_pct=released_risk_pct,
+            released_directional_risk_pct=released_directional_risk_pct,
+            released_correlated_risk_pct=released_correlated_risk_pct,
+        )
+        return released._validated_update(
+            current_balance=released.current_balance + realized_pnl,
             current_equity=current_equity,
-            consecutive_losses=(self.consecutive_losses + 1 if realized_pnl < 0 else 0),
-            total_open_risk_pct=max(0.0, self.total_open_risk_pct - released_risk_pct),
-            directional_exposure_pct=max(
-                0.0,
-                self.directional_exposure_pct - released_directional_risk_pct,
-            ),
-            correlated_exposure_pct=max(
-                0.0,
-                self.correlated_exposure_pct - released_correlated_risk_pct,
-            ),
+            consecutive_losses=(released.consecutive_losses + 1 if realized_pnl < 0 else 0),
         )
 
 

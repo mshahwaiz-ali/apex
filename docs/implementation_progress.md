@@ -63,6 +63,18 @@ profitability or production readiness.
   duplicating every persistent account-state field as a separate command option.
 - Policy lockouts are evaluated before a paper trade is recorded; rejected plans expose
   the deterministic risk-mode or account-policy reasons.
+- Policy-aware paper plans now preserve explicit account-state registration metadata.
+- `paper update --account-state-file` synchronizes persistent state when lifecycle changes
+  occur:
+  - an actual entry increments daily trade count and total open risk;
+  - partial closes release the matching fraction of tracked exposure;
+  - terminal closes release remaining exposure and apply realized P&L;
+  - losing closes increment the consecutive-loss counter;
+  - profitable and breakeven closes reset the consecutive-loss counter.
+- Directional and correlated exposure are not inferred by the paper lifecycle. They remain
+  zero unless explicit deterministic values are preserved in plan metadata.
+- Existing paper trades without account-state registration metadata remain readable and do
+  not mutate an account-state file.
 
 ### Tests added or updated
 
@@ -85,7 +97,9 @@ profitability or production readiness.
 - entry, close, loss-streak, exposure, and day-roll transitions;
 - transition-time invariant validation;
 - CLI account-context default behavior, state-derived policy resolution, and mismatch
-  rejection.
+  rejection;
+- paper entry, partial-close, terminal-close, loss-streak, metadata-compatibility, and
+  non-fabricated exposure transitions.
 
 ### Configuration ownership
 
@@ -100,10 +114,11 @@ profitability or production readiness.
 
 ### Known limitations / remaining N1 work
 
-- Account-state persistence is implemented but is not yet automatically updated by paper
-  trade or execution lifecycle events.
 - Proposed directional and correlated exposure are supplied explicitly; automatic symbol
   correlation classification is not yet implemented.
+- Paper-trade and account-state files are each written atomically, but the two-file update is
+  not a transactional database commit.
+- Execution/testnet lifecycle events do not yet update persistent account state.
 - `DEFAULT_RISK_CONFIG` remains a safe import-time fallback; production-style runs should
   use `load_risk_config()` so canonical mode and policy values are injected.
 - The complete local quality gate is intentionally deferred until the end of the current
