@@ -17,6 +17,17 @@ from apex.paper_trading.engine import (
     paper_lifecycle_snapshot,
     summarize_paper_trades,
 )
+from apex.paper_trading.forward_edge_contracts import (
+    ForwardPaperEdgeProfile,
+    ForwardPaperValidationPolicy,
+    ForwardPaperValidationReason,
+    ForwardPaperValidationResult,
+    ForwardPaperValidationStatus,
+)
+from apex.paper_trading.forward_edge_evaluation import (
+    build_forward_paper_edge_profile,
+    evaluate_forward_paper_edge,
+)
 from apex.paper_trading.guidance import (
     PaperTradeGuidance,
     build_paper_guidance_report,
@@ -34,6 +45,11 @@ update_paper_trade = advance_paper_trade
 __all__ = [
     "TERMINAL_STATES",
     "BacktestPaperComparison",
+    "ForwardPaperEdgeProfile",
+    "ForwardPaperValidationPolicy",
+    "ForwardPaperValidationReason",
+    "ForwardPaperValidationResult",
+    "ForwardPaperValidationStatus",
     "PaperPerformance",
     "PaperReport",
     "PaperTrade",
@@ -42,11 +58,13 @@ __all__ = [
     "PaperTradeState",
     "PaperTradeStore",
     "advance_paper_trade",
+    "build_forward_paper_edge_profile",
     "build_paper_guidance_report",
     "build_paper_replay_report",
     "compare_backtest_to_paper",
     "create_paper_trade",
     "derive_paper_trade_guidance",
+    "evaluate_forward_paper_edge",
     "expire_waiting_trade",
     "generate_paper_report",
     "paper_entry_expiry",
