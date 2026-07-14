@@ -39,3 +39,17 @@ exit:
     - 15.0
   maximum_holding_days: 7
   review_interval_hours: 24
+
+structure:
+  approved_timeframes:
+    - 1w
+    - 1d
+    - 12h
+    - 8h
+    - 4h
+  extension_atr_multiple: 2.5
+  terminal_extension_atr_multiple: 4.0
+  downside_risk_atr_multiple: 1.5
+  zone_half_width_atr_multiple: 0.35
+  risk_on_minimum_breadth_percentage: 60.0
+  risk_off_maximum_breadth_percentage: 35.0
