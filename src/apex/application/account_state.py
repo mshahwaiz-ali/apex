@@ -49,6 +49,8 @@ class AccountStateSnapshot(BaseModel):
         *,
         proposed_risk_pct: float,
         proposed_has_stop_loss: bool,
+        proposed_directional_exposure_pct: float = 0.0,
+        proposed_correlated_exposure_pct: float = 0.0,
         is_weekend: bool = False,
         session: str | None = None,
     ) -> AccountPolicyState:
@@ -66,6 +68,8 @@ class AccountStateSnapshot(BaseModel):
             is_weekend=is_weekend,
             session=session,
             proposed_risk_pct=proposed_risk_pct,
+            proposed_directional_exposure_pct=proposed_directional_exposure_pct,
+            proposed_correlated_exposure_pct=proposed_correlated_exposure_pct,
             proposed_has_stop_loss=proposed_has_stop_loss,
         )
 

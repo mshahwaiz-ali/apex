@@ -89,7 +89,17 @@ class AccountPolicyState(BaseModel):
     is_weekend: bool = False
     session: str | None = None
     proposed_risk_pct: float = Field(ge=0, le=100)
+    proposed_directional_exposure_pct: float = Field(default=0.0, ge=0, le=100)
+    proposed_correlated_exposure_pct: float = Field(default=0.0, ge=0, le=100)
     proposed_has_stop_loss: bool = True
+
+    @model_validator(mode="after")
+    def validate_proposed_exposure_geometry(self) -> Self:
+        if self.proposed_directional_exposure_pct > self.proposed_risk_pct:
+            raise ValueError("proposed directional exposure cannot exceed proposed risk")
+        if self.proposed_correlated_exposure_pct > self.proposed_risk_pct:
+            raise ValueError("proposed correlated exposure cannot exceed proposed risk")
+        return self
 
 
 class AccountPolicyDecision(BaseModel):
@@ -101,6 +111,9 @@ class AccountPolicyDecision(BaseModel):
     lockout_reasons: tuple[AccountLockoutReason, ...] = ()
     daily_drawdown_pct: float = Field(ge=0)
     total_drawdown_pct: float = Field(ge=0)
+    projected_total_open_risk_pct: float = Field(default=0.0, ge=0)
+    projected_directional_exposure_pct: float = Field(default=0.0, ge=0)
+    projected_correlated_exposure_pct: float = Field(default=0.0, ge=0)
 
 
 def evaluate_account_policy(
@@ -117,6 +130,13 @@ def evaluate_account_policy(
         0.0,
         (policy.initial_balance - state.current_equity) / policy.initial_balance * 100.0,
     )
+    projected_total_open_risk_pct = state.total_open_risk_pct + state.proposed_risk_pct
+    projected_directional_exposure_pct = (
+        state.directional_exposure_pct + state.proposed_directional_exposure_pct
+    )
+    projected_correlated_exposure_pct = (
+        state.correlated_exposure_pct + state.proposed_correlated_exposure_pct
+    )
     reasons: list[AccountLockoutReason] = []
 
     if daily_drawdown_pct >= policy.internal_daily_stop_pct:
@@ -129,11 +149,11 @@ def evaluate_account_policy(
         reasons.append(AccountLockoutReason.CONSECUTIVE_LOSSES)
     if state.proposed_risk_pct > policy.maximum_risk_per_trade_pct:
         reasons.append(AccountLockoutReason.MAXIMUM_OPEN_RISK)
-    if state.total_open_risk_pct + state.proposed_risk_pct > policy.maximum_total_open_risk_pct:
+    if projected_total_open_risk_pct > policy.maximum_total_open_risk_pct:
         reasons.append(AccountLockoutReason.MAXIMUM_OPEN_RISK)
-    if state.directional_exposure_pct > policy.maximum_directional_exposure_pct:
+    if projected_directional_exposure_pct > policy.maximum_directional_exposure_pct:
         reasons.append(AccountLockoutReason.MAXIMUM_DIRECTIONAL_EXPOSURE)
-    if state.correlated_exposure_pct > policy.maximum_correlated_exposure_pct:
+    if projected_correlated_exposure_pct > policy.maximum_correlated_exposure_pct:
         reasons.append(AccountLockoutReason.MAXIMUM_CORRELATED_EXPOSURE)
     if state.is_weekend and not policy.weekend_trading_allowed:
         reasons.append(AccountLockoutReason.WEEKEND_RESTRICTED)
@@ -148,4 +168,7 @@ def evaluate_account_policy(
         lockout_reasons=unique_reasons,
         daily_drawdown_pct=daily_drawdown_pct,
         total_drawdown_pct=total_drawdown_pct,
+        projected_total_open_risk_pct=projected_total_open_risk_pct,
+        projected_directional_exposure_pct=projected_directional_exposure_pct,
+        projected_correlated_exposure_pct=projected_correlated_exposure_pct,
     )

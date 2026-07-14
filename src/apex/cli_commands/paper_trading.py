@@ -54,6 +54,20 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             dir_okay=False,
         ),
         wallet_balance: float | None = typer.Option(None, "--wallet-balance", min=0.01),
+        proposed_directional_exposure_pct: float = typer.Option(
+            0.0,
+            "--proposed-directional-exposure-pct",
+            min=0.0,
+            max=100.0,
+            help="Explicit directional risk contribution for the proposed position.",
+        ),
+        proposed_correlated_exposure_pct: float = typer.Option(
+            0.0,
+            "--proposed-correlated-exposure-pct",
+            min=0.0,
+            max=100.0,
+            help="Explicit correlated risk contribution for the proposed position.",
+        ),
         session: str | None = typer.Option(None, "--session"),
         is_weekend: bool = typer.Option(False, "--weekend"),
     ) -> None:
@@ -68,6 +82,8 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
                 account_policy_name=account_policy,
                 account_state_file=account_state_file,
                 account_policies_file=account_policies_file,
+                proposed_directional_exposure_pct=proposed_directional_exposure_pct,
+                proposed_correlated_exposure_pct=proposed_correlated_exposure_pct,
                 session=session,
                 is_weekend=is_weekend,
             )
@@ -118,6 +134,8 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
                 PaperAccountExposure(
                     policy_name=account_context.snapshot.policy_name,
                     risk_pct=account_context.account.maximum_account_loss_percentage,
+                    directional_risk_pct=proposed_directional_exposure_pct,
+                    correlated_risk_pct=proposed_correlated_exposure_pct,
                 ),
             )
 

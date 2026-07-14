@@ -33,6 +33,8 @@ def resolve_account_context(
     account_policies_file: str | Path = DEFAULT_ACCOUNT_POLICIES_PATH,
     session: str | None = None,
     is_weekend: bool = False,
+    proposed_directional_exposure_pct: float = 0.0,
+    proposed_correlated_exposure_pct: float = 0.0,
 ) -> ResolvedAccountContext:
     """Resolve compact CLI inputs without duplicating persistent state fields."""
 
@@ -60,6 +62,8 @@ def resolve_account_context(
         risk_mode=risk_mode,
     )
     if snapshot is None:
+        if proposed_directional_exposure_pct or proposed_correlated_exposure_pct:
+            raise ValueError("proposed exposure inputs require an account-state file")
         return ResolvedAccountContext(
             account=account,
             policy=None,
@@ -71,6 +75,8 @@ def resolve_account_context(
     policy = load_account_policies_config(account_policies_file).policy_for(policy_name)
     policy_state = snapshot.for_policy_evaluation(
         proposed_risk_pct=account.maximum_account_loss_percentage,
+        proposed_directional_exposure_pct=proposed_directional_exposure_pct,
+        proposed_correlated_exposure_pct=proposed_correlated_exposure_pct,
         proposed_has_stop_loss=True,
         is_weekend=is_weekend,
         session=session,
