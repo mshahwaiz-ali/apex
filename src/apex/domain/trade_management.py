@@ -186,15 +186,9 @@ class TradeManagementPlan(BaseModel):
             if abs(target.cumulative_close_percentage - cumulative) > 1e-9:
                 raise ValueError("target cumulative close percentage is inconsistent")
             if previous_price is not None:
-                if (
-                    self.direction is FuturesDirection.LONG
-                    and target.price <= previous_price
-                ):
+                if self.direction is FuturesDirection.LONG and target.price <= previous_price:
                     raise ValueError("long targets must increase in price")
-                if (
-                    self.direction is FuturesDirection.SHORT
-                    and target.price >= previous_price
-                ):
+                if self.direction is FuturesDirection.SHORT and target.price >= previous_price:
                     raise ValueError("short targets must decrease in price")
             previous_price = target.price
         if self.current_action is CurrentAction.ENTER and self.entry.action not in {

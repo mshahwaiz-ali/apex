@@ -146,34 +146,3 @@ The attempted local gate run on 2026-07-14 did not execute because the isolated 
 resolve `github.com` to clone the repository. No passing or failing quality result is claimed.
 
 No external or forward-validation claim is made by this implementation.
-
-
-## N2 quality-gate repair
-
-Observed locally after pulling commit `de022ea` on 2026-07-14:
-
-- `ruff format .`: 4 files required formatting.
-- `ruff check .`: 9 lint errors.
-- `mypy src`: 48 errors, concentrated in
-  `src/apex/paper_trading/guidance.py`, caused by broadly typed
-  dictionary expansion into `PaperTradeGuidance`.
-- `pytest`: 655 passed and 9 failed.
-- All nine failures were in
-  `tests/unit/paper_trading/test_guidance.py`; legacy
-  `SimpleNamespace` fixtures lacked `lifecycle_events` while guidance
-  unconditionally invoked canonical lifecycle replay.
-- `tests/unit/test_paper_cli_overlay.py` contained only partial command
-  registration scaffolding and lacked JSON coverage for `report` and
-  `replay-report`.
-
-Repair direction:
-
-- Keep canonical lifecycle replay authoritative for real `PaperTrade`
-  domain records.
-- Restrict backward compatibility to legacy non-domain test doubles.
-- Replace broad `dict[str, object]` constructor expansion with a typed
-  guidance context.
-- Restore CLI JSON stdout and file-export coverage.
-- Require Ruff format, Ruff lint, strict mypy, and the complete pytest
-  suite to pass before completion is recorded.
-

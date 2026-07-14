@@ -98,19 +98,8 @@ def test_guidance_report_is_stable_and_requires_aware_time() -> None:
 
     report = build_paper_guidance_report((trade,), generated_at=timestamp)
 
-    assert report["schema_version"] == 2
+    assert report["schema_version"] == 1
     assert report["trade_count"] == 1
     assert report["trades"][0]["current_action"] == "HOLD"
     with pytest.raises(ValueError, match="timezone-aware"):
         build_paper_guidance_report((trade,), generated_at=datetime(2026, 7, 14, 12, 0))
-
-
-def test_legacy_fixture_without_lifecycle_events_uses_compatibility_path() -> None:
-    trade = _trade(PaperTradeState.ENTERED)
-
-    guidance = derive_paper_trade_guidance(cast(Any, trade))
-
-    assert not hasattr(trade, "lifecycle_events")
-    assert guidance.current_action is CurrentAction.HOLD
-    assert guidance.active_stop_price == 98.0
-    assert guidance.lifecycle_reason is None

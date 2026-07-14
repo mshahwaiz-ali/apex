@@ -15,7 +15,6 @@ from apex.paper_trading import (
 )
 from apex.strategies import StrategyType, TradeDirection
 
-
 NOW = datetime(2026, 7, 14, 10, 0, tzinfo=UTC)
 EXPIRY = NOW + timedelta(minutes=15)
 

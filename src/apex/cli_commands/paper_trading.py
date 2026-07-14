@@ -275,7 +275,9 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         }
         if report is not None:
             report.parent.mkdir(parents=True, exist_ok=True)
-            report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            report.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
         if output == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
@@ -310,7 +312,9 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         payload["guidance"] = guidance
         if report is not None:
             report.parent.mkdir(parents=True, exist_ok=True)
-            report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            report.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
         if output == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return

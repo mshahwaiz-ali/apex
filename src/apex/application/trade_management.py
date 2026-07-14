@@ -100,7 +100,9 @@ def build_trade_management_plan(
         ),
         EmergencyExitRule(
             trigger_type=ManagementTriggerType.SPREAD_EXPANSION,
-            condition="close the trade if executable spread expands beyond configured safety limits",
+            condition=(
+                "close the trade if executable spread expands beyond configured safety limits"
+            ),
         ),
         EmergencyExitRule(
             trigger_type=ManagementTriggerType.ACCOUNT_LOCKOUT,
