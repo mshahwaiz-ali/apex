@@ -10,10 +10,10 @@ from apex.domain import LeverageMode, RiskMode
 def test_defaults_resolve_from_product_configuration() -> None:
     account = build_futures_account_input(wallet_balance=100)
 
-    assert account.risk_mode is RiskMode.AGGRESSIVE
+    assert account.risk_mode is RiskMode.STANDARD
     assert account.leverage_mode is LeverageMode.AUTOMATIC
-    assert account.maximum_account_loss_percentage == 2.5
-    assert account.maximum_account_loss_amount == 2.5
+    assert account.maximum_account_loss_percentage == 0.25
+    assert account.maximum_account_loss_amount == 0.25
 
 
 def test_case_insensitive_cli_values_are_supported() -> None:
@@ -27,7 +27,7 @@ def test_case_insensitive_cli_values_are_supported() -> None:
     assert account.risk_mode is RiskMode.STANDARD
     assert account.leverage_mode is LeverageMode.MANUAL
     assert account.manual_leverage == 12
-    assert account.maximum_account_loss_percentage == 1.0
+    assert account.maximum_account_loss_percentage == 0.25
 
 
 def test_explicit_loss_override_is_preserved() -> None:
