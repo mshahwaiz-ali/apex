@@ -89,6 +89,14 @@ from apex.domain.spot_market import (
     SpotScannerMode,
     evaluate_spot_symbol_eligibility,
 )
+from apex.domain.spot_strategy import (
+    SpotStrategy,
+    SpotStrategyCandidate,
+    SpotStrategyDecision,
+    SpotStrategyEligibility,
+    SpotStrategyInput,
+    SpotStrategyRoutingResult,
+)
 from apex.domain.spot_structure import (
     SpotExtensionState,
     SpotPriceZone,
@@ -185,6 +193,12 @@ __all__ = [
     "SpotRelativeStrengthSnapshot",
     "SpotScannerMode",
     "SpotStopPlan",
+    "SpotStrategy",
+    "SpotStrategyCandidate",
+    "SpotStrategyDecision",
+    "SpotStrategyEligibility",
+    "SpotStrategyInput",
+    "SpotStrategyRoutingResult",
     "SpotStructureResult",
     "SpotStructureThresholds",
     "SpotTargetLeg",
