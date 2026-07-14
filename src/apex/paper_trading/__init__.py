@@ -18,6 +18,11 @@ from apex.paper_trading.engine import (
     summarize_paper_trades,
     update_paper_trade,
 )
+from apex.paper_trading.guidance import (
+    PaperTradeGuidance,
+    build_paper_guidance_report,
+    derive_paper_trade_guidance,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 __all__ = [
@@ -27,11 +32,14 @@ __all__ = [
     "PaperReport",
     "PaperTrade",
     "PaperTradeConfig",
+    "PaperTradeGuidance",
     "PaperTradeState",
     "PaperTradeStore",
+    "build_paper_guidance_report",
     "build_paper_replay_report",
     "compare_backtest_to_paper",
     "create_paper_trade",
+    "derive_paper_trade_guidance",
     "generate_paper_report",
     "paper_lifecycle_snapshot",
     "summarize_paper_trades",
