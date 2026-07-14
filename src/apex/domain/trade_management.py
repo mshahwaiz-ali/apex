@@ -7,6 +7,7 @@ an operator or serialized into an analysis record.
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Self
 
@@ -67,7 +68,7 @@ class EntryInstruction(BaseModel):
     ideal_entry: float = Field(gt=0)
     maximum_chase_price: float = Field(gt=0)
     order_type: RecommendedOrderType
-    expires_at: str | None = None
+    expires_at: datetime | None = None
     cancellation_conditions: tuple[str, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -76,6 +77,10 @@ class EntryInstruction(BaseModel):
             raise ValueError("entry zone low cannot exceed entry zone high")
         if not self.zone_low <= self.ideal_entry <= self.zone_high:
             raise ValueError("ideal entry must remain inside the entry zone")
+        if self.expires_at is not None and (
+            self.expires_at.tzinfo is None or self.expires_at.utcoffset() is None
+        ):
+            raise ValueError("entry expiry must be timezone-aware")
         if self.action is EntryInstructionAction.REJECT:
             if self.order_type is not RecommendedOrderType.NONE:
                 raise ValueError("rejected entries cannot recommend an order type")
@@ -146,7 +151,10 @@ class EmergencyExitRule(BaseModel):
 
     @model_validator(mode="after")
     def validate_terminal_action(self) -> Self:
-        if self.action not in {CurrentAction.CLOSE_ALL, CurrentAction.CANCEL_SETUP}:
+        if self.action not in {
+            CurrentAction.CLOSE_ALL,
+            CurrentAction.CANCEL_SETUP,
+        }:
             raise ValueError("emergency rules must close the trade or cancel the setup")
         return self
 
@@ -178,9 +186,15 @@ class TradeManagementPlan(BaseModel):
             if abs(target.cumulative_close_percentage - cumulative) > 1e-9:
                 raise ValueError("target cumulative close percentage is inconsistent")
             if previous_price is not None:
-                if self.direction is FuturesDirection.LONG and target.price <= previous_price:
+                if (
+                    self.direction is FuturesDirection.LONG
+                    and target.price <= previous_price
+                ):
                     raise ValueError("long targets must increase in price")
-                if self.direction is FuturesDirection.SHORT and target.price >= previous_price:
+                if (
+                    self.direction is FuturesDirection.SHORT
+                    and target.price >= previous_price
+                ):
                     raise ValueError("short targets must decrease in price")
             previous_price = target.price
         if self.current_action is CurrentAction.ENTER and self.entry.action not in {
@@ -188,23 +202,52 @@ class TradeManagementPlan(BaseModel):
             EntryInstructionAction.PLACE_LIMIT,
         }:
             raise ValueError("ENTER requires an immediately actionable entry instruction")
-        if self.current_action is CurrentAction.DO_NOT_ENTER and self.entry.action is not EntryInstructionAction.REJECT:
+        if (
+            self.current_action is CurrentAction.DO_NOT_ENTER
+            and self.entry.action is not EntryInstructionAction.REJECT
+        ):
             raise ValueError("DO_NOT_ENTER requires a rejected entry instruction")
         return self
 
 
-def entry_action_for_state(state: EntryState) -> tuple[EntryInstructionAction, CurrentAction]:
+def entry_action_for_state(
+    state: EntryState,
+) -> tuple[EntryInstructionAction, CurrentAction]:
     """Map one canonical entry state to one non-contradictory operator action."""
 
     mapping = {
-        EntryState.READY_NOW: (EntryInstructionAction.ENTER_NOW, CurrentAction.ENTER),
-        EntryState.WAIT_FOR_RETEST: (EntryInstructionAction.WAIT_FOR_RETEST, CurrentAction.WAIT),
-        EntryState.WAIT_FOR_RECLAIM: (EntryInstructionAction.WAIT_FOR_RECLAIM, CurrentAction.WAIT),
-        EntryState.APPROACHING_ENTRY: (EntryInstructionAction.PLACE_LIMIT, CurrentAction.WAIT),
-        EntryState.WATCH: (EntryInstructionAction.WATCH, CurrentAction.WAIT),
-        EntryState.MISSED_ENTRY: (EntryInstructionAction.REJECT, CurrentAction.DO_NOT_ENTER),
-        EntryState.INVALIDATED: (EntryInstructionAction.REJECT, CurrentAction.DO_NOT_ENTER),
-        EntryState.NO_TRADE: (EntryInstructionAction.REJECT, CurrentAction.DO_NOT_ENTER),
+        EntryState.READY_NOW: (
+            EntryInstructionAction.ENTER_NOW,
+            CurrentAction.ENTER,
+        ),
+        EntryState.WAIT_FOR_RETEST: (
+            EntryInstructionAction.WAIT_FOR_RETEST,
+            CurrentAction.WAIT,
+        ),
+        EntryState.WAIT_FOR_RECLAIM: (
+            EntryInstructionAction.WAIT_FOR_RECLAIM,
+            CurrentAction.WAIT,
+        ),
+        EntryState.APPROACHING_ENTRY: (
+            EntryInstructionAction.PLACE_LIMIT,
+            CurrentAction.WAIT,
+        ),
+        EntryState.WATCH: (
+            EntryInstructionAction.WATCH,
+            CurrentAction.WAIT,
+        ),
+        EntryState.MISSED_ENTRY: (
+            EntryInstructionAction.REJECT,
+            CurrentAction.DO_NOT_ENTER,
+        ),
+        EntryState.INVALIDATED: (
+            EntryInstructionAction.REJECT,
+            CurrentAction.DO_NOT_ENTER,
+        ),
+        EntryState.NO_TRADE: (
+            EntryInstructionAction.REJECT,
+            CurrentAction.DO_NOT_ENTER,
+        ),
     }
     return mapping[state]
 
@@ -212,7 +255,7 @@ def entry_action_for_state(state: EntryState) -> tuple[EntryInstructionAction, C
 def lifecycle_event_for_action(
     action: CurrentAction,
     *,
-    occurred_at: object,
+    occurred_at: datetime,
     stop_price: float | None = None,
     target_label: str | None = None,
     closed_percentage: float | None = None,
@@ -224,26 +267,18 @@ def lifecycle_event_for_action(
     lifecycle event.
     """
 
-    from datetime import datetime
-
-    if not isinstance(occurred_at, datetime):
-        raise TypeError("occurred_at must be a datetime")
     if action in {CurrentAction.HOLD, CurrentAction.WAIT}:
         return None
-    if action is CurrentAction.ENTER:
-        event_type = TradeLifecycleEventType.ENTRY_FILLED
-    elif action is CurrentAction.PARTIAL_CLOSE:
-        event_type = TradeLifecycleEventType.PARTIAL_TARGET_HIT
-    elif action is CurrentAction.MOVE_STOP:
-        event_type = TradeLifecycleEventType.STOP_MOVED_TO_BREAKEVEN
-    elif action is CurrentAction.CLOSE_ALL:
-        event_type = TradeLifecycleEventType.EMERGENCY_STOP
-    elif action is CurrentAction.CANCEL_SETUP:
-        event_type = TradeLifecycleEventType.CANCELLED
-    else:
-        event_type = TradeLifecycleEventType.CANCELLED
+    event_types = {
+        CurrentAction.ENTER: TradeLifecycleEventType.ENTRY_FILLED,
+        CurrentAction.DO_NOT_ENTER: TradeLifecycleEventType.CANCELLED,
+        CurrentAction.PARTIAL_CLOSE: TradeLifecycleEventType.PARTIAL_TARGET_HIT,
+        CurrentAction.MOVE_STOP: TradeLifecycleEventType.STOP_MOVED_TO_BREAKEVEN,
+        CurrentAction.CLOSE_ALL: TradeLifecycleEventType.EMERGENCY_STOP,
+        CurrentAction.CANCEL_SETUP: TradeLifecycleEventType.CANCELLED,
+    }
     return TradeLifecycleEvent(
-        event_type=event_type,
+        event_type=event_types[action],
         occurred_at=occurred_at,
         stop_price=stop_price,
         target_label=target_label,
