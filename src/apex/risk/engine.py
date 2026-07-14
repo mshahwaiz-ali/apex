@@ -80,6 +80,32 @@ def _stop(candidate: TradeCandidate, config: RiskConfig) -> StopLoss:
     )
 
 
+def _candidate_atr(candidate: TradeCandidate) -> float | None:
+    """Return the candidate's decision-frame ATR when available."""
+
+    value = candidate.metadata.get("decision_atr")
+    if isinstance(value, int | float) and value > 0.0:
+        return float(value)
+    return None
+
+
+def _minimum_stop_distance(
+    candidate: TradeCandidate,
+    config: RiskConfig,
+) -> tuple[float, str]:
+    """Return the volatility-aware minimum stop distance and model label."""
+
+    atr = _candidate_atr(candidate)
+    if atr is not None:
+        return (
+            atr * config.minimum_stop_atr_multiple,
+            "decision_atr_multiple",
+        )
+
+    fallback = candidate.entry.preferred * config.minimum_stop_distance_pct / 100.0
+    return fallback, "static_entry_percentage_fallback"
+
+
 def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...]:
     preferred = candidate.entry.preferred
     raw = tuple(
@@ -311,13 +337,17 @@ def analyze_phase6(
         )
 
     stop = _stop(candidate, config)
-    if stop.distance_pct < config.minimum_stop_distance_pct:
+    minimum_stop_distance, minimum_stop_model = _minimum_stop_distance(
+        candidate,
+        config,
+    )
+    if stop.distance < minimum_stop_distance:
         return _reject(
             phase5,
             config,
             (
                 RiskRejectionCode.STOP_TOO_TIGHT,
-                "stop is inside the configured noise floor",
+                (f"stop is inside the volatility-aware noise floor ({minimum_stop_model})"),
             ),
         )
     if stop.distance_pct > config.maximum_stop_distance_pct:

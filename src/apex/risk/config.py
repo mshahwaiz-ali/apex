@@ -51,6 +51,7 @@ class RiskConfig:
     risk_per_trade_pct: float = 0.25
     minimum_risk_reward: float = 1.5
     minimum_stop_distance_pct: float = 0.15
+    minimum_stop_atr_multiple: float = 1.0
     maximum_stop_distance_pct: float = 3.0
     structural_stop_buffer_pct: float = 0.05
     maximum_entry_chase_pct: float = 0.25
@@ -87,6 +88,7 @@ class RiskConfig:
             "risk_per_trade_pct",
             "minimum_risk_reward",
             "minimum_stop_distance_pct",
+            "minimum_stop_atr_multiple",
             "maximum_stop_distance_pct",
             "structural_stop_buffer_pct",
             "maximum_entry_chase_pct",

@@ -82,6 +82,7 @@ class ChronologicalBacktestResult:
     phase5_reason_counts: Mapping[str, int]
     phase5_strategy_counts: Mapping[str, int]
     phase5_score_bands: Mapping[str, int]
+    risk_rejection_diagnostics: tuple[Mapping[str, object], ...]
 
     def __post_init__(self) -> None:
         if self.report.total_trades != len(self.trades):
@@ -153,6 +154,11 @@ class ChronologicalBacktestResult:
             "phase5_score_bands",
             MappingProxyType(dict(self.phase5_score_bands)),
         )
+        object.__setattr__(
+            self,
+            "risk_rejection_diagnostics",
+            tuple(MappingProxyType(dict(item)) for item in self.risk_rejection_diagnostics),
+        )
 
 
 def run_chronological_pipeline_backtest(
@@ -180,6 +186,7 @@ def run_chronological_pipeline_backtest(
         "60_to_69_99": 0,
         "70_plus": 0,
     }
+    risk_rejection_diagnostics: list[Mapping[str, object]] = []
     skipped_by_stage = {
         "insufficient_warmup": 0,
         "no_candidates": 0,
@@ -271,6 +278,7 @@ def run_chronological_pipeline_backtest(
                 rejection_code_counts[code.value] = rejection_code_counts.get(code.value, 0) + 1
             for reason in analysis.assessment.reasons:
                 rejection_reason_counts[reason] = rejection_reason_counts.get(reason, 0) + 1
+            risk_rejection_diagnostics.extend(analysis.risk_rejection_diagnostics)
             continue
         if analysis.assessment.setup is None:
             failures[decision_time.isoformat()] = "approved assessment is missing setup"
@@ -342,6 +350,7 @@ def run_chronological_pipeline_backtest(
         phase5_reason_counts=phase5_reason_counts,
         phase5_strategy_counts=phase5_strategy_counts,
         phase5_score_bands=phase5_score_bands,
+        risk_rejection_diagnostics=tuple(risk_rejection_diagnostics),
     )
 
 

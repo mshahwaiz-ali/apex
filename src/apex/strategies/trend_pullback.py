@@ -178,6 +178,8 @@ def _candidate_for_direction(
         ),
         metadata={
             "decision_timeframe": frame.timeframe,
+            "decision_atr": atr,
+            "decision_atr_percentage": atr / current * 100.0,
             "reference_count": len(references),
         },
         provisional=context.provisional,

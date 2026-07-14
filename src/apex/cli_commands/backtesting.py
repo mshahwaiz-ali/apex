@@ -234,6 +234,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "phase5_reason_counts": dict(result.phase5_reason_counts),
                 "phase5_strategy_counts": dict(result.phase5_strategy_counts),
                 "phase5_score_bands": dict(result.phase5_score_bands),
+                "risk_rejection_diagnostics": [
+                    dict(item) for item in result.risk_rejection_diagnostics
+                ],
             },
             "metrics": to_json_value(result.report),
             "trades": to_json_value(result.trades),

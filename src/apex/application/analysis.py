@@ -81,6 +81,8 @@ class SymbolAnalysis:
     precision_entry: Mapping[str, Any] | None = None
     phase5_diagnostics: Mapping[str, Any] | None = None
 
+    risk_rejection_diagnostics: tuple[Mapping[str, object], ...] = ()
+
 
 @dataclass(frozen=True, slots=True)
 class ScanResult:
@@ -166,6 +168,12 @@ def analyze_symbol(
         if assessment.setup is not None
         else None
     )
+    risk_rejection_diagnostics = _build_risk_rejection_diagnostics(
+        phase5=phase5,
+        assessment=assessment,
+        context=context,
+        config=risk_config,
+    )
     return SymbolAnalysis(
         symbol=symbol,
         generated_at=decision_time,
@@ -207,6 +215,99 @@ def analyze_symbol(
                 }
                 for item in phase5.ranked_candidates
             ],
+        },
+        risk_rejection_diagnostics=risk_rejection_diagnostics,
+    )
+
+
+def _build_risk_rejection_diagnostics(
+    *,
+    phase5: Any,
+    assessment: RiskAssessment,
+    context: StrategyContext,
+    config: RiskConfig,
+) -> tuple[Mapping[str, object], ...]:
+    """Describe a Phase 5 selection rejected by Phase 6."""
+
+    selected = phase5.selected_candidate
+    if selected is None or assessment.decision is RiskDecision.APPROVED:
+        return ()
+
+    candidate = selected.candidate
+    entry_price = candidate.entry.preferred
+
+    structural_buffer = entry_price * config.structural_stop_buffer_pct / 100.0
+
+    stop_price = (
+        candidate.invalidation.price - structural_buffer
+        if candidate.direction.value == "long"
+        else candidate.invalidation.price + structural_buffer
+    )
+
+    absolute_stop_distance = abs(entry_price - stop_price)
+    stop_distance_percentage = absolute_stop_distance / entry_price * 100.0
+
+    atr_value = candidate.metadata.get("decision_atr")
+    candidate_atr = (
+        float(atr_value) if isinstance(atr_value, int | float) and atr_value > 0.0 else None
+    )
+
+    if candidate_atr is not None:
+        required_minimum_stop_distance = candidate_atr * config.minimum_stop_atr_multiple
+        noise_floor_model = "decision_atr_multiple"
+        atr_used_by_noise_floor = True
+    else:
+        required_minimum_stop_distance = entry_price * config.minimum_stop_distance_pct / 100.0
+        noise_floor_model = "static_entry_percentage_fallback"
+        atr_used_by_noise_floor = False
+
+    atr = candidate_atr if candidate_atr is not None else context.atr
+    atr_percentage = atr / entry_price * 100.0
+
+    return (
+        {
+            "decision_time": candidate.decision_time.isoformat(),
+            "candidate_id": selected.scored.candidate_id,
+            "strategy": candidate.strategy.value,
+            "direction": candidate.direction.value,
+            "score": selected.final_score,
+            "decision_timeframe": str(
+                candidate.metadata.get(
+                    "decision_timeframe",
+                    context.decision_frame.timeframe,
+                )
+            ),
+            "entry_price": entry_price,
+            "candidate_invalidation_price": candidate.invalidation.price,
+            "structural_stop_buffer_percentage": (config.structural_stop_buffer_pct),
+            "structural_stop_buffer_distance": structural_buffer,
+            "stop_price": stop_price,
+            "absolute_stop_distance": absolute_stop_distance,
+            "stop_distance_percentage": stop_distance_percentage,
+            "configured_minimum_noise_floor_percentage": (config.minimum_stop_distance_pct),
+            "configured_minimum_stop_atr_multiple": (config.minimum_stop_atr_multiple),
+            "required_minimum_stop_distance": required_minimum_stop_distance,
+            "required_minimum_stop_percentage": (
+                required_minimum_stop_distance / entry_price * 100.0
+            ),
+            "stop_shortfall_distance": max(
+                0.0,
+                required_minimum_stop_distance - absolute_stop_distance,
+            ),
+            "stop_shortfall_percentage_points": max(
+                0.0,
+                required_minimum_stop_distance / entry_price * 100.0 - stop_distance_percentage,
+            ),
+            "atr": atr,
+            "atr_percentage": atr_percentage,
+            "stop_distance_in_atr": (absolute_stop_distance / atr if atr > 0.0 else None),
+            "invalidation_distance_in_atr": (
+                abs(entry_price - candidate.invalidation.price) / atr if atr > 0.0 else None
+            ),
+            "noise_floor_model": noise_floor_model,
+            "atr_used_by_noise_floor": atr_used_by_noise_floor,
+            "rejection_codes": [code.value for code in assessment.rejection_codes],
+            "rejection_reasons": list(assessment.reasons),
         },
     )
 
