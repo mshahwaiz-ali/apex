@@ -20,13 +20,20 @@ class AccountPoliciesConfig(BaseModel):
     policies: dict[str, AccountPolicy]
 
     def policy_for(self, name: str | None = None) -> AccountPolicy:
-        """Return a named policy or the configured default."""
+        """Return a named policy, unique policy-type alias, or configured default."""
 
         selected = name or self.default_policy
-        try:
-            return self.policies[selected]
-        except KeyError as exc:
-            raise ValueError(f"unknown account policy: {selected}") from exc
+        policy = self.policies.get(selected)
+        if policy is not None:
+            return policy
+
+        normalized = selected.strip().upper()
+        matching = tuple(
+            candidate for candidate in self.policies.values() if candidate.type.value == normalized
+        )
+        if len(matching) == 1:
+            return matching[0]
+        raise ValueError(f"unknown account policy: {selected}")
 
 
 def load_account_policies_config(path: str | Path) -> AccountPoliciesConfig:
