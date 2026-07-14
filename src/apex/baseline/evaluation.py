@@ -11,4 +11,17 @@ from apex.application.baseline_campaign_plan import BaselineCampaignPlan
 from apex.backtesting import HistoricalEdgeProfile
 from apex.baseline.contracts import (
     BaselineEvaluationPolicy,
-    Baseline
+    BaselineEvaluationReport,
+    BaselineReason,
+    BaselineScenario,
+    BaselineVerdict,
+    CostSensitivityResult,
+    StrategyBaselineAssessment,
+)
+
+
+def evaluate_baseline_campaigns(
+    plan: BaselineCampaignPlan,
+    scenarios: Sequence[BaselineScenario],
+    *,
+    baseline_scenario_id:
