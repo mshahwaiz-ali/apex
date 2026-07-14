@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import typer
 
@@ -143,7 +144,8 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             account_policy_state=account_context.policy_state,
         )
         if futures_plan.get("status") == "REJECTED":
-            reasons = "; ".join(str(reason) for reason in futures_plan.get("reasons", []))
+            rejected_reasons = cast(list[object], futures_plan.get("reasons", []))
+            reasons = "; ".join(str(reason) for reason in rejected_reasons)
             typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | {reasons}")
             return
         futures_plan["proposed_exposure_classification"] = exposure.as_dict()
