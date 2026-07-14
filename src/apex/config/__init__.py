@@ -25,6 +25,11 @@ from apex.config.spot import (
     SpotProductConfig,
     load_spot_product_config,
 )
+from apex.config.spot_strategies import (
+    SpotStrategyConfig,
+    SpotStrategyThresholds,
+    load_spot_strategy_config,
+)
 from apex.config.strategy_approval import (
     StrategyApprovalConfig,
     StrategyApprovalRule,
@@ -47,6 +52,8 @@ __all__ = [
     "SpotEntryConfig",
     "SpotExitConfig",
     "SpotProductConfig",
+    "SpotStrategyConfig",
+    "SpotStrategyThresholds",
     "SpotStructureThresholds",
     "StrategyApprovalConfig",
     "StrategyApprovalRule",
@@ -55,5 +62,6 @@ __all__ = [
     "load_futures_product_config",
     "load_settings",
     "load_spot_product_config",
+    "load_spot_strategy_config",
     "load_strategy_approval_config",
 ]
