@@ -1,0 +1,37 @@
+strategies:
+  trend_pullback:
+    quality_class: PREFERRED
+    minimum_scores:
+      STANDARD: 74.0
+      AGGRESSIVE: 68.0
+      EXTREME: 60.0
+  breakout_continuation:
+    quality_class: RESTRICTED
+    minimum_scores:
+      STANDARD: 84.0
+      AGGRESSIVE: 76.0
+      EXTREME: 67.0
+  liquidity_reversal:
+    quality_class: PREFERRED
+    minimum_scores:
+      STANDARD: 78.0
+      AGGRESSIVE: 71.0
+      EXTREME: 64.0
+  range_reversal:
+    quality_class: CONTROLLED
+    minimum_scores:
+      STANDARD: 80.0
+      AGGRESSIVE: 73.0
+      EXTREME: 65.0
+  momentum_continuation:
+    quality_class: RESTRICTED
+    minimum_scores:
+      STANDARD: 86.0
+      AGGRESSIVE: 78.0
+      EXTREME: 68.0
+  momentum_gainer_continuation:
+    quality_class: RESTRICTED
+    minimum_scores:
+      STANDARD: 88.0
+      AGGRESSIVE: 80.0
+      EXTREME: 70.0
