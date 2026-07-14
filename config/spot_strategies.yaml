@@ -1,0 +1,6 @@
+minimum_volume_ratio: 1.2
+breakout_volume_ratio: 1.5
+maximum_pullback_depth_percentage: 12.0
+maximum_accumulation_range_width_percentage: 18.0
+minimum_relative_strength_percentage: 3.0
+invalidation_buffer_percentage: 1.0
