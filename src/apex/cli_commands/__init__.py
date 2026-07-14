@@ -13,6 +13,7 @@ from apex.cli_commands.paper_trading import register_paper_trading_commands
 from apex.cli_commands.readiness import register_readiness_commands
 from apex.cli_commands.scanner import register_scanner_commands
 from apex.cli_commands.validation_evidence import register_validation_evidence_commands
+from apex.cli_commands.validation_pipeline import register_validation_pipeline_commands
 from apex.cli_overlay import remove_commands
 
 
@@ -26,6 +27,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_backtesting_commands(app)
     register_readiness_commands(app)
     register_validation_evidence_commands(app)
+    register_validation_pipeline_commands(app)
     register_paper_trading_commands(paper_app)
     remove_commands(paper_app, {"record"})
     register_paper_record_v3(paper_app)
