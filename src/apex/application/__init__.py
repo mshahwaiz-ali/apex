@@ -82,6 +82,16 @@ from apex.application.spot_entry_eligibility import (
     SpotEntryEligibilityResult,
     evaluate_spot_entry_eligibility,
 )
+from apex.application.spot_lifecycle import (
+    SpotLifecycleEvent,
+    SpotLifecycleEventType,
+    replay_spot_lifecycle,
+)
+from apex.application.spot_planning import (
+    SpotPlanningRequest,
+    SpotPlanningResult,
+    build_spot_plan,
+)
 from apex.application.spot_strategies import (
     evaluate_accumulation_range_breakout,
     evaluate_breakout_retest,
@@ -125,6 +135,10 @@ __all__ = [
     "MultiSymbolBacktestCampaignRequest",
     "ScanResult",
     "SpotEntryEligibilityResult",
+    "SpotLifecycleEvent",
+    "SpotLifecycleEventType",
+    "SpotPlanningRequest",
+    "SpotPlanningResult",
     "StrategyApprovalError",
     "SymbolAnalysis",
     "analyze_futures_phase5",
@@ -138,6 +152,7 @@ __all__ = [
     "build_futures_plan_result",
     "build_precision_entry_plan",
     "build_spot_account_input",
+    "build_spot_plan",
     "build_trade_management_plan",
     "campaign_result_to_payload",
     "classify_spot_market_regime",
@@ -165,6 +180,7 @@ __all__ = [
     "load_symbols",
     "normalize_market_symbol",
     "parse_campaign_variants",
+    "replay_spot_lifecycle",
     "run_backtest_campaign",
     "run_chronological_pipeline_backtest",
     "run_multi_symbol_backtest_campaign",
