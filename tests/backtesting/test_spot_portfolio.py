@@ -17,7 +17,6 @@ from apex.spot_backtesting import (
     run_spot_backtest,
 )
 
-
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
 
@@ -189,7 +188,13 @@ def test_partial_exit_then_final_mark_preserves_exact_accounting() -> None:
         (
             _bar(START),
             _bar(START + timedelta(days=1), high=106.0, low=99.0, close=105.0),
-            _bar(START + timedelta(days=2), high=109.0, low=104.0, close=108.0),
+            _bar(
+                START + timedelta(days=2),
+                open_price=105.0,
+                high=109.0,
+                low=104.0,
+                close=108.0,
+            ),
         ),
     )
     trade = result.trades[0]

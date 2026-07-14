@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
-from collections.abc import Mapping
 from types import MappingProxyType
 
 

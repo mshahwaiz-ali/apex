@@ -33,7 +33,6 @@ from apex.spot_baseline import (
     write_spot_baseline_report_sqlite,
 )
 
-
 START = datetime(2026, 1, 1, tzinfo=UTC)
 STRATEGY = "higher_timeframe_trend_pullback"
 SYMBOL = "BTCUSDT"
