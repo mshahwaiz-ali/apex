@@ -32,6 +32,13 @@ from apex.backtesting.historical_edge_io import (
     write_historical_edge_report,
     write_historical_edge_report_sqlite,
 )
+from apex.backtesting.historical_edge_split import (
+    HistoricalEdgeSplit,
+    HistoricalEdgeSplitConfig,
+    HistoricalEdgeSplitRole,
+    HistoricalEdgeSplitSet,
+    split_historical_edge_trades,
+)
 
 __all__ = [
     "DEFAULT_EDGE_SEGMENTS",
@@ -46,6 +53,10 @@ __all__ = [
     "EvidenceQuality",
     "HistoricalBacktestRunner",
     "HistoricalEdgeProfile",
+    "HistoricalEdgeSplit",
+    "HistoricalEdgeSplitConfig",
+    "HistoricalEdgeSplitRole",
+    "HistoricalEdgeSplitSet",
     "SimulatedTrade",
     "aggregate_historical_edges",
     "build_historical_edge_profile",
@@ -55,6 +66,7 @@ __all__ = [
     "load_historical_edge_report_sqlite",
     "signal_from_setup",
     "simulate_trade",
+    "split_historical_edge_trades",
     "summarize_trades",
     "write_historical_edge_report",
     "write_historical_edge_report_sqlite",
