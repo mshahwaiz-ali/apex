@@ -25,6 +25,14 @@ from apex.scoring.contracts import (
     ScoreBreakdown,
     ScoredCandidate,
 )
+from apex.scoring.historical_approval import (
+    EvidenceAwareStrategyApprovalDecision,
+    HistoricalApprovalReason,
+    HistoricalApprovalReasonCode,
+    HistoricalEdgeValidationView,
+    HistoricalEvidenceAttachment,
+    evaluate_strategy_approval_with_historical_evidence,
+)
 from apex.scoring.quality_gate import (
     CandidateQualityGateDecision,
     QualityGateReason,
@@ -40,6 +48,11 @@ __all__ = [
     "CandidateQualityGateDecision",
     "ConflictSummary",
     "DirectionalConsensus",
+    "EvidenceAwareStrategyApprovalDecision",
+    "HistoricalApprovalReason",
+    "HistoricalApprovalReasonCode",
+    "HistoricalEdgeValidationView",
+    "HistoricalEvidenceAttachment",
     "PenaltyWeights",
     "Phase5AnalysisResult",
     "QualityGateReason",
@@ -56,4 +69,5 @@ __all__ = [
     "apply_strategy_quality_gate",
     "evaluate_candidate_quality_gate",
     "evaluate_strategy_approval",
+    "evaluate_strategy_approval_with_historical_evidence",
 ]
