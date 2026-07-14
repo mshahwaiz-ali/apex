@@ -124,10 +124,25 @@ profitability or production readiness.
 - Guidance report schema advanced to version 2.
 - Added focused unit coverage for explicit expiry and replayed runner/trailing-stop guidance.
 
+### Batch N2.7 corrected paper CLI coverage implemented
+
+- Added corrected-overlay command-registration coverage for `record`, `update`, `report`, and
+  `replay-report`.
+- Added empty-store JSON integration coverage for `paper report`, including performance and
+  guidance schema version 2.
+- Added empty-store JSON integration coverage for `paper replay-report`, including replay counts
+  and attached guidance.
+- Test fixtures use typed pytest `MonkeyPatch` and `Path` inputs for strict-mypy compatibility.
+
 ### N2 remaining work
 
-- Add corrected-overlay CLI coverage for record, update, report, and replay-report.
-- Run and observe the complete Ruff, mypy, and pytest gate for all N2 batches.
+- Run and observe the complete Ruff format, Ruff lint, strict mypy, and pytest gate for all N2
+  batches.
 - Repair any quality-gate findings before declaring N2 complete.
+- Add deeper mocked execution-path coverage for network-dependent `paper record` and `paper update`
+  only if the quality gate exposes gaps in those paths.
+
+The attempted local gate run on 2026-07-14 did not execute because the isolated runner could not
+resolve `github.com` to clone the repository. No passing or failing quality result is claimed.
 
 No external or forward-validation claim is made by this implementation.
