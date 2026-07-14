@@ -1,0 +1,41 @@
+spot_only: true
+long_only: true
+leverage_allowed: false
+borrowed_assets_allowed: false
+
+primary_timeframes:
+  - 1w
+  - 1d
+  - 12h
+  - 4h
+optional_execution_timeframes:
+  - 1h
+forbidden_thesis_timeframes:
+  - 1m
+  - 3m
+  - 5m
+
+allocation:
+  maximum_allocation_per_position_percentage: 20.0
+  maximum_total_spot_exposure_percentage: 60.0
+  maximum_correlated_sector_exposure_percentage: 30.0
+  minimum_quote_reserve_percentage: 30.0
+  maximum_open_positions: 4
+  maximum_account_loss_percentage: 1.0
+
+entry:
+  maximum_entry_legs: 3
+  default_entry_allocations:
+    - 40.0
+    - 35.0
+    - 25.0
+  maximum_chase_percentage: 2.0
+
+exit:
+  default_target_allocations:
+    - 25.0
+    - 35.0
+    - 25.0
+    - 15.0
+  maximum_holding_days: 7
+  review_interval_hours: 24
