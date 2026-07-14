@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from apex.validation import ProductionEligibility
+from apex.validation.forward import ProductionEligibility
 from apex.validation.history import DailyValidationRecord
 
 
