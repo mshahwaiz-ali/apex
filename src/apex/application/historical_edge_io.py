@@ -4,19 +4,16 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from apex.application.backtest_report_io import dumps_report, to_json_value
 from apex.application.historical_edge import (
     DatasetPartition,
-    DatasetSplit,
-    EvidenceQuality,
     HistoricalDatasetMetadata,
     HistoricalEdgeMetrics,
     HistoricalOutcome,
-    MarketType,
 )
 
 HISTORICAL_EDGE_DB_SCHEMA_VERSION = 1
