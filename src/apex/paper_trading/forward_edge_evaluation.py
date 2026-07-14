@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from statistics import fmean
 
-from apex.backtesting import EvidenceQuality, HistoricalEdgeValidationStatus
+from apex.backtesting import (
+    EvidenceQuality,
+    HistoricalEdgeValidationResult,
+    HistoricalEdgeValidationStatus,
+)
 from apex.paper_trading.contracts import PaperTrade, PaperTradeState
 from apex.paper_trading.forward_edge_contracts import (
     ForwardPaperEdgeProfile,
@@ -57,7 +61,7 @@ def build_forward_paper_edge_profile(
 
 
 def evaluate_forward_paper_edge(
-    historical_validation,
+    historical_validation: HistoricalEdgeValidationResult,
     trades: Sequence[PaperTrade],
     *,
     dimensions: Mapping[str, str] | None = None,
@@ -154,7 +158,10 @@ def _matches_dimensions(trade: PaperTrade, dimensions: Mapping[str, str]) -> boo
         "market_regime": str(trade.analysis_payload.get("market_regime", "unknown")),
         "entry_state": str(trade.analysis_payload.get("entry_state", "unknown")),
     }
-    return all(values.get(name, str(trade.analysis_payload.get(name, "unknown"))) == value for name, value in dimensions.items())
+    return all(
+        values.get(name, str(trade.analysis_payload.get(name, "unknown"))) == value
+        for name, value in dimensions.items()
+    )
 
 
 def _profit_factor_exceeds(value: float | None, minimum: float) -> bool:
