@@ -105,8 +105,8 @@ class HistoricalEdgeSplitSet:
         if self.test.role is not HistoricalEdgeSplitRole.TEST:
             raise ValueError("test split must use the test role")
         _assert_non_overlapping(self.train, self.validation)
+        _assert_non_overlapping(self.train, self.test)
         _assert_non_overlapping(self.validation, self.test)
-
 
 
 def split_historical_edge_trades(
@@ -134,27 +134,23 @@ def split_historical_edge_trades(
     raw_validation = ordered[train_end:validation_end]
     raw_test = ordered[validation_end:]
 
-    train = _make_split(
-        HistoricalEdgeSplitRole.TRAIN,
-        raw_train,
-        0,
-        train_end,
-    )
+    train = _make_split(HistoricalEdgeSplitRole.TRAIN, raw_train, 0, train_end)
     validation = _guard_later_split(
         HistoricalEdgeSplitRole.VALIDATION,
         raw_validation,
-        train,
-        train_end,
-        validation_end,
-        config.purge_trades,
+        prior_end=train.end_time,
+        source_start=train_end,
+        source_end=validation_end,
+        purge_trades=config.purge_trades,
     )
+    test_prior_end = validation.end_time or train.end_time
     test = _guard_later_split(
         HistoricalEdgeSplitRole.TEST,
         raw_test,
-        validation,
-        validation_end,
-        total,
-        config.purge_trades,
+        prior_end=test_prior_end,
+        source_start=validation_end,
+        source_end=total,
+        purge_trades=config.purge_trades,
     )
     return HistoricalEdgeSplitSet(
         train=train,
@@ -164,17 +160,16 @@ def split_historical_edge_trades(
     )
 
 
-
 def _guard_later_split(
     role: HistoricalEdgeSplitRole,
     trades: tuple[SimulatedTrade, ...],
-    prior: HistoricalEdgeSplit,
+    *,
+    prior_end: datetime | None,
     source_start: int,
     source_end: int,
     purge_trades: int,
 ) -> HistoricalEdgeSplit:
     purged = trades[min(purge_trades, len(trades)) :]
-    prior_end = prior.end_time
     if prior_end is None:
         filtered = purged
     else:
@@ -189,7 +184,6 @@ def _guard_later_split(
         purged_trade_count=len(trades) - len(purged),
         overlap_removed_count=len(purged) - len(filtered),
     )
-
 
 
 def _make_split(
@@ -213,7 +207,6 @@ def _make_split(
         purged_trade_count=purged_trade_count,
         overlap_removed_count=overlap_removed_count,
     )
-
 
 
 def _assert_non_overlapping(
