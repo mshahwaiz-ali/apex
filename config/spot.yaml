@@ -53,3 +53,12 @@ structure:
   zone_half_width_atr_multiple: 0.35
   risk_on_minimum_breadth_percentage: 60.0
   risk_off_maximum_breadth_percentage: 35.0
+
+eligibility:
+  minimum_quote_volume_24h: 10000000.0
+  minimum_market_age_days: null
+  maximum_spread_percentage: 0.25
+  minimum_candle_count: 60
+  minimum_atr_percentage: 0.15
+  maximum_downside_volatility_percentage: 4.0
+  excluded_symbols: []
