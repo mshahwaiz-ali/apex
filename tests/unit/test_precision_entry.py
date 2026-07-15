@@ -2,32 +2,39 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from apex.application import build_precision_entry_plan
 from apex.domain import PrecisionEntryScore, weighted_precision_score
-from apex.strategies import TimeframeContext, TimeframeRole
+from apex.liquidity.analysis import LiquidityAnalysisResult
+from apex.risk import RiskApprovedSetup
+from apex.strategies import FeatureSnapshot, TimeframeContext, TimeframeRole
+from apex.structure.contracts import StructureAnalysisResult
 
 
-def _setup(*, current_price: float = 100.5, inside_zone: bool = True) -> SimpleNamespace:
-    return SimpleNamespace(
-        decision_time=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
-        direction=SimpleNamespace(value="long"),
-        entry=SimpleNamespace(
-            lower=100.0,
-            upper=101.0,
-            preferred=100.5,
-            current_price=current_price,
-            maximum_chase_price=102.0,
-            current_price_inside_zone=inside_zone,
+def _setup(*, current_price: float = 100.5, inside_zone: bool = True) -> RiskApprovedSetup:
+    return cast(
+        RiskApprovedSetup,
+        SimpleNamespace(
+            decision_time=datetime(2026, 7, 13, 12, 0, tzinfo=UTC),
+            direction=SimpleNamespace(value="long"),
+            entry=SimpleNamespace(
+                lower=100.0,
+                upper=101.0,
+                preferred=100.5,
+                current_price=current_price,
+                maximum_chase_price=102.0,
+                current_price_inside_zone=inside_zone,
+            ),
+            stop_loss=SimpleNamespace(
+                price=98.0,
+                quality_score=0.8,
+                rationale=("structure invalidation",),
+            ),
+            confidence_score=85.0,
         ),
-        stop_loss=SimpleNamespace(
-            price=98.0,
-            quality_score=0.8,
-            rationale=("structure invalidation",),
-        ),
-        confidence_score=85.0,
     )
 
 
@@ -234,7 +241,7 @@ def _frame(
         exchange_min_notional=exchange_min_notional,
         nearest_long_cluster_distance_pct=nearest_long_cluster_distance_pct,
         nearest_short_cluster_distance_pct=nearest_short_cluster_distance_pct,
-        features=SimpleNamespace(rsi_slope=rsi_slope, rate_of_change=momentum),
-        structure=object(),
-        liquidity=object(),
+        features=FeatureSnapshot(atr=1.0, rsi_slope=rsi_slope, rate_of_change=momentum),
+        structure=cast(StructureAnalysisResult, object()),
+        liquidity=cast(LiquidityAnalysisResult, object()),
     )
