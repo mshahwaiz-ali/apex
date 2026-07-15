@@ -12,11 +12,15 @@ from apex.cli_commands.historical_futures_backtest import (
 from apex.cli_commands.historical_signal_generation import (
     register_historical_signal_generation_commands,
 )
+from apex.cli_commands.spot_historical_dataset import (
+    register_spot_historical_dataset_commands,
+)
 
 install_cli_commands(app, paper_app)
 register_dataset_campaign_commands(dataset_app)
 register_aligned_dataset_campaign_commands(dataset_app)
 register_historical_signal_generation_commands(dataset_app)
 register_historical_futures_backtest_commands(dataset_app)
+register_spot_historical_dataset_commands(dataset_app)
 
 __all__ = ["app"]
