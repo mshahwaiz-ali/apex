@@ -24,6 +24,7 @@ from apex.cli_commands.paper_cycle import register_paper_cycle_command
 from apex.cli_commands.paper_daily import register_paper_daily_command
 from apex.cli_commands.paper_evidence_progress import register_paper_evidence_progress_command
 from apex.cli_commands.paper_intake import register_paper_intake_commands
+from apex.cli_commands.paper_lifecycle_health import register_paper_lifecycle_health_command
 from apex.cli_commands.paper_pipeline import register_paper_pipeline_commands
 from apex.cli_commands.paper_record_v3 import register_paper_record_v3
 from apex.cli_commands.paper_scheduler import register_paper_scheduler_commands
@@ -75,6 +76,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_paper_daily_command(paper_app)
     register_paper_evidence_progress_command(paper_app)
     register_paper_intake_commands(paper_app)
+    register_paper_lifecycle_health_command(paper_app)
     register_p1_review_command(paper_app)
     remove_commands(paper_app, {"record"})
     register_paper_record_v3(paper_app)
