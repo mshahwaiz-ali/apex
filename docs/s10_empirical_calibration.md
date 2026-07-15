@@ -1,10 +1,26 @@
-# S10 Empirical Calibration
+# S10 Empirical Calibration and Stability Analysis
 
-## Purpose
+## Status
 
-`apex optimize empirical-calibrate` evaluates one candidate parameter set against a baseline using train and validation reports only. Final-test reports are attached only after the candidate passes train, validation, and stability gates.
+S10 implementation is functionally complete and awaiting the reported local quality gate.
 
-This command does not edit production configuration and does not establish profitability, funded eligibility, production readiness, or real-money safety.
+This stage provides deterministic parameter-candidate comparison and audit artifacts. It does not establish profitability, funded-account eligibility, production readiness, or real-money safety.
+
+## Implemented scope
+
+- One optimization variable group is evaluated at a time.
+- Candidate performance is compared with an explicit baseline.
+- Train and validation results determine candidate selection.
+- Final-test results are excluded from selection and evaluated only after a candidate passes train, validation, and stability gates.
+- A failed final-test audit is retained without rewriting the earlier selection decision.
+- Minimum sample, expectancy, profit-factor, drawdown, symbol-dependency, and optional strategy-dependency rules are enforced by the optimization engine.
+- Additional stability gates cover symbol count, market-regime count, score-band count, and maximum concentration shares.
+- Empirical reports contain deterministic SHA-256 integrity hashes.
+- Reports are written atomically, reloaded, and hash-verified before CLI success is reported.
+- Tampered reports are rejected.
+- Historical spot backtest payloads can be adapted into canonical `PerformanceSummary` inputs.
+- Historical futures payloads can be adapted directly or by requested train, validation, or final-test split.
+- Public optimization exports expose the empirical report and historical adapter APIs.
 
 ## Command
 
@@ -31,22 +47,22 @@ Optional sections:
 - `final_test_baseline` and `final_test_candidate`;
 - `stability_policy` for symbol, regime, and score-band coverage and concentration limits.
 
-Performance objects use the same normalized metrics accepted by the optimization engine: total trades, win rate, expectancy, profit factor, maximum drawdown, net profit, and trade-count distributions by symbol, strategy, regime, and score band.
+## Selection semantics
 
-## Selection rules
-
-A candidate is selected for final-test audit only when:
+A candidate reaches final-test audit only when:
 
 1. train comparison passes;
 2. validation comparison passes;
-3. validation samples pass symbol, regime, and score-band stability gates.
+3. validation sample distribution passes stability gates.
 
-Final-test performance is never used to select parameters. The report records `used_for_selection: false` explicitly.
+Final-test performance is recorded with `used_for_selection: false`.
+
+A selected candidate with no final-test inputs remains explicitly unaudited. It must not be described as out-of-sample validated.
 
 ## Integrity
 
-The output contains a deterministic `report_sha256`. The command writes atomically, immediately reloads the artifact, and verifies the complete payload hash before reporting completion. Tampered or malformed reports fail explicitly.
+The output contains a deterministic `report_sha256`. The command writes atomically, immediately reloads the artifact, and verifies the complete payload hash before reporting completion.
 
-## Boundary
+## Validation boundary
 
-S10 calibration reports are research artifacts. Parameter changes must remain reviewable and must not be applied automatically to production configuration.
+S10 is not formally closed until focused Ruff, strict mypy, focused pytest, and the complete repository quality gate are run locally and their exact outputs are recorded.
