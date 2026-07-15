@@ -1,0 +1,9 @@
+[Unit]
+Description=Apex daily paper-validation report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/data_drive/apex
+ExecStart=%h/data_drive/apex/.venv/bin/apex paper scheduled-daily-report
