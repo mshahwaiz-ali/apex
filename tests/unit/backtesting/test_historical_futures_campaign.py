@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -30,7 +31,15 @@ def _request(tmp_path: Path, **overrides: object) -> HistoricalFuturesCampaignRe
         "backtest_config": BacktestConfig(),
     }
     values.update(overrides)
-    return HistoricalFuturesCampaignRequest(**values)  # type: ignore[arg-type]
+    return HistoricalFuturesCampaignRequest(
+        campaign_id=cast(str, values["campaign_id"]),
+        records_path=cast(Path, values["records_path"]),
+        signal_manifest_path=cast(Path, values["signal_manifest_path"]),
+        result_path=cast(Path, values["result_path"]),
+        execution_manifest_path=cast(Path, values["execution_manifest_path"]),
+        starting_equity=cast(float, values["starting_equity"]),
+        backtest_config=cast(BacktestConfig, values["backtest_config"]),
+    )
 
 
 def test_request_accepts_unique_paths_and_positive_equity(tmp_path: Path) -> None:
