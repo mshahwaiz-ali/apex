@@ -8,6 +8,8 @@ from typing import Any, Self
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from apex.domain.spot_market import SpotEligibilityThresholds
+
 
 class SpotAllocationConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -111,6 +113,7 @@ class SpotProductConfig(BaseModel):
     entry: SpotEntryConfig
     exit: SpotExitConfig
     structure: SpotStructureConfig
+    eligibility: SpotEligibilityThresholds
 
     @model_validator(mode="after")
     def validate_product_contract(self) -> Self:
