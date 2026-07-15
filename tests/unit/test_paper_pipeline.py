@@ -43,18 +43,48 @@ def test_pipeline_runs_intake_before_cycle_and_writes_audit_log(tmp_path) -> Non
         market_type=IntakeMarketType.FUTURES,
         data_dir=tmp_path,
         started_at=started_at,
+        run_id="run-123",
         run_intake=lambda: (order.append("intake") or _summary(IntakeMarketType.FUTURES)),
         run_cycle=lambda: (order.append("cycle") or _cycle("futures", started_at)),
     )
 
     assert order == ["intake", "cycle"]
     assert result.market_type is IntakeMarketType.FUTURES
+    assert result.run_id == "run-123"
     assert result.completed_at >= result.started_at
     log_path = tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl"
     payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert payload["run_id"] == "run-123"
+    assert payload["outcome"] == "success"
     assert payload["market_type"] == "futures"
     assert payload["intake"]["accepted"] == 0
     assert not (tmp_path / "paper_trading/scheduler/locks/pipeline-futures.lock").exists()
+
+
+def test_pipeline_writes_failure_audit_before_reraising(tmp_path) -> None:
+    started_at = datetime.now(UTC) - timedelta(seconds=1)
+
+    def fail_intake() -> IntakeSummary:
+        raise RuntimeError("provider unavailable")
+
+    with pytest.raises(RuntimeError, match="provider unavailable"):
+        run_locked_paper_pipeline(
+            market_type=IntakeMarketType.SPOT,
+            data_dir=tmp_path,
+            started_at=started_at,
+            run_id="run-failed",
+            run_intake=fail_intake,
+            run_cycle=lambda: _cycle("spot", started_at),
+        )
+
+    log_path = tmp_path / "paper_trading/scheduler/logs/pipeline-spot.jsonl"
+    payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert payload["run_id"] == "run-failed"
+    assert payload["outcome"] == "failure"
+    assert payload["failed_stage"] == "intake"
+    assert payload["error_type"] == "RuntimeError"
+    assert payload["error_reason"] == "provider unavailable"
 
 
 def test_pipeline_rejects_cross_market_intake(tmp_path) -> None:
@@ -82,9 +112,13 @@ def test_pipeline_rejects_cross_market_cycle(tmp_path) -> None:
             run_cycle=lambda: _cycle("spot", started_at),
         )
 
-    assert not (
-        tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl"
-    ).exists()
+    payload = json.loads(
+        (tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["outcome"] == "failure"
+    assert payload["failed_stage"] == "lifecycle"
 
 
 def test_pipeline_requires_timezone_aware_start(tmp_path) -> None:
@@ -107,6 +141,20 @@ def test_pipeline_rejects_non_positive_stale_lock_duration(tmp_path) -> None:
             data_dir=tmp_path,
             started_at=started_at,
             stale_after=timedelta(0),
+            run_intake=lambda: _summary(IntakeMarketType.SPOT),
+            run_cycle=lambda: _cycle("spot", started_at),
+        )
+
+
+def test_pipeline_rejects_empty_run_id(tmp_path) -> None:
+    started_at = datetime.now(UTC)
+
+    with pytest.raises(ValueError, match="run id"):
+        run_locked_paper_pipeline(
+            market_type=IntakeMarketType.SPOT,
+            data_dir=tmp_path,
+            started_at=started_at,
+            run_id="   ",
             run_intake=lambda: _summary(IntakeMarketType.SPOT),
             run_cycle=lambda: _cycle("spot", started_at),
         )
