@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -69,6 +69,23 @@ def test_pipeline_rejects_cross_market_intake(tmp_path) -> None:
         )
 
 
+def test_pipeline_rejects_cross_market_cycle(tmp_path) -> None:
+    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+
+    with pytest.raises(ValueError, match="cycle market type"):
+        run_locked_paper_pipeline(
+            market_type=IntakeMarketType.FUTURES,
+            data_dir=tmp_path,
+            started_at=started_at,
+            run_intake=lambda: _summary(IntakeMarketType.FUTURES),
+            run_cycle=lambda: _cycle("spot", started_at),
+        )
+
+    assert not (
+        tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl"
+    ).exists()
+
+
 def test_pipeline_requires_timezone_aware_start(tmp_path) -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
         run_locked_paper_pipeline(
@@ -77,4 +94,18 @@ def test_pipeline_requires_timezone_aware_start(tmp_path) -> None:
             started_at=datetime(2026, 7, 16, 12, 0),
             run_intake=lambda: _summary(IntakeMarketType.SPOT),
             run_cycle=lambda: _cycle("spot", datetime(2026, 7, 16, 12, 0, tzinfo=UTC)),
+        )
+
+
+def test_pipeline_rejects_non_positive_stale_lock_duration(tmp_path) -> None:
+    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+
+    with pytest.raises(ValueError, match="stale lock duration"):
+        run_locked_paper_pipeline(
+            market_type=IntakeMarketType.SPOT,
+            data_dir=tmp_path,
+            started_at=started_at,
+            stale_after=timedelta(0),
+            run_intake=lambda: _summary(IntakeMarketType.SPOT),
+            run_cycle=lambda: _cycle("spot", started_at),
         )
