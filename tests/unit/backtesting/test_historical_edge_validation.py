@@ -10,8 +10,10 @@ from apex.backtesting import (
     BacktestOutcome,
     BacktestSignal,
     EvidenceQuality,
+    HistoricalEdgeProfile,
     HistoricalEdgeValidationPolicy,
     HistoricalEdgeValidationReason,
+    HistoricalEdgeValidationResult,
     HistoricalEdgeValidationStatus,
     SimulatedTrade,
     build_historical_edge_profile,
@@ -53,7 +55,7 @@ def _profile(
     *,
     symbol: str = "BTC/USDT",
     dimension_name: str = "symbol",
-):
+) -> HistoricalEdgeProfile:
     return build_historical_edge_profile(
         tuple(_trade(index, realized_r, symbol=symbol) for index in range(sample_size)),
         dimensions={dimension_name: symbol},
@@ -62,11 +64,11 @@ def _profile(
 
 def _validate(
     *,
-    train=None,
-    validation=None,
-    test=None,
+    train: HistoricalEdgeProfile | None = None,
+    validation: HistoricalEdgeProfile | None = None,
+    test: HistoricalEdgeProfile | None = None,
     policy: HistoricalEdgeValidationPolicy | None = None,
-):
+) -> HistoricalEdgeValidationResult:
     return validate_out_of_sample_edges(
         (train or _profile(100, 1.0),),
         (validation or _profile(50, 0.75),),
@@ -125,8 +127,8 @@ def test_individual_out_of_sample_minimums_are_enforced(
     ),
 )
 def test_missing_out_of_sample_segment_is_reported(
-    validation_profiles,
-    test_profiles,
+    validation_profiles: tuple[HistoricalEdgeProfile, ...],
+    test_profiles: tuple[HistoricalEdgeProfile, ...],
     expected_reason: HistoricalEdgeValidationReason,
 ) -> None:
     result = validate_out_of_sample_edges(
