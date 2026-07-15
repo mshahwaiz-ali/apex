@@ -43,9 +43,10 @@ def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> N
             Path,
             typer.Option("--signal-records", exists=True, dir_okay=False, readable=True),
         ],
-        signal_execution_manifest: Annotated[
+        signal_manifest: Annotated[
             Path,
             typer.Option(
+                "--signal-manifest",
                 "--signal-execution-manifest",
                 exists=True,
                 dir_okay=False,
@@ -103,7 +104,7 @@ def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> N
             request = HistoricalFuturesCampaignRequest(
                 campaign_id=campaign_id,
                 records_path=signal_records,
-                signal_manifest_path=signal_execution_manifest,
+                signal_manifest_path=signal_manifest,
                 result_path=result_output,
                 execution_manifest_path=execution_manifest_output,
                 starting_equity=starting_equity,

@@ -31,6 +31,12 @@ from apex.backtesting.historical_signal_replay import (
     HistoricalSignalSplit,
 )
 from apex.domain.models import Candle
+from apex.historical_signals import (
+    HistoricalSignalCampaignRecord,
+    HistoricalSignalSourceDataset,
+    derive_historical_signal_record_id,
+    persist_completed_historical_signal_campaign,
+)
 
 
 def _record(
@@ -311,3 +317,85 @@ def test_rejects_tampered_reloaded_records(
     payloads = load_historical_signal_record_payloads(path)
 
     assert payloads == ({"accepted": True},)
+
+
+def test_schema_v2_campaign_manifest_adapts_to_backtest_metadata(
+    tmp_path: Path,
+) -> None:
+    records_path = tmp_path / "signals-v2.jsonl"
+    manifest_path = tmp_path / "signals-v2.manifest.json"
+    decision_time = datetime(2026, 6, 1, 0, 1, tzinfo=UTC)
+    source_hash = "a" * 64
+    assumptions_hash = "b" * 64
+    plan_id = f"aligned-plan-{'c' * 64}"
+    execution_id = f"aligned-execution-{'d' * 64}"
+    record = HistoricalSignalCampaignRecord(
+        signal_record_id=derive_historical_signal_record_id(
+            campaign_id="pilot",
+            symbol="BTC/USDT",
+            split=HistoricalSignalSplit.TRAIN,
+            decision_time=decision_time,
+            source_dataset_hash=source_hash,
+            assumptions_hash=assumptions_hash,
+        ),
+        campaign_id="pilot",
+        dataset_campaign_plan_id=plan_id,
+        dataset_campaign_execution_id=execution_id,
+        symbol="BTC/USDT",
+        timeframe="1m",
+        split=HistoricalSignalSplit.TRAIN,
+        decision_time=decision_time,
+        parent_dataset_id=plan_id,
+        parent_dataset_hash="c" * 64,
+        source_dataset_id="btc-1m",
+        source_dataset_hash=source_hash,
+        source_datasets=(
+            HistoricalSignalSourceDataset(
+                timeframe="1m",
+                dataset_id="btc-1m",
+                content_hash=source_hash,
+            ),
+        ),
+        assumptions_hash=assumptions_hash,
+        required_context_candles=40,
+        accepted=False,
+        analysis={
+            "symbol": "BTC/USDT",
+            "decision": "NO_TRADE",
+            "rejection_codes": ["minimum_score"],
+        },
+    )
+    persist_completed_historical_signal_campaign(
+        records_path=records_path,
+        manifest_path=manifest_path,
+        records=(record,),
+        campaign_id="pilot",
+        dataset_campaign_plan_id=plan_id,
+        dataset_campaign_execution_id=execution_id,
+        assumptions_hash=assumptions_hash,
+        symbol_order=("BTC/USDT",),
+    )
+
+    loaded = load_historical_signal_execution_manifest(manifest_path)
+
+    assert loaded.campaign_id == "pilot"
+    assert loaded.records_path == records_path.resolve().as_posix()
+    assert loaded.configuration_hash == assumptions_hash
+    assert loaded.total_records == 1
+    assert loaded.accepted_records == 0
+    assert loaded.rejected_records == 1
+    assert loaded.failed_records == 0
+    assert loaded.split_counts == (
+        ("train", 1),
+        ("validation", 0),
+        ("final_test", 0),
+    )
+    assert loaded.source_datasets == (
+        {
+            "symbol": "BTC/USDT",
+            "timeframe": "1m",
+            "dataset_id": "btc-1m",
+            "content_hash": source_hash,
+            "signal_record_schema_version": 2,
+        },
+    )

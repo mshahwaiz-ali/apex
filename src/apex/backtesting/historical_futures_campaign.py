@@ -394,8 +394,15 @@ def _verify_inputs(
         (_required_string(item, "decision_time"), _required_string(item, "symbol"))
         for item in payloads
     )
-    if keys != tuple(sorted(keys)) or len(set(keys)) != len(keys):
-        raise ValueError("historical signal records must be unique and chronological")
+    if len(set(keys)) != len(keys):
+        raise ValueError("historical signal records must be unique")
+
+    schema_v2_records = any(
+        item.get("signal_record_schema_version") == 2
+        for item in manifest.source_datasets
+    )
+    if not schema_v2_records and keys != tuple(sorted(keys)):
+        raise ValueError("legacy historical signal records must be chronological")
 
 
 def _signal_from_analysis(

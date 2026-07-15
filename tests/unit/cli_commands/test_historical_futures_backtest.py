@@ -53,6 +53,7 @@ def test_historical_futures_backtest_exposes_required_options() -> None:
 
     assert {
         "--signal-records",
+        "--signal-manifest",
         "--signal-execution-manifest",
         "--result-output",
         "--execution-manifest-output",

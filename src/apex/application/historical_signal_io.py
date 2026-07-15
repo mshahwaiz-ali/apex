@@ -17,6 +17,10 @@ from apex.application.historical_signal_generation import (
 from apex.backtesting.historical_signal_campaign import (
     HistoricalSignalCampaignInputs,
 )
+from apex.historical_signals.persistence import (
+    load_historical_signal_campaign_manifest,
+    load_historical_signal_records,
+)
 
 HISTORICAL_SIGNAL_EXECUTION_SCHEMA_VERSION: Final = 1
 
@@ -261,12 +265,21 @@ def load_historical_signal_record_payloads(
 def load_historical_signal_execution_manifest(
     path: Path,
 ) -> HistoricalSignalExecutionManifest:
-    """Load and validate one persisted execution manifest."""
+    """Load legacy or schema-v2 historical signal campaign metadata."""
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("historical signal execution payload must be an object")
 
+    if "signal_campaign_id" in payload:
+        return _load_schema_v2_signal_campaign(path)
+
+    return _load_legacy_signal_execution_manifest(payload)
+
+
+def _load_legacy_signal_execution_manifest(
+    payload: dict[str, object],
+) -> HistoricalSignalExecutionManifest:
     raw_split_counts = payload.get("split_counts")
     raw_sources = payload.get("source_datasets")
     if not isinstance(raw_split_counts, dict):
@@ -281,25 +294,111 @@ def load_historical_signal_execution_manifest(
         sources.append(item)
 
     return HistoricalSignalExecutionManifest(
-        schema_version=int(payload["schema_version"]),
+        schema_version=_required_manifest_int(payload, "schema_version"),
         campaign_id=str(payload["campaign_id"]),
         records_path=str(payload["records_path"]),
         records_hash=str(payload["records_hash"]),
         configuration_hash=str(payload["configuration_hash"]),
-        total_records=int(payload["total_records"]),
-        accepted_records=int(payload["accepted_records"]),
-        rejected_records=int(payload["rejected_records"]),
-        failed_records=int(payload["failed_records"]),
+        total_records=_required_manifest_int(payload, "total_records"),
+        accepted_records=_required_manifest_int(payload, "accepted_records"),
+        rejected_records=_required_manifest_int(payload, "rejected_records"),
+        failed_records=_required_manifest_int(payload, "failed_records"),
         split_counts=tuple(
             sorted(
-                (
-                    str(split),
-                    int(count),
-                )
+                (str(split), int(count))
                 for split, count in raw_split_counts.items()
             )
         ),
         source_datasets=tuple(sources),
+    )
+
+
+
+
+def _required_manifest_int(
+    payload: dict[str, object],
+    key: str,
+) -> int:
+    value = payload.get(key)
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        raise ValueError(f"historical signal {key} must be an integer")
+
+    try:
+        result = int(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"historical signal {key} must be an integer"
+        ) from exc
+
+    return result
+
+
+def _load_schema_v2_signal_campaign(
+    manifest_path: Path,
+) -> HistoricalSignalExecutionManifest:
+    manifest = load_historical_signal_campaign_manifest(manifest_path)
+    records_path = _resolve_schema_v2_records_path(
+        manifest_path=manifest_path,
+        declared_path=Path(manifest.records_path),
+    )
+    records = load_historical_signal_records(
+        records_path,
+        symbol_order=manifest.symbol_order,
+        expected_content_hash=manifest.records_content_hash,
+    )
+    payloads = tuple(record.to_payload() for record in records)
+
+    source_datasets: dict[tuple[str, str, str, str], dict[str, object]] = {}
+    for record in records:
+        for source in record.source_datasets:
+            key = (
+                record.symbol,
+                source.timeframe,
+                source.dataset_id,
+                source.content_hash,
+            )
+            source_datasets[key] = {
+                "symbol": record.symbol,
+                "timeframe": source.timeframe,
+                "dataset_id": source.dataset_id,
+                "content_hash": source.content_hash,
+                "signal_record_schema_version": record.schema_version,
+            }
+
+    accepted_records = sum(record.accepted for record in records)
+    failed_records = sum(record.failure_reason is not None for record in records)
+    return HistoricalSignalExecutionManifest(
+        campaign_id=manifest.campaign_id,
+        records_path=records_path.as_posix(),
+        records_hash=_hash_json(payloads),
+        configuration_hash=manifest.assumptions_hash,
+        total_records=len(records),
+        accepted_records=accepted_records,
+        rejected_records=len(records) - accepted_records,
+        failed_records=failed_records,
+        split_counts=tuple(
+            (split.value, count)
+            for split, count in manifest.counts_by_split
+        ),
+        source_datasets=tuple(source_datasets[key] for key in sorted(source_datasets)),
+    )
+
+
+def _resolve_schema_v2_records_path(
+    *,
+    manifest_path: Path,
+    declared_path: Path,
+) -> Path:
+    candidates = [declared_path]
+    if not declared_path.is_absolute():
+        candidates.append(manifest_path.parent / declared_path)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+
+    raise FileNotFoundError(
+        f"historical signal records do not exist: {declared_path}"
     )
 
 
