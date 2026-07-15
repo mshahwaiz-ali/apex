@@ -12,6 +12,9 @@ from apex.application.spot_historical_backtest import (
     run_spot_historical_backtest,
     write_spot_historical_backtest,
 )
+from apex.application.spot_historical_backtest_io import (
+    load_and_verify_spot_historical_backtest,
+)
 
 
 def register_spot_historical_backtest_commands(dataset_app: typer.Typer) -> None:
@@ -91,18 +94,22 @@ def register_spot_historical_backtest_commands(dataset_app: typer.Typer) -> None
                 manifest_path=execution_manifest_output,
                 force=force,
             )
+            verified = load_and_verify_spot_historical_backtest(
+                result_path=result_output,
+                manifest_path=execution_manifest_output,
+            )
         except (FileExistsError, KeyError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
         typer.echo(
             "SPOT_HISTORICAL_BACKTEST_COMPLETED "
-            f"| campaign_id={result.manifest.campaign_id} "
-            f"| signals={result.manifest.signal_count} "
-            f"| plans={result.manifest.plan_count} "
-            f"| fills={result.manifest.fill_count} "
-            f"| trades={result.manifest.trade_count} "
-            f"| ending_equity={result.manifest.ending_equity:.8f} "
-            f"| result_hash={result.manifest.result_sha256} "
+            f"| campaign_id={verified.manifest.campaign_id} "
+            f"| signals={verified.manifest.signal_count} "
+            f"| plans={verified.manifest.plan_count} "
+            f"| fills={verified.manifest.fill_count} "
+            f"| trades={verified.manifest.trade_count} "
+            f"| ending_equity={verified.manifest.ending_equity:.8f} "
+            f"| result_hash={verified.manifest.result_sha256} "
             f"| result={result_output} "
             f"| manifest={execution_manifest_output}"
         )
