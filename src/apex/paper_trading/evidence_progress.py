@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from statistics import fmean
-from typing import Any
 
 from apex.paper_trading.contracts import PaperTrade, TERMINAL_STATES
 
