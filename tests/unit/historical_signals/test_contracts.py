@@ -9,7 +9,9 @@ import pytest
 
 from apex.backtesting.historical_signal_replay import HistoricalSignalSplit
 from apex.historical_signals import (
+    HISTORICAL_SIGNAL_RECORD_SCHEMA_VERSION,
     HistoricalSignalCampaignRecord,
+    HistoricalSignalSourceDataset,
     derive_historical_signal_record_id,
     validate_historical_signal_record_sequence,
 )
@@ -46,12 +48,24 @@ def _record(
         parent_dataset_hash=_HASH_A,
         source_dataset_id=f"pilot-{split.value}",
         source_dataset_hash=_HASH_A,
+        source_datasets=(
+            HistoricalSignalSourceDataset(
+                timeframe="1m",
+                dataset_id=f"pilot-{split.value}",
+                content_hash=_HASH_A,
+            ),
+        ),
         assumptions_hash=_HASH_B,
         required_context_candles=40,
         accepted=False,
         analysis={"decision": "NO_TRADE", "nested": {"b": 2, "a": 1}},
         unavailable_optional_data=("funding_rate", "open_interest"),
     )
+
+
+def test_record_schema_version_is_two() -> None:
+    assert HISTORICAL_SIGNAL_RECORD_SCHEMA_VERSION == 2
+    assert _record().to_payload()["schema_version"] == 2
 
 
 def test_record_id_is_deterministic() -> None:
@@ -70,6 +84,13 @@ def test_analysis_mapping_order_does_not_change_payload() -> None:
     )
 
     assert first.to_payload() == second.to_payload()
+
+
+def test_source_datasets_do_not_change_record_id_api() -> None:
+    record = _record()
+
+    assert record.source_datasets[0].dataset_id == record.source_dataset_id
+    assert "source_datasets" in record.to_payload()
 
 
 def test_sequence_uses_symbol_then_split_then_timestamp() -> None:
