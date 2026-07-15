@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from types import SimpleNamespace
 
 import pytest
 
@@ -30,7 +29,7 @@ def _cycle(market_type: str, started_at: datetime) -> ScheduledPaperCycleResult:
         market_type=market_type,
         started_at=started_at,
         completed_at=started_at,
-        runtime=SimpleNamespace(),  # type: ignore[arg-type]
+        runtime={},  # type: ignore[arg-type]
         lock_path="cycle.lock",
         log_path="cycle.jsonl",
     )
