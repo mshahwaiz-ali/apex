@@ -12,6 +12,7 @@ from apex.optimization import (
     CandidateParameterSet,
     OptimizationGroup,
     OptimizationRunConfig,
+    PerformanceSummary,
     StabilityPolicy,
     WalkForwardSplit,
     build_empirical_calibration_report,
@@ -144,7 +145,10 @@ def _mapping(
     return cast(dict[str, Any], value)
 
 
-def _optional_performance(container: dict[str, Any], key: str):
+def _optional_performance(
+    container: dict[str, Any],
+    key: str,
+) -> PerformanceSummary | None:
     value = container.get(key)
     if value is None:
         return None
