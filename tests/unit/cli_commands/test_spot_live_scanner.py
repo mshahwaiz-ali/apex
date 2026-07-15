@@ -9,4 +9,8 @@ def test_spot_scan_live_is_registered_on_installed_cli_app() -> None:
     assert result.exit_code == 0, result.output
     assert "--symbols" in result.output
     assert "--account" in result.output
+    assert "--mode" in result.output
+    assert "eligible" in result.output
+    assert "watchlist" in result.output
+    assert "all" in result.output
     assert "--candles" in result.output
