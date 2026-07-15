@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
 from apex.domain.futures import EntryState
+from apex.strategies import registry
 from apex.strategies.analysis import _strategy_eligibility
 from apex.strategies.context import TimeframeRole
 from apex.strategies.contracts import StrategyType
@@ -98,3 +100,28 @@ def test_higher_breakout_detector_uses_context_regime(monkeypatch: Any) -> None:
     )
 
     assert has_higher_timeframe_breakout(context) is True
+
+
+def test_breakout_generator_uses_higher_timeframe_fallback(monkeypatch: Any) -> None:
+    expected = (SimpleNamespace(strategy=StrategyType.BREAKOUT_CONTINUATION),)
+
+    def empty_breakout(context: object, *, decision_time: datetime) -> tuple[object, ...]:
+        return ()
+
+    def fallback(context: object, *, decision_time: datetime) -> tuple[object, ...]:
+        return expected
+
+    monkeypatch.setattr(registry, "generate_breakout_continuation_candidates", empty_breakout)
+    monkeypatch.setattr(
+        registry,
+        "generate_higher_timeframe_breakout_retest_candidates",
+        fallback,
+    )
+
+    result = registry.run_strategy_generator(
+        empty_breakout,
+        _context(),
+        decision_time=datetime(2026, 7, 16, 12, 0, tzinfo=UTC),
+    )
+
+    assert result == expected
