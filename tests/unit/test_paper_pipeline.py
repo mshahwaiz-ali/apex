@@ -72,7 +72,7 @@ def test_pipeline_runs_intake_before_cycle_and_writes_audit_log(tmp_path) -> Non
 
 
 def test_pipeline_defaults_lifecycle_analytics_to_empty_mapping(tmp_path) -> None:
-    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+    started_at = datetime.now(UTC) - timedelta(seconds=1)
 
     result = run_locked_paper_pipeline(
         market_type=IntakeMarketType.SPOT,
