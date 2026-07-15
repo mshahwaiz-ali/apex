@@ -8,12 +8,12 @@ from typing import Annotated
 
 import typer
 
-from apex.backtesting import (
-    build_historical_futures_edge_report,
+from apex.backtesting.historical_edge_io import (
     load_historical_edge_report,
     write_historical_edge_report,
     write_historical_edge_report_sqlite,
 )
+from apex.backtesting.historical_futures_edge import build_historical_futures_edge_report
 
 
 def register_historical_futures_edge_commands(app: typer.Typer) -> None:
