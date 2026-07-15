@@ -46,20 +46,43 @@ def test_pipeline_runs_intake_before_cycle_and_writes_audit_log(tmp_path) -> Non
         run_id="run-123",
         run_intake=lambda: (order.append("intake") or _summary(IntakeMarketType.FUTURES)),
         run_cycle=lambda: (order.append("cycle") or _cycle("futures", started_at)),
+        build_lifecycle_analytics=lambda intake, cycle: {
+            "accepted": intake.accepted,
+            "market_type": cycle.market_type,
+        },
     )
 
     assert order == ["intake", "cycle"]
     assert result.market_type is IntakeMarketType.FUTURES
     assert result.run_id == "run-123"
     assert result.completed_at >= result.started_at
+    assert result.lifecycle_analytics == {"accepted": 0, "market_type": "futures"}
     log_path = tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl"
     payload = json.loads(log_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["run_id"] == "run-123"
     assert payload["outcome"] == "success"
     assert payload["market_type"] == "futures"
     assert payload["intake"]["accepted"] == 0
+    assert payload["lifecycle_analytics"] == {
+        "accepted": 0,
+        "market_type": "futures",
+    }
     assert not (tmp_path / "paper_trading/scheduler/locks/pipeline-futures.lock").exists()
+
+
+def test_pipeline_defaults_lifecycle_analytics_to_empty_mapping(tmp_path) -> None:
+    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+
+    result = run_locked_paper_pipeline(
+        market_type=IntakeMarketType.SPOT,
+        data_dir=tmp_path,
+        started_at=started_at,
+        run_intake=lambda: _summary(IntakeMarketType.SPOT),
+        run_cycle=lambda: _cycle("spot", started_at),
+    )
+
+    assert result.lifecycle_analytics == {}
 
 
 def test_pipeline_writes_failure_audit_before_reraising(tmp_path) -> None:
@@ -80,11 +103,37 @@ def test_pipeline_writes_failure_audit_before_reraising(tmp_path) -> None:
 
     log_path = tmp_path / "paper_trading/scheduler/logs/pipeline-spot.jsonl"
     payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 3
     assert payload["run_id"] == "run-failed"
     assert payload["outcome"] == "failure"
     assert payload["failed_stage"] == "intake"
     assert payload["error_type"] == "RuntimeError"
     assert payload["error_reason"] == "provider unavailable"
+
+
+def test_pipeline_records_analytics_builder_failure_stage(tmp_path) -> None:
+    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+
+    def fail_analytics(_intake: IntakeSummary, _cycle: ScheduledPaperCycleResult) -> dict[str, int]:
+        raise ValueError("analytics failed")
+
+    with pytest.raises(ValueError, match="analytics failed"):
+        run_locked_paper_pipeline(
+            market_type=IntakeMarketType.FUTURES,
+            data_dir=tmp_path,
+            started_at=started_at,
+            run_id="analytics-failed",
+            run_intake=lambda: _summary(IntakeMarketType.FUTURES),
+            run_cycle=lambda: _cycle("futures", started_at),
+            build_lifecycle_analytics=fail_analytics,
+        )
+
+    payload = json.loads(
+        (tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["failed_stage"] == "analytics"
 
 
 def test_pipeline_rejects_cross_market_intake(tmp_path) -> None:
