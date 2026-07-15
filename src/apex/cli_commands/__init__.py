@@ -11,6 +11,9 @@ from apex.cli_commands.daily_validation import register_daily_validation_command
 from apex.cli_commands.datasets import register_dataset_commands
 from apex.cli_commands.funded_history import register_funded_history_commands
 from apex.cli_commands.historical_futures_edge import register_historical_futures_edge_commands
+from apex.cli_commands.historical_futures_edge_validation import (
+    register_historical_futures_edge_validation_commands,
+)
 from apex.cli_commands.history_review import register_history_review_commands
 from apex.cli_commands.market_data import register_market_data_commands
 from apex.cli_commands.paper_record_v3 import register_paper_record_v3
@@ -31,6 +34,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_dataset_commands(app)
     register_backtesting_commands(app)
     register_historical_futures_edge_commands(app)
+    register_historical_futures_edge_validation_commands(app)
     remove_commands(app, {"chronological-backtest-campaign"})
     register_risk_mode_campaign_command(app)
     register_readiness_commands(app)
