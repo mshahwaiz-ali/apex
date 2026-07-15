@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from apex.application.spot_analysis import (
     SpotAnalysisRequest,
@@ -17,6 +17,7 @@ from apex.domain.spot_structure import (
     SpotRegimeResult,
     SpotStructureResult,
     SpotTimeframeStructure,
+    SpotZoneType,
 )
 
 _THESIS_TIMEFRAME_PRIORITY = {"1w": 5, "1d": 4, "12h": 3, "8h": 2, "4h": 1}
@@ -41,7 +42,7 @@ class SpotSetupEvidence(BaseModel):
 class SpotOrchestrationInput(BaseModel):
     """Canonical inputs for structure-to-strategy-to-plan orchestration."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
     symbol: str = Field(min_length=1)
     current_price: float = Field(gt=0)
@@ -51,15 +52,35 @@ class SpotOrchestrationInput(BaseModel):
     evidence: SpotSetupEvidence = SpotSetupEvidence()
     deeper_support_price: float = Field(gt=0)
     recovery_entry_price: float = Field(gt=0)
-    correlated_sector_exposure: float = Field(default=0.0, ge=0)
+    current_sector_exposure_percentage: float = Field(
+        default=0.0,
+        ge=0,
+        validation_alias=AliasChoices(
+            "current_sector_exposure_percentage",
+            "correlated_sector_exposure",
+        ),
+    )
+
+    @property
+    def correlated_sector_exposure(self) -> float:
+        """Backward-compatible application alias for existing callers."""
+
+        return self.current_sector_exposure_percentage
 
     @model_validator(mode="after")
     def validate_geometry(self) -> SpotOrchestrationInput:
+        if not self.symbol.strip():
+            raise ValueError("spot orchestration symbol cannot be blank")
+        _validate_structure_geometry(self.structure)
         thesis = _select_thesis_timeframe(self.structure)
-        if self.deeper_support_price >= thesis.support.lower:
-            raise ValueError("deeper spot support must be below canonical support")
-        if self.recovery_entry_price <= self.deeper_support_price:
-            raise ValueError("spot recovery entry must be above deeper support")
+        if self.deeper_support_price >= min(
+            thesis.support.lower,
+            self.recovery_entry_price,
+            self.current_price,
+        ):
+            raise ValueError(
+                "deeper spot support must be below canonical support, recovery entry, and current price"
+            )
         if self.recovery_entry_price > self.current_price:
             raise ValueError("spot recovery entry cannot exceed current price")
         return self
@@ -111,11 +132,27 @@ def analyze_spot_orchestration(
             resistance_price=strategy_input.resistance_price,
             deeper_support_price=inputs.deeper_support_price,
             recovery_entry_price=inputs.recovery_entry_price,
-            correlated_sector_exposure=inputs.correlated_sector_exposure,
+            correlated_sector_exposure=inputs.current_sector_exposure_percentage,
         ),
         product_config=product_config,
         strategy_config=strategy_config,
     )
+
+
+def _validate_structure_geometry(structure: SpotStructureResult) -> None:
+    if not structure.timeframes:
+        raise ValueError("spot orchestration requires canonical timeframe structure")
+    for timeframe in structure.timeframes:
+        if timeframe.support.zone_type is not SpotZoneType.SUPPORT:
+            raise ValueError("canonical support zone must use SUPPORT zone type")
+        if timeframe.resistance.zone_type is not SpotZoneType.RESISTANCE:
+            raise ValueError("canonical resistance zone must use RESISTANCE zone type")
+        if timeframe.demand.zone_type is not SpotZoneType.DEMAND:
+            raise ValueError("canonical demand zone must use DEMAND zone type")
+        if timeframe.support.upper >= timeframe.resistance.lower:
+            raise ValueError("canonical spot support must be below resistance")
+        if timeframe.demand.lower > timeframe.demand.upper:
+            raise ValueError("canonical spot demand lower bound cannot exceed upper bound")
 
 
 def _select_thesis_timeframe(structure: SpotStructureResult) -> SpotTimeframeStructure:
