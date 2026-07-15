@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from apex.paper_trading.contracts import PaperTradeConfig
 from apex.paper_trading.runtime import (
