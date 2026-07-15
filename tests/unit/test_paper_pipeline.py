@@ -36,7 +36,7 @@ def _cycle(market_type: str, started_at: datetime) -> ScheduledPaperCycleResult:
 
 
 def test_pipeline_runs_intake_before_cycle_and_writes_audit_log(tmp_path) -> None:
-    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+    started_at = datetime.now(UTC) - timedelta(seconds=1)
     order: list[str] = []
 
     result = run_locked_paper_pipeline(
@@ -49,6 +49,7 @@ def test_pipeline_runs_intake_before_cycle_and_writes_audit_log(tmp_path) -> Non
 
     assert order == ["intake", "cycle"]
     assert result.market_type is IntakeMarketType.FUTURES
+    assert result.completed_at >= result.started_at
     log_path = tmp_path / "paper_trading/scheduler/logs/pipeline-futures.jsonl"
     payload = json.loads(log_path.read_text(encoding="utf-8"))
     assert payload["market_type"] == "futures"
