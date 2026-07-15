@@ -55,7 +55,9 @@ def apply_strategy_routing(
         evaluated_strategies=phase4.evaluated_strategies,
         eligible_strategies=eligible,
         skipped_strategies=skipped,
+        strategy_diagnostics=phase4.strategy_diagnostics,
         decision_regime=phase4.decision_regime,
+        higher_timeframe_breakout=phase4.higher_timeframe_breakout,
     )
 
 
@@ -87,6 +89,26 @@ def build_strategy_routing_payload(
     )
     if phase4 is not None:
         reasons.append(f"decision regime {phase4.decision_regime.value} applied to routing")
+        if phase4.higher_timeframe_breakout:
+            reasons.append("higher-timeframe breakout continuation routing was active")
+    diagnostics = (
+        {
+            strategy.value: {
+                "candidate_count": diagnostic.candidate_count,
+                "rejection_codes": [code.value for code in diagnostic.rejection_codes],
+                "reasons": list(diagnostic.reasons),
+                "near_miss_state": diagnostic.near_miss_state.value,
+                "higher_timeframe_breakout": diagnostic.higher_timeframe_breakout,
+            }
+            for strategy, diagnostic in phase4.strategy_diagnostics.items()
+        }
+        if phase4 is not None and phase4.strategy_diagnostics is not None
+        else {}
+    )
+    near_miss_counts: dict[str, int] = {}
+    for diagnostic in diagnostics.values():
+        state = str(diagnostic["near_miss_state"])
+        near_miss_counts[state] = near_miss_counts.get(state, 0) + 1
     return {
         "scanner_type": scanner_type.value,
         "route_key": route_key,
@@ -98,12 +120,17 @@ def build_strategy_routing_payload(
         "selected_strategy_enabled": selected_strategy_enabled,
         "selected_strategy_routed_eligible": selected_strategy_routed_eligible,
         "decision_regime": phase4.decision_regime.value if phase4 is not None else None,
+        "higher_timeframe_breakout": (
+            phase4.higher_timeframe_breakout if phase4 is not None else False
+        ),
         "routed_eligible_strategies": [strategy.value for strategy in routed_eligible],
         "skipped_strategies": (
             {strategy.value: reason for strategy, reason in phase4.skipped_strategies.items()}
             if phase4 is not None and phase4.skipped_strategies is not None
             else {}
         ),
+        "phase4_strategy_diagnostics": diagnostics,
+        "near_miss_state_counts": near_miss_counts,
         "eligible": setup is not None,
         "reasons": reasons,
         "rejections": list(assessment.reasons),
