@@ -66,6 +66,11 @@ from apex.paper_trading.operations import (
     run_paper_operation_cycle,
     write_paper_operation_cycle_result,
 )
+from apex.paper_trading.runtime import (
+    CandleProvider,
+    PaperRuntimeResult,
+    run_provider_backed_paper_cycle,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 update_paper_trade = advance_paper_trade
@@ -75,6 +80,7 @@ __all__ = [
     "FORWARD_PAPER_REVIEW_SCHEMA_VERSION",
     "TERMINAL_STATES",
     "BacktestPaperComparison",
+    "CandleProvider",
     "DeviationCompatibilityStatus",
     "ForwardDeviationPolicy",
     "ForwardDeviationReport",
@@ -92,6 +98,7 @@ __all__ = [
     "PaperOperationCycleResult",
     "PaperPerformance",
     "PaperReport",
+    "PaperRuntimeResult",
     "PaperTrade",
     "PaperTradeConfig",
     "PaperTradeGuidance",
@@ -116,6 +123,7 @@ __all__ = [
     "paper_entry_expiry",
     "paper_lifecycle_snapshot",
     "run_paper_operation_cycle",
+    "run_provider_backed_paper_cycle",
     "summarize_paper_trades",
     "update_paper_trade",
     "write_forward_paper_daily_report",
