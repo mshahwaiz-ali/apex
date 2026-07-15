@@ -76,7 +76,12 @@ spot intake    -> spot lifecycle cycle
 daily report   -> after both completed UTC-day lifecycle streams
 ```
 
-Example cron sequence:
+For unattended operation, prefer the combined market pipeline described in
+[`paper_operations_pipeline.md`](paper_operations_pipeline.md). It wraps intake and lifecycle
+advancement in one market-specific lock and writes a single audit record, preventing a scheduler from
+advancing lifecycle state while the corresponding intake stage is missing or overlapping.
+
+Example cron sequence for separate commands:
 
 ```cron
 */5 * * * * cd /opt/apex && .venv/bin/apex paper intake-futures --output json >> data/paper_trading/cron-futures-intake.log 2>&1
@@ -94,7 +99,14 @@ ExecStart=/opt/apex/.venv/bin/apex paper intake-spot --symbols BTC/USDT,ETH/USDT
 ```
 
 Use distinct service units and timers for futures intake, futures lifecycle, spot intake, spot
-lifecycle, and daily reporting. Set lifecycle timers after their corresponding intake timers.
+lifecycle, and daily reporting when not using the combined pipeline. Set lifecycle timers after their
+corresponding intake timers.
+
+## Operations readiness
+
+`apex paper operations-status` exposes separate cycle, intake, and pipeline freshness. The stronger
+`operations_ready` result requires all three stages to be fresh for both markets and rejects stale
+locks. `scheduler_ready` remains available as the narrower lifecycle-cycle health signal.
 
 ## Known limitations
 
