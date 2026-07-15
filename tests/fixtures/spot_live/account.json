@@ -1,0 +1,11 @@
+{
+  "account": {
+    "available_quote_balance": 10000.0,
+    "balances": [],
+    "current_spot_exposure": 0.0,
+    "open_position_count": 0,
+    "quote_asset": "USDT",
+    "total_spot_equity": 10000.0
+  },
+  "current_sector_exposure_percentage": 0.0
+}
