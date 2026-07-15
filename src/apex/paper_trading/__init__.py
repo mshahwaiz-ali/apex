@@ -66,6 +66,11 @@ from apex.paper_trading.operations import (
     run_paper_operation_cycle,
     write_paper_operation_cycle_result,
 )
+from apex.paper_trading.operations_status import (
+    MarketOperationsStatus,
+    PaperOperationsStatus,
+    build_paper_operations_status,
+)
 from apex.paper_trading.runtime import (
     CandleProvider,
     PaperRuntimeResult,
@@ -101,9 +106,11 @@ __all__ = [
     "LifecycleAnomaly",
     "LifecycleAnomalyCode",
     "LifecycleAuditReport",
+    "MarketOperationsStatus",
     "P1ReviewState",
     "PaperCycleAlreadyRunningError",
     "PaperOperationCycleResult",
+    "PaperOperationsStatus",
     "PaperPerformance",
     "PaperReport",
     "PaperRuntimeResult",
@@ -120,6 +127,7 @@ __all__ = [
     "build_forward_paper_edge_profile",
     "build_forward_paper_review_report",
     "build_paper_guidance_report",
+    "build_paper_operations_status",
     "build_paper_replay_report",
     "compare_backtest_to_paper",
     "compare_historical_to_forward",
