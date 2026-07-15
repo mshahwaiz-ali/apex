@@ -13,6 +13,7 @@ from apex.backtesting.historical_signal_replay import HistoricalSignalSplit
 from apex.historical_signals.contracts import (
     HistoricalSignalCampaignManifest,
     HistoricalSignalCampaignRecord,
+    HistoricalSignalSourceDataset,
     derive_historical_signal_campaign_id,
     validate_historical_signal_record_sequence,
 )
@@ -256,6 +257,10 @@ def _load_record(payload: Mapping[str, object]) -> HistoricalSignalCampaignRecor
     raw_analysis = payload.get("analysis")
     if not isinstance(raw_analysis, dict):
         raise ValueError("historical signal analysis must be an object")
+    source_datasets = tuple(
+        _load_source_dataset(item)
+        for item in _require_list(payload, "source_datasets")
+    )
     return HistoricalSignalCampaignRecord(
         schema_version=_as_int(payload["schema_version"], "schema_version"),
         signal_record_id=str(payload["signal_record_id"]),
@@ -270,6 +275,7 @@ def _load_record(payload: Mapping[str, object]) -> HistoricalSignalCampaignRecor
         parent_dataset_hash=str(payload["parent_dataset_hash"]),
         source_dataset_id=str(payload["source_dataset_id"]),
         source_dataset_hash=str(payload["source_dataset_hash"]),
+        source_datasets=source_datasets,
         assumptions_hash=str(payload["assumptions_hash"]),
         required_context_candles=_as_int(
             payload["required_context_candles"],
@@ -281,6 +287,15 @@ def _load_record(payload: Mapping[str, object]) -> HistoricalSignalCampaignRecor
         ),
         failure_reason=_optional_string(payload.get("failure_reason")),
         analysis=raw_analysis,
+    )
+
+
+def _load_source_dataset(value: object) -> HistoricalSignalSourceDataset:
+    payload = _require_mapping(value, "source_datasets item")
+    return HistoricalSignalSourceDataset(
+        timeframe=str(payload["timeframe"]),
+        dataset_id=str(payload["dataset_id"]),
+        content_hash=str(payload["content_hash"]),
     )
 
 
