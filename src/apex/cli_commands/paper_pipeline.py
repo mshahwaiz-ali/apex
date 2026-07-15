@@ -266,10 +266,33 @@ def _emit_pipeline(
     runtime = result.cycle.runtime
     scan_count = int((diagnostics or {}).get("scan_analysis_count", 0))
     scanner_failures = int((diagnostics or {}).get("scanner_failure_count", 0))
+    phase4_summary = (diagnostics or {}).get("phase4_summary", {})
+    summary_mapping = phase4_summary if isinstance(phase4_summary, dict) else {}
+    rejection_counts = summary_mapping.get("rejection_code_counts", {})
+    candidate_counts = summary_mapping.get("candidate_counts_by_strategy", {})
+    fallback = summary_mapping.get("higher_timeframe_breakout_fallback", {})
+    total_rejections = (
+        sum(value for value in rejection_counts.values() if isinstance(value, int))
+        if isinstance(rejection_counts, dict)
+        else 0
+    )
+    total_candidates = (
+        sum(value for value in candidate_counts.values() if isinstance(value, int))
+        if isinstance(candidate_counts, dict)
+        else 0
+    )
+    fallback_eligible = (
+        int(fallback.get("eligible_because_of_fallback", 0))
+        if isinstance(fallback, dict)
+        else 0
+    )
     typer.echo(
         f"PAPER_PIPELINE_{result.market_type.value.upper()} "
         f"| scan_analyses={scan_count} "
         f"| scanner_failures={scanner_failures} "
+        f"| phase4_candidates={total_candidates} "
+        f"| phase4_rejections={total_rejections} "
+        f"| htf_fallback_eligible={fallback_eligible} "
         f"| observed={result.intake.candidates_observed} "
         f"| accepted={result.intake.accepted} "
         f"| rejected={result.intake.rejected} "
