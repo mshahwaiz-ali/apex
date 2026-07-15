@@ -9,6 +9,11 @@ from types import MappingProxyType
 
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import StrategyType, TradeCandidate
+from apex.strategies.diagnostics import (
+    StrategyDiagnostic,
+    build_phase4_diagnostics,
+    has_higher_timeframe_breakout,
+)
 from apex.strategies.registry import STRATEGY_REGISTRY, run_strategy_generator
 from apex.structure.regime import MarketRegime, classify_market_regime
 
@@ -52,7 +57,9 @@ class Phase4AnalysisResult:
     evaluated_strategies: tuple[StrategyType, ...]
     eligible_strategies: tuple[StrategyType, ...] | None = None
     skipped_strategies: Mapping[StrategyType, str] | None = None
+    strategy_diagnostics: Mapping[StrategyType, StrategyDiagnostic] | None = None
     decision_regime: MarketRegime = MarketRegime.UNCERTAIN
+    higher_timeframe_breakout: bool = False
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -77,6 +84,9 @@ class Phase4AnalysisResult:
             raise ValueError("skipped strategies must be a subset of evaluated strategies")
         if any(strategy in eligible for strategy in skipped):
             raise ValueError("strategy cannot be both eligible and skipped")
+        diagnostics = dict(self.strategy_diagnostics or {})
+        if any(strategy not in self.evaluated_strategies for strategy in diagnostics):
+            raise ValueError("strategy diagnostics must be a subset of evaluated strategies")
 
         for candidate in self.candidates:
             if candidate.symbol != self.symbol:
@@ -94,6 +104,7 @@ class Phase4AnalysisResult:
             raise ValueError("candidates must preserve stable registry ordering")
         object.__setattr__(self, "eligible_strategies", eligible)
         object.__setattr__(self, "skipped_strategies", MappingProxyType(skipped))
+        object.__setattr__(self, "strategy_diagnostics", MappingProxyType(diagnostics))
 
 
 def analyze_phase4(
@@ -105,7 +116,12 @@ def analyze_phase4(
 
     evaluated = tuple(strategy for strategy, _generator in STRATEGY_REGISTRY)
     decision_regime = classify_market_regime(context.decision_frame.structure)
-    eligible, skipped = _strategy_eligibility(decision_regime, evaluated)
+    higher_breakout = has_higher_timeframe_breakout(context)
+    eligible, skipped = _strategy_eligibility(
+        decision_regime,
+        evaluated,
+        higher_timeframe_breakout=higher_breakout,
+    )
     candidates = tuple(
         candidate
         for strategy, generator in STRATEGY_REGISTRY
@@ -116,6 +132,13 @@ def analyze_phase4(
             decision_time=decision_time,
         )
     )
+    diagnostics = build_phase4_diagnostics(
+        context,
+        evaluated=evaluated,
+        eligible=eligible,
+        skipped=skipped,
+        candidates=candidates,
+    )
     return Phase4AnalysisResult(
         symbol=context.symbol,
         decision_time=decision_time,
@@ -123,25 +146,51 @@ def analyze_phase4(
         evaluated_strategies=evaluated,
         eligible_strategies=eligible,
         skipped_strategies=skipped,
+        strategy_diagnostics=diagnostics,
         decision_regime=decision_regime,
+        higher_timeframe_breakout=higher_breakout,
     )
 
 
 def _strategy_eligibility(
     regime: MarketRegime,
     evaluated: tuple[StrategyType, ...],
+    *,
+    higher_timeframe_breakout: bool = False,
 ) -> tuple[tuple[StrategyType, ...], Mapping[StrategyType, str]]:
     if regime in _UNSTABLE_REGIMES:
-        return (), {
-            strategy: f"decision regime {regime.value} is not eligible for candidate generation"
-            for strategy in evaluated
+        if not higher_timeframe_breakout:
+            return (), {
+                strategy: f"decision regime {regime.value} is not eligible for candidate generation"
+                for strategy in evaluated
+            }
+        continuation = {
+            StrategyType.BREAKOUT_CONTINUATION,
+            StrategyType.MOMENTUM_CONTINUATION,
         }
+        eligible = tuple(strategy for strategy in evaluated if strategy in continuation)
+        skipped = {
+            strategy: (
+                f"decision regime {regime.value} is only eligible for higher-timeframe "
+                "breakout continuation routing"
+            )
+            for strategy in evaluated
+            if strategy not in continuation
+        }
+        return eligible, skipped
 
     eligible: list[StrategyType] = []
     skipped: dict[StrategyType, str] = {}
     for strategy in evaluated:
         allowed = _STRATEGY_REGIME_ALLOWLIST[strategy]
-        if regime in allowed:
+        if regime in allowed or (
+            higher_timeframe_breakout
+            and strategy
+            in {
+                StrategyType.BREAKOUT_CONTINUATION,
+                StrategyType.MOMENTUM_CONTINUATION,
+            }
+        ):
             eligible.append(strategy)
         else:
             skipped[strategy] = (
