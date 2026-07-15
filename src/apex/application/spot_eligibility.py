@@ -62,10 +62,11 @@ def build_spot_market_metadata(
 def _has_candle_gaps(candles: Sequence[Candle]) -> bool:
     if len(candles) < 2:
         return False
-    expected = candles[0].close_time - candles[0].open_time
+    expected_open_interval = candles[1].open_time - candles[0].open_time
+    expected_candle_duration = candles[0].close_time - candles[0].open_time
     return any(
-        current.open_time != previous.close_time
-        or current.close_time - current.open_time != expected
+        current.open_time - previous.open_time != expected_open_interval
+        or current.close_time - current.open_time != expected_candle_duration
         for previous, current in zip(candles, candles[1:], strict=True)
     )
 
