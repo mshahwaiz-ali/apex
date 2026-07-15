@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
@@ -23,6 +24,7 @@ from apex.paper_trading import (
     build_spot_intake_candidate,
     persist_intake_candidates,
 )
+from apex.risk import RiskDecision
 from apex.strategies import StrategyType, TradeDirection
 
 _NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
@@ -144,6 +146,53 @@ def test_non_approved_futures_analysis_is_rejected() -> None:
     assert result.reason is IntakeReason.NO_APPROVED_SETUP
 
 
+@pytest.mark.parametrize(
+    ("entry_state", "expected_reason"),
+    [
+        ("invalidated", IntakeReason.INVALIDATED),
+        ("missed_entry", IntakeReason.MISSED_ENTRY),
+        ("expired", IntakeReason.EXPIRED),
+        ("no_trade", IntakeReason.NO_TRADE),
+    ],
+)
+def test_terminal_or_non_trade_futures_entry_states_are_rejected(
+    entry_state: str,
+    expected_reason: IntakeReason,
+) -> None:
+    analysis = SimpleNamespace(
+        symbol="BTC/USDT",
+        assessment=SimpleNamespace(decision=RiskDecision.APPROVED, setup=object()),
+        precision_entry={"state": entry_state},
+    )
+    result = build_futures_intake_candidate(
+        analysis,  # type: ignore[arg-type]
+        futures_plan={"entry": {"state": entry_state}},
+        management_plan=None,
+        account_policy_snapshot=None,
+        source_command="paper intake-futures",
+        source_mode="normal",
+    )
+    assert result.status is IntakeStatus.REJECTED
+    assert result.reason is expected_reason
+
+
+def test_non_actionable_futures_entry_state_is_rejected() -> None:
+    analysis = SimpleNamespace(
+        symbol="BTC/USDT",
+        assessment=SimpleNamespace(decision=RiskDecision.APPROVED, setup=object()),
+        precision_entry={"state": "watch"},
+    )
+    result = build_futures_intake_candidate(
+        analysis,  # type: ignore[arg-type]
+        futures_plan={"entry": {"state": "watch"}},
+        management_plan=None,
+        account_policy_snapshot=None,
+        source_command="paper intake-futures",
+        source_mode="normal",
+    )
+    assert result.reason is IntakeReason.NON_ACTIONABLE_ENTRY_STATE
+
+
 def test_spot_short_is_rejected_before_plan_conversion() -> None:
     result = build_spot_intake_candidate(
         symbol="BTC/USDT",
@@ -155,6 +204,22 @@ def test_spot_short_is_rejected_before_plan_conversion() -> None:
     )
     assert result.status is IntakeStatus.REJECTED
     assert result.reason is IntakeReason.SPOT_SHORT_NOT_ALLOWED
+
+
+def test_spot_allocation_rejection_is_explicit() -> None:
+    selected = SimpleNamespace(decision=SimpleNamespace(value="APPROVE"))
+    result = build_spot_intake_candidate(
+        symbol="BTC/USDT",
+        result=SimpleNamespace(  # type: ignore[arg-type]
+            routing=SimpleNamespace(selected=selected),
+            planning=None,
+        ),
+        analysis_timestamp=_NOW,
+        source_command="paper intake-spot",
+        source_mode="eligible",
+    )
+    assert result.status is IntakeStatus.REJECTED
+    assert result.reason is IntakeReason.SPOT_ALLOCATION_REJECTED
 
 
 def test_cli_commands_are_registered() -> None:
