@@ -484,3 +484,390 @@ def test_full_shared_wallet_execution_campaign_is_deterministic(tmp_path: Path) 
     assert event_types.count("ENTRY_FILLED") == 2
     assert event_types.count("EXIT_FILLED") == 2
 
+
+def _write_custom_execution_campaign(
+    tmp_path: Path,
+    *,
+    campaign_id: str,
+    rows: list[dict[str, object]],
+    records: list[dict[str, object]],
+) -> tuple[Path, Path, Path, Path]:
+    rows.sort(key=lambda row: (str(row["open_time"]), str(row["symbol"])))
+    dataset_hash = hash_spot_historical_rows(rows)
+
+    for record in records:
+        record["source_dataset_sha256"] = dataset_hash
+
+    symbols = tuple(sorted({str(row["symbol"]) for row in rows}))
+    timeframes = tuple(sorted({str(row["timeframe"]) for row in rows}))
+    counts: dict[str, int] = {}
+    for symbol in symbols:
+        for timeframe in timeframes:
+            counts[f"{symbol}:{timeframe}"] = sum(
+                row["symbol"] == symbol and row["timeframe"] == timeframe for row in rows
+            )
+
+    start_time = min(datetime.fromisoformat(str(row["open_time"])) for row in rows)
+    end_time = max(datetime.fromisoformat(str(row["close_time"])) for row in rows)
+    dataset_manifest = SpotHistoricalDatasetManifest(
+        dataset_id=campaign_id,
+        provider="fixture",
+        symbols=symbols,
+        timeframes=timeframes,
+        start_time=start_time,
+        end_time=end_time,
+        candle_count=len(rows),
+        symbol_timeframe_counts=counts,
+        dataset_sha256=dataset_hash,
+    )
+
+    replay_hash = _hash_rows(records)
+    replay_manifest = SpotHistoricalReplayManifest(
+        campaign_id=campaign_id,
+        source_dataset_id=campaign_id,
+        source_dataset_sha256=dataset_hash,
+        configuration_sha256="b" * 64,
+        records_sha256=replay_hash,
+        decision_count=len(records),
+        accepted_plan_count=len(records),
+        eligibility_pass_count=len(records),
+        failure_count=0,
+    )
+
+    dataset_records_path = tmp_path / f"{campaign_id}.history.jsonl"
+    dataset_manifest_path = tmp_path / f"{campaign_id}.history.manifest.json"
+    replay_records_path = tmp_path / f"{campaign_id}.replay.jsonl"
+    replay_manifest_path = tmp_path / f"{campaign_id}.replay.manifest.json"
+
+    dataset_records_path.write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+    dataset_manifest_path.write_text(
+        dataset_manifest.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    replay_records_path.write_text(
+        "".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            for record in records
+        ),
+        encoding="utf-8",
+    )
+    replay_manifest_path.write_text(
+        replay_manifest.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return (
+        dataset_records_path,
+        dataset_manifest_path,
+        replay_records_path,
+        replay_manifest_path,
+    )
+
+
+def _run_custom_execution_campaign(
+    tmp_path: Path,
+    *,
+    campaign_id: str,
+    rows: list[dict[str, object]],
+    records: list[dict[str, object]],
+    config: SpotBacktestConfig,
+):
+    paths = _write_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+    )
+    return run_spot_historical_backtest(
+        campaign_id=campaign_id,
+        dataset_records_path=paths[0],
+        dataset_manifest_path=paths[1],
+        replay_records_path=paths[2],
+        replay_manifest_path=paths[3],
+        config=config,
+    )
+
+
+def test_full_runner_entry_expiry(tmp_path: Path) -> None:
+    campaign_id = "s9-entry-expiry"
+    decision = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision,
+            open_price=110.0,
+            high=111.0,
+            low=109.0,
+            close=110.0,
+        ),
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision + timedelta(hours=1),
+            open_price=110.0,
+            high=111.0,
+            low=109.0,
+            close=110.0,
+        ),
+    ]
+    records = [
+        _planning_record(
+            campaign_id=campaign_id,
+            dataset_hash="",
+            configuration_hash="b" * 64,
+            symbol="BTCUSDT",
+            decision_time=decision,
+            entry_price=100.0,
+            stop_price=90.0,
+            target_price=120.0,
+            capital=1_000.0,
+        )
+    ]
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            entry_expiry_hours=1,
+        ),
+    )
+
+    assert result.manifest.plan_count == 1
+    assert result.manifest.fill_count == 0
+    assert result.manifest.trade_count == 0
+    assert result.payload["metrics"]["expired_entry_count"] == 1
+    assert [event["event"] for event in result.payload["events"]] == [
+        "PLAN_ACCEPTED",
+        "ENTRY_EXPIRED",
+    ]
+
+
+def test_full_runner_maximum_holding_time_exit(tmp_path: Path) -> None:
+    campaign_id = "s9-time-exit"
+    decision = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision,
+            open_price=101.0,
+            high=102.0,
+            low=99.0,
+            close=100.0,
+        ),
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision + timedelta(hours=1),
+            open_price=100.0,
+            high=105.0,
+            low=95.0,
+            close=103.0,
+        ),
+    ]
+    records = [
+        _planning_record(
+            campaign_id=campaign_id,
+            dataset_hash="",
+            configuration_hash="b" * 64,
+            symbol="BTCUSDT",
+            decision_time=decision,
+            entry_price=100.0,
+            stop_price=90.0,
+            target_price=120.0,
+            capital=1_000.0,
+        )
+    ]
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            maximum_holding_hours=1,
+        ),
+    )
+
+    assert result.manifest.fill_count == 1
+    assert result.manifest.trade_count == 1
+    assert result.payload["metrics"]["time_exit_count"] == 1
+    assert result.payload["trades"][0]["exit_reason"] == "TIME_EXIT"
+
+
+def test_full_runner_conservative_ambiguous_candle(tmp_path: Path) -> None:
+    campaign_id = "s9-ambiguous-candle"
+    decision = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision,
+            open_price=101.0,
+            high=102.0,
+            low=99.0,
+            close=100.0,
+        ),
+        _dataset_row(
+            symbol="BTCUSDT",
+            opened=decision + timedelta(hours=1),
+            open_price=100.0,
+            high=111.0,
+            low=89.0,
+            close=100.0,
+        ),
+    ]
+    records = [
+        _planning_record(
+            campaign_id=campaign_id,
+            dataset_hash="",
+            configuration_hash="b" * 64,
+            symbol="BTCUSDT",
+            decision_time=decision,
+            entry_price=100.0,
+            stop_price=90.0,
+            target_price=110.0,
+            capital=1_000.0,
+        )
+    ]
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            ambiguous_candle_policy="conservative",
+        ),
+    )
+
+    assert result.payload["metrics"]["ambiguous_candle_count"] == 1
+    assert result.payload["trades"][0]["exit_reason"] == "STOP_LOSS"
+    assert result.payload["trades"][0]["realized_pnl"] < 0
+
+
+def _later_rejection_campaign(
+    *,
+    campaign_id: str,
+    second_symbol: str,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    decision = datetime(2026, 1, 1, tzinfo=UTC)
+    symbols = {"BTCUSDT", second_symbol}
+    rows: list[dict[str, object]] = []
+    for symbol in sorted(symbols):
+        entry = 100.0 if symbol == "BTCUSDT" else 50.0
+        for hour in range(3):
+            rows.append(
+                _dataset_row(
+                    symbol=symbol,
+                    opened=decision + timedelta(hours=hour),
+                    open_price=entry,
+                    high=entry + 1.0,
+                    low=entry - 1.0,
+                    close=entry,
+                )
+            )
+
+    records = [
+        _planning_record(
+            campaign_id=campaign_id,
+            dataset_hash="",
+            configuration_hash="b" * 64,
+            symbol="BTCUSDT",
+            decision_time=decision,
+            entry_price=100.0,
+            stop_price=80.0,
+            target_price=150.0,
+            capital=5_000.0,
+        ),
+        _planning_record(
+            campaign_id=campaign_id,
+            dataset_hash="",
+            configuration_hash="b" * 64,
+            symbol=second_symbol,
+            decision_time=decision + timedelta(hours=2),
+            entry_price=100.0 if second_symbol == "BTCUSDT" else 50.0,
+            stop_price=80.0 if second_symbol == "BTCUSDT" else 40.0,
+            target_price=150.0 if second_symbol == "BTCUSDT" else 75.0,
+            capital=5_000.0,
+        ),
+    ]
+    return rows, records
+
+
+def test_full_runner_open_position_limit_rejection(tmp_path: Path) -> None:
+    campaign_id = "s9-open-position-limit"
+    rows, records = _later_rejection_campaign(
+        campaign_id=campaign_id,
+        second_symbol="ETHUSDT",
+    )
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            maximum_position_allocation=0.5,
+            maximum_open_positions=1,
+        ),
+    )
+
+    assert result.manifest.plan_count == 1
+    assert result.payload["metrics"]["open_position_limit_rejection_count"] == 1
+
+
+def test_full_runner_total_exposure_rejection(tmp_path: Path) -> None:
+    campaign_id = "s9-total-exposure-limit"
+    rows, records = _later_rejection_campaign(
+        campaign_id=campaign_id,
+        second_symbol="ETHUSDT",
+    )
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            maximum_position_allocation=0.5,
+            maximum_total_exposure=0.5,
+            quote_reserve=0.5,
+            maximum_open_positions=4,
+        ),
+    )
+
+    assert result.manifest.plan_count == 1
+    assert result.payload["metrics"]["exposure_rejection_count"] == 1
+
+
+def test_full_runner_duplicate_symbol_rejection(tmp_path: Path) -> None:
+    campaign_id = "s9-duplicate-symbol"
+    rows, records = _later_rejection_campaign(
+        campaign_id=campaign_id,
+        second_symbol="BTCUSDT",
+    )
+    result = _run_custom_execution_campaign(
+        tmp_path,
+        campaign_id=campaign_id,
+        rows=rows,
+        records=records,
+        config=SpotBacktestConfig(
+            fee_rate=0.0,
+            slippage_rate=0.0,
+            maximum_position_allocation=0.5,
+            maximum_open_positions=4,
+        ),
+    )
+
+    assert result.manifest.plan_count == 1
+    assert result.payload["metrics"]["duplicate_position_rejection_count"] == 1
+
