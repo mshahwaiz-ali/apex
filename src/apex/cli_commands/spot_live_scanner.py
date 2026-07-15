@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-
 from apex.application import bootstrap, create_market_data_services
 from apex.application.spot_live import load_spot_live_account
 from apex.application.spot_live_scanner import scan_live_spot, spot_live_scan_result_to_payload
@@ -17,6 +16,7 @@ from apex.application.spot_orchestration_io import (
 )
 from apex.config.spot import load_spot_product_config
 from apex.config.spot_strategies import load_spot_strategy_config
+from apex.domain.spot_market import SpotScannerMode
 
 
 def register_spot_live_scanner_commands(app: typer.Typer) -> None:
@@ -45,6 +45,14 @@ def register_spot_live_scanner_commands(app: typer.Typer) -> None:
                 readable=True,
             ),
         ] = DEFAULT_SPOT_STRATEGY_CONFIG_PATH,
+        mode: Annotated[
+            SpotScannerMode,
+            typer.Option(
+                "--mode",
+                case_sensitive=False,
+                help="Eligibility mode: eligible, watchlist, or all.",
+            ),
+        ] = SpotScannerMode.ELIGIBLE,
         output: Annotated[
             Path | None,
             typer.Option("--output", dir_okay=False),
@@ -54,7 +62,7 @@ def register_spot_live_scanner_commands(app: typer.Typer) -> None:
             typer.Option("--candles", min=60, max=1000),
         ] = 200,
     ) -> None:
-        """Scan multiple symbols through the canonical live cash-spot pipeline."""
+        """Evaluate eligibility, then scan selected cash-spot symbols."""
 
         try:
             context = bootstrap()
@@ -70,6 +78,7 @@ def register_spot_live_scanner_commands(app: typer.Typer) -> None:
                     ticker_provider=services.ticker,
                     product_config=product_config,
                     strategy_config=strategies,
+                    mode=mode,
                     candle_limit=candles,
                 )
             payload = spot_live_scan_result_to_payload(result)
