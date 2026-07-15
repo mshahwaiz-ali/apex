@@ -10,6 +10,7 @@ from apex.application.spot_live import SpotLiveAccountInput, analyze_live_spot
 from apex.config.spot import SpotProductConfig
 from apex.config.spot_strategies import SpotStrategyConfig
 from apex.data.providers.base import MarketDataProvider
+from apex.data.providers.errors import MarketDataProviderError
 
 SPOT_LIVE_SCAN_SCHEMA_VERSION = 1
 
@@ -59,7 +60,7 @@ def scan_live_spot(
                 strategy_config=strategy_config,
                 candle_limit=candle_limit,
             )
-        except (OSError, TypeError, ValueError) as exc:
+        except (MarketDataProviderError, OSError, TypeError, ValueError) as exc:
             failures.append(SpotLiveScanFailure(symbol=symbol, error=str(exc)))
             continue
         items.append(SpotLiveScanItem(symbol=symbol, result=result))
