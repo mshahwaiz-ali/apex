@@ -108,7 +108,7 @@ def run_locked_paper_intake(
     lock_path = data_dir / "paper_trading" / "locks" / f"intake-{market_type.value}.lock"
     with paper_cycle_lock(lock_path, acquired_at=started_at, stale_after=stale_after):
         summary = run()
-        _append_intake_log(
+        append_intake_log(
             data_dir / "paper_trading" / "scheduler" / f"intake-{market_type.value}.jsonl",
             started_at=started_at,
             summary=summary,
@@ -116,12 +116,15 @@ def run_locked_paper_intake(
         return summary
 
 
-def _append_intake_log(
+def append_intake_log(
     path: Path,
     *,
     started_at: datetime,
     summary: IntakeSummary,
+    diagnostics: dict[str, Any] | None = None,
 ) -> None:
+    """Append one normal intake audit record, optionally including scanner diagnostics."""
+
     import json
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,6 +133,8 @@ def _append_intake_log(
         "completed_at": datetime.now(UTC).isoformat(),
         **intake_summary_payload(summary),
     }
+    if diagnostics:
+        payload["diagnostics"] = diagnostics
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, sort_keys=True, default=str) + "\n")
 
