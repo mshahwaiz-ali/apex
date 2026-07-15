@@ -1,4 +1,4 @@
-"""Stable Phase 4 diagnostic aggregation for futures scans and paper pipelines."""
+"""Stable diagnostic aggregation for futures scans and paper pipelines."""
 
 from __future__ import annotations
 
@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from apex.application.analysis import ScanResult, SymbolAnalysis
+from apex.application.phase5_pipeline_diagnostics import (
+    build_phase5_diagnostic_summary,
+    phase5_analysis_payload,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,10 +153,14 @@ def build_phase4_diagnostic_summary(
 
 
 def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
-    """Return detailed and run-level Phase 4 diagnostics for audit logs."""
+    """Return detailed and run-level Phase 4 and Phase 5 diagnostics."""
 
-    analyses = {
+    phase4_analyses = {
         _analysis_key(analysis): _analysis_diagnostics(analysis)
+        for analysis in scan.analyses
+    }
+    phase5_analyses = {
+        _analysis_key(analysis): phase5_analysis_payload(analysis)
         for analysis in scan.analyses
     }
     return {
@@ -160,7 +168,9 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         "scanner_failure_count": len(scan.failures),
         "scanner_failures": dict(sorted(scan.failures.items())),
         "phase4_summary": build_phase4_diagnostic_summary(scan.analyses).to_payload(),
-        "phase4_analyses": analyses,
+        "phase4_analyses": phase4_analyses,
+        "phase5_summary": build_phase5_diagnostic_summary(scan.analyses).to_payload(),
+        "phase5_analyses": phase5_analyses,
     }
 
 
