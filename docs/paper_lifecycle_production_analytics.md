@@ -84,10 +84,56 @@ failed_stage=analytics
 
 Legacy callers that do not provide the callback remain valid and emit an empty `lifecycle_analytics` mapping.
 
+## Scheduled pipeline integration
+
+Both scheduled commands now build lifecycle analytics from the canonical post-cycle store:
+
+```text
+paper scheduled-futures-pipeline
+paper scheduled-spot-pipeline
+```
+
+The snapshot is filtered by market type before aggregation. Spot trades cannot affect futures analytics, and futures trades cannot affect spot analytics. Historical records without an explicit `market_type` retain the established futures default for backward compatibility.
+
+The complete analytics payload is included in:
+
+- successful paper pipeline JSONL audit records;
+- scheduled command JSON output;
+- the in-memory `PaperPipelineResult` contract.
+
+Concise text output additionally reports:
+
+```text
+waiting
+entered
+partial_targets
+target_completions
+stopped
+invalidated
+net_pnl
+average_r
+```
+
+Absent optional financial metrics are rendered as `na` rather than zero in text output.
+
+## Public API
+
+The following analytics contracts and builders are exported from `apex.application`:
+
+```text
+HoldingTimeBand
+PaperLifecycleAnalytics
+PaperLifecycleTradeRecord
+RiskMultipleBand
+build_paper_lifecycle_analytics
+paper_lifecycle_analytics_payload
+```
+
 ## Compatibility
 
 - Partial intake/runtime inputs produce zero operational counts.
 - Missing trade snapshots produce an empty trade list.
 - Missing financial fields remain `null`.
 - Historical trade payloads without scanner or gainer metadata remain valid.
+- Historical trades without `market_type` remain assigned to futures.
 - Output maps and trade records are sorted deterministically.
