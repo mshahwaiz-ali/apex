@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -92,11 +93,9 @@ def test_approved_candidate_is_persisted_with_setup_segment_and_intake_metadata(
 def test_repeated_scheduler_candidate_is_duplicate_skipped(tmp_path) -> None:
     store = PaperTradeStore(tmp_path / "trades.json")
     first = _candidate(market_type=IntakeMarketType.FUTURES)
-    repeated = IntakeCandidate(
-        **{
-            **first.__dict__,
-            "analysis_timestamp": datetime(2026, 7, 16, 12, 5, tzinfo=UTC),
-        }
+    repeated = replace(
+        first,
+        analysis_timestamp=datetime(2026, 7, 16, 12, 5, tzinfo=UTC),
     )
 
     persist_intake_candidates(store, (first,), market_type=IntakeMarketType.FUTURES)
@@ -134,7 +133,7 @@ def test_non_approved_futures_analysis_is_rejected() -> None:
         assessment=SimpleNamespace(decision=object(), setup=None),
     )
     result = build_futures_intake_candidate(
-        analysis,
+        analysis,  # type: ignore[arg-type]
         futures_plan=None,
         management_plan=None,
         account_policy_snapshot=None,
