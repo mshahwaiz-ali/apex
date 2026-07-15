@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from apex.application.spot_historical_backtest import (
     SpotHistoricalBacktestManifest,
@@ -74,10 +74,12 @@ def load_and_verify_spot_historical_backtest(
 
 
 def _load_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    value: object = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise TypeError(f"JSON artifact must contain an object: {path}")
-    return value
+    if not all(isinstance(key, str) for key in value):
+        raise TypeError(f"JSON artifact object keys must be strings: {path}")
+    return cast(dict[str, Any], value)
 
 
 def _hash_payload(payload: Mapping[str, Any]) -> str:
