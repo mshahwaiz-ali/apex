@@ -24,7 +24,7 @@ from apex.backtesting.dataset_campaign_execution import (
     verify_futures_dataset_campaign_execution,
 )
 from apex.cli_app import app
-from apex.domain.models import Candle
+from apex.domain.models import Candle, TickerSnapshot
 
 runner = CliRunner()
 
@@ -32,6 +32,10 @@ runner = CliRunner()
 class FakeProvider:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, int]] = []
+
+    @property
+    def name(self) -> str:
+        return "binance"
 
     def fetch_candles(
         self,
@@ -67,7 +71,7 @@ class FakeProvider:
             for index in range(limit)
         ]
 
-    def fetch_ticker(self, symbol: str) -> object:
+    def fetch_ticker(self, symbol: str) -> TickerSnapshot:
         raise NotImplementedError
 
 
