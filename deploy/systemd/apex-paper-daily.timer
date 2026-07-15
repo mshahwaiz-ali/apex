@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Apex daily paper-validation report
+
+[Timer]
+OnCalendar=*-*-* 00:10:00 UTC
+Persistent=true
+Unit=apex-paper-daily.service
+
+[Install]
+WantedBy=timers.target
