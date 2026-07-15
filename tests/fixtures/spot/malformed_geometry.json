@@ -1,0 +1,26 @@
+{
+  "account": {
+    "available_quote_balance": 10000.0,
+    "balances": [],
+    "current_spot_exposure": 0.0,
+    "open_position_count": 0,
+    "quote_asset": "USDT",
+    "total_spot_equity": 10000.0
+  },
+  "deeper_support_price": 94.5,
+  "recovery_entry_price": 96.0,
+  "resistance_price": 90.0,
+  "strategy_input": {
+    "allow_new_entries": true,
+    "current_price": 100.0,
+    "demand_lower": 98.0,
+    "demand_upper": 102.0,
+    "extension": "NORMAL",
+    "market_regime": "RISK_ON",
+    "resistance_price": 90.0,
+    "structure_trend": "UPTREND",
+    "support_price": 95.0,
+    "symbol": "BTCUSDT"
+  },
+  "support_price": 95.0
+}
