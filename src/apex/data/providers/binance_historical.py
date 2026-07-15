@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from apex.data.providers.binance import BinanceMarketDataProvider
 from apex.data.providers.errors import ProviderResponseError
@@ -110,4 +110,9 @@ class BinanceHistoricalRangeMarketDataProvider(BinanceMarketDataProvider):
             supported = ", ".join(sorted(cls._TIMEFRAME_MILLISECONDS))
             raise ValueError(f"Unsupported timeframe: {timeframe}. Supported: {supported}")
         for label, value in (("start", start_time), ("end", end_time)):
-            if value.t
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError(f"historical range {label} time must be timezone-aware")
+        if start_time >= end_time:
+            raise ValueError("historical range start time must be before end time")
+        if end_time > datetime.now(UTC):
+            raise ValueError("historical range end time cannot be in the future")
