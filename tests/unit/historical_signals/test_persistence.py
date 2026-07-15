@@ -11,6 +11,7 @@ import pytest
 from apex.backtesting.historical_signal_replay import HistoricalSignalSplit
 from apex.historical_signals import (
     HistoricalSignalCampaignRecord,
+    HistoricalSignalSourceDataset,
     derive_historical_signal_record_id,
     load_historical_signal_campaign_manifest,
     load_historical_signal_records,
@@ -43,6 +44,13 @@ def _record() -> HistoricalSignalCampaignRecord:
         parent_dataset_hash=_HASH_A,
         source_dataset_id="pilot-train",
         source_dataset_hash=_HASH_A,
+        source_datasets=(
+            HistoricalSignalSourceDataset(
+                timeframe="1m",
+                dataset_id="pilot-train",
+                content_hash=_HASH_A,
+            ),
+        ),
         assumptions_hash=_HASH_B,
         required_context_candles=40,
         accepted=False,
@@ -102,7 +110,7 @@ def test_records_tampering_is_detected(tmp_path: Path) -> None:
 
 def test_preexisting_artifact_is_rejected(tmp_path: Path) -> None:
     records_path = tmp_path / "signals.jsonl"
-    records_path.write_text("existing\\n", encoding="utf-8")
+    records_path.write_text("existing\n", encoding="utf-8")
 
     with pytest.raises(FileExistsError, match="already exists"):
         persist_completed_historical_signal_campaign(
