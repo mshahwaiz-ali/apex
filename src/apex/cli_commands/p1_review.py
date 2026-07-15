@@ -175,4 +175,8 @@ def _string_mapping(value: object) -> dict[str, str]:
 
 
 def _optional_float(value: object) -> float | None:
-    return None if value is None else float(value)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise TypeError("optional numeric value must be a number, numeric string, or null")
+    return float(value)
