@@ -9,6 +9,7 @@ from apex.cli_commands.backtest_campaign_risk_mode import register_risk_mode_cam
 from apex.cli_commands.backtesting import register_backtesting_commands
 from apex.cli_commands.daily_validation import register_daily_validation_commands
 from apex.cli_commands.datasets import register_dataset_commands
+from apex.cli_commands.evidence_bundle import register_evidence_bundle_commands
 from apex.cli_commands.forward_edge import register_forward_edge_commands
 from apex.cli_commands.funded_history import register_funded_history_commands
 from apex.cli_commands.historical_futures_edge import register_historical_futures_edge_commands
@@ -37,6 +38,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_historical_futures_edge_commands(app)
     register_historical_futures_edge_validation_commands(app)
     register_forward_edge_commands(app)
+    register_evidence_bundle_commands(app)
     remove_commands(app, {"chronological-backtest-campaign"})
     register_risk_mode_campaign_command(app)
     register_readiness_commands(app)
