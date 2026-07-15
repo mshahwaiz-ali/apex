@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from apex.backtesting.contracts import BacktestOutcome, BacktestSignal, SimulatedTrade
 from apex.backtesting.shared_wallet_replay import (
     SharedWalletConfig,
@@ -140,14 +138,3 @@ def test_consecutive_loss_lockout_pauses_same_day() -> None:
 
     assert result.decisions[2].rejection_code is WalletRejectionCode.LOSS_LOCKOUT
     assert result.decisions[3].rejection_code is WalletRejectionCode.CAMPAIGN_PAUSED
-
-
-@pytest.mark.parametrize(
-    ("config", "message"),
-    [
-        (SharedWalletConfig, ""),
-    ],
-)
-def test_placeholder_keeps_parametrize_import_used(config: object, message: str) -> None:
-    assert config is SharedWalletConfig
-    assert message == ""
