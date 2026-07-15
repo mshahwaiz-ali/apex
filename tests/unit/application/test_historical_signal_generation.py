@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, TypedDict
 
 from apex.application.historical_signal_generation import (
     HistoricalSignalGenerationResult,
     build_historical_signal_record,
 )
-from apex.backtesting.historical_signal_replay import (
-    HistoricalSignalSplit,
-)
+from apex.backtesting.historical_signal_replay import HistoricalSignalSplit
+
+
+class _RecordArguments(TypedDict):
+    campaign_id: str
+    symbol: str
+    decision_time: datetime
+    split: HistoricalSignalSplit
+    payload: dict[str, Any]
+    source_dataset_hashes: tuple[str, ...]
 
 
 def _quality_payload() -> dict[str, object]:
@@ -144,7 +152,7 @@ def test_generation_result_requires_chronological_records() -> None:
 
 
 def test_record_payload_is_deterministic() -> None:
-    arguments = {
+    arguments: _RecordArguments = {
         "campaign_id": "pilot",
         "symbol": "BTC/USDT",
         "decision_time": datetime(
