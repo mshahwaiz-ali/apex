@@ -7,6 +7,9 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from apex.backtesting import HistoricalFuturesExecutionManifest
+from apex.backtesting.historical_futures_shared_campaign import (
+    SharedHistoricalFuturesExecutionManifest,
+)
 from apex.cli_app import app
 from apex.cli_commands.historical_futures_backtest import _echo_completion
 
@@ -29,10 +32,14 @@ def test_historical_futures_backtest_help_exposes_required_artifacts() -> None:
     assert "--result-output" in result.stdout
     assert "--execution-manifest-output" in result.stdout
     assert "--starting-equity" in result.stdout
+    assert "--maximum-concurrent-positions" in result.stdout
+    assert "--maximum-wallet-exposure-pct" in result.stdout
+    assert "--daily-loss-limit-pct" in result.stdout
+    assert "--consecutive-loss-limit" in result.stdout
 
 
 def test_echo_completion_reports_deterministic_manifest_fields(capsys: object) -> None:
-    manifest = HistoricalFuturesExecutionManifest(
+    base = HistoricalFuturesExecutionManifest(
         campaign_id="campaign-1",
         signal_records_hash="a" * 64,
         signal_configuration_hash="b" * 64,
@@ -42,6 +49,11 @@ def test_echo_completion_reports_deterministic_manifest_fields(capsys: object) -
         trade_count=4,
         split_counts=(("final_test", 4), ("train", 4), ("validation", 4)),
     )
+    manifest = SharedHistoricalFuturesExecutionManifest(
+        base=base,
+        wallet_configuration_hash="d" * 64,
+        wallet_rejection_counts=(("maximum_wallet_exposure", 2),),
+    )
 
     _echo_completion(manifest=manifest, result_output=Path("result.json"))
 
@@ -49,4 +61,5 @@ def test_echo_completion_reports_deterministic_manifest_fields(capsys: object) -
     assert "campaign_id=campaign-1" in captured.out
     assert "decisions=12" in captured.out
     assert "trades=4" in captured.out
+    assert f"wallet_config_hash={'d' * 64}" in captured.out
     assert f"result_hash={'c' * 64}" in captured.out
