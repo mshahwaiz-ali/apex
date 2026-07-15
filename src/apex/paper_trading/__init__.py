@@ -71,6 +71,13 @@ from apex.paper_trading.runtime import (
     PaperRuntimeResult,
     run_provider_backed_paper_cycle,
 )
+from apex.paper_trading.scheduler import (
+    PaperCycleAlreadyRunningError,
+    ScheduledPaperCycleResult,
+    append_scheduled_paper_cycle_log,
+    paper_cycle_lock,
+    run_scheduled_paper_cycle,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 update_paper_trade = advance_paper_trade
@@ -95,6 +102,7 @@ __all__ = [
     "LifecycleAnomalyCode",
     "LifecycleAuditReport",
     "P1ReviewState",
+    "PaperCycleAlreadyRunningError",
     "PaperOperationCycleResult",
     "PaperPerformance",
     "PaperReport",
@@ -104,7 +112,9 @@ __all__ = [
     "PaperTradeGuidance",
     "PaperTradeState",
     "PaperTradeStore",
+    "ScheduledPaperCycleResult",
     "advance_paper_trade",
+    "append_scheduled_paper_cycle_log",
     "audit_paper_trade_lifecycle",
     "build_forward_paper_daily_report",
     "build_forward_paper_edge_profile",
@@ -120,10 +130,12 @@ __all__ = [
     "generate_paper_report",
     "load_and_verify_forward_paper_daily_report",
     "load_and_verify_forward_paper_review_report",
+    "paper_cycle_lock",
     "paper_entry_expiry",
     "paper_lifecycle_snapshot",
     "run_paper_operation_cycle",
     "run_provider_backed_paper_cycle",
+    "run_scheduled_paper_cycle",
     "summarize_paper_trades",
     "update_paper_trade",
     "write_forward_paper_daily_report",
