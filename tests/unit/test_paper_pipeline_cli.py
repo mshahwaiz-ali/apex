@@ -63,7 +63,7 @@ def test_combined_pipeline_commands_are_registered() -> None:
     assert "scheduled-spot-pipeline" in result.stdout
 
 
-def test_emit_pipeline_json_is_machine_readable(capsys: Any) -> None:
+def test_emit_pipeline_json_is_machine_readable(monkeypatch: Any, capsys: Any) -> None:
     started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
     result = SimpleNamespace(
         market_type=IntakeMarketType.FUTURES,
@@ -73,6 +73,14 @@ def test_emit_pipeline_json_is_machine_readable(capsys: Any) -> None:
         cycle=_cycle("futures", started_at),
         lock_path="pipeline.lock",
         log_path="pipeline.jsonl",
+    )
+    monkeypatch.setattr(
+        pipeline_cli,
+        "paper_pipeline_payload",
+        lambda value: {
+            "market_type": value.market_type.value,
+            "intake": {"accepted": value.intake.accepted},
+        },
     )
 
     pipeline_cli._emit_pipeline(result, "json")  # type: ignore[arg-type]
