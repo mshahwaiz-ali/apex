@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol, cast
 
-import click
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -18,12 +18,20 @@ from apex.cli_commands.historical_futures_backtest import _echo_completion
 runner = CliRunner()
 
 
-def _historical_futures_command() -> click.Command:
-    root = get_command(app)
-    assert isinstance(root, click.Group)
-    dataset = root.commands["dataset"]
-    assert isinstance(dataset, click.Group)
-    return dataset.commands["historical-futures-backtest"]
+class _CommandLike(Protocol):
+    params: list[object]
+    commands: dict[str, object]
+
+
+class _OptionLike(Protocol):
+    opts: list[str]
+    secondary_opts: list[str]
+
+
+def _historical_futures_command() -> _CommandLike:
+    root = cast(_CommandLike, get_command(app))
+    dataset = cast(_CommandLike, root.commands["dataset"])
+    return cast(_CommandLike, dataset.commands["historical-futures-backtest"])
 
 
 def test_historical_futures_backtest_command_is_registered() -> None:
@@ -35,12 +43,13 @@ def test_historical_futures_backtest_command_is_registered() -> None:
 
 def test_historical_futures_backtest_exposes_required_options() -> None:
     command = _historical_futures_command()
-    exposed_options = {
-        option
-        for parameter in command.params
-        if isinstance(parameter, click.Option)
-        for option in parameter.opts + parameter.secondary_opts
-    }
+    exposed_options: set[str] = set()
+    for parameter in command.params:
+        if not hasattr(parameter, "opts") or not hasattr(parameter, "secondary_opts"):
+            continue
+        option = cast(_OptionLike, parameter)
+        exposed_options.update(option.opts)
+        exposed_options.update(option.secondary_opts)
 
     assert {
         "--signal-records",
