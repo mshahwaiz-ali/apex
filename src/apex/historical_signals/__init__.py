@@ -10,6 +10,10 @@ from apex.historical_signals.contracts import (
     derive_historical_signal_record_id,
     validate_historical_signal_record_sequence,
 )
+from apex.historical_signals.generation import (
+    derive_historical_signal_assumptions_hash,
+    generate_and_persist_historical_signal_campaign,
+)
 from apex.historical_signals.persistence import (
     HistoricalSignalPersistenceError,
     hash_file_sha256,
@@ -27,8 +31,10 @@ __all__ = [
     "HistoricalSignalCampaignRecord",
     "HistoricalSignalPersistenceError",
     "HistoricalSignalSourceDataset",
+    "derive_historical_signal_assumptions_hash",
     "derive_historical_signal_campaign_id",
     "derive_historical_signal_record_id",
+    "generate_and_persist_historical_signal_campaign",
     "hash_file_sha256",
     "load_historical_signal_campaign_manifest",
     "load_historical_signal_records",
