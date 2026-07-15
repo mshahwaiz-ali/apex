@@ -17,7 +17,6 @@ class SpotEligibilityReason(StrEnum):
     ELIGIBLE = "ELIGIBLE"
     INSUFFICIENT_QUOTE_VOLUME = "INSUFFICIENT_QUOTE_VOLUME"
     INSUFFICIENT_MARKET_HISTORY = "INSUFFICIENT_MARKET_HISTORY"
-    SPREAD_UNAVAILABLE = "SPREAD_UNAVAILABLE"
     SPREAD_TOO_WIDE = "SPREAD_TOO_WIDE"
     INSUFFICIENT_CANDLE_HISTORY = "INSUFFICIENT_CANDLE_HISTORY"
     DATA_GAPS = "DATA_GAPS"
@@ -88,26 +87,8 @@ def evaluate_spot_symbol_eligibility(
     metadata: SpotMarketMetadata,
     thresholds: SpotEligibilityThresholds,
 ) -> SpotEligibilityResult:
-    """Evaluate strict live spot eligibility without fabricating missing values."""
+    """Evaluate deterministic spot eligibility without fabricating missing values."""
 
-    return _evaluate_spot_symbol_eligibility(metadata, thresholds, allow_missing_spread=False)
-
-
-def evaluate_historical_spot_symbol_eligibility(
-    metadata: SpotMarketMetadata,
-    thresholds: SpotEligibilityThresholds,
-) -> SpotEligibilityResult:
-    """Evaluate measurable historical eligibility while disclosing missing spread data."""
-
-    return _evaluate_spot_symbol_eligibility(metadata, thresholds, allow_missing_spread=True)
-
-
-def _evaluate_spot_symbol_eligibility(
-    metadata: SpotMarketMetadata,
-    thresholds: SpotEligibilityThresholds,
-    *,
-    allow_missing_spread: bool,
-) -> SpotEligibilityResult:
     reasons: list[SpotEligibilityReason] = []
     if metadata.symbol.upper() in {symbol.upper() for symbol in thresholds.excluded_symbols}:
         reasons.append(SpotEligibilityReason.EXCLUDED_SYMBOL)
@@ -118,9 +99,10 @@ def _evaluate_spot_symbol_eligibility(
         or metadata.market_age_days < thresholds.minimum_market_age_days
     ):
         reasons.append(SpotEligibilityReason.INSUFFICIENT_MARKET_HISTORY)
-    if metadata.spread_percentage is None:
-        reasons.append(SpotEligibilityReason.SPREAD_UNAVAILABLE)
-    elif metadata.spread_percentage > thresholds.maximum_spread_percentage:
+    if (
+        metadata.spread_percentage is None
+        or metadata.spread_percentage > thresholds.maximum_spread_percentage
+    ):
         reasons.append(SpotEligibilityReason.SPREAD_TOO_WIDE)
     if metadata.available_candle_count < thresholds.minimum_candle_count:
         reasons.append(SpotEligibilityReason.INSUFFICIENT_CANDLE_HISTORY)
@@ -139,14 +121,6 @@ def _evaluate_spot_symbol_eligibility(
         > thresholds.maximum_downside_volatility_percentage
     ):
         reasons.append(SpotEligibilityReason.DOWNSIDE_VOLATILITY_TOO_HIGH)
-
-    blocking_reasons = tuple(
-        reason
-        for reason in reasons
-        if not (allow_missing_spread and reason is SpotEligibilityReason.SPREAD_UNAVAILABLE)
-    )
-    if blocking_reasons:
-        return SpotEligibilityResult(eligible=False, reasons=tuple(reasons))
     if reasons:
-        return SpotEligibilityResult(eligible=True, reasons=tuple(reasons))
+        return SpotEligibilityResult(eligible=False, reasons=tuple(reasons))
     return SpotEligibilityResult(eligible=True, reasons=(SpotEligibilityReason.ELIGIBLE,))
