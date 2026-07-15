@@ -15,6 +15,7 @@ from collections import Counter
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Final
 
@@ -27,6 +28,7 @@ from apex.backtesting.contracts import BacktestConfig, BacktestSignal, Simulated
 from apex.backtesting.engine import simulate_trade, summarize_trades
 from apex.backtesting.historical_signal_campaign import HistoricalSignalCampaignInputs
 from apex.backtesting.historical_signal_replay import HistoricalSignalSplit
+from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
 HISTORICAL_FUTURES_CAMPAIGN_SCHEMA_VERSION: Final = 1
@@ -416,7 +418,7 @@ def _signal_from_analysis(
         direction=direction,
         generated_at=_parse_datetime(decision_time),
         entry_price=_required_float(entry, "preferred"),
-        stop_price=float(analysis["stop_loss"]),
+        stop_price=_required_float(analysis, "stop_loss"),
         target_price=targets[0],
         quantity=_required_float(position, "quantity"),
         risk_amount=_required_float(position, "risk_amount"),
@@ -430,7 +432,7 @@ def _future_candles(
     *,
     inputs: HistoricalSignalCampaignInputs,
     signal: BacktestSignal,
-) -> tuple[object, ...]:
+) -> tuple[Candle, ...]:
     finest = min(inputs.timeframes, key=_timeframe_seconds)
     return tuple(
         candle
@@ -526,8 +528,8 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(str(item) for item in value if str(item).strip())
 
 
-def _parse_datetime(value: str):
-    parsed = __import__("datetime").datetime.fromisoformat(value)
+def _parse_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("historical futures decision time must be timezone-aware")
     return parsed
