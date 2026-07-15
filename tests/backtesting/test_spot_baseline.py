@@ -17,9 +17,11 @@ from apex.spot_backtesting import (
 )
 from apex.spot_baseline import (
     SpotAllocationVariant,
+    SpotBaselineCampaignPlan,
     SpotBaselineEvaluationPolicy,
     SpotBaselineVerdict,
     SpotCampaignInput,
+    SpotCampaignResult,
     SpotCostVariant,
     SpotDatasetReference,
     SpotDatasetRole,
@@ -48,7 +50,7 @@ def _datasets() -> tuple[SpotDatasetReference, ...]:
     )
 
 
-def _plan():
+def _plan() -> SpotBaselineCampaignPlan:
     return build_spot_baseline_plan(
         strategies=(STRATEGY,),
         symbols=(SYMBOL,),
@@ -91,7 +93,7 @@ def _campaign_input(cell_key: str) -> SpotCampaignInput:
     return SpotCampaignInput((order,), bars)
 
 
-def _completed():
+def _completed() -> tuple[SpotBaselineCampaignPlan, tuple[SpotCampaignResult, ...]]:
     plan = _plan()
     inputs = {cell.key: _campaign_input(cell.key) for cell in plan.cells}
     results = execute_spot_baseline_plan(

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -227,7 +228,7 @@ def test_entry_timeout_expires_flat() -> None:
     assert result.net_pnl == pytest.approx(0.0)
 
 
-def test_paper_summary_and_store_roundtrip(tmp_path) -> None:
+def test_paper_summary_and_store_roundtrip(tmp_path: Path) -> None:
     closed = update_paper_trade(
         update_paper_trade(
             _trade(),
@@ -249,7 +250,9 @@ def test_paper_summary_and_store_roundtrip(tmp_path) -> None:
     assert performance.win_rate == pytest.approx(1.0)
 
 
-def test_paper_store_roundtrips_futures_plan_and_lifecycle_events(tmp_path) -> None:
+def test_paper_store_roundtrips_futures_plan_and_lifecycle_events(
+    tmp_path: Path,
+) -> None:
     trade = _trade_with_plan()
     store = PaperTradeStore(tmp_path / "paper.json")
     store.save((trade,))
@@ -261,7 +264,9 @@ def test_paper_store_roundtrips_futures_plan_and_lifecycle_events(tmp_path) -> N
     assert loaded[0].lifecycle_events == trade.lifecycle_events
 
 
-def test_paper_store_roundtrips_target_ladder_and_partial_progress(tmp_path) -> None:
+def test_paper_store_roundtrips_target_ladder_and_partial_progress(
+    tmp_path: Path,
+) -> None:
     partial = update_paper_trade(
         update_paper_trade(
             _partial_trade(),

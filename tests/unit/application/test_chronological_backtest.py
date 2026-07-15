@@ -1,4 +1,8 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from pytest import MonkeyPatch
 
 from apex.application.analysis import SymbolAnalysis
 from apex.application.chronological_backtest import (
@@ -30,20 +34,22 @@ def _candles(count: int) -> tuple[Candle, ...]:
     )
 
 
-def test_chronological_runner_passes_only_prefix_candles(monkeypatch) -> None:
+def test_chronological_runner_passes_only_prefix_candles(
+    monkeypatch: MonkeyPatch,
+) -> None:
     captured_lengths: list[int] = []
 
     def fake_analyze_symbol(
-        symbol,
-        provider,
+        symbol: str,
+        provider: Any,
         *,
-        timeframes,
-        candle_limit,
-        risk_config,
-        generated_at,
-        strategy_routing,
-        gainer_state_thresholds,
-    ):
+        timeframes: Sequence[str],
+        candle_limit: int,
+        risk_config: Any,
+        generated_at: datetime,
+        strategy_routing: Any,
+        gainer_state_thresholds: Any,
+    ) -> SymbolAnalysis:
         assert strategy_routing is None
         assert gainer_state_thresholds is None
         candles = provider.fetch_candles(symbol, "5m", limit=candle_limit)

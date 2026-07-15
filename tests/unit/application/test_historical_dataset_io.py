@@ -16,7 +16,10 @@ from apex.application.historical_dataset_manifest import (
     build_curated_dataset_manifest,
 )
 from apex.application.historical_edge import DatasetPartition, DatasetSplit, MarketType
-from apex.application.historical_outcome_conversion import convert_backtest_trades
+from apex.application.historical_outcome_conversion import (
+    HistoricalOutcomeConversionSummary,
+    convert_backtest_trades,
+)
 from apex.backtesting import BacktestOutcome, BacktestSignal, SimulatedTrade
 from apex.strategies import StrategyType, TradeDirection
 
@@ -53,7 +56,7 @@ def _records() -> list[dict[str, object]]:
     ]
 
 
-def _summary():
+def _summary() -> HistoricalOutcomeConversionSummary:
     entry_time = _START + timedelta(minutes=5)
     signal = BacktestSignal(
         symbol="BTC/USDT",

@@ -1,6 +1,7 @@
 """Tests for deterministic persistent account state."""
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -84,7 +85,7 @@ def test_transition_revalidates_exposure_geometry() -> None:
         )
 
 
-def test_store_round_trip(tmp_path) -> None:
+def test_store_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "account-state.json"
     store = AccountStateStore(path)
     snapshot = _snapshot()

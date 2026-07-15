@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 
@@ -8,6 +9,13 @@ from apex.data.cache.candles import CandleCacheKey, FileCandleCache
 from apex.domain.models import Candle
 
 NOW = datetime(2026, 7, 12, 12, 0, tzinfo=UTC)
+
+
+class CacheKeyKwargs(TypedDict):
+    provider: str
+    symbol: str
+    timeframe: str
+    limit: int
 
 
 def make_candle(
@@ -201,7 +209,7 @@ def test_cache_keys_separate_request_dimensions() -> None:
     ],
 )
 def test_rejects_invalid_cache_keys(
-    kwargs: dict[str, str | int],
+    kwargs: CacheKeyKwargs,
     message: str,
 ) -> None:
     with pytest.raises(ValueError, match=message):

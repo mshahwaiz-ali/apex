@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 from apex.application import (
     build_analysis_record,
@@ -44,7 +45,7 @@ def test_analysis_record_identity_changes_with_payload() -> None:
     assert first["analysis_id"] != second["analysis_id"]
 
 
-def test_write_analysis_record_appends_jsonl(tmp_path) -> None:
+def test_write_analysis_record_appends_jsonl(tmp_path: Path) -> None:
     path = tmp_path / "analysis.jsonl"
     record = build_analysis_record(_payload(), recorded_at=NOW)
 
@@ -55,7 +56,9 @@ def test_write_analysis_record_appends_jsonl(tmp_path) -> None:
     assert [row["analysis_id"] for row in rows] == [record["analysis_id"], record["analysis_id"]]
 
 
-def test_write_analysis_record_sqlite_upserts_and_loads_record(tmp_path) -> None:
+def test_write_analysis_record_sqlite_upserts_and_loads_record(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "analysis.db"
     record = build_analysis_record(_payload(), recorded_at=NOW)
 
@@ -71,14 +74,14 @@ def test_write_analysis_record_sqlite_upserts_and_loads_record(tmp_path) -> None
     assert metadata[0]["content_hash"] == record["content_hash"]
 
 
-def test_sqlite_record_helpers_handle_missing_database(tmp_path) -> None:
+def test_sqlite_record_helpers_handle_missing_database(tmp_path: Path) -> None:
     path = tmp_path / "missing.db"
 
     assert load_analysis_record_sqlite(path, "missing") is None
     assert list_analysis_record_metadata_sqlite(path) == ()
 
 
-def test_write_json_report_embeds_record_metadata(tmp_path) -> None:
+def test_write_json_report_embeds_record_metadata(tmp_path: Path) -> None:
     path = tmp_path / "report.json"
 
     write_json_report(_payload(), path)

@@ -105,4 +105,6 @@ def test_settings_reject_duplicate_strategy_route_member() -> None:
 
 def test_settings_reject_invalid_gainer_threshold() -> None:
     with pytest.raises(ValueError, match="greater than or equal"):
-        FileSettings(gainer_state_thresholds={"fresh_total_return_pct": -1})
+        FileSettings.model_validate(
+            {"gainer_state_thresholds": {"fresh_total_return_pct": -1}}
+        )

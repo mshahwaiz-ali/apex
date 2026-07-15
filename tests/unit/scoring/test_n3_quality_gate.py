@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from apex.config import load_strategy_approval_config
+from apex.config import StrategyApprovalConfig, load_strategy_approval_config
 from apex.domain import EntryState, RiskMode
 from apex.scoring import (
     ApprovalReasonCode,
@@ -32,7 +32,7 @@ from apex.strategies import (
 )
 
 
-def _config():
+def _config() -> StrategyApprovalConfig:
     return load_strategy_approval_config(Path("config/strategy_approval.yaml"))
 
 

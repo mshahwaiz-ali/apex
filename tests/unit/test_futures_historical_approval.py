@@ -191,7 +191,11 @@ def test_typed_evidence_cannot_override_strategy_rejection() -> None:
     assert isinstance(approval, dict)
     assert approval["historical_evidence"]["status"] == "PASSED_VALIDATION"
     assert approval["historical_evidence_reasons"] == []
-    assert any("scored 10.00" in reason for reason in result["reasons"])
+
+    reasons = result["reasons"]
+    assert isinstance(reasons, list)
+    assert all(isinstance(reason, str) for reason in reasons)
+    assert any("scored 10.00" in reason for reason in reasons)
 
 
 def test_legacy_boolean_path_remains_backward_compatible() -> None:

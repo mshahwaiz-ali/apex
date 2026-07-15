@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+from pytest import MonkeyPatch
+
 from apex.data.cache.candles import FileCandleCache
 from apex.data.providers.cached import (
     CachedMarketDataProvider,
@@ -185,13 +188,13 @@ def test_default_cache_freshness_rules() -> None:
 
 def test_cache_write_oserror_does_not_discard_live_candles(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     provider = FakeMarketDataProvider()
     cache = FileCandleCache(tmp_path, now=lambda: NOW)
     cached_provider = CachedMarketDataProvider(provider, cache)
 
-    def fail_save(*args, **kwargs) -> None:
+    def fail_save(*args: object, **kwargs: object) -> None:
         raise OSError("disk unavailable")
 
     monkeypatch.setattr(cache, "save", fail_save)
@@ -209,18 +212,16 @@ def test_cache_write_oserror_does_not_discard_live_candles(
 
 def test_cache_validation_error_is_not_suppressed(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     provider = FakeMarketDataProvider()
     cache = FileCandleCache(tmp_path, now=lambda: NOW)
     cached_provider = CachedMarketDataProvider(provider, cache)
 
-    def fail_save(*args, **kwargs) -> None:
+    def fail_save(*args: object, **kwargs: object) -> None:
         raise ValueError("invalid candle series")
 
     monkeypatch.setattr(cache, "save", fail_save)
-
-    import pytest
 
     with pytest.raises(ValueError, match="invalid candle series"):
         cached_provider.fetch_candles(

@@ -399,7 +399,7 @@ def test_risk_contracts_are_frozen() -> None:
     assert result.setup is not None
 
     with pytest.raises(FrozenInstanceError):
-        result.setup.position_size.risk_amount = 1.0
+        setattr(result.setup.position_size, "risk_amount", 1.0)
 
 
 def test_risk_config_loads_checked_in_yaml() -> None:
@@ -413,7 +413,9 @@ def test_risk_config_loads_checked_in_yaml() -> None:
     assert config.exit_slippage_pct == pytest.approx(0.03)
 
 
-def test_loader_and_mode_resolver_use_canonical_execution_costs(tmp_path) -> None:
+def test_loader_and_mode_resolver_use_canonical_execution_costs(
+    tmp_path: Path,
+) -> None:
     futures_text = Path("config/futures.yaml").read_text(encoding="utf-8")
     futures_text = futures_text.replace("entry_fee_percentage: 0.04", "entry_fee_percentage: 0.11")
     futures_text = futures_text.replace("exit_fee_percentage: 0.04", "exit_fee_percentage: 0.12")
@@ -450,7 +452,7 @@ def test_loader_and_mode_resolver_use_canonical_execution_costs(tmp_path) -> Non
     ) == pytest.approx((0.11, 0.12, 0.13, 0.14))
 
 
-def test_risk_config_loader_rejects_unknown_fields(tmp_path) -> None:
+def test_risk_config_loader_rejects_unknown_fields(tmp_path: Path) -> None:
     path = tmp_path / "risk.yaml"
     path.write_text("unknown: 1\n", encoding="utf-8")
 

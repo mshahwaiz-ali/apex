@@ -80,4 +80,8 @@ def test_market_risk_summary_is_metadata_only() -> None:
 
     assert summary.risk_score == pytest.approx(0.4)
     assert metadata["funding_count"] == 1
-    assert "elevated funding pressure" in metadata["warnings"]
+
+    warnings = metadata["warnings"]
+    assert isinstance(warnings, list)
+    assert all(isinstance(warning, str) for warning in warnings)
+    assert "elevated funding pressure" in warnings

@@ -8,6 +8,7 @@ from apex.application.historical_edge import (
     DatasetSplit,
     EvidenceQuality,
     EvidenceThresholds,
+    HistoricalDatasetMetadata,
     HistoricalOutcome,
     MarketType,
     build_dataset_metadata,
@@ -51,7 +52,7 @@ def _metadata(
     dataset_id: str = "futures-v1",
     *,
     market_type: MarketType = MarketType.FUTURES,
-):
+) -> HistoricalDatasetMetadata:
     return build_dataset_metadata(
         dataset_id=dataset_id,
         market_type=market_type,

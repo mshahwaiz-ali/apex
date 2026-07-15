@@ -228,6 +228,7 @@ def test_equal_opposing_strength_returns_no_trade() -> None:
         )
     )
     assert result.selected_candidate is None
+    assert result.no_trade_reason is not None
     assert "unresolved" in result.no_trade_reason
 
 

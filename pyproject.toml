@@ -51,7 +51,8 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-packages = ["apex"]
+explicit_package_bases = true
+mypy_path = "src"
 
 [tool.coverage.run]
 source = ["apex"]

@@ -12,6 +12,7 @@ from apex.calibration import (
     CalibrationMetrics,
     CalibrationPolicy,
     CalibrationReason,
+    WalkForwardCalibrationReport,
     attach_final_test_results,
     load_calibration_report_payload,
     load_calibration_report_sqlite,
@@ -31,7 +32,7 @@ def _metrics(expectancy: float, drawdown: float, sample_size: int = 100) -> Cali
     )
 
 
-def _selected_report():
+def _selected_report() -> WalkForwardCalibrationReport:
     candidate = CalibrationCandidate(
         identifier="candidate-a",
         strategy="trend_pullback",

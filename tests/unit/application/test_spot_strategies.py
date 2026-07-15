@@ -2,9 +2,11 @@ from apex.application.spot_strategies import evaluate_spot_strategies
 from apex.domain.spot import SpotMarketRegime
 from apex.domain.spot_strategy import (
     SpotStrategy,
+    SpotStrategyCandidate,
     SpotStrategyDecision,
     SpotStrategyEligibility,
     SpotStrategyInput,
+    SpotStrategyRoutingResult,
 )
 from apex.domain.spot_structure import SpotExtensionState, SpotTrendState
 
@@ -30,7 +32,10 @@ def _input(**overrides: object) -> SpotStrategyInput:
     return SpotStrategyInput.model_validate(values)
 
 
-def _candidate(result: object, strategy: SpotStrategy):
+def _candidate(
+    result: SpotStrategyRoutingResult,
+    strategy: SpotStrategy,
+) -> SpotStrategyCandidate:
     return next(item for item in result.candidates if item.strategy is strategy)
 
 

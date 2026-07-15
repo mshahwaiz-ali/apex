@@ -116,6 +116,7 @@ def test_empty_context_produces_no_candidates() -> None:
     assert result.candidates == ()
     assert result.decision_regime is MarketRegime.UNCERTAIN
     assert result.eligible_strategies == ()
+    assert result.skipped_strategies is not None
     assert set(result.skipped_strategies) == set(result.evaluated_strategies)
 
 
@@ -132,6 +133,7 @@ def test_competing_candidates_are_retained_in_registry_order() -> None:
         StrategyType.MOMENTUM_CONTINUATION,
         StrategyType.MOMENTUM_GAINER_CONTINUATION,
     )
+    assert result.skipped_strategies is not None
     assert set(result.skipped_strategies) == {
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,

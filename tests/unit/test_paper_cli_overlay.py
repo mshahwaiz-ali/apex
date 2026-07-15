@@ -89,7 +89,7 @@ def _patch_report_dependencies(
         lambda trades: replay.copy(),
     )
 
-    expected_report = {
+    expected_report: dict[str, object] = {
         "performance": {
             "total_trades": 1,
             "open_trades": 1,
@@ -101,7 +101,7 @@ def _patch_report_dependencies(
         },
         "guidance": guidance,
     }
-    expected_replay = replay | {"guidance": guidance}
+    expected_replay: dict[str, object] = replay | {"guidance": guidance}
     return expected_report, expected_replay
 
 

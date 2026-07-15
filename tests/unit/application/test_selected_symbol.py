@@ -1,16 +1,26 @@
 from datetime import UTC, datetime
+from typing import cast
+
+from pytest import MonkeyPatch
 
 from apex.application.analysis import SymbolAnalysis
 from apex.application.selected_symbol import analyze_selected_symbol
+from apex.data.providers.base import MarketDataProvider
 from apex.risk import RiskAssessment, RiskDecision, RiskRejectionCode
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
-def test_selected_symbol_is_normalized_before_analysis(monkeypatch) -> None:
+def test_selected_symbol_is_normalized_before_analysis(
+    monkeypatch: MonkeyPatch,
+) -> None:
     captured: dict[str, object] = {}
 
-    def fake_analyze_symbol(symbol, provider, **kwargs):
+    def fake_analyze_symbol(
+        symbol: str,
+        provider: MarketDataProvider,
+        **kwargs: object,
+    ) -> SymbolAnalysis:
         captured["symbol"] = symbol
         captured["provider"] = provider
         captured.update(kwargs)
@@ -33,7 +43,7 @@ def test_selected_symbol_is_normalized_before_analysis(monkeypatch) -> None:
         )
 
     monkeypatch.setattr("apex.application.selected_symbol.analyze_symbol", fake_analyze_symbol)
-    provider = object()
+    provider = cast(MarketDataProvider, object())
 
     result = analyze_selected_symbol(
         " btcusdt ",

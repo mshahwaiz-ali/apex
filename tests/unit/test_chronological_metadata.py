@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
-from apex.application.chronological_metadata import build_chronological_metadata
+from apex.application.chronological_metadata import (
+    ChronologicalBacktestMetadata,
+    build_chronological_metadata,
+)
 from apex.backtesting import BacktestConfig
 from apex.domain import Candle
 from apex.risk import DEFAULT_RISK_CONFIG
@@ -25,7 +28,11 @@ def _candle(index: int, *, timeframe: str = "5m", closed: bool = True) -> Candle
     )
 
 
-def _metadata(candles: tuple[Candle, ...], *, cooldown: int = 3):
+def _metadata(
+    candles: tuple[Candle, ...],
+    *,
+    cooldown: int = 3,
+) -> ChronologicalBacktestMetadata:
     return build_chronological_metadata(
         symbol="BTC/USDT",
         candles_by_timeframe={"5m": candles},

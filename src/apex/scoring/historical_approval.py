@@ -18,19 +18,33 @@ from apex.strategies import StrategyType
 
 
 class _ValueEnum(Protocol):
-    value: str
+    @property
+    def value(self) -> str: ...
 
 
 class HistoricalEdgeValidationView(Protocol):
     """Structural view consumed from a V1.4 validation result."""
 
-    dimensions: Mapping[str, str]
-    status: _ValueEnum
-    out_of_sample_sample_size: int
-    evidence_stable: bool
-    promoted_evidence_quality: _ValueEnum | None
-    rejection_reasons: Sequence[_ValueEnum]
-    warnings: Sequence[_ValueEnum]
+    @property
+    def dimensions(self) -> Mapping[str, str]: ...
+
+    @property
+    def status(self) -> _ValueEnum: ...
+
+    @property
+    def out_of_sample_sample_size(self) -> int: ...
+
+    @property
+    def evidence_stable(self) -> bool: ...
+
+    @property
+    def promoted_evidence_quality(self) -> _ValueEnum | None: ...
+
+    @property
+    def rejection_reasons(self) -> Sequence[_ValueEnum]: ...
+
+    @property
+    def warnings(self) -> Sequence[_ValueEnum]: ...
 
 
 class HistoricalApprovalReasonCode(StrEnum):

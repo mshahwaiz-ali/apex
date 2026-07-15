@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from apex.backtesting import (
     BacktestConfig,
@@ -182,7 +183,7 @@ def test_optimization_consumes_backtest_studies() -> None:
     assert result.decision is OptimizationDecision.ACCEPTED
 
 
-def test_report_round_trip_does_not_mutate_config(tmp_path) -> None:
+def test_report_round_trip_does_not_mutate_config(tmp_path: Path) -> None:
     report = tmp_path / "report.json"
     report.write_text(
         json.dumps(
@@ -279,7 +280,7 @@ def test_campaign_payload_aggregates_selected_best_variant_across_symbols() -> N
     assert summary.by_strategy == {"trend_pullback": 2, "range_reversion": 3}
 
 
-def test_load_performance_report_accepts_campaign_payload(tmp_path) -> None:
+def test_load_performance_report_accepts_campaign_payload(tmp_path: Path) -> None:
     report = tmp_path / "campaign.json"
     report.write_text(
         json.dumps(

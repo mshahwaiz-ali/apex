@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from apex.backtesting.dataset_campaign import (
@@ -95,7 +96,7 @@ def test_campaign_execute_is_registered() -> None:
 
 def test_campaign_execute_cli_multi_timeframe_success(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     plan_file = _plan_file(tmp_path, timeframes=("4h", "1m", "5m"))
     manifest = tmp_path / "execution.json"
@@ -155,7 +156,7 @@ def test_campaign_execute_cli_rejects_provider_mismatch(tmp_path: Path) -> None:
 
 def test_campaign_execute_cli_rejects_existing_artifact(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     plan_file = _plan_file(tmp_path)
     manifest = tmp_path / "execution.json"

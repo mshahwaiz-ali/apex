@@ -10,6 +10,7 @@ import pytest
 
 from apex.application.historical_signal_generation import (
     HistoricalSignalGenerationResult,
+    HistoricalSignalRecord,
     build_historical_signal_record,
 )
 from apex.application.historical_signal_io import (
@@ -37,7 +38,7 @@ def _record(
     minute: int,
     decision: str,
     failure_reason: str | None = None,
-):
+) -> HistoricalSignalRecord:
     payload: dict[str, object] = {
         "symbol": "BTC/USDT",
         "decision": decision,

@@ -92,7 +92,7 @@ def test_cli_rejects_matching_output_paths(
     plan = tmp_path / "plan.json"
     dataset_execution = tmp_path / "dataset-execution.json"
     risk = tmp_path / "risk.yaml"
-    output = tmp_path / "signals.json"
+    output_path = tmp_path / "signals.json"
 
     plan.write_text("{}\n", encoding="utf-8")
     dataset_execution.write_text("{}\n", encoding="utf-8")
@@ -108,9 +108,9 @@ def test_cli_rejects_matching_output_paths(
             "--dataset-execution-manifest",
             str(dataset_execution),
             "--records-output",
-            str(output),
+            str(output_path),
             "--execution-manifest-output",
-            str(output),
+            str(output_path),
             "--risk-config",
             str(risk),
         ],

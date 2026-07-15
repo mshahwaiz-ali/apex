@@ -20,32 +20,61 @@ from apex.strategies import StrategyType
 
 
 class _ValueEnum(Protocol):
-    value: str
+    @property
+    def value(self) -> str: ...
 
 
 class ForwardPaperProfileView(Protocol):
     """Structural profile view consumed from forward-paper validation."""
 
-    dimensions: Mapping[str, str]
-    sample_size: int
-    win_rate: float
-    expectancy: float
-    profit_factor: float | None
-    maximum_drawdown_r: float
+    @property
+    def dimensions(self) -> Mapping[str, str]: ...
+
+    @property
+    def sample_size(self) -> int: ...
+
+    @property
+    def win_rate(self) -> float: ...
+
+    @property
+    def expectancy(self) -> float: ...
+
+    @property
+    def profit_factor(self) -> float | None: ...
+
+    @property
+    def maximum_drawdown_r(self) -> float: ...
 
 
 class ForwardPaperValidationView(Protocol):
     """Structural view consumed from a forward-paper validation result."""
 
-    dimensions: Mapping[str, str]
-    status: _ValueEnum
-    forward_profile: ForwardPaperProfileView | None
-    expectancy_degradation_from_test: float | None
-    consistent_edge_direction: bool
-    evidence_stable: bool
-    promoted_evidence_quality: _ValueEnum | None
-    rejection_reasons: Sequence[_ValueEnum]
-    warnings: Sequence[_ValueEnum]
+    @property
+    def dimensions(self) -> Mapping[str, str]: ...
+
+    @property
+    def status(self) -> _ValueEnum: ...
+
+    @property
+    def forward_profile(self) -> ForwardPaperProfileView | None: ...
+
+    @property
+    def expectancy_degradation_from_test(self) -> float | None: ...
+
+    @property
+    def consistent_edge_direction(self) -> bool: ...
+
+    @property
+    def evidence_stable(self) -> bool: ...
+
+    @property
+    def promoted_evidence_quality(self) -> _ValueEnum | None: ...
+
+    @property
+    def rejection_reasons(self) -> Sequence[_ValueEnum]: ...
+
+    @property
+    def warnings(self) -> Sequence[_ValueEnum]: ...
 
 
 class ForwardApprovalReasonCode(StrEnum):

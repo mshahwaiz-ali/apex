@@ -6,6 +6,7 @@ import pytest
 
 from apex.application.historical_edge import DatasetPartition, DatasetSplit, MarketType
 from apex.application.historical_outcome_conversion import (
+    HistoricalOutcomeConversionSummary,
     OutcomeRejectionReason,
     convert_backtest_trades,
 )
@@ -72,7 +73,7 @@ def _trade(
     )
 
 
-def _convert(*trades: SimulatedTrade):
+def _convert(*trades: SimulatedTrade) -> HistoricalOutcomeConversionSummary:
     return convert_backtest_trades(
         trades,
         dataset_id="curated-futures-001",

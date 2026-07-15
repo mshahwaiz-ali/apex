@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from apex.domain.models import Candle
 from apex.features import ActiveCandlePolicy, average_true_range
 from apex.liquidity import analyze_liquidity
-from apex.scoring import analyze_phase5
+from apex.scoring import Phase5AnalysisResult, analyze_phase5
 from apex.strategies import (
     FeatureSnapshot,
     StrategyContext,
@@ -77,7 +77,7 @@ def _context(candles: tuple[Candle, ...]) -> StrategyContext:
     )
 
 
-def _phase5(candles: tuple[Candle, ...]):
+def _phase5(candles: tuple[Candle, ...]) -> Phase5AnalysisResult:
     decision_time = candles[-1].close_time
     phase4 = analyze_phase4(_context(candles), decision_time=decision_time)
     return analyze_phase5(phase4)

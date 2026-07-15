@@ -10,9 +10,10 @@ from apex.backtesting import (
     HistoricalEdgeValidationResult,
     HistoricalEdgeValidationStatus,
 )
-from apex.config import load_strategy_approval_config
+from apex.config import StrategyApprovalConfig, load_strategy_approval_config
 from apex.domain import EntryState, RiskMode
 from apex.scoring import (
+    EvidenceAwareStrategyApprovalDecision,
     HistoricalApprovalReasonCode,
     SetupEligibility,
     evaluate_strategy_approval_with_historical_evidence,
@@ -20,7 +21,7 @@ from apex.scoring import (
 from apex.strategies import StrategyType
 
 
-def _config():
+def _config() -> StrategyApprovalConfig:
     return load_strategy_approval_config(Path("config/strategy_approval.yaml"))
 
 
@@ -60,7 +61,7 @@ def _evaluate(
     *,
     risk_mode: RiskMode = RiskMode.STANDARD,
     score: float = 80.0,
-):
+) -> EvidenceAwareStrategyApprovalDecision:
     return evaluate_strategy_approval_with_historical_evidence(
         strategy=StrategyType.TREND_PULLBACK,
         risk_mode=risk_mode,

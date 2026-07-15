@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from apex.cli import app
@@ -7,7 +8,10 @@ from apex.cli import app
 runner = CliRunner()
 
 
-def test_smoke_command_bootstraps_application(tmp_path: Path, monkeypatch) -> None:
+def test_smoke_command_bootstraps_application(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "default.yaml").write_text(

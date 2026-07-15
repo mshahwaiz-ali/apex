@@ -100,7 +100,13 @@ def test_guidance_report_is_stable_and_requires_aware_time() -> None:
 
     assert report["schema_version"] == 2
     assert report["trade_count"] == 1
-    assert report["trades"][0]["current_action"] == "HOLD"
+
+    trades = report["trades"]
+    assert isinstance(trades, list)
+    assert trades
+    assert isinstance(trades[0], dict)
+    assert trades[0]["current_action"] == "HOLD"
+
     with pytest.raises(ValueError, match="timezone-aware"):
         build_paper_guidance_report((trade,), generated_at=datetime(2026, 7, 14, 12, 0))
 

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 import apex.application.market_data
@@ -52,7 +53,7 @@ class FakeBinanceMarketDataProvider:
 
 def test_fetch_command_reuses_fresh_file_cache(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"

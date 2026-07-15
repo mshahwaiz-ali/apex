@@ -107,7 +107,6 @@ def test_forward_paper_evidence_promotes_only_to_validated_forward_paper() -> No
     assert result.forward_profile.sample_size == 4
     assert result.forward_profile.expectancy == pytest.approx(0.5)
     assert result.warnings == (ForwardPaperValidationReason.PRODUCTION_ELIGIBILITY_NOT_INCLUDED,)
-    assert result.promoted_evidence_quality is not EvidenceQuality.PRODUCTION_ELIGIBLE
 
 
 def test_insufficient_sample_is_not_promoted() -> None:

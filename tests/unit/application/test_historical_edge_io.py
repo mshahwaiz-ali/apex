@@ -1,14 +1,16 @@
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-import apex.application.historical_edge_io as historical_edge_io
 from apex.application.historical_edge import (
     DatasetPartition,
     DatasetSplit,
     EvidenceThresholds,
+    HistoricalDatasetMetadata,
+    HistoricalEdgeMetrics,
     HistoricalOutcome,
     MarketType,
     aggregate_historical_edge,
@@ -28,7 +30,9 @@ from apex.application.historical_edge_io import (
 BASE_TIME = datetime(2024, 1, 1, tzinfo=UTC)
 
 
-def _metadata(market_type: MarketType = MarketType.FUTURES):
+def _metadata(
+    market_type: MarketType = MarketType.FUTURES,
+) -> HistoricalDatasetMetadata:
     dataset_id = f"{market_type.value.lower()}-dataset"
     return build_dataset_metadata(
         dataset_id=dataset_id,
@@ -82,7 +86,7 @@ def _outcome(index: int, *, market_type: MarketType = MarketType.FUTURES) -> His
     )
 
 
-def _metrics():
+def _metrics() -> HistoricalEdgeMetrics:
     return aggregate_historical_edge(
         tuple(_outcome(index) for index in range(3)),
         market_type=MarketType.FUTURES,
@@ -208,13 +212,14 @@ def test_sqlite_connections_are_closed_deterministically(
 
     opened_connections: list[TrackedConnection] = []
 
-    def tracked_connect(*args, **kwargs):
+    def tracked_connect(*args: Any, **kwargs: Any) -> TrackedConnection:
         kwargs["factory"] = TrackedConnection
         connection = original_connect(*args, **kwargs)
+        assert isinstance(connection, TrackedConnection)
         opened_connections.append(connection)
         return connection
 
-    monkeypatch.setattr(historical_edge_io.sqlite3, "connect", tracked_connect)
+    monkeypatch.setattr(sqlite3, "connect", tracked_connect)
 
     write_historical_dataset_sqlite(path, metadata)
     write_historical_outcomes_sqlite(path, outcomes)

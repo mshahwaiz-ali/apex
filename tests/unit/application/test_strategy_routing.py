@@ -1,6 +1,8 @@
 """Tests for deterministic scanner/regime/gainer strategy routing."""
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import cast
 
 from apex.application.strategy_routing import (
     apply_strategy_routing,
@@ -53,6 +55,7 @@ def test_strategy_routing_filters_candidates_by_scanner_route() -> None:
     )
 
     assert routed.eligible_strategies == (StrategyType.MOMENTUM_GAINER_CONTINUATION,)
+    assert routed.skipped_strategies is not None
     assert (
         "disabled by configured gainer scanner route"
         in routed.skipped_strategies[StrategyType.TREND_PULLBACK]
@@ -73,7 +76,9 @@ def test_strategy_routing_rejects_unfavorable_gainer_state() -> None:
         },
     )
 
+    assert routed.eligible_strategies is not None
     assert StrategyType.MOMENTUM_GAINER_CONTINUATION not in routed.eligible_strategies
+    assert routed.skipped_strategies is not None
     assert (
         "requires fresh, accelerating, or controlled gainer state"
         in routed.skipped_strategies[StrategyType.MOMENTUM_GAINER_CONTINUATION]
@@ -103,6 +108,11 @@ def test_strategy_routing_payload_explains_regime_and_route_rejections() -> None
 
     assert payload["decision_regime"] == "breakout_expansion"
     assert payload["routed_eligible_strategies"] == ["trend_pullback"]
-    assert payload["skipped_strategies"]["breakout_continuation"].startswith(
+
+    skipped_strategies = cast(
+        Mapping[str, str],
+        payload["skipped_strategies"],
+    )
+    assert skipped_strategies["breakout_continuation"].startswith(
         "breakout_continuation is disabled"
     )
