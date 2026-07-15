@@ -87,6 +87,14 @@ from apex.application.historical_signal_io import (
     write_historical_signal_generation,
 )
 from apex.application.market_data import MarketDataServices, create_market_data_services
+from apex.application.paper_lifecycle_analytics import (
+    HoldingTimeBand,
+    PaperLifecycleAnalytics,
+    PaperLifecycleTradeRecord,
+    RiskMultipleBand,
+    build_paper_lifecycle_analytics,
+    paper_lifecycle_analytics_payload,
+)
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.risk_approval import (
     FuturesPlanSafetyError,
@@ -189,8 +197,12 @@ __all__ = [
     "HistoricalSignalExecutionManifest",
     "HistoricalSignalGenerationResult",
     "HistoricalSignalRecord",
+    "HoldingTimeBand",
     "MarketDataServices",
     "MultiSymbolBacktestCampaignRequest",
+    "PaperLifecycleAnalytics",
+    "PaperLifecycleTradeRecord",
+    "RiskMultipleBand",
     "ScanResult",
     "SpotAnalysisInput",
     "SpotAnalysisRequest",
@@ -220,6 +232,7 @@ __all__ = [
     "build_futures_plan",
     "build_futures_plan_result",
     "build_historical_signal_record",
+    "build_paper_lifecycle_analytics",
     "build_precision_entry_plan",
     "build_spot_account_input",
     "build_spot_plan",
@@ -257,6 +270,7 @@ __all__ = [
     "load_spot_orchestration_input",
     "load_symbols",
     "normalize_market_symbol",
+    "paper_lifecycle_analytics_payload",
     "parse_campaign_variants",
     "replay_spot_lifecycle",
     "run_backtest_campaign",
