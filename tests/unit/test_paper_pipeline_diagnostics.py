@@ -36,7 +36,7 @@ def test_aggregates_phase4_diagnostics_by_symbol_and_scanner() -> None:
         ScanResult,
         SimpleNamespace(
             analyses=(
-                _analysis(MarketCategory.NORMAL, 0),
+                _analysis(MarketCategory.NORMAL_MARKET, 0),
                 _analysis(MarketCategory.GAINER, 1),
             ),
             failures={"ETH/USDT": "provider timeout"},
@@ -49,11 +49,11 @@ def test_aggregates_phase4_diagnostics_by_symbol_and_scanner() -> None:
     assert diagnostics["scanner_failure_count"] == 1
     assert diagnostics["scanner_failures"] == {"ETH/USDT": "provider timeout"}
     assert set(diagnostics["phase4_analyses"]) == {
-        "BTC/USDT:normal",
-        "BTC/USDT:gainer",
+        "BTC/USDT:NORMAL_MARKET",
+        "BTC/USDT:GAINER",
     }
-    normal = diagnostics["phase4_analyses"]["BTC/USDT:normal"]
-    gainer = diagnostics["phase4_analyses"]["BTC/USDT:gainer"]
+    normal = diagnostics["phase4_analyses"]["BTC/USDT:NORMAL_MARKET"]
+    gainer = diagnostics["phase4_analyses"]["BTC/USDT:GAINER"]
     assert normal["candidate_count"] == 0
     assert gainer["candidate_count"] == 1
     assert normal["higher_timeframe_breakout"] is True
