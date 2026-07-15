@@ -11,7 +11,7 @@ from apex.backtesting import (
     acquire_futures_dataset,
     build_dataset_id,
 )
-from apex.domain.models import Candle
+from apex.domain.models import Candle, TickerSnapshot
 
 
 class StubCandleProvider:
@@ -33,6 +33,9 @@ class StubCandleProvider:
     ) -> list[Candle]:
         self.requests.append((symbol, timeframe, limit))
         return list(self._candles)
+
+    def fetch_ticker(self, symbol: str) -> TickerSnapshot:
+        raise NotImplementedError
 
 
 def test_acquisition_drops_active_candle_and_builds_manifest() -> None:
