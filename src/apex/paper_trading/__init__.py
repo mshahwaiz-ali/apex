@@ -61,6 +61,11 @@ from apex.paper_trading.management import (
     expire_waiting_trade,
     paper_entry_expiry,
 )
+from apex.paper_trading.operations import (
+    PaperOperationCycleResult,
+    run_paper_operation_cycle,
+    write_paper_operation_cycle_result,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 update_paper_trade = advance_paper_trade
@@ -84,6 +89,7 @@ __all__ = [
     "LifecycleAnomalyCode",
     "LifecycleAuditReport",
     "P1ReviewState",
+    "PaperOperationCycleResult",
     "PaperPerformance",
     "PaperReport",
     "PaperTrade",
@@ -109,8 +115,10 @@ __all__ = [
     "load_and_verify_forward_paper_review_report",
     "paper_entry_expiry",
     "paper_lifecycle_snapshot",
+    "run_paper_operation_cycle",
     "summarize_paper_trades",
     "update_paper_trade",
     "write_forward_paper_daily_report",
     "write_forward_paper_review_report",
+    "write_paper_operation_cycle_result",
 ]
