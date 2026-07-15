@@ -22,7 +22,7 @@ def register_paper_status_command(app: typer.Typer) -> None:
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
-        """Inspect cycle, intake, pipeline freshness, locks, samples, and reports."""
+        """Inspect cycle, intake, pipeline freshness, failures, locks, and reports."""
 
         try:
             context = bootstrap()
@@ -73,6 +73,11 @@ def _emit_status(status: PaperOperationsStatus, output: str) -> None:
             f"| cycle_fresh={str(market.scheduler_fresh).lower()} "
             f"| intake_fresh={str(market.intake_fresh).lower()} "
             f"| pipeline_fresh={str(market.pipeline_fresh).lower()} "
+            f"| pipeline_outcome={market.latest_pipeline_outcome} "
+            f"| run_id={market.latest_pipeline_run_id} "
+            f"| failure_stage={market.latest_pipeline_failure_stage} "
+            f"| consecutive_failures={market.consecutive_pipeline_failures} "
+            f"| malformed_logs={market.malformed_cycle_log_count + market.malformed_intake_log_count + market.malformed_pipeline_log_count} "
             f"| cycle_lock_stale={str(market.lock_stale).lower()} "
             f"| intake_lock_stale={str(market.intake_lock_stale).lower()} "
             f"| pipeline_lock_stale={str(market.pipeline_lock_stale).lower()} "
