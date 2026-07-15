@@ -78,7 +78,7 @@ def test_historical_signal_command_is_registered() -> None:
     output = _compact_output(result)
     assert "historical-signals-generate" in output
     assert "--plan" in output
-    assert "--dataset-execution-manifest" in output
+    assert "--execution-manifest" in output
     assert "--assumptions" in output
     assert "--records-output" in output
     assert "--manifest-output" in output
@@ -114,12 +114,12 @@ def test_assumptions_loader_preserves_nested_values(tmp_path: Path) -> None:
 
 def test_cli_rejects_matching_output_paths(tmp_path: Path) -> None:
     plan = tmp_path / "plan.json"
-    dataset_execution = tmp_path / "dataset-execution.json"
+    execution = tmp_path / "dataset-execution.json"
     assumptions = tmp_path / "assumptions.json"
     output_path = tmp_path / "signals.json"
 
     plan.write_text("{}\n", encoding="utf-8")
-    dataset_execution.write_text("{}\n", encoding="utf-8")
+    execution.write_text("{}\n", encoding="utf-8")
     assumptions.write_text("{}\n", encoding="utf-8")
 
     result = runner.invoke(
@@ -129,8 +129,8 @@ def test_cli_rejects_matching_output_paths(tmp_path: Path) -> None:
             "historical-signals-generate",
             "--plan",
             str(plan),
-            "--dataset-execution-manifest",
-            str(dataset_execution),
+            "--execution-manifest",
+            str(execution),
             "--assumptions",
             str(assumptions),
             "--records-output",
