@@ -1,5 +1,9 @@
 """Public Phase 10 optimization API."""
 
+from apex.optimization.adapters import (
+    performance_from_futures_historical_payload,
+    performance_from_spot_historical_payload,
+)
 from apex.optimization.contracts import (
     CalibrationEvaluation,
     CalibrationStage,
@@ -56,7 +60,9 @@ __all__ = [
     "load_performance_report",
     "performance_from_backtest_study",
     "performance_from_campaign_payload",
+    "performance_from_futures_historical_payload",
     "performance_from_mapping",
+    "performance_from_spot_historical_payload",
     "result_to_payload",
     "save_optimization_result",
     "write_empirical_calibration_report",
