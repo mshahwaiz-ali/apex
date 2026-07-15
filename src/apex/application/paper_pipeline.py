@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 from uuid import uuid4
 
@@ -38,6 +39,7 @@ class PaperPipelineResult:
     cycle: ScheduledPaperCycleResult
     lock_path: str
     log_path: str
+    diagnostics: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -52,6 +54,7 @@ class PaperPipelineResult:
             raise ValueError("pipeline intake market type does not match result market")
         if self.cycle.market_type.strip().lower() != self.market_type.value:
             raise ValueError("pipeline cycle market type does not match result market")
+        object.__setattr__(self, "diagnostics", MappingProxyType(dict(self.diagnostics or {})))
 
 
 def run_locked_paper_pipeline(
@@ -63,6 +66,7 @@ def run_locked_paper_pipeline(
     run_cycle: Callable[[], ScheduledPaperCycleResult],
     stale_after: timedelta = timedelta(minutes=30),
     run_id: str | None = None,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> PaperPipelineResult:
     """Run intake and lifecycle advancement under one market-specific pipeline lock."""
 
@@ -97,6 +101,7 @@ def run_locked_paper_pipeline(
                 cycle=cycle,
                 lock_path=str(lock_path),
                 log_path=str(log_path),
+                diagnostics=diagnostics,
             )
             append_paper_pipeline_log(result, log_path)
             return result
@@ -163,6 +168,7 @@ def paper_pipeline_payload(result: PaperPipelineResult) -> dict[str, Any]:
         "completed_at": result.completed_at.isoformat(),
         "intake": intake_summary_payload(result.intake),
         "cycle": _jsonable(asdict(result.cycle)),
+        "diagnostics": _jsonable(dict(result.diagnostics or {})),
         "lock_path": result.lock_path,
         "log_path": result.log_path,
     }
