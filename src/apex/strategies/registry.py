@@ -8,6 +8,9 @@ from typing import Protocol
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import StrategyType, TradeCandidate
+from apex.strategies.higher_timeframe_breakout import (
+    generate_higher_timeframe_breakout_retest_candidates,
+)
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
 from apex.strategies.momentum_gainer_continuation import (
@@ -49,4 +52,10 @@ def run_strategy_generator(
 ) -> tuple[TradeCandidate, ...]:
     """Invoke one registered generator through a single typed orchestration boundary."""
 
-    return generator(context, decision_time=decision_time)
+    candidates = generator(context, decision_time=decision_time)
+    if candidates or generator is not generate_breakout_continuation_candidates:
+        return candidates
+    return generate_higher_timeframe_breakout_retest_candidates(
+        context,
+        decision_time=decision_time,
+    )
