@@ -34,10 +34,10 @@ def register_historical_signal_generation_commands(
                 help="Frozen aligned dataset campaign plan.",
             ),
         ],
-        dataset_execution_manifest: Annotated[
+        execution_manifest: Annotated[
             Path,
             typer.Option(
-                "--dataset-execution-manifest",
+                "--execution-manifest",
                 exists=True,
                 dir_okay=False,
                 readable=True,
@@ -89,7 +89,7 @@ def register_historical_signal_generation_commands(
             assumptions = _load_assumptions(assumptions_file)
             manifest = generate_and_persist_historical_signal_campaign(
                 plan_path=plan_file,
-                execution_manifest_path=dataset_execution_manifest,
+                execution_manifest_path=execution_manifest,
                 records_path=records_output,
                 manifest_path=manifest_output,
                 assumptions=assumptions,
