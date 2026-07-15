@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from apex.application.spot_analysis import (
     SpotAnalysisRequest,
@@ -35,6 +35,22 @@ class SpotAnalysisInput(BaseModel):
     deeper_support_price: float = Field(gt=0)
     recovery_entry_price: float = Field(gt=0)
     correlated_sector_exposure: float = Field(default=0.0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_geometry(self) -> Self:
+        if self.support_price >= self.resistance_price:
+            raise ValueError("spot support must be below resistance")
+        if self.deeper_support_price >= min(
+            self.strategy_input.current_price,
+            self.support_price,
+            self.recovery_entry_price,
+        ):
+            raise ValueError(
+                "deeper spot support must be below current price, support, and recovery entry"
+            )
+        if self.recovery_entry_price > self.strategy_input.current_price:
+            raise ValueError("spot recovery entry cannot exceed current price")
+        return self
 
     def to_request(self) -> SpotAnalysisRequest:
         return SpotAnalysisRequest(
