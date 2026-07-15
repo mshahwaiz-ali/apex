@@ -8,8 +8,16 @@ from pathlib import Path
 import pytest
 
 from apex.application.paper_lifecycle_analytics import PaperLifecycleAnalytics
-from apex.application.paper_lifecycle_health import PaperLifecycleHealthStatus
-from apex.application.paper_lifecycle_health_io import load_latest_paper_lifecycle_health
+from apex.application.paper_lifecycle_health import (
+    PaperLifecycleHealthPolicy,
+    PaperLifecycleHealthStatus,
+)
+from apex.application.paper_lifecycle_health_io import (
+    build_paper_lifecycle_health_artifact,
+    load_and_verify_paper_lifecycle_health_artifact,
+    load_latest_paper_lifecycle_health,
+    write_paper_lifecycle_health_artifact,
+)
 from apex.paper_trading.intake import IntakeMarketType
 
 
@@ -166,3 +174,62 @@ def test_loader_rejects_incomplete_analytics_contract(tmp_path: Path) -> None:
             path,
             market_type=IntakeMarketType.FUTURES,
         )
+
+
+def test_artifact_is_deterministic_and_preserves_policy(tmp_path: Path) -> None:
+    audit_path = tmp_path / "pipeline-futures.jsonl"
+    _write_jsonl(audit_path, [_record("run-1", "futures", analytics=_analytics())])
+    policy = PaperLifecycleHealthPolicy(minimum_terminal_trades=10)
+    audit = load_latest_paper_lifecycle_health(
+        audit_path,
+        market_type=IntakeMarketType.FUTURES,
+        policy=policy,
+    )
+
+    first = build_paper_lifecycle_health_artifact(audit, policy=policy)
+    second = build_paper_lifecycle_health_artifact(audit, policy=policy)
+
+    assert first == second
+    assert first.payload["policy"]["minimum_terminal_trades"] == 10
+    assert first.payload["source"]["run_id"] == "run-1"
+    assert first.payload["execution_authorized"] is False
+
+
+def test_artifact_round_trip_and_overwrite_protection(tmp_path: Path) -> None:
+    audit_path = tmp_path / "pipeline-futures.jsonl"
+    _write_jsonl(audit_path, [_record("run-1", "futures", analytics=_analytics())])
+    policy = PaperLifecycleHealthPolicy()
+    audit = load_latest_paper_lifecycle_health(
+        audit_path,
+        market_type=IntakeMarketType.FUTURES,
+        policy=policy,
+    )
+    artifact = build_paper_lifecycle_health_artifact(audit, policy=policy)
+    report_path = tmp_path / "health.json"
+
+    write_paper_lifecycle_health_artifact(artifact, report_path)
+    loaded = load_and_verify_paper_lifecycle_health_artifact(report_path)
+
+    assert loaded == artifact
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        write_paper_lifecycle_health_artifact(artifact, report_path)
+
+
+def test_artifact_verification_rejects_tampering(tmp_path: Path) -> None:
+    audit_path = tmp_path / "pipeline-futures.jsonl"
+    _write_jsonl(audit_path, [_record("run-1", "futures", analytics=_analytics())])
+    policy = PaperLifecycleHealthPolicy()
+    audit = load_latest_paper_lifecycle_health(
+        audit_path,
+        market_type=IntakeMarketType.FUTURES,
+        policy=policy,
+    )
+    artifact = build_paper_lifecycle_health_artifact(audit, policy=policy)
+    report_path = tmp_path / "health.json"
+    write_paper_lifecycle_health_artifact(artifact, report_path)
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    payload["health"]["status"] = "failed"
+    report_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="hash does not match"):
+        load_and_verify_paper_lifecycle_health_artifact(report_path)
