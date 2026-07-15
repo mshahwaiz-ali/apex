@@ -46,8 +46,8 @@ __all__ = [
     "load_historical_signal_campaign_manifest",
     "load_historical_signal_records",
     "persist_completed_historical_signal_campaign",
-    "validate_historical_backtest_signal_inputs",
     "validate_historical_signal_record_sequence",
+    "verify_historical_backtest_signal_inputs",
     "write_historical_signal_campaign_manifest",
     "write_historical_signal_records",
 ]
