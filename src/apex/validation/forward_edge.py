@@ -10,12 +10,19 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from apex.backtesting.historical_edge import EvidenceQuality
 from apex.paper_trading import PaperTrade
 
 FORWARD_EDGE_REPORT_SCHEMA_VERSION = 1
+
+
+class _ForwardMetrics(TypedDict):
+    sample_size: int
+    win_rate: float
+    expectancy: float
+    profit_factor: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,8 +71,12 @@ def build_forward_edge_report(
         key = tuple(sorted(dimensions.items()))
         trades = grouped.get(key, ())
         metrics = _forward_metrics(trades)
+        sample_size = cast(int, metrics["sample_size"])
+        expectancy = cast(float, metrics["expectancy"])
+        win_rate = cast(float, metrics["win_rate"])
+        profit_factor = cast(float | None, metrics["profit_factor"])
         historical_expectancy = _optional_float(item.get("final_test_expectancy"))
-        degradation = _expectancy_degradation(historical_expectancy, metrics["expectancy"])
+        degradation = _expectancy_degradation(historical_expectancy, expectancy)
         historically_validated = (
             item.get("promoted_evidence_quality")
             == EvidenceQuality.VALIDATED_OUT_OF_SAMPLE.value
@@ -73,11 +84,10 @@ def build_forward_edge_report(
         reasons: list[str] = []
         if not historically_validated:
             reasons.append("HISTORICAL_OUT_OF_SAMPLE_REQUIRED")
-        if metrics["sample_size"] < resolved.minimum_closed_trades:
+        if sample_size < resolved.minimum_closed_trades:
             reasons.append("FORWARD_SAMPLE_INSUFFICIENT")
-        if metrics["expectancy"] < resolved.minimum_expectancy:
+        if expectancy < resolved.minimum_expectancy:
             reasons.append("FORWARD_EXPECTANCY_INADEQUATE")
-        profit_factor = metrics["profit_factor"]
         if profit_factor is not None and profit_factor < resolved.minimum_profit_factor:
             reasons.append("FORWARD_PROFIT_FACTOR_INADEQUATE")
         if degradation is not None and degradation > resolved.maximum_expectancy_degradation:
@@ -88,9 +98,9 @@ def build_forward_edge_report(
                 "dimensions": dimensions,
                 "status": "PASSED_FORWARD_PAPER" if passed else "FAILED_FORWARD_PAPER",
                 "historically_validated": historically_validated,
-                "forward_sample_size": metrics["sample_size"],
-                "forward_win_rate": metrics["win_rate"],
-                "forward_expectancy": metrics["expectancy"],
+                "forward_sample_size": sample_size,
+                "forward_win_rate": win_rate,
+                "forward_expectancy": expectancy,
                 "forward_profit_factor": profit_factor,
                 "historical_final_test_expectancy": historical_expectancy,
                 "expectancy_degradation": degradation,
@@ -228,7 +238,10 @@ def _verify_historical_validation(value: Mapping[str, Any]) -> None:
 
 
 def _normalize_report(payload: Mapping[str, Any]) -> dict[str, Any]:
-    normalized = json.loads(json.dumps(payload))
+    loaded = json.loads(json.dumps(payload))
+    if not isinstance(loaded, dict):
+        raise ValueError("forward edge report must be an object")
+    normalized = cast(dict[str, Any], loaded)
     required = {
         "schema_version",
         "report_id",

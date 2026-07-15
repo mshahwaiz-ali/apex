@@ -8,7 +8,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from apex.backtesting.historical_edge import EvidenceQuality, HistoricalEdgeProfile
 from apex.backtesting.historical_edge_validation import (
@@ -222,7 +222,10 @@ def _verify_source_report(source: Mapping[str, object]) -> None:
 
 
 def _normalize_validation_report(payload: Mapping[str, Any]) -> dict[str, Any]:
-    normalized = json.loads(json.dumps(payload))
+    loaded = json.loads(json.dumps(payload))
+    if not isinstance(loaded, dict):
+        raise ValueError("historical edge validation report must be an object")
+    normalized = cast(dict[str, Any], loaded)
     required = {
         "schema_version",
         "report_id",
