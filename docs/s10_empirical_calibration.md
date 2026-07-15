@@ -2,7 +2,7 @@
 
 ## Status
 
-S10 implementation is functionally complete and awaiting the reported local quality gate.
+S10 is functionally complete and locally validated as of 2026-07-15.
 
 This stage provides deterministic parameter-candidate comparison and audit artifacts. It does not establish profitability, funded-account eligibility, production readiness, or real-money safety.
 
@@ -63,6 +63,25 @@ A selected candidate with no final-test inputs remains explicitly unaudited. It 
 
 The output contains a deterministic `report_sha256`. The command writes atomically, immediately reloads the artifact, and verifies the complete payload hash before reporting completion.
 
-## Validation boundary
+## Validation evidence
 
-S10 is not formally closed until focused Ruff, strict mypy, focused pytest, and the complete repository quality gate are run locally and their exact outputs are recorded.
+Focused validation reported locally:
+
+```text
+Success: no issues found in 268 source files
+10 focused tests passed
+```
+
+Complete repository validation reported locally:
+
+```text
+Success: no issues found in 268 source files
+1186 passed in 6.11s
+git diff --check: no output
+working tree clean
+branch main up to date with origin/main
+```
+
+## Boundary
+
+S10 proves deterministic calibration selection, stability gating, final-test isolation, adapter behavior, report persistence, and repository validation. It does not prove positive expectancy, live robustness, funded eligibility, or production readiness.
