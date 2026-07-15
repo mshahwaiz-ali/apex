@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from apex.application.paper_pipeline import run_locked_paper_pipeline
@@ -10,7 +10,7 @@ from apex.paper_trading.scheduler import ScheduledPaperCycleResult
 
 
 def test_pipeline_persists_scanner_and_phase4_diagnostics(tmp_path: Path) -> None:
-    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+    started_at = datetime.now(UTC) - timedelta(seconds=1)
     diagnostics = {
         "scan_analysis_count": 4,
         "scanner_failure_count": 1,
