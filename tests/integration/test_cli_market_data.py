@@ -1,10 +1,16 @@
 import json
 from contextlib import AbstractContextManager
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Self
 
+import pytest
 from typer.testing import CliRunner
 
+from apex.application import (
+    BacktestCampaignRequest,
+    MultiSymbolBacktestCampaignRequest,
+)
 import apex.cli as legacy_cli
 import apex.cli_commands.analysis as analysis_cli
 import apex.cli_commands.backtesting as backtesting_cli
@@ -55,7 +61,7 @@ class FakeServices(AbstractContextManager["FakeServices"]):
         return None
 
 
-def test_fetch_reports_provider_failure(monkeypatch) -> None:
+def test_fetch_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
         legacy_cli,
@@ -69,7 +75,7 @@ def test_fetch_reports_provider_failure(monkeypatch) -> None:
     assert "Market-data request failed: temporary provider failure" in result.output
 
 
-def test_ticker_reports_provider_failure(monkeypatch) -> None:
+def test_ticker_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
         legacy_cli,
@@ -83,7 +89,7 @@ def test_ticker_reports_provider_failure(monkeypatch) -> None:
     assert "Ticker request failed: ticker unavailable" in result.output
 
 
-def test_ticker_does_not_mask_programming_error(monkeypatch) -> None:
+def test_ticker_does_not_mask_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
         legacy_cli,
@@ -98,7 +104,7 @@ def test_ticker_does_not_mask_programming_error(monkeypatch) -> None:
     assert "Ticker request failed" not in result.output
 
 
-def test_analyze_command_emits_text_result(monkeypatch) -> None:
+def test_analyze_command_emits_text_result(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_analysis = object()
     monkeypatch.setattr(
         analysis_cli,
@@ -133,7 +139,7 @@ def test_analyze_command_emits_text_result(monkeypatch) -> None:
     assert "BTC/USDT: NO_TRADE" in result.output
 
 
-def test_scan_command_emits_json_result(monkeypatch, tmp_path) -> None:
+def test_scan_command_emits_json_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     symbols = tmp_path / "symbols.yaml"
     symbols.write_text("symbols:\n  - BTC/USDT\n", encoding="utf-8")
     fake_scan = object()
@@ -181,7 +187,7 @@ def test_analysis_and_scan_help_expose_record_option() -> None:
     assert "--record-db" in campaign.output
 
 
-def test_simulate_current_setup_delegates_to_legacy_command(monkeypatch) -> None:
+def test_simulate_current_setup_delegates_to_legacy_command(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
     def fake_simulate_current_setup(**kwargs: object) -> None:
@@ -214,7 +220,7 @@ def test_simulate_current_setup_delegates_to_legacy_command(monkeypatch) -> None
     }
 
 
-def test_chronological_campaign_command_runs_application_layer(monkeypatch, tmp_path) -> None:
+def test_chronological_campaign_command_runs_application_layer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     dataset = tmp_path / "dataset.json"
     dataset.write_text("{}", encoding="utf-8")
     captured: dict[str, object] = {}
@@ -242,7 +248,7 @@ def test_chronological_campaign_command_runs_application_layer(monkeypatch, tmp_
         lambda candles, symbols: {"BTC/USDT": {"5m": ()}},
     )
 
-    def fake_run_campaign(request) -> object:
+    def fake_run_campaign(request: BacktestCampaignRequest) -> object:
         captured["symbol"] = request.symbol
         captured["dataset_source"] = request.dataset_source
         captured["variant_ids"] = tuple(variant.identifier for variant in request.variants)
@@ -281,8 +287,8 @@ def test_chronological_campaign_command_runs_application_layer(monkeypatch, tmp_
 
 
 def test_chronological_campaign_command_supports_multi_symbol_dataset(
-    monkeypatch,
-    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     dataset = tmp_path / "dataset.json"
     dataset.write_text("{}", encoding="utf-8")
@@ -314,7 +320,9 @@ def test_chronological_campaign_command_supports_multi_symbol_dataset(
         },
     )
 
-    def fake_run_multi_campaign(request) -> object:
+    def fake_run_multi_campaign(
+        request: MultiSymbolBacktestCampaignRequest,
+    ) -> object:
         captured["symbols"] = request.symbols
         captured["variant_ids"] = tuple(variant.identifier for variant in request.variants)
         return object()
@@ -355,7 +363,7 @@ def test_chronological_campaign_command_supports_multi_symbol_dataset(
     assert captured["variant_ids"] == ("base", "candidate")
 
 
-def test_paper_report_command_emits_metrics(monkeypatch, tmp_path) -> None:
+def test_paper_report_command_emits_metrics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -368,7 +376,7 @@ def test_paper_report_command_emits_metrics(monkeypatch, tmp_path) -> None:
     assert "PAPER_REPORT | total=0" in result.output
 
 
-def test_paper_replay_report_command_writes_report(monkeypatch, tmp_path) -> None:
+def test_paper_replay_report_command_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -383,7 +391,7 @@ def test_paper_replay_report_command_writes_report(monkeypatch, tmp_path) -> Non
     assert report.exists()
 
 
-def test_optimize_evaluate_command_writes_report(monkeypatch, tmp_path) -> None:
+def test_optimize_evaluate_command_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     report = tmp_path / "backtest.json"
     report.write_text(
         '{"metrics":{"total_trades":1,"win_rate":1.0,"expectancy":2.0,'
@@ -403,7 +411,7 @@ def test_optimize_evaluate_command_writes_report(monkeypatch, tmp_path) -> None:
     assert (tmp_path / "optimization" / "latest-evaluate.json").exists()
 
 
-def test_optimize_evaluate_command_accepts_campaign_report(monkeypatch, tmp_path) -> None:
+def test_optimize_evaluate_command_accepts_campaign_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     report = tmp_path / "campaign.json"
     report.write_text(
         json.dumps(
@@ -457,7 +465,7 @@ def test_optimize_evaluate_command_accepts_campaign_report(monkeypatch, tmp_path
     assert (tmp_path / "optimization" / "latest-evaluate.json").exists()
 
 
-def test_optimize_compare_command_emits_json(monkeypatch, tmp_path) -> None:
+def test_optimize_compare_command_emits_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     baseline = tmp_path / "baseline.json"
     candidate = tmp_path / "candidate.json"
     baseline.write_text(
@@ -494,8 +502,13 @@ def test_optimize_compare_command_emits_json(monkeypatch, tmp_path) -> None:
     assert '"decision": "accepted"' in result.output
 
 
-def test_optimize_calibrate_command_writes_report(monkeypatch, tmp_path) -> None:
-    def write_report(path, *, expectancy: float, net_profit: float) -> None:
+def test_optimize_calibrate_command_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def write_report(
+        path: Path,
+        *,
+        expectancy: float,
+        net_profit: float,
+    ) -> None:
         path.write_text(
             json.dumps(
                 {
@@ -574,7 +587,7 @@ def test_optimize_calibrate_command_writes_report(monkeypatch, tmp_path) -> None
     assert (tmp_path / "optimization" / "latest-calibration.json").exists()
 
 
-def test_intelligence_summary_is_disabled_by_default(monkeypatch) -> None:
+def test_intelligence_summary_is_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -594,7 +607,7 @@ def test_intelligence_summary_is_disabled_by_default(monkeypatch) -> None:
     assert '"enabled": false' in result.output
 
 
-def test_execute_status_reports_local_testnet_simulation_only(monkeypatch, tmp_path) -> None:
+def test_execute_status_reports_local_testnet_simulation_only(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -607,7 +620,7 @@ def test_execute_status_reports_local_testnet_simulation_only(monkeypatch, tmp_p
     assert "EXECUTE_STATUS | mode=local_testnet_simulation_only" in result.output
 
 
-def test_execute_reconcile_writes_report(monkeypatch, tmp_path) -> None:
+def test_execute_reconcile_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -684,7 +697,7 @@ def test_execute_reconcile_writes_report(monkeypatch, tmp_path) -> None:
     assert json.loads(report.read_text(encoding="utf-8"))["matched_count"] == 1
 
 
-def test_execute_readiness_writes_report(monkeypatch, tmp_path) -> None:
+def test_execute_readiness_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -732,7 +745,7 @@ def test_execute_readiness_writes_report(monkeypatch, tmp_path) -> None:
     assert payload["blockers"]
 
 
-def test_execute_testnet_reports_local_simulation(monkeypatch, tmp_path) -> None:
+def test_execute_testnet_reports_local_simulation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",
@@ -767,7 +780,7 @@ def test_execute_testnet_reports_local_simulation(monkeypatch, tmp_path) -> None
     assert "local_testnet_simulated" in result.output
 
 
-def test_execute_kill_switch_enable(monkeypatch, tmp_path) -> None:
+def test_execute_kill_switch_enable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         legacy_cli,
         "bootstrap",

@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 
+from pathlib import Path
 import pytest
 
 from apex.execution import (
@@ -81,7 +82,7 @@ def test_execution_intent_rejects_invalid_target_ladder() -> None:
         )
 
 
-def test_execution_is_disabled_by_default(tmp_path) -> None:
+def test_execution_is_disabled_by_default(tmp_path: Path) -> None:
     result = submit_testnet_order(
         _intent(),
         config=ExecutionConfig(),
@@ -130,7 +131,7 @@ def test_idempotency_key_includes_target_ladder() -> None:
     assert idempotency_key(first) != idempotency_key(second)
 
 
-def test_confirmed_local_testnet_simulation_writes_audit_and_duplicate_key(tmp_path) -> None:
+def test_confirmed_local_testnet_simulation_writes_audit_and_duplicate_key(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     result = simulate_testnet_order(
         _intent(),
@@ -160,7 +161,7 @@ def test_confirmed_local_testnet_simulation_writes_audit_and_duplicate_key(tmp_p
     assert audit_event["order"]["idempotency_key"] == result.order.idempotency_key
 
 
-def test_simulated_audit_records_execution_target_ladder(tmp_path) -> None:
+def test_simulated_audit_records_execution_target_ladder(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     result = simulate_testnet_order(
         _ladder_intent(),
@@ -177,7 +178,7 @@ def test_simulated_audit_records_execution_target_ladder(tmp_path) -> None:
     assert audit_event["order"]["intent"]["partial_close_percentages"] == [50.0, 50.0]
 
 
-def test_legacy_submit_testnet_order_uses_local_simulation_state(tmp_path) -> None:
+def test_legacy_submit_testnet_order_uses_local_simulation_state(tmp_path: Path) -> None:
     result = submit_testnet_order(
         _intent(),
         config=ExecutionConfig(enabled=True),
@@ -190,7 +191,7 @@ def test_legacy_submit_testnet_order_uses_local_simulation_state(tmp_path) -> No
     assert result.state is ExecutionState.LOCAL_TESTNET_SIMULATED
 
 
-def test_duplicate_and_kill_switch_reject_order(tmp_path) -> None:
+def test_duplicate_and_kill_switch_reject_order(tmp_path: Path) -> None:
     result = submit_testnet_order(
         _intent(),
         config=ExecutionConfig(enabled=True),
@@ -206,7 +207,7 @@ def test_duplicate_and_kill_switch_reject_order(tmp_path) -> None:
     assert "duplicate order key already recorded" in result.reasons
 
 
-def test_deterministic_fake_testnet_adapter_uses_same_safety_gates(tmp_path) -> None:
+def test_deterministic_fake_testnet_adapter_uses_same_safety_gates(tmp_path: Path) -> None:
     adapter = DeterministicFakeTestnetAdapter()
     audit = tmp_path / "audit.jsonl"
 
@@ -228,7 +229,7 @@ def test_deterministic_fake_testnet_adapter_uses_same_safety_gates(tmp_path) -> 
     assert audit_event["live_fallback"] is False
 
 
-def test_fake_adapter_rejects_unconfirmed_order(tmp_path) -> None:
+def test_fake_adapter_rejects_unconfirmed_order(tmp_path: Path) -> None:
     result = DeterministicFakeTestnetAdapter().submit_order(
         _intent(),
         config=ExecutionConfig(enabled=False),
@@ -243,7 +244,7 @@ def test_fake_adapter_rejects_unconfirmed_order(tmp_path) -> None:
     assert "explicit confirmation is required" in result.reasons
 
 
-def test_execution_reconciliation_matches_adapter_snapshot(tmp_path) -> None:
+def test_execution_reconciliation_matches_adapter_snapshot(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     result = simulate_testnet_order(
         _intent(),
@@ -276,7 +277,7 @@ def test_execution_reconciliation_matches_adapter_snapshot(tmp_path) -> None:
     assert report.records[0].reasons == ()
 
 
-def test_execution_reconciliation_reports_missing_and_mismatched_snapshots(tmp_path) -> None:
+def test_execution_reconciliation_reports_missing_and_mismatched_snapshots(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     first = simulate_testnet_order(
         _intent(),
@@ -315,7 +316,7 @@ def test_execution_reconciliation_reports_missing_and_mismatched_snapshots(tmp_p
     assert "state differs" in " ".join(report.records[0].reasons)
 
 
-def test_execution_reconciliation_keeps_rejected_local_events(tmp_path) -> None:
+def test_execution_reconciliation_keeps_rejected_local_events(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     simulate_testnet_order(
         _intent(),
@@ -333,7 +334,7 @@ def test_execution_reconciliation_keeps_rejected_local_events(tmp_path) -> None:
     assert "execution is disabled" in report.records[0].reasons
 
 
-def test_execution_readiness_reports_local_boundary_and_exchange_blockers(tmp_path) -> None:
+def test_execution_readiness_reports_local_boundary_and_exchange_blockers(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     result = simulate_testnet_order(
         _intent(),
@@ -371,7 +372,7 @@ def test_execution_readiness_reports_local_boundary_and_exchange_blockers(tmp_pa
     assert not readiness.warnings
 
 
-def test_execution_readiness_fails_on_kill_switch_or_bad_reconciliation(tmp_path) -> None:
+def test_execution_readiness_fails_on_kill_switch_or_bad_reconciliation(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     simulate_testnet_order(
         _intent(),
