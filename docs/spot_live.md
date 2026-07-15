@@ -11,7 +11,7 @@ apex spot-live ETHUSDT \
   --output data/spot-live.json
 ```
 
-The command fetches public ticker and closed `1d` and `4h` candles through the existing provider abstraction. It derives measurable EMA, ATR, swing sequence, volume-ratio, and pullback-depth inputs, builds canonical `SpotStructureResult` and `SpotRegimeResult` contracts, and then calls the existing S5 orchestration bridge.
+The command fetches public ticker plus closed `12h` and `4h` candles through the existing provider abstraction. The `12h` series is produced by the configured provider-independent resampling layer from supported `4h` data. It derives measurable EMA, ATR, swing sequence, volume-ratio, and pullback-depth inputs, builds canonical `SpotStructureResult` and `SpotRegimeResult` contracts, and then calls the existing S5 orchestration bridge.
 
 The account file is a strict JSON object containing canonical `SpotAccountInput` under `account` plus optional `current_sector_exposure_percentage`.
 
