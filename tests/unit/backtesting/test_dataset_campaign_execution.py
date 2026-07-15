@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from apex.backtesting.dataset_campaign import plan_futures_dataset_campaign
+from apex.backtesting.dataset_campaign import (
+    FuturesDatasetCampaignPlan,
+    plan_futures_dataset_campaign,
+)
 from apex.backtesting.dataset_campaign_execution import (
     FuturesDatasetCampaignExecutionError,
     FuturesDatasetCampaignExecutionStatus,
@@ -17,7 +20,7 @@ from apex.backtesting.dataset_campaign_execution import (
     write_futures_dataset_campaign_execution_result,
 )
 from apex.backtesting.dataset_split import FuturesDatasetSplitRatios
-from apex.domain.models import Candle
+from apex.domain.models import Candle, TickerSnapshot
 
 
 class FakeProvider:
@@ -30,6 +33,10 @@ class FakeProvider:
         self.fail_symbol = fail_symbol
         self.source = source
         self.calls: list[tuple[str, str, int]] = []
+
+    @property
+    def name(self) -> str:
+        return self.source
 
     def fetch_candles(
         self,
@@ -59,11 +66,14 @@ class FakeProvider:
             for index in range(limit)
         ]
 
-    def fetch_ticker(self, symbol: str) -> object:
+    def fetch_ticker(self, symbol: str) -> TickerSnapshot:
         raise NotImplementedError
 
 
-def _plan(tmp_path: Path, symbols: tuple[str, ...] = ("ETH/USDT", "BTC/USDT")):
+def _plan(
+    tmp_path: Path,
+    symbols: tuple[str, ...] = ("ETH/USDT", "BTC/USDT"),
+) -> FuturesDatasetCampaignPlan:
     return plan_futures_dataset_campaign(
         campaign_id="n45-test",
         symbols=symbols,
