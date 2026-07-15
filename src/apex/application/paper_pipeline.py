@@ -11,7 +11,11 @@ from typing import Any
 from uuid import uuid4
 
 from apex.paper_trading.intake import IntakeMarketType, IntakeSummary, intake_summary_payload
-from apex.paper_trading.scheduler import ScheduledPaperCycleResult, paper_cycle_lock
+from apex.paper_trading.scheduler import (
+    PaperCycleAlreadyRunningError,
+    ScheduledPaperCycleResult,
+    paper_cycle_lock,
+)
 
 __all__ = [
     "PaperPipelineResult",
@@ -96,6 +100,8 @@ def run_locked_paper_pipeline(
             )
             append_paper_pipeline_log(result, log_path)
             return result
+    except PaperCycleAlreadyRunningError:
+        raise
     except Exception as exc:
         append_paper_pipeline_failure_log(
             path=log_path,
