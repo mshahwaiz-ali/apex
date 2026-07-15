@@ -11,9 +11,13 @@ from apex.backtesting.historical_futures_shared_io import hash_json, write_share
 
 
 def _payloads() -> tuple[dict[str, object], dict[str, object], str]:
-    result = {"campaign_id": "campaign-1", "trades": [], "shared_wallet": {}}
+    result: dict[str, object] = {
+        "campaign_id": "campaign-1",
+        "trades": [],
+        "shared_wallet": {},
+    }
     result_hash = hash_json(result)
-    manifest = {
+    manifest: dict[str, object] = {
         "campaign_id": "campaign-1",
         "result_hash": result_hash,
         "trade_count": 0,
