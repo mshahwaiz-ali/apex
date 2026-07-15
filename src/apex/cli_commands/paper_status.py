@@ -22,7 +22,7 @@ def register_paper_status_command(app: typer.Typer) -> None:
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
-        """Inspect scheduler freshness, locks, samples, and report artifacts."""
+        """Inspect cycle, intake, pipeline freshness, locks, samples, and reports."""
 
         try:
             context = bootstrap()
@@ -45,6 +45,7 @@ def paper_operations_status_payload(status: PaperOperationsStatus) -> dict[str, 
     if not isinstance(payload, dict):
         raise TypeError("paper operations status payload must be an object")
     payload["scheduler_ready"] = status.scheduler_ready
+    payload["operations_ready"] = status.operations_ready
     return payload
 
 
@@ -59,6 +60,7 @@ def _emit_status(status: PaperOperationsStatus, output: str) -> None:
 
     typer.echo(
         "PAPER_OPERATIONS_STATUS "
+        f"| operations_ready={str(status.operations_ready).lower()} "
         f"| scheduler_ready={str(status.scheduler_ready).lower()} "
         f"| trades={status.total_trade_count} "
         f"| daily_reports={status.daily_report_count} "
@@ -67,8 +69,13 @@ def _emit_status(status: PaperOperationsStatus, output: str) -> None:
     for market in status.markets:
         typer.echo(
             f"- {market.market_type.upper()} "
-            f"| fresh={str(market.scheduler_fresh).lower()} "
-            f"| lock_stale={str(market.lock_stale).lower()} "
+            f"| ready={str(market.operationally_ready).lower()} "
+            f"| cycle_fresh={str(market.scheduler_fresh).lower()} "
+            f"| intake_fresh={str(market.intake_fresh).lower()} "
+            f"| pipeline_fresh={str(market.pipeline_fresh).lower()} "
+            f"| cycle_lock_stale={str(market.lock_stale).lower()} "
+            f"| intake_lock_stale={str(market.intake_lock_stale).lower()} "
+            f"| pipeline_lock_stale={str(market.pipeline_lock_stale).lower()} "
             f"| open={market.open_trade_count} "
             f"| closed={market.closed_trade_count} "
             f"| provider_failures={market.latest_provider_failure_count}"
