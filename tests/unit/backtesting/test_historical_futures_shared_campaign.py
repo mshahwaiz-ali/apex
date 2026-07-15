@@ -53,7 +53,7 @@ def _trade_result(result_id: str = "result-1") -> HistoricalFuturesTradeResult:
 
 
 def test_required_margin_preserves_supported_serialized_aliases() -> None:
-    payloads = (
+    payloads: tuple[dict[str, object], ...] = (
         {
             "accepted": True,
             "decision_time": "2026-01-01T00:00:00+00:00",
@@ -82,7 +82,7 @@ def test_required_margin_preserves_supported_serialized_aliases() -> None:
 
 
 def test_required_margin_never_fabricates_missing_or_invalid_values() -> None:
-    payloads = (
+    payloads: tuple[dict[str, object], ...] = (
         {
             "accepted": True,
             "decision_time": "2026-01-01T00:00:00+00:00",
