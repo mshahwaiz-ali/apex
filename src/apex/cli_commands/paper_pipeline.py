@@ -143,6 +143,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                         stale_lock_after=timedelta(minutes=stale_lock_minutes),
                         config=PaperTradeConfig(),
                     ),
+                    diagnostics=diagnostics,
                 )
         except PaperCycleAlreadyRunningError as exc:
             typer.echo(f"PAPER_PIPELINE_SKIPPED | market=futures | reason={exc}")
