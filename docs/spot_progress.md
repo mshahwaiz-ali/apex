@@ -60,3 +60,25 @@ Validated locally on 2026-07-15:
 - eligible-mode live output contained three ranked symbols, zero ineligible symbols, and zero failures;
 - optional output remained byte-identical to stdout;
 - no hidden score or futures-only semantics were introduced.
+
+## S9 — Historical spot dataset, replay, and cash backtesting
+
+Implemented on GitHub and awaiting local validation:
+
+- explicit Binance Spot date-range dataset acquisition with forward pagination, closed-candle filtering, deterministic JSONL ordering, SHA-256 hashing, immutable manifests, atomic writes, and overwrite protection;
+- leakage-safe replay using verified dataset hashes, common chronological decision timestamps, closed-candle visibility, `12h` resampling from visible `4h` candles, BTC-backed market regime context, canonical structure/strategy/planning reuse, deterministic replay records, and immutable replay manifests;
+- chronological long-only cash-spot simulation consuming verified dataset and replay artifacts;
+- earliest available execution timeframe selected independently per symbol from `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, and `4h`;
+- no same-decision-candle lookahead and no exit processing on a candle that fills an entry leg;
+- multiple limit-style entry legs, partial fills, maximum-chase rejection, entry expiry, and pre-fill invalidation;
+- protective stops, partial targets, final targets, maximum holding exits, and end-of-dataset conversion to cash;
+- conservative and optimistic same-candle stop/target policies;
+- shared quote wallet with no leverage, borrowing, short-selling, liquidation-price semantics, or futures margin concepts;
+- fees and slippage on both buys and sells, position-level cost basis, realized PnL, cash/equity curves, and exposure utilization;
+- position-allocation, portfolio-exposure, quote-reserve, duplicate-position, and maximum-open-position controls;
+- signal, eligibility, plan, fill, missed, expired, invalidated, trade, win-rate, expectancy, gross-profit, gross-loss, net-profit, profit-factor, fee, slippage, drawdown, ending-equity, holding-duration, and grouped performance outputs;
+- source dataset, replay records, replay configuration, backtest configuration, and result hashes preserved in deterministic outputs and execution manifests;
+- CLI commands: `spot-history-fetch`, `spot-history-replay`, and `spot-history-backtest`;
+- focused execution-accounting, partial-fill, stop/target ambiguity, metrics, and exposure tests added.
+
+S9 is not validated. Ruff, strict mypy, focused pytest, CLI help, historical fetch, replay, backtest, and manifest/hash smoke outputs must be supplied locally before validation is recorded.
