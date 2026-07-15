@@ -23,11 +23,13 @@ class FakeProvider:
     def __init__(self, *, stale: bool = False, missing: str | None = None) -> None:
         self.stale = stale
         self.missing = missing
+        self.requested_timeframes: list[str] = []
 
     def fetch_candles(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        self.requested_timeframes.append(timeframe)
         if timeframe == self.missing:
             return []
-        seconds = 86400 if timeframe == "1d" else 14400
+        seconds = {"12h": 43200, "4h": 14400}[timeframe]
         end = NOW - (timedelta(days=10) if self.stale else timedelta())
         candles: list[Candle] = []
         for index in range(limit):
@@ -77,10 +79,12 @@ def _analyze(provider: FakeProvider):
 
 
 def test_live_spot_builds_all_strategy_candidates() -> None:
-    payload = spot_analysis_result_to_payload(_analyze(FakeProvider()))
+    provider = FakeProvider()
+    payload = spot_analysis_result_to_payload(_analyze(provider))
 
     assert len(payload["candidates"]) == 6
     assert payload["schema_version"]
+    assert provider.requested_timeframes == ["12h", "4h", "12h", "4h"]
 
 
 def test_live_spot_repeated_execution_is_deterministic() -> None:
