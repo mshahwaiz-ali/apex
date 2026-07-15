@@ -100,7 +100,6 @@ class IntakeCandidate:
             "strategy": self.strategy,
             "direction": self.direction,
             "setup_segment": dict(sorted(self.setup_segment.items())),
-            "analysis_timestamp": self.analysis_timestamp.astimezone(UTC).isoformat(),
             "plan_identity": self.plan_identity,
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -156,6 +155,8 @@ def build_futures_intake_candidate(
             IntakeReason.MISSING_ACTIONABLE_PLAN,
         )
     entry_state = _entry_state(analysis.precision_entry)
+    if not entry_state:
+        entry_state = _entry_state(futures_plan.get("entry"))
     rejected_reason = _REJECTED_ENTRY_STATES.get(entry_state)
     if rejected_reason is not None:
         return _rejection(IntakeMarketType.FUTURES, analysis.symbol, rejected_reason)
@@ -186,8 +187,8 @@ def build_futures_intake_candidate(
         "analysis_timestamp": analysis.generated_at.isoformat(),
         "source_command": source_command,
         "source_mode": source_mode,
-        "eligibility": "paper_only",
-        "strategy_approval": analysis.assessment.decision.value,
+        "eligibility": futures_plan.get("eligibility", "paper_only"),
+        "strategy_approval": futures_plan.get("strategy_approval"),
         "risk_mode": futures_plan.get("risk_mode"),
         "account_policy_snapshot": account_policy_snapshot,
         "scanner_context": {
@@ -228,19 +229,20 @@ def build_spot_intake_candidate(
     analysis_timestamp: datetime,
     source_command: str,
     source_mode: str,
+    direction: str = "long",
     scanner_context: dict[str, Any] | None = None,
 ) -> IntakeCandidate | IntakeResult:
     """Build one long-only cash-spot paper intake candidate or rejection."""
 
+    normalized_direction = direction.strip().lower()
+    if normalized_direction != TradeDirection.LONG.value:
+        return _rejection(IntakeMarketType.SPOT, symbol, IntakeReason.SPOT_SHORT_NOT_ALLOWED)
     selected = result.routing.selected
     planning = result.planning
     if selected is None or selected.decision.value != "APPROVE":
         return _rejection(IntakeMarketType.SPOT, symbol, IntakeReason.SPOT_NOT_APPROVED)
     if planning is None:
         return _rejection(IntakeMarketType.SPOT, symbol, IntakeReason.SPOT_ALLOCATION_REJECTED)
-    direction = "long"
-    if direction != TradeDirection.LONG.value:
-        return _rejection(IntakeMarketType.SPOT, symbol, IntakeReason.SPOT_SHORT_NOT_ALLOWED)
 
     entry_state = planning.entry_plan.state.value.lower()
     if entry_state not in _ACTIONABLE_ENTRY_STATES:
@@ -259,7 +261,7 @@ def build_spot_intake_candidate(
         market_type=IntakeMarketType.SPOT,
         symbol=symbol,
         strategy=strategy,
-        direction=direction,
+        direction=normalized_direction,
         scanner_type=source_mode,
         gainer_state=None,
     )
@@ -284,7 +286,7 @@ def build_spot_intake_candidate(
     payload = {
         "market_type": IntakeMarketType.SPOT.value,
         "strategy": strategy,
-        "direction": direction,
+        "direction": normalized_direction,
         "setup_segment": setup_segment,
         "analysis_timestamp": analysis_timestamp.isoformat(),
         "source_command": source_command,
@@ -319,7 +321,7 @@ def build_spot_intake_candidate(
         market_type=IntakeMarketType.SPOT,
         symbol=symbol,
         strategy=strategy,
-        direction=direction,
+        direction=normalized_direction,
         setup_segment=setup_segment,
         analysis_timestamp=analysis_timestamp,
         plan_identity=plan_identity,
