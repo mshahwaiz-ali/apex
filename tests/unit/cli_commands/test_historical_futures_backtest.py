@@ -17,14 +17,18 @@ runner = CliRunner()
 
 
 def test_historical_futures_backtest_command_is_registered() -> None:
-    result = runner.invoke(app, ["dataset", "--help"])
+    result = runner.invoke(app, ["dataset", "--help"], terminal_width=240)
 
     assert result.exit_code == 0
     assert "historical-futures-backtest" in result.stdout
 
 
 def test_historical_futures_backtest_help_exposes_required_artifacts() -> None:
-    result = runner.invoke(app, ["dataset", "historical-futures-backtest", "--help"])
+    result = runner.invoke(
+        app,
+        ["dataset", "historical-futures-backtest", "--help"],
+        terminal_width=240,
+    )
 
     assert result.exit_code == 0
     assert "--signal-records" in result.stdout
