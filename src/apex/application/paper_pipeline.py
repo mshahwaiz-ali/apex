@@ -40,6 +40,7 @@ class PaperPipelineResult:
     lock_path: str
     log_path: str
     diagnostics: Mapping[str, Any] | None = None
+    lifecycle_analytics: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -55,6 +56,11 @@ class PaperPipelineResult:
         if self.cycle.market_type.strip().lower() != self.market_type.value:
             raise ValueError("pipeline cycle market type does not match result market")
         object.__setattr__(self, "diagnostics", MappingProxyType(dict(self.diagnostics or {})))
+        object.__setattr__(
+            self,
+            "lifecycle_analytics",
+            MappingProxyType(dict(self.lifecycle_analytics or {})),
+        )
 
 
 def run_locked_paper_pipeline(
@@ -67,6 +73,10 @@ def run_locked_paper_pipeline(
     stale_after: timedelta = timedelta(minutes=30),
     run_id: str | None = None,
     diagnostics: Mapping[str, Any] | None = None,
+    build_lifecycle_analytics: Callable[
+        [IntakeSummary, ScheduledPaperCycleResult], Mapping[str, Any]
+    ]
+    | None = None,
 ) -> PaperPipelineResult:
     """Run intake and lifecycle advancement under one market-specific pipeline lock."""
 
@@ -92,6 +102,12 @@ def run_locked_paper_pipeline(
             cycle = run_cycle()
             if cycle.market_type.strip().lower() != market_type.value:
                 raise ValueError("pipeline cycle market type does not match requested market")
+            stage = "analytics"
+            lifecycle_analytics = (
+                {}
+                if build_lifecycle_analytics is None
+                else dict(build_lifecycle_analytics(intake, cycle))
+            )
             result = PaperPipelineResult(
                 run_id=normalized_run_id,
                 market_type=market_type,
@@ -102,6 +118,7 @@ def run_locked_paper_pipeline(
                 lock_path=str(lock_path),
                 log_path=str(log_path),
                 diagnostics=diagnostics,
+                lifecycle_analytics=lifecycle_analytics,
             )
             append_paper_pipeline_log(result, log_path)
             return result
@@ -141,7 +158,7 @@ def append_paper_pipeline_failure_log(
     """Append one structured failed pipeline result to JSONL."""
 
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": run_id,
         "outcome": "failure",
         "market_type": market_type.value,
@@ -160,7 +177,7 @@ def paper_pipeline_payload(result: PaperPipelineResult) -> dict[str, Any]:
     """Return a stable JSON-ready successful pipeline payload."""
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": result.run_id,
         "outcome": "success",
         "market_type": result.market_type.value,
@@ -169,6 +186,7 @@ def paper_pipeline_payload(result: PaperPipelineResult) -> dict[str, Any]:
         "intake": intake_summary_payload(result.intake),
         "cycle": _jsonable(asdict(result.cycle)),
         "diagnostics": _jsonable(dict(result.diagnostics or {})),
+        "lifecycle_analytics": _jsonable(dict(result.lifecycle_analytics or {})),
         "lock_path": result.lock_path,
         "log_path": result.log_path,
     }
