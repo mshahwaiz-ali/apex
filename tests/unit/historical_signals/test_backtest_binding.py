@@ -22,6 +22,7 @@ from apex.backtesting.historical_signal_replay import (
 from apex.domain.models import Candle
 from apex.historical_signals import (
     HistoricalSignalCampaignManifest,
+    HistoricalSignalCampaignRecord,
     derive_historical_signal_campaign_id,
     hash_file_sha256,
     verify_historical_backtest_signal_inputs,
@@ -110,7 +111,7 @@ def _artifacts(tmp_path: Path) -> tuple[Path, Path, Path, str, str]:
     return plan, execution, records, hash_file_sha256(plan), hash_file_sha256(execution)
 
 
-def _record(*, plan_hash: str, execution_hash: str):
+def _record(*, plan_hash: str, execution_hash: str) -> HistoricalSignalCampaignRecord:
     replay = HistoricalSignalRecord(
         campaign_id="pilot",
         symbol="BTC/USDT",
@@ -134,13 +135,19 @@ def _record(*, plan_hash: str, execution_hash: str):
     )
 
 
-def _manifest(*, records: Path, plan_hash: str, execution_hash: str):
+def _manifest(
+    *,
+    records: Path,
+    plan_hash: str,
+    execution_hash: str,
+    assumptions_hash: str = _ASSUMPTIONS_HASH,
+) -> HistoricalSignalCampaignManifest:
     records_hash = "c" * 64
     signal_campaign_id = derive_historical_signal_campaign_id(
         campaign_id="pilot",
         dataset_campaign_plan_id=f"aligned-plan-{plan_hash}",
         dataset_campaign_execution_id=f"aligned-execution-{execution_hash}",
-        assumptions_hash=_ASSUMPTIONS_HASH,
+        assumptions_hash=assumptions_hash,
         records_content_hash=records_hash,
     )
     return HistoricalSignalCampaignManifest(
@@ -148,7 +155,7 @@ def _manifest(*, records: Path, plan_hash: str, execution_hash: str):
         campaign_id="pilot",
         dataset_campaign_plan_id=f"aligned-plan-{plan_hash}",
         dataset_campaign_execution_id=f"aligned-execution-{execution_hash}",
-        assumptions_hash=_ASSUMPTIONS_HASH,
+        assumptions_hash=assumptions_hash,
         records_path=records.as_posix(),
         records_content_hash=records_hash,
         record_count=1,
@@ -192,8 +199,9 @@ def test_schema_v2_backtest_binding_rejects_assumptions_drift(tmp_path: Path) ->
                 records=records,
                 plan_hash=plan_hash,
                 execution_hash=execution_hash,
+                assumptions_hash="e" * 64,
             ),
-            records=(replace(record, assumptions_hash="e" * 64),),
+            records=(record,),
             plan_path=plan,
             execution_manifest_path=execution,
             records_path=records,
@@ -205,17 +213,18 @@ def test_schema_v2_backtest_binding_rejects_execution_identity_drift(
 ) -> None:
     plan, execution, records, plan_hash, execution_hash = _artifacts(tmp_path)
     manifest = _manifest(records=records, plan_hash=plan_hash, execution_hash=execution_hash)
+    drifted_execution_id = f"aligned-execution-{'f' * 64}"
 
     with pytest.raises(ValueError, match="execution identity"):
         verify_historical_backtest_signal_inputs(
             campaign_inputs=_inputs(),
             manifest=replace(
                 manifest,
-                dataset_campaign_execution_id=f"aligned-execution-{'f' * 64}",
+                dataset_campaign_execution_id=drifted_execution_id,
                 signal_campaign_id=derive_historical_signal_campaign_id(
                     campaign_id="pilot",
                     dataset_campaign_plan_id=manifest.dataset_campaign_plan_id,
-                    dataset_campaign_execution_id=f"aligned-execution-{'f' * 64}",
+                    dataset_campaign_execution_id=drifted_execution_id,
                     assumptions_hash=_ASSUMPTIONS_HASH,
                     records_content_hash=manifest.records_content_hash,
                 ),
