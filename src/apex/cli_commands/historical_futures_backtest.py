@@ -10,11 +10,14 @@ import typer
 from apex.backtesting import (
     BacktestConfig,
     HistoricalFuturesCampaignRequest,
-    HistoricalFuturesExecutionManifest,
-    execute_historical_futures_campaign,
     load_historical_signal_campaign_inputs,
-    write_historical_futures_campaign,
 )
+from apex.backtesting.historical_futures_shared_campaign import (
+    SharedHistoricalFuturesExecutionManifest,
+    execute_shared_historical_futures_campaign,
+    write_shared_historical_futures_campaign,
+)
+from apex.backtesting.shared_wallet_replay import SharedWalletConfig
 
 
 def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> None:
@@ -77,8 +80,24 @@ def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> N
             bool,
             typer.Option("--conservative-intrabar/--optimistic-intrabar"),
         ] = True,
+        maximum_concurrent_positions: Annotated[
+            int,
+            typer.Option("--maximum-concurrent-positions", min=1),
+        ] = 3,
+        maximum_wallet_exposure_pct: Annotated[
+            float,
+            typer.Option("--maximum-wallet-exposure-pct", min=0.01, max=100.0),
+        ] = 50.0,
+        daily_loss_limit_pct: Annotated[
+            float,
+            typer.Option("--daily-loss-limit-pct", min=0.01, max=100.0),
+        ] = 10.0,
+        consecutive_loss_limit: Annotated[
+            int,
+            typer.Option("--consecutive-loss-limit", min=1),
+        ] = 4,
     ) -> None:
-        """Replay verified historical signals through the canonical backtester."""
+        """Replay verified signals through one chronological shared wallet."""
 
         try:
             request = HistoricalFuturesCampaignRequest(
@@ -95,12 +114,25 @@ def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> N
                     conservative_intrabar=conservative_intrabar,
                 ),
             )
+            wallet_config = SharedWalletConfig(
+                maximum_concurrent_positions=maximum_concurrent_positions,
+                maximum_wallet_exposure_pct=maximum_wallet_exposure_pct,
+                daily_loss_limit_pct=daily_loss_limit_pct,
+                consecutive_loss_limit=consecutive_loss_limit,
+            )
             inputs = load_historical_signal_campaign_inputs(
                 plan_path=plan_file,
                 execution_manifest_path=dataset_execution_manifest,
             )
-            result = execute_historical_futures_campaign(request=request, inputs=inputs)
-            manifest = write_historical_futures_campaign(request=request, result=result)
+            result = execute_shared_historical_futures_campaign(
+                request=request,
+                inputs=inputs,
+                wallet_config=wallet_config,
+            )
+            manifest = write_shared_historical_futures_campaign(
+                request=request,
+                result=result,
+            )
         except (
             FileExistsError,
             FileNotFoundError,
@@ -115,14 +147,15 @@ def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> N
 
 def _echo_completion(
     *,
-    manifest: HistoricalFuturesExecutionManifest,
+    manifest: SharedHistoricalFuturesExecutionManifest,
     result_output: Path,
 ) -> None:
     typer.echo(
         "HISTORICAL_FUTURES_BACKTEST_COMPLETED "
-        f"| campaign_id={manifest.campaign_id} "
-        f"| decisions={manifest.total_decisions} "
-        f"| trades={manifest.trade_count} "
-        f"| result_hash={manifest.result_hash} "
+        f"| campaign_id={manifest.base.campaign_id} "
+        f"| decisions={manifest.base.total_decisions} "
+        f"| trades={manifest.base.trade_count} "
+        f"| wallet_config_hash={manifest.wallet_configuration_hash} "
+        f"| result_hash={manifest.base.result_hash} "
         f"| result={result_output}"
     )
