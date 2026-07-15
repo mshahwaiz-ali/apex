@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from apex.backtesting import (
+    FuturesDatasetCampaignPlan,
     FuturesDatasetSplitRatios,
     load_futures_dataset_campaign_plan,
     plan_futures_dataset_campaign,
@@ -177,7 +178,7 @@ def _plan(
     *,
     symbols: tuple[str, ...] = ("ETH/USDT", "BTC/USDT"),
     ratios: FuturesDatasetSplitRatios | None = None,
-):
+) -> FuturesDatasetCampaignPlan:
     return plan_futures_dataset_campaign(
         campaign_id="baseline",
         symbols=symbols,
