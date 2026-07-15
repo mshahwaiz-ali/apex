@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -86,7 +87,7 @@ def test_report_identity_is_deterministic_and_generation_time_is_audit_only() ->
     assert first["profile_count"] == 1
 
 
-def test_json_report_round_trip_and_overwrite_protection(tmp_path) -> None:
+def test_json_report_round_trip_and_overwrite_protection(tmp_path: Path) -> None:
     path = tmp_path / "reports" / "historical-edge.json"
     payload = _report()
 
@@ -102,7 +103,7 @@ def test_json_report_round_trip_and_overwrite_protection(tmp_path) -> None:
     assert load_historical_edge_report(path)["generated_at"] == replacement["generated_at"]
 
 
-def test_sqlite_round_trip_upsert_and_metadata_listing(tmp_path) -> None:
+def test_sqlite_round_trip_upsert_and_metadata_listing(tmp_path: Path) -> None:
     path = tmp_path / "historical-edge.sqlite3"
     payload = _report()
     report_id = str(payload["report_id"])
@@ -129,7 +130,7 @@ def test_sqlite_round_trip_upsert_and_metadata_listing(tmp_path) -> None:
     )
 
 
-def test_missing_storage_and_invalid_limits_are_handled(tmp_path) -> None:
+def test_missing_storage_and_invalid_limits_are_handled(tmp_path: Path) -> None:
     path = tmp_path / "missing.sqlite3"
 
     assert load_historical_edge_report_sqlite(path, "missing-report") is None
@@ -140,7 +141,7 @@ def test_missing_storage_and_invalid_limits_are_handled(tmp_path) -> None:
         list_historical_edge_report_metadata_sqlite(path, limit=0)
 
 
-def test_report_validation_rejects_inconsistent_profile_count(tmp_path) -> None:
+def test_report_validation_rejects_inconsistent_profile_count(tmp_path: Path) -> None:
     payload = _report()
     payload["profile_count"] = 2
 
