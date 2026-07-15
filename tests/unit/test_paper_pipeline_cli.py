@@ -55,6 +55,18 @@ def _cycle(market_type: str, started_at: datetime) -> ScheduledPaperCycleResult:
     )
 
 
+def _pipeline_result(started_at: datetime) -> SimpleNamespace:
+    return SimpleNamespace(
+        market_type=IntakeMarketType.FUTURES,
+        started_at=started_at,
+        completed_at=started_at,
+        intake=_summary(IntakeMarketType.FUTURES),
+        cycle=_cycle("futures", started_at),
+        lock_path="pipeline.lock",
+        log_path="pipeline.jsonl",
+    )
+
+
 def test_combined_pipeline_commands_are_registered() -> None:
     result = runner.invoke(_app(), ["--help"])
 
@@ -65,15 +77,7 @@ def test_combined_pipeline_commands_are_registered() -> None:
 
 def test_emit_pipeline_json_is_machine_readable(monkeypatch: Any, capsys: Any) -> None:
     started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
-    result = SimpleNamespace(
-        market_type=IntakeMarketType.FUTURES,
-        started_at=started_at,
-        completed_at=started_at,
-        intake=_summary(IntakeMarketType.FUTURES),
-        cycle=_cycle("futures", started_at),
-        lock_path="pipeline.lock",
-        log_path="pipeline.jsonl",
-    )
+    result = _pipeline_result(started_at)
     monkeypatch.setattr(
         pipeline_cli,
         "paper_pipeline_payload",
@@ -83,11 +87,41 @@ def test_emit_pipeline_json_is_machine_readable(monkeypatch: Any, capsys: Any) -
         },
     )
 
-    pipeline_cli._emit_pipeline(result, "json")  # type: ignore[arg-type]
+    pipeline_cli._emit_pipeline(
+        result,  # type: ignore[arg-type]
+        "json",
+        diagnostics={
+            "scan_analysis_count": 4,
+            "scanner_failure_count": 1,
+            "scanner_failures": {"normal:BAD/USDT": "provider failure"},
+        },
+    )
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["market_type"] == "futures"
     assert payload["intake"]["accepted"] == 1
+    assert payload["diagnostics"]["scan_analysis_count"] == 4
+    assert payload["diagnostics"]["scanner_failure_count"] == 1
+
+
+def test_emit_pipeline_text_surfaces_scanner_counts(monkeypatch: Any, capsys: Any) -> None:
+    started_at = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
+    result = _pipeline_result(started_at)
+    monkeypatch.setattr(pipeline_cli, "paper_pipeline_payload", lambda value: {})
+
+    pipeline_cli._emit_pipeline(
+        result,  # type: ignore[arg-type]
+        "text",
+        diagnostics={
+            "scan_analysis_count": 4,
+            "scanner_failure_count": 2,
+            "scanner_failures": {},
+        },
+    )
+
+    output = capsys.readouterr().out
+    assert "scan_analyses=4" in output
+    assert "scanner_failures=2" in output
 
 
 def test_cycle_paths_are_market_separated(tmp_path: Path) -> None:
