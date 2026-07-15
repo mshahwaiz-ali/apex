@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from apex.application import (
@@ -17,7 +17,7 @@ from apex.application import (
     load_symbols,
     scan_symbols,
 )
-from apex.application.paper_intake import intake_futures_scan, intake_spot_scan
+from apex.application.paper_intake import append_intake_log, intake_futures_scan, intake_spot_scan
 from apex.application.paper_pipeline import (
     PaperPipelineResult,
     paper_pipeline_payload,
@@ -35,6 +35,7 @@ from apex.domain import RiskMode
 from apex.domain.spot_market import SpotScannerMode
 from apex.paper_trading import (
     IntakeMarketType,
+    IntakeSummary,
     PaperCycleAlreadyRunningError,
     PaperTradeConfig,
     PaperTradeStore,
@@ -55,7 +56,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
             case_sensitive=False,
         ),
         wallet_balance: float = typer.Option(100.0, "--wallet-balance", min=0.01),
-        analysis_candles: int = typer.Option(200, "--analysis-candles", min=40, max=1000),
+        analysis_candles: int = typer.Option(200, "--analysis-candles", min=40, max=999),
         lifecycle_timeframe: str = typer.Option("5m", "--lifecycle-timeframe"),
         lifecycle_candles: int = typer.Option(80, "--lifecycle-candles", min=1, max=1000),
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
@@ -64,6 +65,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
         """Run futures intake and lifecycle advancement under one pipeline lock."""
 
         started_at = datetime.now(UTC)
+        diagnostics: dict[str, Any] = {}
         try:
             context = bootstrap()
             symbols = load_symbols(symbols_file)
@@ -84,7 +86,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                         "timeframe_max_staleness_seconds",
                         None,
                     ),
-                    candle_limit=analysis_candles,
+                    candle_limit=analysis_candles + 1,
                     risk_config=risk_config,
                     scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
@@ -94,12 +96,14 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                         None,
                     ),
                 )
-                result = run_locked_paper_pipeline(
-                    market_type=IntakeMarketType.FUTURES,
-                    data_dir=context.settings.data_dir,
-                    started_at=started_at,
-                    stale_after=timedelta(minutes=stale_lock_minutes),
-                    run_intake=lambda: intake_futures_scan(
+                diagnostics = {
+                    "scan_analysis_count": len(scan.analyses),
+                    "scanner_failure_count": len(scan.failures),
+                    "scanner_failures": dict(scan.failures),
+                }
+
+                def run_futures_intake() -> IntakeSummary:
+                    summary = intake_futures_scan(
                         scan=scan,
                         store=store,
                         plan_builder=lambda analysis: (
@@ -108,7 +112,24 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                             else None
                         ),
                         source_command="paper scheduled-futures-pipeline",
-                    ),
+                    )
+                    append_intake_log(
+                        context.settings.data_dir
+                        / "paper_trading"
+                        / "scheduler"
+                        / "intake-futures.jsonl",
+                        started_at=started_at,
+                        summary=summary,
+                        diagnostics=diagnostics,
+                    )
+                    return summary
+
+                result = run_locked_paper_pipeline(
+                    market_type=IntakeMarketType.FUTURES,
+                    data_dir=context.settings.data_dir,
+                    started_at=started_at,
+                    stale_after=timedelta(minutes=stale_lock_minutes),
+                    run_intake=run_futures_intake,
                     run_cycle=lambda: run_scheduled_paper_cycle(
                         store=store,
                         provider=services.candles,
@@ -128,7 +149,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
             raise typer.Exit(code=0) from exc
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        _emit_pipeline(result, output)
+        _emit_pipeline(result, output, diagnostics=diagnostics)
 
     @app.command("scheduled-spot-pipeline")
     def scheduled_spot_pipeline(
@@ -229,17 +250,28 @@ def _cycle_log(data_dir: Path, market_type: str) -> Path:
     return data_dir / "paper_trading" / "scheduler" / "logs" / f"{market_type}.jsonl"
 
 
-def _emit_pipeline(result: PaperPipelineResult, output: str) -> None:
+def _emit_pipeline(
+    result: PaperPipelineResult,
+    output: str,
+    *,
+    diagnostics: dict[str, Any] | None = None,
+) -> None:
     normalized = output.strip().lower()
     payload = paper_pipeline_payload(result)
+    if diagnostics:
+        payload["diagnostics"] = diagnostics
     if normalized == "json":
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
         return
     if normalized != "text":
         raise typer.BadParameter("output must be text or json")
     runtime = result.cycle.runtime
+    scan_count = int((diagnostics or {}).get("scan_analysis_count", 0))
+    scanner_failures = int((diagnostics or {}).get("scanner_failure_count", 0))
     typer.echo(
         f"PAPER_PIPELINE_{result.market_type.value.upper()} "
+        f"| scan_analyses={scan_count} "
+        f"| scanner_failures={scanner_failures} "
         f"| observed={result.intake.candidates_observed} "
         f"| accepted={result.intake.accepted} "
         f"| rejected={result.intake.rejected} "
