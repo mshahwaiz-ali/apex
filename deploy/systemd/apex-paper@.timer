@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Apex %i paper cycle every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+RandomizedDelaySec=15
+Unit=apex-paper@%i.service
+
+[Install]
+WantedBy=timers.target
