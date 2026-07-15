@@ -23,6 +23,7 @@ from apex.application.paper_pipeline import (
     paper_pipeline_payload,
     run_locked_paper_pipeline,
 )
+from apex.application.paper_pipeline_diagnostics import build_futures_pipeline_diagnostics
 from apex.application.spot_live import load_spot_live_account
 from apex.application.spot_live_scanner import scan_live_spot
 from apex.application.spot_orchestration_io import (
@@ -96,11 +97,7 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                         None,
                     ),
                 )
-                diagnostics = {
-                    "scan_analysis_count": len(scan.analyses),
-                    "scanner_failure_count": len(scan.failures),
-                    "scanner_failures": dict(scan.failures),
-                }
+                diagnostics = build_futures_pipeline_diagnostics(scan)
 
                 def run_futures_intake() -> IntakeSummary:
                     summary = intake_futures_scan(
