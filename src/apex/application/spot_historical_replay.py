@@ -20,7 +20,11 @@ from apex.application.spot_historical_dataset import (
     load_spot_historical_rows,
 )
 from apex.application.spot_live import _evidence, _snapshot
-from apex.application.spot_orchestration import SpotOrchestrationInput, analyze_spot_orchestration
+from apex.application.spot_orchestration import (
+    SpotOrchestrationInput,
+    _select_thesis_timeframe,
+    analyze_spot_orchestration,
+)
 from apex.application.spot_structure import analyze_spot_structure, classify_spot_market_regime
 from apex.config.spot import SpotProductConfig
 from apex.config.spot_strategies import SpotStrategyConfig
@@ -28,14 +32,24 @@ from apex.data.resampling import resample_candles
 from apex.domain.models import Candle
 from apex.domain.spot import SpotAccountInput
 from apex.domain.spot_market import (
-    SpotEligibilityResult,
+    SpotEligibilityReason,
+    SpotEligibilityThresholds,
     SpotMarketBreadthSnapshot,
     SpotMarketMetadata,
-    evaluate_spot_symbol_eligibility,
 )
 from apex.domain.spot_structure import SpotRegimeInput
 
 SPOT_HISTORICAL_REPLAY_SCHEMA_VERSION = 1
+
+
+class SpotHistoricalEligibilityResult(BaseModel):
+    """Historical eligibility with explicit unavailable-field disclosure."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    eligible: bool
+    reasons: tuple[str, ...]
+    unavailable_fields: tuple[str, ...] = ()
 
 
 class SpotHistoricalReplayManifest(BaseModel):
@@ -126,13 +140,15 @@ def replay_spot_historical_dataset(
             try:
                 candles_4h = _visible(grouped[(symbol, "4h")], decision_time)
                 structure = _structure_from_4h(candles_4h)
-                thesis = _snapshot("12h", _resample_12h(candles_4h))
+                thesis_snapshot = _snapshot("12h", _resample_12h(candles_4h))
                 current_price = candles_4h[-1].close
-                support = max(thesis.swing_low - thesis.atr * 0.35, 0.00000001)
-                recovery = min(current_price, thesis.ema_fast)
-                deeper_support = max(support - thesis.atr, 0.00000001)
-                if recovery <= deeper_support:
-                    recovery = min(current_price, support)
+                canonical_thesis = _select_thesis_timeframe(structure)
+                recovery, deeper_support = _historical_support_geometry(
+                    current_price=current_price,
+                    canonical_support_lower=canonical_thesis.support.lower,
+                    recovery_reference=thesis_snapshot.ema_fast,
+                    atr=thesis_snapshot.atr,
+                )
 
                 eligibility = _historical_eligibility(
                     symbol=symbol,
@@ -166,8 +182,8 @@ def replay_spot_historical_dataset(
                         "source_dataset_sha256": manifest.dataset_sha256,
                         "configuration_sha256": configuration_hash,
                         "eligibility": eligibility.model_dump(mode="json"),
-                        "eligibility_data_complete": False,
-                        "unavailable_historical_fields": ["bid_ask_spread"],
+                        "eligibility_data_complete": not eligibility.unavailable_fields,
+                        "unavailable_historical_fields": list(eligibility.unavailable_fields),
                         "analysis": payload,
                         "failure": None,
                     }
@@ -297,7 +313,7 @@ def _historical_eligibility(
     symbol: str,
     candles: Sequence[Candle],
     product_config: SpotProductConfig,
-) -> SpotEligibilityResult:
+) -> SpotHistoricalEligibilityResult:
     recent = candles[-200:]
     snapshot = _snapshot("4h", recent)
     quote_volume_24h = sum(candle.close * candle.volume for candle in recent[-6:])
@@ -330,7 +346,75 @@ def _historical_eligibility(
         terminal_extension=(snapshot.close - snapshot.ema_fast) / snapshot.atr
         >= product_config.structure.terminal_extension_atr_multiple,
     )
-    return evaluate_spot_symbol_eligibility(metadata, product_config.eligibility)
+    return _evaluate_historical_eligibility(metadata, product_config.eligibility)
+
+
+def _evaluate_historical_eligibility(
+    metadata: SpotMarketMetadata,
+    thresholds: SpotEligibilityThresholds,
+) -> SpotHistoricalEligibilityResult:
+    """Evaluate measurable historical fields without fabricating spread observations."""
+
+    reasons: list[str] = []
+    if metadata.symbol.upper() in {symbol.upper() for symbol in thresholds.excluded_symbols}:
+        reasons.append(SpotEligibilityReason.EXCLUDED_SYMBOL.value)
+    if metadata.quote_volume_24h < thresholds.minimum_quote_volume_24h:
+        reasons.append(SpotEligibilityReason.INSUFFICIENT_QUOTE_VOLUME.value)
+    if thresholds.minimum_market_age_days is not None and (
+        metadata.market_age_days is None
+        or metadata.market_age_days < thresholds.minimum_market_age_days
+    ):
+        reasons.append(SpotEligibilityReason.INSUFFICIENT_MARKET_HISTORY.value)
+    if (
+        metadata.spread_percentage is not None
+        and metadata.spread_percentage > thresholds.maximum_spread_percentage
+    ):
+        reasons.append(SpotEligibilityReason.SPREAD_TOO_WIDE.value)
+    if metadata.available_candle_count < thresholds.minimum_candle_count:
+        reasons.append(SpotEligibilityReason.INSUFFICIENT_CANDLE_HISTORY.value)
+    if metadata.has_data_gaps:
+        reasons.append(SpotEligibilityReason.DATA_GAPS.value)
+    if metadata.terminal_extension:
+        reasons.append(SpotEligibilityReason.TERMINAL_EXTENSION.value)
+    if (
+        metadata.atr_percentage is None
+        or metadata.atr_percentage < thresholds.minimum_atr_percentage
+    ):
+        reasons.append(SpotEligibilityReason.INSUFFICIENT_ATR.value)
+    if (
+        metadata.downside_volatility_percentage is None
+        or metadata.downside_volatility_percentage
+        > thresholds.maximum_downside_volatility_percentage
+    ):
+        reasons.append(SpotEligibilityReason.DOWNSIDE_VOLATILITY_TOO_HIGH.value)
+
+    return SpotHistoricalEligibilityResult(
+        eligible=not reasons,
+        reasons=tuple(reasons) if reasons else (SpotEligibilityReason.ELIGIBLE.value,),
+        unavailable_fields=("bid_ask_spread",) if metadata.spread_percentage is None else (),
+    )
+
+
+def _historical_support_geometry(
+    *,
+    current_price: float,
+    canonical_support_lower: float,
+    recovery_reference: float,
+    atr: float,
+) -> tuple[float, float]:
+    """Derive replay entries from canonical thesis support with strict separation."""
+
+    if min(current_price, canonical_support_lower, recovery_reference, atr) <= 0:
+        raise ValueError("historical support geometry inputs must be positive")
+    buffer = max(atr * 0.01, current_price * 1e-8, 1e-8)
+    recovery = min(current_price, recovery_reference)
+    upper_bound = min(current_price, canonical_support_lower, recovery)
+    deeper_support = upper_bound - max(atr, buffer)
+    if deeper_support <= 0:
+        deeper_support = upper_bound - buffer
+    if deeper_support <= 0 or deeper_support >= upper_bound:
+        raise ValueError("historical replay cannot derive valid support geometry")
+    return recovery, deeper_support
 
 
 def _configuration_hash(

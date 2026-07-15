@@ -49,6 +49,36 @@ def analyze_spot_request(
     if selected is None or selected.decision is not SpotStrategyDecision.APPROVE:
         return SpotAnalysisResult(routing=routing, planning=None)
 
+    minimum_planned_entry = min(
+        request.strategy_input.current_price,
+        request.support_price,
+        request.deeper_support_price,
+        request.recovery_entry_price,
+    )
+    if selected.invalidation_price >= minimum_planned_entry:
+        rejected = selected.model_copy(
+            update={
+                "decision": SpotStrategyDecision.REJECT,
+                "rejection_reasons": (
+                    *selected.rejection_reasons,
+                    "strategy invalidation is not below all planned spot entries",
+                ),
+            }
+        )
+        candidates = tuple(
+            rejected if candidate is selected else candidate
+            for candidate in routing.candidates
+        )
+        return SpotAnalysisResult(
+            routing=routing.model_copy(
+                update={
+                    "selected": None,
+                    "candidates": candidates,
+                }
+            ),
+            planning=None,
+        )
+
     planning = build_spot_plan(
         SpotPlanningRequest(
             candidate=selected,
