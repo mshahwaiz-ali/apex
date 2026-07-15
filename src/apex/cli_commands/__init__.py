@@ -22,6 +22,7 @@ from apex.cli_commands.market_data import register_market_data_commands
 from apex.cli_commands.p1_review import register_p1_review_command
 from apex.cli_commands.paper_cycle import register_paper_cycle_command
 from apex.cli_commands.paper_record_v3 import register_paper_record_v3
+from apex.cli_commands.paper_scheduler import register_paper_scheduler_commands
 from apex.cli_commands.paper_trading import register_paper_trading_commands
 from apex.cli_commands.readiness import register_readiness_commands
 from apex.cli_commands.scanner import register_scanner_commands
@@ -63,6 +64,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_funded_history_commands(app)
     register_paper_trading_commands(paper_app)
     register_paper_cycle_command(paper_app)
+    register_paper_scheduler_commands(paper_app)
     register_p1_review_command(paper_app)
     remove_commands(paper_app, {"record"})
     register_paper_record_v3(paper_app)
