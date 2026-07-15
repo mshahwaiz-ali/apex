@@ -8,7 +8,6 @@ import math
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Final
 
 from apex.application.historical_signal_io import load_historical_signal_record_payloads
@@ -17,7 +16,7 @@ from apex.backtesting.historical_futures_campaign import (
     HistoricalFuturesCampaignResult,
     HistoricalFuturesExecutionManifest,
     HistoricalFuturesObservation,
-    HistoricalFuturesTradeResult,
+    _build_split_metrics,
     execute_historical_futures_campaign,
     load_historical_futures_execution_manifest,
     write_historical_futures_campaign,
@@ -142,7 +141,7 @@ def execute_shared_historical_futures_campaign(
         ending_equity=wallet.ending_equity,
         observations=observations,
         trades=accepted_trades,
-        split_metrics=isolated.split_metrics,
+        split_metrics=_build_split_metrics(list(accepted_trades)),
         rejection_counts=tuple(sorted(rejection_counter.items())),
     )
     return SharedHistoricalFuturesCampaignResult(
