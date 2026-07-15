@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 
@@ -270,24 +271,32 @@ def test_stop_diagnostics_separate_wallet_cap_fees_and_slippage() -> None:
     )
 
     metadata = trade.metadata
+    gross_stop_loss = cast(float, metadata["gross_stop_loss_at_planned_stop"])
+    modeled_slippage_loss = cast(float, metadata["modeled_slippage_loss"])
+    entry_fee = cast(float, metadata["entry_fee"])
+    planned_stop_exit_fee = cast(float, metadata["planned_stop_exit_fee"])
+    expected_stop_loss = cast(float, metadata["expected_total_loss_at_stop"])
+
     assert trade.outcome is BacktestOutcome.STOP
     assert metadata["configured_wallet_loss_cap"] == pytest.approx(10.0)
-    assert metadata["gross_stop_loss_at_planned_stop"] == pytest.approx(10.0)
-    assert metadata["entry_fee"] == pytest.approx(0.40008)
-    assert metadata["planned_stop_exit_fee"] == pytest.approx(0.3959208)
-    assert metadata["modeled_slippage_loss"] == pytest.approx(0.398)
+    assert gross_stop_loss == pytest.approx(10.0)
+    assert entry_fee == pytest.approx(0.40008)
+    assert planned_stop_exit_fee == pytest.approx(0.3959208)
+    assert modeled_slippage_loss == pytest.approx(0.398)
+
     expected_total_loss = (
-        metadata["gross_stop_loss_at_planned_stop"]
-        + metadata["modeled_slippage_loss"]
-        + metadata["entry_fee"]
-        + metadata["planned_stop_exit_fee"]
+        gross_stop_loss
+        + modeled_slippage_loss
+        + entry_fee
+        + planned_stop_exit_fee
     )
-    assert metadata["expected_total_loss_at_stop"] == pytest.approx(expected_total_loss)
+
+    assert expected_stop_loss == pytest.approx(expected_total_loss)
     assert metadata["actual_simulated_fill_loss"] == pytest.approx(-trade.gross_pnl)
     assert metadata["actual_fees"] == pytest.approx(trade.fees)
     assert metadata["actual_net_loss"] == pytest.approx(-trade.net_pnl)
     assert metadata["expected_r"] == pytest.approx(
-        -metadata["expected_total_loss_at_stop"] / signal.risk_amount
+        -expected_stop_loss / signal.risk_amount
     )
     assert metadata["realized_r"] == pytest.approx(trade.realized_r_multiple)
 
