@@ -129,6 +129,12 @@ from apex.application.spot_orchestration import (
     analyze_spot_orchestration,
     build_spot_strategy_input,
 )
+from apex.application.spot_orchestration_io import (
+    analyze_spot_orchestration_from_files,
+    analyze_spot_orchestration_input,
+    load_spot_orchestration_input,
+    write_spot_orchestration_result,
+)
 from apex.application.spot_planning import (
     SpotPlanningRequest,
     SpotPlanningResult,
@@ -203,6 +209,8 @@ __all__ = [
     "analyze_spot_from_files",
     "analyze_spot_from_input",
     "analyze_spot_orchestration",
+    "analyze_spot_orchestration_from_files",
+    "analyze_spot_orchestration_input",
     "analyze_spot_request",
     "analyze_spot_structure",
     "analyze_symbol",
@@ -246,6 +254,7 @@ __all__ = [
     "load_historical_signal_execution_manifest",
     "load_historical_signal_record_payloads",
     "load_spot_analysis_input",
+    "load_spot_orchestration_input",
     "load_symbols",
     "normalize_market_symbol",
     "parse_campaign_variants",
@@ -265,4 +274,5 @@ __all__ = [
     "write_historical_signal_generation",
     "write_json_report",
     "write_spot_analysis_result",
+    "write_spot_orchestration_result",
 ]
