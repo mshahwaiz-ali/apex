@@ -34,7 +34,10 @@ def _context() -> SimpleNamespace:
     )
     higher = SimpleNamespace(
         role=TimeframeRole.INTERMEDIATE,
-        structure=SimpleNamespace(breaks=()),
+        structure=SimpleNamespace(
+            trend=SimpleNamespace(direction=TrendDirection.RANGE),
+            breaks=(),
+        ),
     )
     return SimpleNamespace(
         decision_frame=decision,
