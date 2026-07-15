@@ -82,6 +82,10 @@ def register_historical_signal_generation_commands(
         """Generate and atomically persist one verified historical signal campaign."""
 
         try:
+            _validate_output_paths(
+                records_output=records_output,
+                manifest_output=manifest_output,
+            )
             assumptions = _load_assumptions(assumptions_file)
             manifest = generate_and_persist_historical_signal_campaign(
                 plan_path=plan_file,
@@ -120,10 +124,19 @@ def register_historical_signal_generation_commands(
         )
 
 
+def _validate_output_paths(
+    *,
+    records_output: Path,
+    manifest_output: Path,
+) -> None:
+    if records_output.resolve(strict=False) == manifest_output.resolve(strict=False):
+        raise ValueError("historical signal records and manifest output paths must differ")
+
+
 def _load_assumptions(path: Path) -> Mapping[str, object]:
     """Load one deterministic assumptions object without weakening its types."""
 
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload: object = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("historical signal assumptions must be a JSON object")
     return {str(key): value for key, value in payload.items()}
