@@ -15,7 +15,7 @@ _SUPPORTED_MARKETS = ("futures", "spot")
 
 @dataclass(frozen=True, slots=True)
 class MarketOperationsStatus:
-    """Scheduler and evidence status for one paper market."""
+    """Scheduler, intake, pipeline, and evidence status for one paper market."""
 
     market_type: str
     open_trade_count: int
@@ -27,6 +27,29 @@ class MarketOperationsStatus:
     latest_provider_failure_count: int | None
     log_entry_count: int
     scheduler_fresh: bool
+    intake_lock_exists: bool
+    intake_lock_stale: bool
+    latest_intake_at: datetime | None
+    latest_intake_age_seconds: float | None
+    intake_log_entry_count: int
+    intake_fresh: bool
+    pipeline_lock_exists: bool
+    pipeline_lock_stale: bool
+    latest_pipeline_at: datetime | None
+    latest_pipeline_age_seconds: float | None
+    pipeline_log_entry_count: int
+    pipeline_fresh: bool
+
+    @property
+    def operationally_ready(self) -> bool:
+        return (
+            self.scheduler_fresh
+            and self.intake_fresh
+            and self.pipeline_fresh
+            and not self.lock_stale
+            and not self.intake_lock_stale
+            and not self.pipeline_lock_stale
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +67,10 @@ class PaperOperationsStatus:
     def scheduler_ready(self) -> bool:
         return all(item.scheduler_fresh and not item.lock_stale for item in self.markets)
 
+    @property
+    def operations_ready(self) -> bool:
+        return all(item.operationally_ready for item in self.markets)
+
 
 def build_paper_operations_status(
     *,
@@ -52,7 +79,7 @@ def build_paper_operations_status(
     maximum_run_age: timedelta = timedelta(minutes=15),
     stale_lock_after: timedelta = timedelta(minutes=30),
 ) -> PaperOperationsStatus:
-    """Inspect persisted paper trades, scheduler logs, locks, and report artifacts."""
+    """Inspect persisted trades, scheduler stages, locks, and report artifacts."""
 
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("operations status generation time must be timezone-aware")
@@ -62,6 +89,7 @@ def build_paper_operations_status(
         raise ValueError("stale lock duration must be positive")
 
     base = data_dir / "paper_trading"
+    scheduler = base / "scheduler"
     store_path = base / "trades.json"
     trades = PaperTradeStore(store_path).load()
     market_statuses: list[MarketOperationsStatus] = []
@@ -73,38 +101,56 @@ def build_paper_operations_status(
             if str(trade.analysis_payload.get("market_type", "futures")).strip().lower()
             == market_type
         )
-        log_path = base / "scheduler" / "logs" / f"{market_type}.jsonl"
-        lock_path = base / "scheduler" / "locks" / f"{market_type}.lock"
-        latest, log_entry_count = _latest_log_entry(log_path)
-        latest_run_at = _log_completed_at(latest)
-        latest_run_age = (
-            (generated_at.astimezone(timezone.utc) - latest_run_at).total_seconds()
-            if latest_run_at is not None
-            else None
+        cycle_latest, cycle_count = _latest_log_entry(
+            scheduler / "logs" / f"{market_type}.jsonl"
         )
-        provider_failures = _provider_failure_count(latest)
-        lock_exists = lock_path.exists()
-        lock_stale = _lock_is_stale(
-            lock_path,
-            now=generated_at.astimezone(timezone.utc),
-            stale_after=stale_lock_after,
+        intake_latest, intake_count = _latest_log_entry(
+            scheduler / f"intake-{market_type}.jsonl"
         )
+        pipeline_latest, pipeline_count = _latest_log_entry(
+            scheduler / "logs" / f"pipeline-{market_type}.jsonl"
+        )
+        cycle_at, cycle_age, cycle_fresh = _freshness(
+            cycle_latest, generated_at, maximum_run_age
+        )
+        intake_at, intake_age, intake_fresh = _freshness(
+            intake_latest, generated_at, maximum_run_age
+        )
+        pipeline_at, pipeline_age, pipeline_fresh = _freshness(
+            pipeline_latest, generated_at, maximum_run_age
+        )
+        cycle_lock = scheduler / "locks" / f"{market_type}.lock"
+        intake_lock = base / "locks" / f"intake-{market_type}.lock"
+        pipeline_lock = scheduler / "locks" / f"pipeline-{market_type}.lock"
+        now = generated_at.astimezone(timezone.utc)
         market_statuses.append(
             MarketOperationsStatus(
                 market_type=market_type,
                 open_trade_count=sum(trade.is_open for trade in matching),
                 closed_trade_count=sum(not trade.is_open for trade in matching),
-                lock_exists=lock_exists,
-                lock_stale=lock_stale,
-                latest_run_at=latest_run_at,
-                latest_run_age_seconds=latest_run_age,
-                latest_provider_failure_count=provider_failures,
-                log_entry_count=log_entry_count,
-                scheduler_fresh=(
-                    latest_run_age is not None
-                    and latest_run_age >= 0.0
-                    and latest_run_age <= maximum_run_age.total_seconds()
+                lock_exists=cycle_lock.exists(),
+                lock_stale=_lock_is_stale(cycle_lock, now=now, stale_after=stale_lock_after),
+                latest_run_at=cycle_at,
+                latest_run_age_seconds=cycle_age,
+                latest_provider_failure_count=_provider_failure_count(cycle_latest),
+                log_entry_count=cycle_count,
+                scheduler_fresh=cycle_fresh,
+                intake_lock_exists=intake_lock.exists(),
+                intake_lock_stale=_lock_is_stale(
+                    intake_lock, now=now, stale_after=stale_lock_after
                 ),
+                latest_intake_at=intake_at,
+                latest_intake_age_seconds=intake_age,
+                intake_log_entry_count=intake_count,
+                intake_fresh=intake_fresh,
+                pipeline_lock_exists=pipeline_lock.exists(),
+                pipeline_lock_stale=_lock_is_stale(
+                    pipeline_lock, now=now, stale_after=stale_lock_after
+                ),
+                latest_pipeline_at=pipeline_at,
+                latest_pipeline_age_seconds=pipeline_age,
+                pipeline_log_entry_count=pipeline_count,
+                pipeline_fresh=pipeline_fresh,
             )
         )
 
@@ -115,6 +161,22 @@ def build_paper_operations_status(
         daily_report_count=_json_file_count(base / "daily"),
         review_report_count=_json_file_count(base / "reviews"),
         markets=tuple(market_statuses),
+    )
+
+
+def _freshness(
+    entry: dict[str, Any] | None,
+    generated_at: datetime,
+    maximum_run_age: timedelta,
+) -> tuple[datetime | None, float | None, bool]:
+    completed_at = _log_completed_at(entry)
+    age = (
+        (generated_at.astimezone(timezone.utc) - completed_at).total_seconds()
+        if completed_at is not None
+        else None
+    )
+    return completed_at, age, (
+        age is not None and 0.0 <= age <= maximum_run_age.total_seconds()
     )
 
 
