@@ -108,7 +108,15 @@ Result and manifest files are written atomically, reload-verified, and never sil
 
 # Spot Research Commands
 
-The spot product is separate from futures. It is long-only, cash-funded, deterministic, and contains no leverage, margin, borrowing, short, or liquidation assumptions. Both commands are research and paper-trading tools; neither fetches live spot data or places orders.
+The spot product is separate from futures. It is long-only, cash-funded, deterministic, and contains no leverage, margin, borrowing, short-selling, or liquidation assumptions. These commands are research and paper-validation tools. They do not place orders.
+
+## Command boundaries
+
+- `spot-plan` accepts one already selected canonical spot candidate and builds its bounded cash plan.
+- `spot-analyze` accepts an already normalized `SpotStrategyInput`, evaluates all six strategies, and plans only an approved candidate.
+- `spot-orchestrate` accepts canonical structure and regime results plus explicit setup evidence, constructs the normalized strategy input through the application bridge, evaluates all six strategies, and plans only an approved candidate.
+
+Neither `spot-analyze` nor `spot-orchestrate` fetches live market data. `spot-orchestrate` is the provider-independent S2-to-S4 file boundary, not a scanner or provider integration.
 
 ## `apex spot-plan`
 
@@ -125,7 +133,7 @@ The input must provide the selected strategy candidate, cash account state, curr
 
 ## `apex spot-analyze`
 
-`spot-analyze` evaluates all six configured spot strategy families, selects the first approved strategy in deterministic routing order, and builds a plan only when a candidate is approved.
+`spot-analyze` evaluates all six configured spot strategy families from an already normalized strategy input, selects the first approved strategy in deterministic routing order, and builds a plan only when a candidate is approved.
 
 ```bash
 apex spot-analyze \
@@ -135,8 +143,6 @@ apex spot-analyze \
   --output data/spot-analysis.json
 ```
 
-`--config` and `--strategy-config` default to the paths shown above. Standard output is stable, sorted JSON. `--output` writes the same canonical payload with a trailing newline.
-
 The input object contains:
 
 - `strategy_input`: normalized market regime, structure state, price zones, and explicit measurable strategy evidence;
@@ -144,29 +150,50 @@ The input object contains:
 - support, resistance, deeper-support, and recovery-entry geometry;
 - optional correlated-sector exposure.
 
+## `apex spot-orchestrate`
+
+`spot-orchestrate` exposes the canonical provider-independent structure/regime-to-strategy bridge as a strict JSON and CLI workflow.
+
+```bash
+apex spot-orchestrate \
+  --input tests/fixtures/spot_orchestration/approved_trend_pullback.json \
+  --config config/spot.yaml \
+  --strategy-config config/spot_strategies.yaml \
+  --output data/spot-orchestration.json
+```
+
+`--config` and `--strategy-config` default to the paths shown above. Standard output is sorted, deterministic JSON. `--output` writes exactly the same payload, including its trailing newline.
+
+The orchestration input is a strict JSON object containing:
+
+- `symbol` and `current_price`;
+- canonical nested `SpotStructureResult` and `SpotRegimeResult` objects;
+- canonical `SpotAccountInput` cash-account state;
+- `SpotSetupEvidence` with only observed confirmations;
+- `deeper_support_price` and `recovery_entry_price`;
+- `current_sector_exposure_percentage`.
+
+Unknown fields, non-object JSON, malformed canonical models, invalid account values, overlapping support/resistance geometry, and invalid deeper-support/recovery geometry fail explicitly. Input is not silently repaired.
+
 The output contains:
 
 - schema version;
 - selected strategy or `null`;
 - all six candidate evaluations with evidence and rejection reasons;
-- a bounded spot plan or `null`;
+- a bounded long-only cash spot plan or `null`;
 - research and paper-validation warnings.
 
-Blocked regimes, terminal extension, incomplete required evidence, or invalid geometry do not fabricate a trade. They return watch/reject candidates and no plan.
+Missing evidence remains missing or unconfirmed. It is not converted into positive breakout, retest, accumulation, sweep, recovery, volume, or pullback confirmation. Blocked regimes, terminal/downside-risk structure, incomplete required evidence, or invalid geometry do not fabricate a trade.
 
-## Canonical orchestration bridge
+## Provider-independent status and exclusions
 
-The provider-independent application bridge accepts canonical multi-timeframe structure and regime results plus explicit setup evidence. Its deterministic flow is:
+The orchestration flow is:
 
 ```text
-multi-timeframe snapshots
--> structure classification
--> market regime
+canonical SpotStructureResult + SpotRegimeResult + explicit evidence
 -> normalized SpotStrategyInput
--> six-strategy routing
--> bounded spot plan when approved
+-> six-strategy deterministic routing
+-> bounded cash spot plan when approved
 ```
 
-Volume ratio, pullback depth, breakout confirmation, retest hold, accumulation confirmation, liquidity sweep, daily recovery, and capitulation recovery must be supplied when observed. Missing optional evidence remains missing or unconfirmed; Apex does not infer it from unrelated fields.
-
-This bridge does not yet provide a live spot scanner, exchange provider integration, paper-trade persistence, universe scanning, optimization, or production execution.
+This command does not add live fetching, scanner integration, exchange execution, persistence, database writes, paper-trade mutation, optimization, leverage, margin, liquidation modeling, borrowing, or short-selling. It does not claim production or real-money readiness.
