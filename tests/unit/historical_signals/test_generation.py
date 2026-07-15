@@ -105,6 +105,18 @@ def _replay_record(split: HistoricalSignalSplit) -> HistoricalSignalRecord:
     )
 
 
+def _convert(split: HistoricalSignalSplit) -> object:
+    return _convert_record(
+        record=_replay_record(split),
+        inputs=_inputs(),
+        dataset_campaign_plan_id="aligned-plan-id",
+        dataset_campaign_execution_id="aligned-execution-id",
+        parent_dataset_hash="c" * 64,
+        assumptions_hash="d" * 64,
+        required_context_candles=40,
+    )
+
+
 def test_assumptions_hash_is_mapping_order_independent() -> None:
     first = derive_historical_signal_assumptions_hash(
         {"candle_limit": 200, "routing": {"b": 2, "a": 1}}
@@ -134,26 +146,24 @@ def test_conversion_preserves_exact_multitimeframe_bindings() -> None:
 
 
 def test_final_test_split_does_not_change_train_record_identity() -> None:
-    inputs = _inputs()
-    arguments = {
-        "inputs": inputs,
-        "dataset_campaign_plan_id": "aligned-plan-id",
-        "dataset_campaign_execution_id": "aligned-execution-id",
-        "parent_dataset_hash": "c" * 64,
-        "assumptions_hash": "d" * 64,
-        "required_context_candles": 40,
-    }
     first = _convert_record(
         record=_replay_record(HistoricalSignalSplit.TRAIN),
-        **arguments,
+        inputs=_inputs(),
+        dataset_campaign_plan_id="aligned-plan-id",
+        dataset_campaign_execution_id="aligned-execution-id",
+        parent_dataset_hash="c" * 64,
+        assumptions_hash="d" * 64,
+        required_context_candles=40,
     )
-    _convert_record(
-        record=_replay_record(HistoricalSignalSplit.FINAL_TEST),
-        **arguments,
-    )
+    _convert(HistoricalSignalSplit.FINAL_TEST)
     second = _convert_record(
         record=_replay_record(HistoricalSignalSplit.TRAIN),
-        **arguments,
+        inputs=_inputs(),
+        dataset_campaign_plan_id="aligned-plan-id",
+        dataset_campaign_execution_id="aligned-execution-id",
+        parent_dataset_hash="c" * 64,
+        assumptions_hash="d" * 64,
+        required_context_candles=40,
     )
 
     assert first.signal_record_id == second.signal_record_id
