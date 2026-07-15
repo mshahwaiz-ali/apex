@@ -29,12 +29,16 @@ class PaperTradeStore:
         return tuple(_trade_from_payload(item) for item in payload)
 
     def save(self, trades: tuple[PaperTrade, ...]) -> None:
+        """Persist the complete trade set atomically."""
+
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        temporary.write_text(
             json.dumps([_jsonable(asdict(trade)) for trade in trades], indent=2, sort_keys=True)
             + "\n",
             encoding="utf-8",
         )
+        temporary.replace(self.path)
 
     def upsert(self, trade: PaperTrade) -> tuple[PaperTrade, ...]:
         trades = tuple(existing for existing in self.load() if existing.trade_id != trade.trade_id)
