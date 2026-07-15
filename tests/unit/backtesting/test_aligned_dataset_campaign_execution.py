@@ -6,8 +6,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
-from apex.backtesting.aligned_dataset_campaign import plan_aligned_dataset_campaign
+from apex.backtesting.aligned_dataset_campaign import (
+    AlignedDatasetCampaignPlan,
+    plan_aligned_dataset_campaign,
+)
 from apex.backtesting.aligned_dataset_campaign_execution import (
     execute_aligned_dataset_campaign,
     load_aligned_dataset_campaign_execution_result,
@@ -59,7 +61,7 @@ class _RangeProvider:
         return candles
 
 
-def _plan(tmp_path: Path):
+def _plan(tmp_path: Path) -> AlignedDatasetCampaignPlan:
     return plan_aligned_dataset_campaign(
         campaign_id="aligned",
         symbols=("BTC/USDT",),
