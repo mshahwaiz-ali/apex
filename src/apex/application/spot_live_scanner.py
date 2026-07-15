@@ -199,13 +199,21 @@ def _should_orchestrate(mode: SpotScannerMode, eligible: bool, reviewable: bool)
     return True
 
 
+def _eligibility_rank(result: SpotEligibilityResult) -> int:
+    if result.eligible:
+        return 0
+    if _is_reviewable(result):
+        return 1
+    return 2
+
+
 def _rank_key(item: SpotLiveScanItem) -> tuple[int, int, int, int, str]:
     selected = item.result.routing.selected
     has_plan = item.result.planning is not None
     approved = selected is not None and selected.decision.value == "APPROVE"
     evidence_count = len(selected.evidence) if selected is not None else 0
     return (
-        -int(item.eligibility.eligible),
+        _eligibility_rank(item.eligibility),
         -int(has_plan),
         -int(approved),
         -evidence_count,
