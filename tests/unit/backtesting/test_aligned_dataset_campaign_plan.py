@@ -6,15 +6,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from apex.backtesting.aligned_dataset_campaign import (
+    AlignedDatasetCampaignPlan,
     load_aligned_dataset_campaign_plan,
     plan_aligned_dataset_campaign,
     write_aligned_dataset_campaign_plan,
 )
 
 
-def _plan(tmp_path: Path):
+def _plan(tmp_path: Path) -> AlignedDatasetCampaignPlan:
     return plan_aligned_dataset_campaign(
         campaign_id="BTC ETH aligned",
         symbols=("ETH/USDT", "BTC/USDT"),
