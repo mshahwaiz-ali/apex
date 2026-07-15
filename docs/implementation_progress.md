@@ -348,3 +348,49 @@ N4.5 remains limited to historical dataset acquisition and splitting. It does
 not perform feature generation, signal generation, strategy replay,
 backtesting, calibration, paper trading, or execution.
 
+## N4.6 — Schema-v2 historical signal campaign generation
+
+### Validated completion: N4.6.1–N4.6.3
+
+- Added schema-v2 historical signal campaign records with deterministic identifiers.
+- Each record binds the exact aligned dataset campaign plan and execution identities, parent and
+  source dataset hashes, assumptions hash, split, symbol, timeframe, decision time, acceptance
+  state, analysis payload, and optional failure reason.
+- Added exact aligned dataset provenance and deterministic assumptions hashing.
+- Added a schema-versioned campaign manifest with deterministic symbol order, split counts, record
+  count, records path, and records content hash.
+- JSONL records and JSON manifests are persisted atomically and fully reloaded and hash-verified.
+- Added `apex dataset historical-signals-generate` for deterministic historical signal generation.
+- N4.6.1–N4.6.3 passed the reported focused Ruff, strict-mypy, and test gates before integration.
+
+## N4.7 — Schema-v2 historical futures backtest integration
+
+### Functionally complete and validated
+
+- Added verified schema-v2 historical signal campaign input binding while preserving legacy
+  schema-v1 signal execution manifest compatibility.
+- Schema-v2 JSONL records are loaded through canonical persistence, content-hash verified, and
+  adapted into the existing historical futures replay metadata contract.
+- Exact source-dataset identities and hashes, assumptions hash, campaign counts, split counts, and
+  schema-version markers are preserved for replay verification.
+- Historical futures replay keeps train, validation, and final-test observations isolated and
+  reports split-specific metrics without using final-test results for calibration.
+- Accepted plans replay through the canonical futures backtester with configured fees, slippage,
+  lifecycle behavior, and conservative execution assumptions.
+- Rejected, failed, and unconvertible observations remain auditable with deterministic rejection
+  counts and reasons.
+- Shared-wallet campaign replay, cumulative equity, result persistence, reload verification, and
+  schema-versioned execution manifests remain integrated.
+- `apex historical-futures-backtest` exposes `--signal-manifest`; the previous
+  `--signal-execution-manifest` option remains as a compatibility alias.
+- Schema-v2 records retain deterministic symbol/split/time ordering; uniqueness remains mandatory,
+  while the legacy global chronological requirement remains enforced only for schema-v1 records.
+- The consolidated five-file compatibility repair passed the reported focused Ruff formatting and
+  linting, strict mypy, 46 focused tests, and `git diff --check` gate before being pushed to `main`.
+- The N4.7 audit found no additional material implementation gap within schema-v2 campaign
+  consumption, replay, split metrics, shared-wallet handling, rejection reporting, persistence,
+  execution manifests, CLI integration, or focused end-to-end compatibility coverage.
+
+N4.7 establishes the reproducible evidence pipeline only. No historical profitability, funded
+eligibility, production readiness, or live-trading readiness is claimed without completed empirical
+campaign results.
