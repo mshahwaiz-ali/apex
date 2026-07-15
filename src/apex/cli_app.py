@@ -12,6 +12,9 @@ from apex.cli_commands.historical_futures_backtest import (
 from apex.cli_commands.historical_signal_generation import (
     register_historical_signal_generation_commands,
 )
+from apex.cli_commands.spot_historical_backtest import (
+    register_spot_historical_backtest_commands,
+)
 from apex.cli_commands.spot_historical_dataset import (
     register_spot_historical_dataset_commands,
 )
@@ -26,5 +29,6 @@ register_historical_signal_generation_commands(dataset_app)
 register_historical_futures_backtest_commands(dataset_app)
 register_spot_historical_dataset_commands(dataset_app)
 register_spot_historical_replay_commands(dataset_app)
+register_spot_historical_backtest_commands(dataset_app)
 
 __all__ = ["app"]
