@@ -13,7 +13,9 @@ from apex.application import bootstrap
 from apex.application.paper_lifecycle_health import PaperLifecycleHealthPolicy
 from apex.application.paper_lifecycle_health_io import (
     PaperLifecycleHealthAudit,
+    build_paper_lifecycle_health_artifact,
     load_latest_paper_lifecycle_health,
+    write_paper_lifecycle_health_artifact,
 )
 from apex.paper_trading.intake import IntakeMarketType
 
@@ -66,6 +68,7 @@ def register_paper_lifecycle_health_command(app: typer.Typer) -> None:
             "--require-realized-performance/--allow-missing-realized-performance",
         ),
         report: Path | None = typer.Option(None, "--report", dir_okay=False),
+        force_report: bool = typer.Option(False, "--force-report"),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
         """Evaluate the latest successful scheduled pipeline analytics record."""
@@ -95,18 +98,21 @@ def register_paper_lifecycle_health_command(app: typer.Typer) -> None:
                 market_type=market,
                 policy=policy,
             )
-        except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
+            artifact = build_paper_lifecycle_health_artifact(audit, policy=policy)
+            if report is not None:
+                write_paper_lifecycle_health_artifact(
+                    artifact,
+                    report,
+                    force=force_report,
+                )
+        except (FileExistsError, FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        payload = paper_lifecycle_health_audit_payload(audit)
-        if report is not None:
-            report.parent.mkdir(parents=True, exist_ok=True)
-            report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        _emit_lifecycle_health(audit, payload, output)
+        _emit_lifecycle_health(audit, artifact.payload, output)
 
 
 def paper_lifecycle_health_audit_payload(audit: PaperLifecycleHealthAudit) -> dict[str, Any]:
-    """Return a stable JSON-ready audit payload."""
+    """Return a stable JSON-ready legacy audit payload."""
 
     payload = _jsonable(asdict(audit))
     if not isinstance(payload, dict):
@@ -142,7 +148,8 @@ def _emit_lifecycle_health(
         f"| average_r={_optional_float(health.average_realized_r_multiple)} "
         f"| net_pnl={_optional_float(health.realized_net_pnl)} "
         f"| reasons={reasons} "
-        f"| run_id={audit.run_id}"
+        f"| run_id={audit.run_id} "
+        f"| report_sha256={payload['report_sha256']}"
     )
 
 
