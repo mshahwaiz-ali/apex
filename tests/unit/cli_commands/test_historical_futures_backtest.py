@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import click
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from apex.backtesting import HistoricalFuturesExecutionManifest
@@ -16,6 +18,14 @@ from apex.cli_commands.historical_futures_backtest import _echo_completion
 runner = CliRunner()
 
 
+def _historical_futures_command() -> click.Command:
+    root = get_command(app)
+    assert isinstance(root, click.Group)
+    dataset = root.commands["dataset"]
+    assert isinstance(dataset, click.Group)
+    return dataset.commands["historical-futures-backtest"]
+
+
 def test_historical_futures_backtest_command_is_registered() -> None:
     result = runner.invoke(app, ["dataset", "--help"], terminal_width=240)
 
@@ -23,23 +33,26 @@ def test_historical_futures_backtest_command_is_registered() -> None:
     assert "historical-futures-backtest" in result.stdout
 
 
-def test_historical_futures_backtest_help_exposes_required_artifacts() -> None:
-    result = runner.invoke(
-        app,
-        ["dataset", "historical-futures-backtest", "--help"],
-        terminal_width=240,
-    )
+def test_historical_futures_backtest_exposes_required_options() -> None:
+    command = _historical_futures_command()
+    exposed_options = {
+        option
+        for parameter in command.params
+        if isinstance(parameter, click.Option)
+        for option in parameter.opts + parameter.secondary_opts
+    }
 
-    assert result.exit_code == 0
-    assert "--signal-records" in result.stdout
-    assert "--signal-execution-manifest" in result.stdout
-    assert "--result-output" in result.stdout
-    assert "--execution-manifest-output" in result.stdout
-    assert "--starting-equity" in result.stdout
-    assert "--maximum-concurrent-positions" in result.stdout
-    assert "--maximum-wallet-exposure-pct" in result.stdout
-    assert "--daily-loss-limit-pct" in result.stdout
-    assert "--consecutive-loss-limit" in result.stdout
+    assert {
+        "--signal-records",
+        "--signal-execution-manifest",
+        "--result-output",
+        "--execution-manifest-output",
+        "--starting-equity",
+        "--maximum-concurrent-positions",
+        "--maximum-wallet-exposure-pct",
+        "--daily-loss-limit-pct",
+        "--consecutive-loss-limit",
+    } <= exposed_options
 
 
 def test_echo_completion_reports_deterministic_manifest_fields(capsys: object) -> None:
