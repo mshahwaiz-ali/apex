@@ -11,6 +11,8 @@ from apex.optimization import (
 
 
 def _summary(expectancy: float, *, trades: int = 20) -> PerformanceSummary:
+    first_half = trades // 2
+    second_half = trades - first_half
     return PerformanceSummary(
         total_trades=trades,
         win_rate=0.55,
@@ -18,10 +20,10 @@ def _summary(expectancy: float, *, trades: int = 20) -> PerformanceSummary:
         profit_factor=1.4,
         maximum_drawdown=0.10,
         net_profit=expectancy * trades,
-        by_symbol={"BTCUSDT": trades // 2, "ETHUSDT": trades - trades // 2},
+        by_symbol={"BTCUSDT": first_half, "ETHUSDT": second_half},
         by_strategy={"trend_pullback": trades},
-        by_regime={"risk_on": trades},
-        by_score_band={"80-89": trades},
+        by_regime={"risk_on": first_half, "range": second_half},
+        by_score_band={"70-79": first_half, "80-89": second_half},
     )
 
 
