@@ -1,0 +1,41 @@
+{
+  "account": {
+    "available_quote_balance": 10000.0,
+    "balances": [],
+    "current_spot_exposure": 0.0,
+    "open_position_count": 0,
+    "quote_asset": "USDT",
+    "total_spot_equity": 10000.0
+  },
+  "current_price": 100.0,
+  "current_sector_exposure_percentage": 0.0,
+  "deeper_support_price": 94.5,
+  "evidence": {
+    "pullback_depth_percentage": 6.0,
+    "volume_ratio": 1.8
+  },
+  "recovery_entry_price": 96.0,
+  "regime": {
+    "allow_new_entries": false,
+    "evidence": ["canonical risk-off regime"],
+    "regime": "RISK_OFF"
+  },
+  "structure": {
+    "evidence": ["weighted_trend_score=1.000"],
+    "extension": "NORMAL",
+    "relative_strength_score": 5.0,
+    "timeframes": [
+      {
+        "demand": {"lower": 98.0, "source_timeframe": "1d", "upper": 102.0, "zone_type": "DEMAND"},
+        "evidence": ["trend=UPTREND"],
+        "extension": "NORMAL",
+        "resistance": {"lower": 110.0, "source_timeframe": "1d", "upper": 111.0, "zone_type": "RESISTANCE"},
+        "support": {"lower": 95.0, "source_timeframe": "1d", "upper": 96.0, "zone_type": "SUPPORT"},
+        "timeframe": "1d",
+        "trend": "UPTREND"
+      }
+    ],
+    "trend": "UPTREND"
+  },
+  "symbol": "BTCUSDT"
+}
