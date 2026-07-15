@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
-from apex.application.historical_signal_io import load_historical_signal_record_payloads
+from apex.application.historical_signal_io import (
+    load_historical_signal_execution_manifest,
+    load_historical_signal_record_payloads,
+)
 from apex.backtesting.historical_futures_campaign import (
     HistoricalFuturesCampaignRequest,
     HistoricalFuturesCampaignResult,
@@ -18,9 +19,8 @@ from apex.backtesting.historical_futures_campaign import (
     HistoricalFuturesObservation,
     _build_split_metrics,
     execute_historical_futures_campaign,
-    load_historical_futures_execution_manifest,
-    write_historical_futures_campaign,
 )
+from apex.backtesting.historical_futures_shared_io import hash_json, write_shared_artifacts
 from apex.backtesting.historical_signal_campaign import HistoricalSignalCampaignInputs
 from apex.backtesting.shared_wallet_replay import (
     SharedWalletConfig,
@@ -148,7 +148,7 @@ def execute_shared_historical_futures_campaign(
         campaign=campaign,
         wallet=wallet,
         wallet_config=wallet_config,
-        configuration_hash=_hash_json(
+        configuration_hash=hash_json(
             {
                 "backtest": {
                     "fee_pct": request.backtest_config.fee_pct,
@@ -167,37 +167,37 @@ def write_shared_historical_futures_campaign(
     request: HistoricalFuturesCampaignRequest,
     result: SharedHistoricalFuturesCampaignResult,
 ) -> SharedHistoricalFuturesExecutionManifest:
-    """Persist the shared result through the canonical writer and extend its manifest."""
+    """Atomically persist and reload-verify shared result and manifest artifacts."""
 
-    base_manifest = write_historical_futures_campaign(request=request, result=result.campaign)
-    payload = result.to_payload()
-    request.result_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    result_hash = _hash_json(payload)
+    if result.campaign.campaign_id != request.campaign_id:
+        raise ValueError("shared historical futures result campaign does not match request")
+
+    signal_manifest = load_historical_signal_execution_manifest(request.signal_manifest_path)
+    result_payload = result.to_payload()
+    result_hash = hash_json(result_payload)
+    split_counter = Counter(item.split.value for item in result.campaign.observations)
     base_manifest = HistoricalFuturesExecutionManifest(
-        campaign_id=base_manifest.campaign_id,
-        signal_records_hash=base_manifest.signal_records_hash,
-        signal_configuration_hash=base_manifest.signal_configuration_hash,
-        result_path=base_manifest.result_path,
+        campaign_id=request.campaign_id,
+        signal_records_hash=signal_manifest.records_hash,
+        signal_configuration_hash=signal_manifest.configuration_hash,
+        result_path=request.result_path.as_posix(),
         result_hash=result_hash,
-        total_decisions=base_manifest.total_decisions,
-        trade_count=base_manifest.trade_count,
-        split_counts=base_manifest.split_counts,
+        total_decisions=len(result.campaign.observations),
+        trade_count=len(result.campaign.trades),
+        split_counts=tuple(sorted(split_counter.items())),
     )
     manifest = SharedHistoricalFuturesExecutionManifest(
         base=base_manifest,
         wallet_configuration_hash=result.configuration_hash,
         wallet_rejection_counts=result.wallet.rejection_counts,
     )
-    request.execution_manifest_path.write_text(
-        json.dumps(manifest.to_payload(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    write_shared_artifacts(
+        result_path=request.result_path,
+        manifest_path=request.execution_manifest_path,
+        result_payload=result_payload,
+        manifest_payload=manifest.to_payload(),
+        expected_result_hash=result_hash,
     )
-    reloaded = load_historical_futures_execution_manifest(request.execution_manifest_path)
-    if reloaded.result_hash != result_hash:
-        raise ValueError("shared historical futures manifest result hash mismatch")
     return manifest
 
 
@@ -274,8 +274,3 @@ def _first_positive_float(value: Mapping[str, object], *keys: str) -> float | No
             if math.isfinite(result) and result > 0.0:
                 return result
     return None
-
-
-def _hash_json(value: object) -> str:
-    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
