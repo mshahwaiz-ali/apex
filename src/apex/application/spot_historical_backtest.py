@@ -160,8 +160,10 @@ def run_spot_historical_backtest(
     counters: defaultdict[str, int] = defaultdict(int)
 
     records_by_time: defaultdict[datetime, list[Mapping[str, Any]]] = defaultdict(list)
-    for record in replay_records:
-        records_by_time[_parse_time(record["decision_time"])].append(record)
+    for replay_record in replay_records:
+        records_by_time[_parse_time(replay_record["decision_time"])].append(
+            replay_record
+        )
 
     all_times = sorted(
         {candle.close_time for series in candles.values() for candle in series}
