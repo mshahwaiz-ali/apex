@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from apex.cli import app
+from apex.cli_app import app
 
 FIXTURES = Path("tests/fixtures/spot")
 RUNNER = CliRunner()
