@@ -13,7 +13,13 @@ from apex.config.spot import SpotProductConfig
 from apex.config.spot_strategies import SpotStrategyConfig
 from apex.domain.spot import SpotAccountInput
 from apex.domain.spot_strategy import SpotStrategyInput
-from apex.domain.spot_structure import SpotRegimeResult, SpotStructureResult
+from apex.domain.spot_structure import (
+    SpotRegimeResult,
+    SpotStructureResult,
+    SpotTimeframeStructure,
+)
+
+_THESIS_TIMEFRAME_PRIORITY = {"1w": 5, "1d": 4, "12h": 3, "8h": 2, "4h": 1}
 
 
 class SpotSetupEvidence(BaseModel):
@@ -49,18 +55,20 @@ class SpotOrchestrationInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_geometry(self) -> SpotOrchestrationInput:
-        thesis = self.structure.timeframes[0]
+        thesis = _select_thesis_timeframe(self.structure)
         if self.deeper_support_price >= thesis.support.lower:
             raise ValueError("deeper spot support must be below canonical support")
         if self.recovery_entry_price <= self.deeper_support_price:
             raise ValueError("spot recovery entry must be above deeper support")
+        if self.recovery_entry_price > self.current_price:
+            raise ValueError("spot recovery entry cannot exceed current price")
         return self
 
 
 def build_spot_strategy_input(inputs: SpotOrchestrationInput) -> SpotStrategyInput:
     """Normalize canonical structure, regime, and explicit setup evidence."""
 
-    thesis = inputs.structure.timeframes[0]
+    thesis = _select_thesis_timeframe(inputs.structure)
     evidence = inputs.evidence
     return SpotStrategyInput(
         symbol=inputs.symbol,
@@ -107,4 +115,13 @@ def analyze_spot_orchestration(
         ),
         product_config=product_config,
         strategy_config=strategy_config,
+    )
+
+
+def _select_thesis_timeframe(structure: SpotStructureResult) -> SpotTimeframeStructure:
+    if not structure.timeframes:
+        raise ValueError("spot orchestration requires canonical timeframe structure")
+    return max(
+        structure.timeframes,
+        key=lambda item: (_THESIS_TIMEFRAME_PRIORITY.get(item.timeframe, 0), item.timeframe),
     )
