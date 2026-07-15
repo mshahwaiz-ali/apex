@@ -1,0 +1,19 @@
+[Unit]
+Description=Apex %i paper trading cycle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=APEX_USER
+WorkingDirectory=/home/APEX_USER/data_drive/apex
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/APEX_USER/data_drive/apex/.venv/bin/apex paper scheduled-%i --timeframe 5m --candles 80
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/APEX_USER/data_drive/apex/data
+
+[Install]
+WantedBy=multi-user.target
