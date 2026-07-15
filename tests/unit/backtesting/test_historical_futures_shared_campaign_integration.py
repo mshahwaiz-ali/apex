@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from apex.application.historical_signal_io import HistoricalSignalExecutionManifest
 from apex.backtesting import (
     BacktestConfig,
@@ -187,7 +186,7 @@ def test_persisted_shared_campaign_is_deterministic_and_non_overwriting(tmp_path
     )
 
     assert first.to_payload() == second.to_payload()
-    assert first_manifest.result_hash == second_manifest.result_hash
+    assert first_manifest.base.result_hash == second_manifest.base.result_hash
     assert first_manifest.wallet_configuration_hash == second_manifest.wallet_configuration_hash
     with pytest.raises(FileExistsError, match="overwrite"):
         write_shared_historical_futures_campaign(request=first_request, result=first)
