@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Protocol
 
 from apex.config import FileSettings
@@ -13,6 +14,9 @@ from apex.data.providers import (
     BinanceFuturesUniverseProvider,
     CachedMarketDataProvider,
     ResamplingMarketDataProvider,
+)
+from apex.data.providers.cached_futures_universe import (
+    CachedFuturesUniverseProvider,
 )
 from apex.data.providers.base import (
     FuturesMarketScreenerProvider,
@@ -89,7 +93,25 @@ def create_market_data_services(
             f"Unsupported market-data provider: {provider_name}. Supported: {supported}"
         ) from exc
 
-    futures_universe_provider = futures_universe_provider_builder()
+    live_futures_universe_provider = futures_universe_provider_builder()
+    futures_universe_provider: FuturesUniverseProvider = (
+        live_futures_universe_provider
+    )
+    if settings.cache_enabled:
+        futures_universe_provider = CachedFuturesUniverseProvider(
+            live_futures_universe_provider,
+            settings.data_dir
+            / "cache"
+            / "futures_universe"
+            / "contracts.json",
+            time_to_live=timedelta(
+                seconds=(
+                    settings
+                    .futures_screener
+                    .metadata_cache_ttl_seconds
+                )
+            ),
+        )
 
     candle_provider: MarketDataProvider = live_provider
     if settings.cache_enabled:
@@ -107,5 +129,5 @@ def create_market_data_services(
         futures_screener=live_provider,
         futures_universe=futures_universe_provider,
         _live_provider=live_provider,
-        _futures_universe_provider=futures_universe_provider,
+        _futures_universe_provider=live_futures_universe_provider,
     )

@@ -8,6 +8,10 @@ futures_screener:
   maximum_spread_percentage: 0.25
   minimum_absolute_movement_percentage: 1.0
   shortlist_size: 30
+  quote_asset: USDT
+  blacklist: []
+  allowlist: null
+  metadata_cache_ttl_seconds: 3600
 advanced_intelligence_enabled: false
 intelligence_funding_enabled: false
 intelligence_open_interest_enabled: false

@@ -144,7 +144,12 @@ def test_scan_command_emits_json_result(monkeypatch: pytest.MonkeyPatch, tmp_pat
     fake_scan = object()
     settings = SimpleNamespace(
         analysis_timeframes=("5m",),
-        futures_screener=SimpleNamespace(to_domain=lambda: object()),
+        futures_screener=SimpleNamespace(
+            to_domain=lambda: object(),
+            quote_asset="USDT",
+            blacklist=(),
+            allowlist=None,
+        ),
     )
 
     monkeypatch.setattr(

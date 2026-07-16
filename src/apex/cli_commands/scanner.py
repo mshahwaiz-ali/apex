@@ -59,15 +59,15 @@ def register_scanner_commands(app: typer.Typer) -> None:
                 futures_risk_mode_scope(risk_mode),
                 create_market_data_services(context.settings) as services,
             ):
+                screener_settings = context.settings.futures_screener
                 selection = select_futures_scan_symbols(
                     services.futures_universe,
                     services.futures_screener,
-                    config=(
-                        context.settings
-                        .futures_screener
-                        .to_domain()
-                    ),
+                    config=screener_settings.to_domain(),
                     symbols_file=symbols_file,
+                    quote_asset=screener_settings.quote_asset,
+                    blacklist=screener_settings.blacklist,
+                    allowlist=screener_settings.allowlist,
                 )
                 result = scan_symbols(
                     selection.symbols,
