@@ -83,6 +83,11 @@ from apex.paper_trading.operations_status import (
     PaperOperationsStatus,
     build_paper_operations_status,
 )
+from apex.paper_trading.portfolio import (
+    PaperPortfolioSnapshot,
+    build_paper_portfolio_snapshot,
+    paper_portfolio_payload,
+)
 from apex.paper_trading.runtime import (
     CandleProvider,
     PaperRuntimeResult,
@@ -130,6 +135,7 @@ __all__ = [
     "PaperOperationCycleResult",
     "PaperOperationsStatus",
     "PaperPerformance",
+    "PaperPortfolioSnapshot",
     "PaperReport",
     "PaperRuntimeResult",
     "PaperTrade",
@@ -147,6 +153,7 @@ __all__ = [
     "build_futures_intake_candidate",
     "build_paper_guidance_report",
     "build_paper_operations_status",
+    "build_paper_portfolio_snapshot",
     "build_paper_replay_report",
     "build_spot_intake_candidate",
     "compare_backtest_to_paper",
@@ -162,6 +169,7 @@ __all__ = [
     "paper_cycle_lock",
     "paper_entry_expiry",
     "paper_lifecycle_snapshot",
+    "paper_portfolio_payload",
     "persist_intake_candidates",
     "run_paper_operation_cycle",
     "run_provider_backed_paper_cycle",
