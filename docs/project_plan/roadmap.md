@@ -1,6 +1,6 @@
 # Development Roadmap
 
-This roadmap summarizes the staged delivery model for Apex. Detailed completion status belongs in `docs/implementation_progress.md`.
+This roadmap summarizes the staged delivery model for Apex. Detailed completion status belongs in `docs/progress/implementation_progress.md`.
 
 ## Foundation
 
