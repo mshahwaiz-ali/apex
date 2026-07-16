@@ -11,6 +11,7 @@ from apex.market_environment import (
     MarketRegime,
     VolatilityState,
 )
+from apex.strategies import StrategyType, TradeDirection
 
 
 def _environment(**overrides: object) -> MarketEnvironment:
@@ -91,6 +92,23 @@ def test_extreme_extension_marks_entry_missed() -> None:
     assert decision.entry_state == "MISSED_ENTRY"
     assert decision.chase_risk is ChaseRisk.EXTREME
     assert decision.actionable_now is False
+
+
+def test_selected_setup_conflicting_with_route_is_blocked() -> None:
+    environment = _environment()
+    route = route_market_strategies(environment)
+
+    decision = evaluate_near_current_entry(
+        _precision(),
+        environment,
+        route,
+        selected_strategy=StrategyType.RANGE_REVERSAL,
+        selected_direction=TradeDirection.SHORT,
+    )
+
+    assert decision.entry_state == "NO_TRADE"
+    assert decision.actionable_now is False
+    assert "SELECTED_SETUP_BLOCKED_BY_ROUTE" in decision.reason_codes
 
 
 def test_missing_precision_plan_returns_no_trade() -> None:
