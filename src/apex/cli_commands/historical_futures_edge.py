@@ -14,6 +14,8 @@ from apex.backtesting.historical_edge_io import (
     write_historical_edge_report_sqlite,
 )
 from apex.backtesting.historical_futures_edge import build_historical_futures_edge_report
+from apex.cli_commands.research_output import emit_payload, output_mode
+from apex.presentation.research import render_edge_report
 
 
 def register_historical_futures_edge_commands(app: typer.Typer) -> None:
@@ -46,9 +48,14 @@ def register_historical_futures_edge_commands(app: typer.Typer) -> None:
             bool,
             typer.Option("--force", help="Allow replacing an existing JSON report."),
         ] = False,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
         """Create split-isolated edge profiles from a completed N4.7 campaign."""
 
+        mode = output_mode(output_format)
         try:
             report = build_historical_futures_edge_report(
                 result_path=result_file,
@@ -64,11 +71,8 @@ def register_historical_futures_edge_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(
-            "HISTORICAL_FUTURES_EDGE_REPORT_COMPLETED "
-            f"| campaign_id={report['campaign_id']} "
-            f"| trades={report['trade_count']} "
-            f"| profiles={report['profile_count']} "
-            f"| report_id={report['report_id']} "
-            f"| output={output_file}"
+        emit_payload(
+            report,
+            mode=mode,
+            rendered=render_edge_report(report, output_path=output_file, mode=mode),
         )
