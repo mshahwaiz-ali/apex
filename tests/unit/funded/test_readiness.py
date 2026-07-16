@@ -3,9 +3,11 @@ from datetime import UTC, date, datetime
 from apex.domain import AccountPolicyDecision, AccountPolicyType, RiskMode
 from apex.execution.contracts import KillSwitchState
 from apex.funded import (
+    DrawdownModel,
     FundedProviderLimits,
     FundedReadinessReason,
     ManualExecutionChecklist,
+    ProviderPolicyBinding,
     evaluate_funded_readiness,
 )
 from apex.validation import ForwardValidationReport, ProductionEligibility
@@ -50,6 +52,23 @@ def _limits(*, verified: bool = True) -> FundedProviderLimits:
     )
 
 
+def _binding(*, compatible: bool = True) -> ProviderPolicyBinding:
+    return ProviderPolicyBinding(
+        provider_id="VERIFIED_PROVIDER",
+        provider_name="verified-provider",
+        challenge_phase="phase-1",
+        preset_sha256="0" * 64,
+        verification_date=date(2026, 7, 14),
+        drawdown_model=DrawdownModel.STATIC,
+        weekend_trading_allowed=False,
+        overnight_holding_allowed=False,
+        news_trading_allowed=False,
+        compatible=compatible,
+        compatibility_reasons=() if compatible else ("PROVIDER_POLICY_MISMATCH",),
+        execution_authorized=False,
+    )
+
+
 def _checklist(*, complete: bool = True) -> ManualExecutionChecklist:
     return ManualExecutionChecklist(
         analysis_reviewed=complete,
@@ -67,6 +86,7 @@ def test_funded_readiness_passes_only_when_all_gates_pass() -> None:
         risk_mode=RiskMode.STANDARD,
         account_policy_type=AccountPolicyType.FUNDED,
         account_policy_decision=_policy_decision(),
+        provider_policy_binding=_binding(),
         daily_lockout_verified=True,
         total_buffer_verified=True,
         pre_trade_checklist=_checklist(),
@@ -79,6 +99,25 @@ def test_funded_readiness_passes_only_when_all_gates_pass() -> None:
     assert report.reasons == ()
 
 
+def test_funded_readiness_requires_provider_policy_binding() -> None:
+    report = evaluate_funded_readiness(
+        provider_limits=_limits(),
+        forward_validation=_validation(),
+        risk_mode=RiskMode.STANDARD,
+        account_policy_type=AccountPolicyType.FUNDED,
+        account_policy_decision=_policy_decision(),
+        daily_lockout_verified=True,
+        total_buffer_verified=True,
+        pre_trade_checklist=_checklist(),
+        post_trade_checklist=_checklist(),
+        kill_switch_state=KillSwitchState.ENABLED,
+        generated_at=datetime(2026, 7, 14, tzinfo=UTC),
+    )
+
+    assert report.ready is False
+    assert FundedReadinessReason.PROVIDER_POLICY_BINDING_REQUIRED in report.reasons
+
+
 def test_funded_readiness_rejects_non_standard_mode() -> None:
     report = evaluate_funded_readiness(
         provider_limits=_limits(),
@@ -86,6 +125,7 @@ def test_funded_readiness_rejects_non_standard_mode() -> None:
         risk_mode=RiskMode.AGGRESSIVE,
         account_policy_type=AccountPolicyType.FUNDED,
         account_policy_decision=_policy_decision(),
+        provider_policy_binding=_binding(),
         daily_lockout_verified=True,
         total_buffer_verified=True,
         pre_trade_checklist=_checklist(),
@@ -105,6 +145,7 @@ def test_funded_readiness_requires_verified_provider_and_p1() -> None:
         risk_mode=RiskMode.STANDARD,
         account_policy_type=AccountPolicyType.FUNDED,
         account_policy_decision=_policy_decision(),
+        provider_policy_binding=_binding(),
         daily_lockout_verified=True,
         total_buffer_verified=True,
         pre_trade_checklist=_checklist(),
