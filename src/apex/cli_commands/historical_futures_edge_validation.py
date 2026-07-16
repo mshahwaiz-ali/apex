@@ -13,6 +13,8 @@ from apex.backtesting.historical_futures_edge_validation import (
     build_historical_futures_edge_validation_report,
     write_historical_futures_edge_validation_report,
 )
+from apex.cli_commands.research_output import emit_payload, output_mode
+from apex.presentation.research import render_edge_validation
 
 
 def register_historical_futures_edge_validation_commands(app: typer.Typer) -> None:
@@ -56,9 +58,14 @@ def register_historical_futures_edge_validation_commands(app: typer.Typer) -> No
             bool,
             typer.Option("--force", help="Allow replacing an existing validation report."),
         ] = False,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
         """Evaluate train, validation, and untouched final-test edge stability."""
 
+        mode = output_mode(output_format)
         try:
             policy = HistoricalEdgeValidationPolicy(
                 minimum_validation_trades=minimum_validation_trades,
@@ -85,11 +92,8 @@ def register_historical_futures_edge_validation_commands(app: typer.Typer) -> No
         except (FileExistsError, FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(
-            "HISTORICAL_FUTURES_EDGE_VALIDATION_COMPLETED "
-            f"| campaign_id={report['campaign_id']} "
-            f"| segments={report['segment_count']} "
-            f"| validated={report['validated_out_of_sample_count']} "
-            f"| report_id={report['report_id']} "
-            f"| output={output_file}"
+        emit_payload(
+            report,
+            mode=mode,
+            rendered=render_edge_validation(report, output_path=output_file, mode=mode),
         )
