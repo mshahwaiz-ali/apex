@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -28,7 +29,7 @@ class ProviderPolicyBinding(BaseModel):
     news_trading_allowed: bool
     compatible: bool
     compatibility_reasons: tuple[str, ...] = ()
-    execution_authorized: bool = False
+    execution_authorized: Literal[False] = False
 
 
 def bind_provider_policy(
