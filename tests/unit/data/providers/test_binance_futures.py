@@ -182,3 +182,264 @@ def test_futures_provider_identity_and_default_base_url() -> None:
     assert provider.BASE_URL == "https://fapi.binance.com"
 
     provider.close()
+
+def test_fetch_futures_tickers_uses_two_batch_endpoints() -> None:
+    requested_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        assert "symbol" not in request.url.params
+
+        if request.url.path == "/fapi/v1/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "ETHUSDT",
+                        "bidPrice": "2999.0",
+                        "askPrice": "3000.0",
+                    },
+                    {
+                        "symbol": "BTCUSDT",
+                        "bidPrice": "64210.0",
+                        "askPrice": "64210.1",
+                    },
+                ],
+            )
+
+        if request.url.path == "/fapi/v1/ticker/24hr":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "lastPrice": "64210.05",
+                        "quoteVolume": "985525363.36",
+                        "priceChangePercent": "4.5",
+                        "highPrice": "65000.0",
+                        "lowPrice": "61000.0",
+                        "count": 12345,
+                    },
+                    {
+                        "symbol": "ETHUSDT",
+                        "lastPrice": "2999.5",
+                        "quoteVolume": "500000000.0",
+                        "priceChangePercent": "-6.0",
+                    },
+                ],
+            )
+
+        raise AssertionError(
+            f"unexpected path: {request.url.path}"
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(
+        client=client
+    )
+
+    tickers = provider.fetch_futures_tickers()
+
+    assert requested_paths == [
+        "/fapi/v1/ticker/bookTicker",
+        "/fapi/v1/ticker/24hr",
+    ]
+    assert [
+        ticker.exchange_symbol for ticker in tickers
+    ] == [
+        "BTCUSDT",
+        "ETHUSDT",
+    ]
+
+    assert tickers[0].last_price == 64210.05
+    assert tickers[0].bid_price == 64210.0
+    assert tickers[0].ask_price == 64210.1
+    assert tickers[0].high_price_24h == 65000.0
+    assert tickers[0].low_price_24h == 61000.0
+    assert tickers[0].trade_count_24h == 12345
+    assert tickers[0].source == "binance-futures"
+
+    assert tickers[1].high_price_24h is None
+    assert tickers[1].low_price_24h is None
+    assert tickers[1].trade_count_24h is None
+
+    client.close()
+
+
+def test_fetch_futures_tickers_skips_invalid_and_unmatched_rows() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/fapi/v1/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "bidPrice": "64210.0",
+                        "askPrice": "64210.1",
+                    },
+                    {
+                        "symbol": "BROKENUSDT",
+                        "bidPrice": "bad",
+                        "askPrice": "1.0",
+                    },
+                    {
+                        "symbol": "BOOKONLYUSDT",
+                        "bidPrice": "1.0",
+                        "askPrice": "1.1",
+                    },
+                ],
+            )
+
+        if request.url.path == "/fapi/v1/ticker/24hr":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "lastPrice": "64210.05",
+                        "quoteVolume": "985525363.36",
+                        "priceChangePercent": "4.5",
+                    },
+                    {
+                        "symbol": "STATSINVALIDUSDT",
+                        "lastPrice": "bad",
+                        "quoteVolume": "1000.0",
+                        "priceChangePercent": "1.0",
+                    },
+                    {
+                        "symbol": "STATSONLYUSDT",
+                        "lastPrice": "1.0",
+                        "quoteVolume": "1000.0",
+                        "priceChangePercent": "1.0",
+                    },
+                ],
+            )
+
+        raise AssertionError(
+            f"unexpected path: {request.url.path}"
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(
+        client=client
+    )
+
+    tickers = provider.fetch_futures_tickers()
+
+    assert [
+        ticker.exchange_symbol for ticker in tickers
+    ] == ["BTCUSDT"]
+
+    client.close()
+
+
+def test_fetch_futures_tickers_skips_invalid_joined_snapshot() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/fapi/v1/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "bidPrice": "101.0",
+                        "askPrice": "100.0",
+                    }
+                ],
+            )
+
+        if request.url.path == "/fapi/v1/ticker/24hr":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "lastPrice": "100.0",
+                        "quoteVolume": "1000.0",
+                        "priceChangePercent": "1.0",
+                    }
+                ],
+            )
+
+        raise AssertionError(
+            f"unexpected path: {request.url.path}"
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(
+        client=client
+    )
+
+    assert provider.fetch_futures_tickers() == ()
+
+    client.close()
+
+
+def test_fetch_futures_tickers_rejects_invalid_book_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/fapi/v1/ticker/bookTicker":
+            return httpx.Response(
+                200,
+                json={"symbol": "BTCUSDT"},
+            )
+
+        return httpx.Response(200, json=[])
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(
+        client=client
+    )
+
+    from apex.data.providers.errors import ProviderResponseError
+
+    import pytest
+
+    with pytest.raises(
+        ProviderResponseError,
+        match="book ticker response must be a list",
+    ):
+        provider.fetch_futures_tickers()
+
+    client.close()
+
+
+def test_fetch_futures_tickers_rejects_invalid_24h_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/fapi/v1/ticker/bookTicker":
+            return httpx.Response(200, json=[])
+
+        return httpx.Response(
+            200,
+            json={"symbol": "BTCUSDT"},
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(
+        client=client
+    )
+
+    from apex.data.providers.errors import ProviderResponseError
+
+    import pytest
+
+    with pytest.raises(
+        ProviderResponseError,
+        match="24h ticker response must be a list",
+    ):
+        provider.fetch_futures_tickers()
+
+    client.close()

@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Protocol
 
 from apex.domain.futures_market import FuturesContractMetadata
+from apex.domain.futures_screening import FuturesTickerSnapshot
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
@@ -76,6 +77,17 @@ class FuturesUniverseProvider(Protocol):
 
     def fetch_futures_contracts(self) -> tuple[FuturesContractMetadata, ...]:
         """Fetch normalized futures exchange-contract metadata."""
+
+
+class FuturesMarketScreenerProvider(Protocol):
+    """Optional provider contract for market-wide futures ticker batches."""
+
+    @property
+    def name(self) -> str:
+        """Return the provider identifier."""
+
+    def fetch_futures_tickers(self) -> tuple[FuturesTickerSnapshot, ...]:
+        """Fetch normalized market-wide futures ticker snapshots."""
 
 
 class MarketMicrostructureProvider(Protocol):
