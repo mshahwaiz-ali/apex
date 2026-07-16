@@ -110,9 +110,6 @@ dataset_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(paper_app, name="paper")
-app.add_typer(optimize_app, name="optimize")
-app.add_typer(intelligence_app, name="intelligence")
-app.add_typer(execute_app, name="execute")
 app.add_typer(dataset_app, name="dataset")
 execute_app.add_typer(kill_switch_app, name="kill-switch")
 

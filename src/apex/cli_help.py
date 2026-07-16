@@ -14,11 +14,6 @@ _COMMAND_HELP: dict[str, tuple[str, str]] = {
     "analyze": ("Find futures trades", "Analyze one futures pair and print the current trade plan or rejection reason."),
     "scan": ("Find futures trades", "Scan and rank the configured futures market for actionable setups."),
     "simulate-current-setup": ("Find futures trades", "Paper-simulate one currently approved setup without placing an order."),
-    "spot-analyze": ("Find spot trades", "Analyze one spot pair and show the selected long-only plan or rejection reason."),
-    "spot-orchestrate": ("Find spot trades", "Build a complete spot plan from validated market structure and account limits."),
-    "spot-live": ("Find spot trades", "Fetch live market data and run the complete spot analysis workflow."),
-    "spot-scan-live": ("Find spot trades", "Scan selected spot pairs and rank the best currently eligible opportunities."),
-    "spot-plan": ("Find spot trades", "Build a bounded spot entry, allocation, target, and exit plan."),
     "export-dataset": ("Research and backtesting", "Export candles and analysis data for research."),
     "chronological-backtest": ("Research and backtesting", "Replay historical setups in time order with realistic trading costs."),
     "compare-backtests": ("Research and backtesting", "Compare two saved backtest reports."),
@@ -40,9 +35,6 @@ _COMMAND_HELP: dict[str, tuple[str, str]] = {
 
 _GROUP_HELP: dict[str, tuple[str, str]] = {
     "paper": ("Paper trading", "Record, update, review, and monitor simulated trades."),
-    "optimize": ("Research and backtesting", "Calibrate strategy settings using controlled historical experiments."),
-    "intelligence": ("Advanced tools", "Optional deterministic market-context tools."),
-    "execute": ("Advanced tools", "Testnet-only execution and safety commands. No real-money trading."),
     "dataset": ("Research and backtesting", "Acquire, split, verify, and replay reproducible historical datasets."),
 }
 
@@ -50,8 +42,6 @@ _GROUP_HELP: dict[str, tuple[str, str]] = {
 def _classify_unknown_command(name: str) -> tuple[str, str] | None:
     """Return a plain-language fallback for dynamically registered commands."""
 
-    if name.startswith("spot-"):
-        return "Find spot trades", "Run a spot-market analysis or planning workflow."
     if name.startswith("paper-") or name.startswith("forward-"):
         return "Paper validation", "Run a paper-trading or forward-validation workflow."
     if name.startswith("funded-"):
@@ -65,14 +55,13 @@ def apply_curated_help(app: typer.Typer) -> None:
     """Apply workflow-oriented descriptions without changing command names or behavior."""
 
     app.info.help = (
-        "Find and evaluate crypto trade opportunities with deterministic risk controls. "
-        "Start with `apex scan` for futures or `apex spot-scan-live` for spot."
+        "Find and evaluate futures opportunities with deterministic risk controls. "
+        "Start with `apex scan`."
     )
     app.info.epilog = (
         "Quick start:\n"
         "  apex scan --help\n"
         "  apex analyze BTCUSDT --help\n"
-        "  apex spot-scan-live --help\n"
         "  apex paper --help\n\n"
         "Apex analyzes and paper-tests trades; it does not authorize real-money execution."
     )

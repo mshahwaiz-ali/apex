@@ -36,36 +36,6 @@ _ROUTES: tuple[CommandRoute, ...] = (
         "Paper-simulate one currently approved futures setup.",
     ),
     CommandRoute(
-        "spot-analyze",
-        "spot",
-        "analyze",
-        "Analyze one spot market and show the selected long-only plan or rejection reason.",
-    ),
-    CommandRoute(
-        "spot-live",
-        "spot",
-        "live",
-        "Fetch live market data and run the complete spot analysis workflow.",
-    ),
-    CommandRoute(
-        "spot-scan-live",
-        "spot",
-        "scan",
-        "Scan selected spot markets and rank the best currently eligible opportunities.",
-    ),
-    CommandRoute(
-        "spot-plan",
-        "spot",
-        "plan",
-        "Build a bounded spot entry, allocation, target, and exit plan.",
-    ),
-    CommandRoute(
-        "spot-orchestrate",
-        "spot",
-        "orchestrate",
-        "Build a complete spot plan from validated structure and account limits.",
-    ),
-    CommandRoute(
         "chronological-backtest",
         "research",
         "backtest",
@@ -180,13 +150,9 @@ _GROUPS: dict[str, tuple[str, str]] = {
         "Futures trade discovery",
         "Find and evaluate leveraged futures opportunities. No orders are placed.",
     ),
-    "spot": (
-        "Spot trade discovery",
-        "Find and evaluate long-only cash-spot opportunities.",
-    ),
     "research": (
         "Research and backtesting",
-        "Run reproducible datasets, backtests, comparisons, and calibration workflows.",
+        "Run reproducible datasets, backtests, comparisons, and historical validation workflows.",
     ),
     "validation": (
         "Validation and readiness",
@@ -244,18 +210,23 @@ def install_professional_navigation(app: typer.Typer) -> None:
         )(source.callback)
         _hide_legacy_command(source)
 
+    app.registered_commands[:] = [
+        command
+        for command in app.registered_commands
+        if command.name is None or not command.name.startswith("spot-")
+    ]
+
     for legacy_group in ("optimize", "intelligence", "dataset"):
         _hide_legacy_group(app, legacy_group)
 
     app.info.help = (
-        "Professional crypto trade discovery, paper validation, and research workflows. "
-        "Start with `apex futures scan` or `apex spot scan`."
+        "Professional futures trade discovery, paper validation, and research workflows. "
+        "Start with `apex futures scan`."
     )
     app.info.epilog = (
         "Quick start:\n"
         "  apex futures scan --help\n"
         "  apex futures analyze BTCUSDT --help\n"
-        "  apex spot scan --help\n"
         "  apex paper --help\n"
         "  apex research --help\n\n"
         "Apex does not authorize real-money execution."
