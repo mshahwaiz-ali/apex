@@ -22,6 +22,7 @@ from apex.cli_commands.spot_historical_dataset import (
 from apex.cli_commands.spot_historical_replay import (
     register_spot_historical_replay_commands,
 )
+from apex.cli_help import apply_curated_help
 
 install_cli_commands(app, paper_app)
 register_dataset_campaign_commands(dataset_app)
@@ -32,5 +33,6 @@ register_spot_historical_dataset_commands(dataset_app)
 register_spot_historical_replay_commands(dataset_app)
 register_spot_historical_backtest_commands(dataset_app)
 register_empirical_calibration_commands(optimize_app)
+apply_curated_help(app)
 
 __all__ = ["app"]
