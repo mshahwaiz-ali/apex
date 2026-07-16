@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -16,6 +15,7 @@ from apex.application.spot_orchestration_io import (
     DEFAULT_SPOT_STRATEGY_CONFIG_PATH,
     write_spot_orchestration_result,
 )
+from apex.cli_commands.spot_output import emit_spot_analysis, output_mode
 from apex.config.spot import load_spot_product_config
 from apex.config.spot_strategies import load_spot_strategy_config
 from apex.data.providers.errors import MarketDataProviderError
@@ -46,8 +46,12 @@ def register_spot_live_commands(app: typer.Typer) -> None:
         ] = DEFAULT_SPOT_STRATEGY_CONFIG_PATH,
         output: Annotated[
             Path | None,
-            typer.Option("--output", dir_okay=False),
+            typer.Option("--output", dir_okay=False, help="Optional JSON file destination."),
         ] = None,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
         candles: Annotated[
             int,
             typer.Option("--candles", min=60, max=1000),
@@ -55,6 +59,7 @@ def register_spot_live_commands(app: typer.Typer) -> None:
     ) -> None:
         """Fetch public candles and run canonical long-only cash spot analysis."""
 
+        mode = output_mode(output_format)
         try:
             context = bootstrap()
             account_input = load_spot_live_account(account)
@@ -79,4 +84,4 @@ def register_spot_live_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        emit_spot_analysis(payload, mode=mode, title="Live Spot Analysis")
