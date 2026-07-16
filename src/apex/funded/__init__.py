@@ -12,6 +12,12 @@ from apex.funded.history_readiness_artifact_verification import (
     funded_history_readiness_artifact_source_verification_payload,
     verify_funded_history_readiness_artifact_sources,
 )
+from apex.funded.plan_eligibility import (
+    FundedPlanEligibility,
+    FundedPlanEligibilityReason,
+    FundedPlanEligibilityState,
+    evaluate_funded_plan_eligibility,
+)
 from apex.funded.provider_limits_persistence import (
     load_funded_provider_limits_registry,
     validate_provider_preset_against_policy,
@@ -58,6 +64,9 @@ __all__ = [
     "DrawdownModel",
     "FundedHistoryReadinessArtifactSourceStatus",
     "FundedHistoryReadinessArtifactSourceVerification",
+    "FundedPlanEligibility",
+    "FundedPlanEligibilityReason",
+    "FundedPlanEligibilityState",
     "FundedProviderLimitPreset",
     "FundedProviderLimits",
     "FundedProviderLimitsRegistry",
@@ -70,6 +79,7 @@ __all__ = [
     "bind_provider_policy",
     "build_funded_history_readiness_artifact",
     "build_funded_readiness_artifact",
+    "evaluate_funded_plan_eligibility",
     "evaluate_funded_readiness",
     "funded_history_readiness_artifact_source_verification_payload",
     "funded_readiness_artifact_source_verification_payload",
