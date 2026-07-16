@@ -60,7 +60,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
                     config=PaperTradeConfig(),
                 )
         except PaperCycleAlreadyRunningError as exc:
-            payload = {
+            payload: dict[str, object] = {
                 "market_type": market_type,
                 "outcome": "skipped",
                 "reason": str(exc),
@@ -71,7 +71,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
             raise typer.BadParameter(str(exc)) from exc
 
         runtime = result.runtime
-        payload = {
+        payload: dict[str, object] = {
             "market_type": market_type,
             "outcome": "completed",
             "eligible_trade_count": runtime.cycle.eligible_trade_count,
