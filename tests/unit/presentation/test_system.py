@@ -45,9 +45,8 @@ def test_ticker_preserves_precision_for_tiny_spread_percentage() -> None:
     )
 
     assert "Spread percentage" in rendered
-    assert "0.0000%" not in rendered
-    assert "0.00002%" not in rendered
-    assert "0.0000" in rendered
+    assert "0.000015%" in rendered
+    assert "0.0%" not in rendered
 
 
 def test_candles_default_to_summary_and_verbose_adds_rows() -> None:
