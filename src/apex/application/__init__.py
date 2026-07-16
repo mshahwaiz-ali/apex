@@ -5,7 +5,7 @@ from apex.application.account_state import (
     AccountStateSnapshot,
     AccountStateStore,
 )
-from apex.application.analysis import (
+from apex.application.integrated_analysis import (
     ScanResult,
     SymbolAnalysis,
     analyze_symbol,
