@@ -175,8 +175,6 @@ def build_futures_intake_candidate(
         symbol=analysis.symbol,
         strategy=strategy,
         direction=direction,
-        scanner_type=analysis.scanner_type.value,
-        gainer_state=analysis.gainer_state,
     )
     plan_identity = _stable_plan_identity(futures_plan)
     payload = {
@@ -191,10 +189,7 @@ def build_futures_intake_candidate(
         "strategy_approval": futures_plan.get("strategy_approval"),
         "risk_mode": futures_plan.get("risk_mode"),
         "account_policy_snapshot": account_policy_snapshot,
-        "scanner_context": {
-            "scanner_type": analysis.scanner_type.value,
-            "gainer_state": analysis.gainer_state,
-            "gainer_evidence": analysis.gainer_evidence,
+        "strategy_context": {
             "strategy_routing": analysis.strategy_routing,
         },
         "precision_entry": analysis.precision_entry,
@@ -262,8 +257,6 @@ def build_spot_intake_candidate(
         symbol=symbol,
         strategy=strategy,
         direction=normalized_direction,
-        scanner_type=source_mode,
-        gainer_state=None,
     )
     planning_payload = spot_analysis_result_to_payload(result)["planning"]
     assert isinstance(planning_payload, dict)
@@ -476,18 +469,13 @@ def _setup_segment(
     symbol: str,
     strategy: str,
     direction: str,
-    scanner_type: str,
-    gainer_state: str | None,
 ) -> dict[str, str]:
     segment = {
         "market_type": market_type.value,
         "symbol": symbol,
         "strategy": strategy,
         "direction": direction,
-        "scanner_type": scanner_type,
     }
-    if gainer_state is not None:
-        segment["gainer_state"] = gainer_state
     return dict(sorted(segment.items()))
 
 
