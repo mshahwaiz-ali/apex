@@ -28,6 +28,13 @@ from apex.funded.plan_evidence_package import (
     verify_funded_plan_evidence_package,
     write_funded_plan_evidence_package,
 )
+from apex.funded.plan_package_reproduction import (
+    FUNDED_PLAN_REPRODUCTION_SCHEMA_VERSION,
+    FundedPlanReproductionCheck,
+    FundedPlanReproductionReport,
+    FundedPlanReproductionStatus,
+    verify_funded_plan_package_reproduction,
+)
 from apex.funded.provider_limits_persistence import (
     load_funded_provider_limits_registry,
     validate_provider_preset_against_policy,
@@ -39,10 +46,7 @@ from apex.funded.provider_limits_registry import (
     FundedProviderLimitPreset,
     FundedProviderLimitsRegistry,
 )
-from apex.funded.provider_policy_binding import (
-    ProviderPolicyBinding,
-    bind_provider_policy,
-)
+from apex.funded.provider_policy_binding import ProviderPolicyBinding, bind_provider_policy
 from apex.funded.provider_readiness_input import (
     prepare_funded_readiness_input,
     write_funded_readiness_input,
@@ -70,6 +74,7 @@ from apex.funded.readiness_artifact_verification import (
 __all__ = [
     "FUNDED_HISTORY_READINESS_ARTIFACT_SCHEMA_VERSION",
     "FUNDED_PLAN_PACKAGE_SCHEMA_VERSION",
+    "FUNDED_PLAN_REPRODUCTION_SCHEMA_VERSION",
     "FUNDED_READINESS_ARTIFACT_SCHEMA_VERSION",
     "PROVIDER_LIMITS_REGISTRY_SCHEMA_VERSION",
     "DrawdownModel",
@@ -80,6 +85,9 @@ __all__ = [
     "FundedPlanEligibilityState",
     "FundedPlanEvidenceManifest",
     "FundedPlanEvidencePackage",
+    "FundedPlanReproductionCheck",
+    "FundedPlanReproductionReport",
+    "FundedPlanReproductionStatus",
     "FundedProviderLimitPreset",
     "FundedProviderLimits",
     "FundedProviderLimitsRegistry",
@@ -106,6 +114,7 @@ __all__ = [
     "validate_provider_preset_against_policy",
     "verify_funded_history_readiness_artifact_sources",
     "verify_funded_plan_evidence_package",
+    "verify_funded_plan_package_reproduction",
     "verify_funded_readiness_artifact_sources",
     "write_funded_history_readiness_artifact",
     "write_funded_plan_evidence_package",
