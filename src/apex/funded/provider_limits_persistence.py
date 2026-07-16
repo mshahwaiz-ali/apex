@@ -80,6 +80,9 @@ def validate_provider_preset_against_policy(
         policy.challenge_phase.strip().casefold() != preset.challenge_phase.strip().casefold()
     ):
         raise ValueError("account policy challenge phase does not match provider preset")
+    preset_sha256 = preset.preset_sha256 or preset.content_sha256
+    if policy.provider_preset_sha256 is not None and policy.provider_preset_sha256 != preset_sha256:
+        raise ValueError("account policy preset hash does not match funded provider preset")
     if (
         policy.external_daily_drawdown_limit_pct
         != preset.external_daily_drawdown_limit_pct
@@ -94,3 +97,7 @@ def validate_provider_preset_against_policy(
         raise ValueError("account policy permits more daily trades than provider preset")
     if policy.weekend_trading_allowed and not preset.weekend_trading_allowed:
         raise ValueError("account policy permits weekend trading forbidden by provider preset")
+    if policy.overnight_holding_allowed and not preset.overnight_holding_allowed:
+        raise ValueError("account policy permits overnight holding forbidden by provider preset")
+    if policy.news_trading_allowed and not preset.news_trading_allowed:
+        raise ValueError("account policy permits news trading forbidden by provider preset")
