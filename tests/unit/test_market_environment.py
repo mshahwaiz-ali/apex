@@ -21,9 +21,9 @@ def _snapshot(**overrides: object) -> TimeframeMarketSnapshot:
     values: dict[str, object] = {
         "timeframe": "15m",
         "candle_timestamp": datetime(2026, 7, 16, tzinfo=UTC),
-        "current_price": 105.0,
-        "last_closed_price": 104.5,
-        "recent_swing_high": 103.0,
+        "current_price": 103.0,
+        "last_closed_price": 102.5,
+        "recent_swing_high": 104.0,
         "recent_swing_low": 98.0,
         "trend_direction": "bullish",
         "ema_fast": 102.0,
@@ -66,12 +66,12 @@ def test_clear_bullish_trend_is_deterministic() -> None:
 def test_bearish_breakout_expansion() -> None:
     result = classify_timeframe_regime(
         _snapshot(
-            current_price=95.0,
-            last_closed_price=95.5,
+            current_price=97.0,
+            last_closed_price=97.5,
             trend_direction="bearish",
             ema_fast=98.0,
             ema_slow=100.0,
-            vwap=99.0,
+            vwap=98.0,
             rsi=36.0,
             macd_histogram=-0.5,
             recent_high_break=False,
