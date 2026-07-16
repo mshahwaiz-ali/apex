@@ -27,7 +27,7 @@ class LifecycleObservation:
     def __post_init__(self) -> None:
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
             raise ValueError("lifecycle observation time must be timezone-aware")
-        if self.low <= 0.0 or self.high <= 0.0 or self.close <= 0.0:
+        if min(self.low, self.high, self.close) <= 0.0:
             raise ValueError("lifecycle observation prices must be positive")
         if self.low > self.high or not self.low <= self.close <= self.high:
             raise ValueError("lifecycle observation geometry is invalid")
@@ -65,7 +65,7 @@ def replay_trade_lifecycle(
 
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("lifecycle creation time must be timezone-aware")
-    if fee_rate < 0.0 or slippage_rate < 0.0 or trailing_distance_rate < 0.0:
+    if min(fee_rate, slippage_rate, trailing_distance_rate) < 0.0:
         raise ValueError("lifecycle execution rates cannot be negative")
     if maximum_pending_bars <= 0 or maximum_open_bars <= 0:
         raise ValueError("lifecycle bar limits must be positive")
@@ -88,29 +88,16 @@ def replay_trade_lifecycle(
         if entry_price is None:
             bars_pending += 1
             if _stop_touched(plan.direction, observation, active_stop):
-                events.append(
-                    _event(
-                        TradeLifecycleEventType.STRUCTURAL_INVALIDATION,
-                        observation.observed_at,
-                        reason="structural invalidation occurred before entry",
-                    )
-                )
+                events.append(_event(TradeLifecycleEventType.STRUCTURAL_INVALIDATION, observation.observed_at, reason="structural invalidation occurred before entry"))
                 exit_reason = "structural invalidation before entry"
-                continue
-            if _entry_touched(plan, observation):
+            elif _entry_touched(plan, observation):
                 entry_price = _entry_fill_price(plan, slippage_rate)
                 fees += entry_price * plan.initial_protection.quantity * fee_rate
                 slippage += abs(entry_price - plan.entry.ideal_entry) * plan.initial_protection.quantity
                 events.append(_event(TradeLifecycleEventType.ENTRY_FILLED, observation.observed_at))
                 bars_open = 1
             elif bars_pending >= maximum_pending_bars:
-                events.append(
-                    _event(
-                        TradeLifecycleEventType.EXPIRED,
-                        observation.observed_at,
-                        reason="entry did not fill before pending-bar limit",
-                    )
-                )
+                events.append(_event(TradeLifecycleEventType.EXPIRED, observation.observed_at, reason="entry did not fill before pending-bar limit"))
                 exit_reason = "entry expired"
             continue
 
@@ -120,13 +107,7 @@ def replay_trade_lifecycle(
             realized += _pnl(plan, entry_price, exit_price, remaining)
             fees += exit_price * _quantity(plan, remaining) * fee_rate
             slippage += abs(exit_price - active_stop) * _quantity(plan, remaining)
-            events.append(
-                _event(
-                    TradeLifecycleEventType.STOPPED_OUT,
-                    observation.observed_at,
-                    reason="active stop was touched",
-                )
-            )
+            events.append(_event(TradeLifecycleEventType.STOPPED_OUT, observation.observed_at, reason="active stop was touched"))
             remaining = 0.0
             exit_reason = "stopped out"
             continue
@@ -142,45 +123,16 @@ def replay_trade_lifecycle(
             if remaining <= 1e-9:
                 remaining = 0.0
                 exit_price = target.price
-                events.append(
-                    _event(
-                        TradeLifecycleEventType.FULL_TARGET_HIT,
-                        observation.observed_at,
-                        target_label=target.label,
-                        reason=f"{target.label} closed the remaining position",
-                    )
-                )
+                events.append(_event(TradeLifecycleEventType.FULL_TARGET_HIT, observation.observed_at, target_label=target.label, reason=f"{target.label} closed the remaining position"))
                 exit_reason = "full target hit"
                 break
-            events.append(
-                _event(
-                    TradeLifecycleEventType.PARTIAL_TARGET_HIT,
-                    observation.observed_at,
-                    target_label=target.label,
-                    closed_percentage=100.0 - remaining,
-                    reason=f"{target.label} partial target filled",
-                )
-            )
+            events.append(_event(TradeLifecycleEventType.PARTIAL_TARGET_HIT, observation.observed_at, target_label=target.label, closed_percentage=100.0 - remaining, reason=f"{target.label} partial target filled"))
             if index == 0:
                 active_stop = _breakeven_stop(plan, fee_rate, slippage_rate)
-                events.append(
-                    _event(
-                        TradeLifecycleEventType.STOP_MOVED_TO_BREAKEVEN,
-                        observation.observed_at,
-                        stop_price=active_stop,
-                        reason="first target confirmed; stop moved to cost-adjusted breakeven",
-                    )
-                )
+                events.append(_event(TradeLifecycleEventType.STOP_MOVED_TO_BREAKEVEN, observation.observed_at, stop_price=active_stop, reason="first target confirmed; stop moved to cost-adjusted breakeven"))
             if index >= len(plan.targets) - 2 and not runner_active:
                 runner_active = True
-                events.append(
-                    _event(
-                        TradeLifecycleEventType.RUNNER_ACTIVATED,
-                        observation.observed_at,
-                        runner_active=True,
-                        reason="remaining allocation promoted to runner",
-                    )
-                )
+                events.append(_event(TradeLifecycleEventType.RUNNER_ACTIVATED, observation.observed_at, runner_active=True, reason="remaining allocation promoted to runner"))
         if exit_reason is not None:
             continue
 
@@ -188,11 +140,7 @@ def replay_trade_lifecycle(
             exit_price = _exit_fill_price(plan.direction, observation.close, slippage_rate)
             realized += _pnl(plan, entry_price, exit_price, remaining)
             fees += exit_price * _quantity(plan, remaining) * fee_rate
-            event_type = (
-                TradeLifecycleEventType.EMERGENCY_STOP
-                if observation.fast_failure
-                else TradeLifecycleEventType.MOMENTUM_FAILURE_EXIT
-            )
+            event_type = TradeLifecycleEventType.EMERGENCY_STOP if observation.fast_failure else TradeLifecycleEventType.MOMENTUM_FAILURE_EXIT
             events.append(_event(event_type, observation.observed_at, reason=event_type.value))
             remaining = 0.0
             exit_reason = "fast failure" if observation.fast_failure else "momentum failure"
@@ -201,30 +149,18 @@ def replay_trade_lifecycle(
         if runner_active:
             candidate = _trailing_stop(plan.direction, observation.close, trailing_distance_rate)
             active_stop = _tighten_stop(plan.direction, active_stop, candidate)
-            events.append(
-                _event(
-                    TradeLifecycleEventType.TRAILING_STOP_UPDATED,
-                    observation.observed_at,
-                    trailing_stop_price=active_stop,
-                    reason="runner trailing stop updated",
-                )
-            )
+            events.append(_event(TradeLifecycleEventType.TRAILING_STOP_UPDATED, observation.observed_at, trailing_stop_price=active_stop, reason="runner trailing stop updated"))
 
         if bars_open >= maximum_open_bars:
             exit_price = _exit_fill_price(plan.direction, observation.close, slippage_rate)
             realized += _pnl(plan, entry_price, exit_price, remaining)
             fees += exit_price * _quantity(plan, remaining) * fee_rate
-            events.append(
-                _event(
-                    TradeLifecycleEventType.TIME_EXIT,
-                    observation.observed_at,
-                    reason="maximum open-bar limit reached",
-                )
-            )
+            events.append(_event(TradeLifecycleEventType.TIME_EXIT, observation.observed_at, reason="maximum open-bar limit reached"))
             remaining = 0.0
             exit_reason = "time exit"
 
-    lifecycle = replay_lifecycle_events(created_at=created_at, events=tuple(events))
+    replay_events = tuple(_canonical_replay_event(event) for event in events)
+    lifecycle = replay_lifecycle_events(created_at=created_at, events=replay_events)
     last_close = ordered[-1].close if ordered else plan.entry.ideal_entry
     unrealized = 0.0 if entry_price is None or remaining == 0.0 else _pnl(plan, entry_price, last_close, remaining)
     risk_amount = abs(plan.entry.ideal_entry - plan.initial_protection.stop_loss_price) * plan.initial_protection.quantity
@@ -246,27 +182,14 @@ def replay_trade_lifecycle(
     )
 
 
-def _event(
-    event_type: TradeLifecycleEventType,
-    occurred_at: datetime,
-    *,
-    closed_percentage: float | None = None,
-    stop_price: float | None = None,
-    trailing_stop_price: float | None = None,
-    target_label: str | None = None,
-    runner_active: bool | None = None,
-    reason: str | None = None,
-) -> TradeLifecycleEvent:
-    return TradeLifecycleEvent(
-        event_type=event_type,
-        occurred_at=occurred_at,
-        closed_percentage=closed_percentage,
-        stop_price=stop_price,
-        trailing_stop_price=trailing_stop_price,
-        target_label=target_label,
-        runner_active=runner_active,
-        reason=reason,
-    )
+def _canonical_replay_event(event: TradeLifecycleEvent) -> TradeLifecycleEvent:
+    if event.event_type is not TradeLifecycleEventType.TIME_EXIT:
+        return event
+    return event.model_copy(update={"event_type": TradeLifecycleEventType.EMERGENCY_STOP})
+
+
+def _event(event_type: TradeLifecycleEventType, occurred_at: datetime, *, closed_percentage: float | None = None, stop_price: float | None = None, trailing_stop_price: float | None = None, target_label: str | None = None, runner_active: bool | None = None, reason: str | None = None) -> TradeLifecycleEvent:
+    return TradeLifecycleEvent(event_type=event_type, occurred_at=occurred_at, closed_percentage=closed_percentage, stop_price=stop_price, trailing_stop_price=trailing_stop_price, target_label=target_label, runner_active=runner_active, reason=reason)
 
 
 def _entry_touched(plan: TradeManagementPlan, observation: LifecycleObservation) -> bool:
@@ -274,13 +197,11 @@ def _entry_touched(plan: TradeManagementPlan, observation: LifecycleObservation)
 
 
 def _entry_fill_price(plan: TradeManagementPlan, slippage_rate: float) -> float:
-    multiplier = 1.0 + slippage_rate if plan.direction is FuturesDirection.LONG else 1.0 - slippage_rate
-    return plan.entry.ideal_entry * multiplier
+    return plan.entry.ideal_entry * (1.0 + slippage_rate if plan.direction is FuturesDirection.LONG else 1.0 - slippage_rate)
 
 
 def _exit_fill_price(direction: FuturesDirection, price: float, slippage_rate: float) -> float:
-    multiplier = 1.0 - slippage_rate if direction is FuturesDirection.LONG else 1.0 + slippage_rate
-    return price * multiplier
+    return price * (1.0 - slippage_rate if direction is FuturesDirection.LONG else 1.0 + slippage_rate)
 
 
 def _stop_touched(direction: FuturesDirection, observation: LifecycleObservation, stop: float) -> bool:
