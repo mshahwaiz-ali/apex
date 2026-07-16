@@ -10,9 +10,12 @@ from pydantic import TypeAdapter
 
 from apex.domain import AccountPolicy, AccountPolicyState, FuturesAccountInput
 from apex.funded import (
+    FundedPlanAuditSummary,
     FundedPlanEligibility,
     FundedPlanEvidenceManifest,
     FundedPlanEvidencePackage,
+    FundedPlanPackageIndex,
+    FundedPlanPackageIndexEntry,
     FundedPlanReproductionReport,
     ProviderPolicyBinding,
 )
@@ -45,6 +48,11 @@ def build_funded_plan_schema_bundle() -> dict[str, object]:
             "funded_plan_reproduction_report": TypeAdapter(
                 FundedPlanReproductionReport
             ).json_schema(),
+            "funded_plan_audit_summary": TypeAdapter(FundedPlanAuditSummary).json_schema(),
+            "funded_plan_package_index_entry": TypeAdapter(
+                FundedPlanPackageIndexEntry
+            ).json_schema(),
+            "funded_plan_package_index": TypeAdapter(FundedPlanPackageIndex).json_schema(),
         },
     }
 
