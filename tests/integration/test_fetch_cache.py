@@ -74,7 +74,7 @@ def test_fetch_command_reuses_fresh_file_cache(
     monkeypatch.setenv("APEX_CONFIG_DIR", str(config_dir))
     monkeypatch.setattr(
         apex.application.market_data,
-        "BinanceMarketDataProvider",
+        "BinanceFuturesMarketDataProvider",
         FakeBinanceMarketDataProvider,
     )
 

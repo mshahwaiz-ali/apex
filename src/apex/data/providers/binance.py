@@ -23,7 +23,13 @@ from apex.domain.models import (
 class BinanceMarketDataProvider:
     """Read-only Binance Spot market-data adapter."""
 
+    PROVIDER_NAME = "binance"
     BASE_URL = "https://api.binance.com"
+    CANDLES_PATH = "/api/v3/klines"
+    BOOK_TICKER_PATH = "/api/v3/ticker/bookTicker"
+    TICKER_24H_PATH = "/api/v3/ticker/24hr"
+    ORDER_BOOK_PATH = "/api/v3/depth"
+    EXCHANGE_INFO_PATH = "/api/v3/exchangeInfo"
     SUPPORTED_TIMEFRAMES: ClassVar[frozenset[str]] = frozenset(
         {
             "1m",
@@ -55,7 +61,7 @@ class BinanceMarketDataProvider:
 
     @property
     def name(self) -> str:
-        return "binance"
+        return self.PROVIDER_NAME
 
     def close(self) -> None:
         """Close the internally managed HTTP client."""
@@ -102,7 +108,7 @@ class BinanceMarketDataProvider:
             payload = request_json(
                 self._client,
                 "GET",
-                "/api/v3/klines",
+                self.CANDLES_PATH,
                 provider=self.name,
                 operation="fetch candles",
                 retry_policy=self._retry_policy,
@@ -158,7 +164,7 @@ class BinanceMarketDataProvider:
         book_payload = request_json(
             self._client,
             "GET",
-            "/api/v3/ticker/bookTicker",
+            self.BOOK_TICKER_PATH,
             provider=self.name,
             operation="fetch book ticker",
             retry_policy=self._retry_policy,
@@ -168,7 +174,7 @@ class BinanceMarketDataProvider:
         stats_payload = request_json(
             self._client,
             "GET",
-            "/api/v3/ticker/24hr",
+            self.TICKER_24H_PATH,
             provider=self.name,
             operation="fetch 24h ticker",
             retry_policy=self._retry_policy,
@@ -215,7 +221,7 @@ class BinanceMarketDataProvider:
         payload = request_json(
             self._client,
             "GET",
-            "/api/v3/depth",
+            self.ORDER_BOOK_PATH,
             provider=self.name,
             operation="fetch order book",
             retry_policy=self._retry_policy,
@@ -252,7 +258,7 @@ class BinanceMarketDataProvider:
         payload = request_json(
             self._client,
             "GET",
-            "/api/v3/exchangeInfo",
+            self.EXCHANGE_INFO_PATH,
             provider=self.name,
             operation="fetch exchange filters",
             retry_policy=self._retry_policy,
@@ -277,12 +283,18 @@ class BinanceMarketDataProvider:
             price_filter = filters["PRICE_FILTER"]
             lot_filter = filters["LOT_SIZE"]
             notional_filter = filters.get("MIN_NOTIONAL") or filters["NOTIONAL"]
+            notional_value = notional_filter.get(
+                "minNotional",
+                notional_filter.get("notional"),
+            )
+            if notional_value is None:
+                raise KeyError("minNotional")
             return ExchangeFilterSnapshot(
                 symbol=symbol.upper(),
                 tick_size=float(price_filter["tickSize"]),
                 step_size=float(lot_filter["stepSize"]),
                 min_quantity=float(lot_filter["minQty"]),
-                min_notional=float(notional_filter["minNotional"]),
+                min_notional=float(notional_value),
                 captured_at=datetime.now(UTC),
                 source=self.name,
             )
@@ -347,14 +359,14 @@ class BinanceMarketDataProvider:
             raise ValueError("invalid order book level")
         return OrderBookLevel(price=float(row[0]), quantity=float(row[1]))
 
-    @staticmethod
-    def _milliseconds_to_datetime(value: Any) -> datetime:
+    @classmethod
+    def _milliseconds_to_datetime(cls, value: Any) -> datetime:
         try:
             milliseconds = int(value)
             return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)
         except (OSError, OverflowError, TypeError, ValueError) as exc:
             raise ProviderResponseError(
                 f"Invalid Binance timestamp: {value!r}",
-                provider="binance",
+                provider=cls.PROVIDER_NAME,
                 operation="parse candles",
             ) from exc

@@ -9,8 +9,8 @@ from typing import Protocol
 from apex.config import FileSettings
 from apex.data.cache.candles import FileCandleCache
 from apex.data.providers import (
+    BinanceFuturesMarketDataProvider,
     BinanceFuturesUniverseProvider,
-    BinanceMarketDataProvider,
     CachedMarketDataProvider,
     ResamplingMarketDataProvider,
 )
@@ -67,9 +67,9 @@ def create_market_data_services(
         BinanceFuturesUniverseProvider
     ),
 ) -> MarketDataServices:
-    """Build live ticker and optionally cached candle providers."""
+    """Build futures ticker and optionally cached futures candle providers."""
 
-    builders = provider_builders or {"binance": BinanceMarketDataProvider}
+    builders = provider_builders or {"binance": BinanceFuturesMarketDataProvider}
     normalized_name = provider_name.lower().strip()
 
     try:
