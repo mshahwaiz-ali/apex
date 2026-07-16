@@ -5,11 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from apex.presentation import (
-    OutputMode,
     format_price,
     format_score,
     humanize_code,
-    normalize_output_mode,
     render_fields,
     render_section,
     render_title,
@@ -17,14 +15,9 @@ from apex.presentation import (
 from apex.presentation.futures import render_futures_analysis
 
 
-def render_futures_scan(
-    payload: Mapping[str, object],
-    *,
-    mode: str | OutputMode = OutputMode.TEXT,
-) -> str:
-    """Render one serialized scanner payload without changing scanner decisions."""
+def render_futures_scan(payload: Mapping[str, object]) -> str:
+    """Render one serialized scanner payload as concise trader-facing text."""
 
-    output_mode = normalize_output_mode(mode)
     results = _mappings(payload.get("results"))
     failures = _mapping(payload.get("failures"))
     approved = tuple(item for item in results if _is_approved(item))
@@ -56,7 +49,7 @@ def render_futures_scan(
             )
         )
 
-    sections.append(_render_market_cards(results, output_mode))
+    sections.append(_render_market_cards(results))
     if failures:
         sections.append(_render_failures(failures))
     return "\n\n".join(section for section in sections if section)
@@ -78,11 +71,10 @@ def _render_ranked_setups(results: Sequence[Mapping[str, object]]) -> str:
 
 def _render_market_cards(
     results: Sequence[Mapping[str, object]],
-    mode: OutputMode,
 ) -> str:
     if not results:
         return render_section("Markets", "  No market results were returned.")
-    cards = [render_futures_analysis(item, mode=mode) for item in results]
+    cards = [render_futures_analysis(item) for item in results]
     separator = "\n\n" + "═" * 56 + "\n\n"
     return render_section("Markets", separator.join(cards))
 

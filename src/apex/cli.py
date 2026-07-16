@@ -19,12 +19,9 @@ from apex.application import (
     build_futures_account_input,
     build_futures_plan_result,
     create_market_data_services,
-    format_scan_text,
     format_symbol_text,
     load_default_risk_config,
     load_symbols,
-    scan_symbols,
-    serialize_scan_result,
     serialize_symbol_analysis,
     write_analysis_record,
     write_json_report,
@@ -257,67 +254,6 @@ def analyze(
             write_analysis_record_sqlite(record_db, analysis_record)
     _emit_output(payload, format_symbol_text(analysis), output)
 
-
-@app.command("scan")
-def scan(
-    symbols_file: Path = typer.Option(  # noqa: B008
-        Path("config/symbols.yaml"),
-        "--symbols-file",
-    ),
-    output: str = typer.Option("text", "--output", "-o", help="text or json"),
-    report: Path | None = typer.Option(  # noqa: B008
-        None,
-        "--report",
-        help="Optional JSON report path.",
-    ),
-    record: Path | None = typer.Option(  # noqa: B008
-        None,
-        "--record",
-        help="Optional append-only JSONL scan record path.",
-    ),
-    record_db: Path | None = typer.Option(  # noqa: B008
-        None,
-        "--record-db",
-        help="Optional SQLite scan record database path.",
-    ),
-    candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
-) -> None:
-    """Analyze the configured symbol universe and rank opportunities."""
-
-    try:
-        symbols = load_symbols(symbols_file)
-        context = bootstrap()
-        risk_config = load_default_risk_config()
-        with create_market_data_services(context.settings) as services:
-            result = scan_symbols(
-                symbols,
-                services.candles,
-                timeframes=context.settings.analysis_timeframes,
-                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                timeframe_max_staleness_seconds=getattr(
-                    context.settings,
-                    "timeframe_max_staleness_seconds",
-                    None,
-                ),
-                candle_limit=candle_limit,
-                risk_config=risk_config,
-                strategy_routing=getattr(context.settings, "strategy_routing", None),
-            )
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    except MarketDataProviderError as exc:
-        _exit_for_provider_error("Scanner market-data request failed", exc)
-
-    payload = serialize_scan_result(result)
-    if report is not None:
-        write_json_report(payload, report)
-    if record is not None or record_db is not None:
-        analysis_record = build_analysis_record(payload)
-        if record is not None:
-            write_analysis_record(record, analysis_record)
-        if record_db is not None:
-            write_analysis_record_sqlite(record_db, analysis_record)
-    _emit_output(payload, format_scan_text(result), output)
 
 
 @dataset_app.command("acquire")

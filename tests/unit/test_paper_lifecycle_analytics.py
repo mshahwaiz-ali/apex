@@ -79,7 +79,10 @@ def test_builds_complete_intake_runtime_and_trade_analytics() -> None:
             "market_type": "futures",
             "strategy": "breakout_continuation",
             "direction": "long",
-            "setup_segment": {"scanner_type": "gainers", "gainer_state": "expanding"},
+            "setup_segment": {
+                "scanner_type": "legacy-category",
+                "gainer_state": "legacy-state",
+            },
         },
         futures_plan={
             "entry": {"state": "ready_now"},
@@ -168,6 +171,8 @@ def test_builds_complete_intake_runtime_and_trade_analytics() -> None:
         "trade-entered",
         "trade-invalidated",
     ]
+    assert "scanner_type" not in payload["trades"][0]
+    assert "gainer_state" not in payload["trades"][0]
 
 
 def test_partial_inputs_remain_empty_without_fabricated_financials() -> None:

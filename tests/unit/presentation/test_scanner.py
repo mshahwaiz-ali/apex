@@ -104,29 +104,3 @@ def test_failures_are_grouped_separately() -> None:
     assert "Failures" in text
     assert "SOL/USDT: provider timeout" in text
     assert "No market results were returned" in text
-
-
-def test_verbose_mode_reuses_symbol_diagnostics() -> None:
-    payload = {
-        "risk_mode": "STANDARD",
-        "results": [_no_trade("TRX/USDT", preferred="short")],
-        "failures": {},
-    }
-
-    text = render_futures_scan(payload, mode="verbose")
-
-    assert "Diagnostics" in text
-    assert "Raw decision code" not in text
-
-
-def test_debug_mode_exposes_raw_symbol_diagnostics() -> None:
-    payload = {
-        "risk_mode": "STANDARD",
-        "results": [_no_trade("TRX/USDT", preferred="short")],
-        "failures": {},
-    }
-
-    text = render_futures_scan(payload, mode="debug")
-
-    assert "Raw decision code" in text
-    assert "NO_CANDIDATE_GENERATED" in text

@@ -44,8 +44,6 @@ class PaperLifecycleTradeRecord:
     trade_id: str
     symbol: str
     market_type: str
-    scanner_type: str | None
-    gainer_state: str | None
     strategy: str
     direction: str
     state: str
@@ -213,10 +211,6 @@ def paper_lifecycle_analytics_payload(analytics: PaperLifecycleAnalytics) -> dic
 
 def _trade_record(trade: PaperTrade) -> PaperLifecycleTradeRecord:
     payload = trade.analysis_payload if isinstance(trade.analysis_payload, dict) else {}
-    segment = payload.get("setup_segment")
-    segment = segment if isinstance(segment, dict) else {}
-    scanner = payload.get("scanner_context")
-    scanner = scanner if isinstance(scanner, dict) else {}
     futures_plan = trade.futures_plan if isinstance(trade.futures_plan, dict) else {}
     entry = futures_plan.get("entry")
     entry = entry if isinstance(entry, dict) else {}
@@ -267,8 +261,6 @@ def _trade_record(trade: PaperTrade) -> PaperLifecycleTradeRecord:
         trade_id=trade.trade_id,
         symbol=trade.signal.symbol,
         market_type=str(payload.get("market_type", "futures")).lower(),
-        scanner_type=_optional_text(segment.get("scanner_type") or scanner.get("scanner_type")),
-        gainer_state=_optional_text(segment.get("gainer_state") or scanner.get("gainer_state")),
         strategy=str(payload.get("strategy") or trade.signal.strategy.value),
         direction=str(payload.get("direction") or trade.signal.direction.value),
         state=trade.state.value,
@@ -292,11 +284,6 @@ def _trade_record(trade: PaperTrade) -> PaperLifecycleTradeRecord:
         fees=fees,
         slippage=slippage,
     )
-
-
-def _optional_text(value: Any) -> str | None:
-    text = str(value or "").strip()
-    return text or None
 
 
 def _optional_finite(value: Any) -> float | None:

@@ -15,6 +15,7 @@ import apex.cli as legacy_cli
 import apex.cli_commands.analysis as analysis_cli
 import apex.cli_commands.backtesting as backtesting_cli
 import apex.cli_commands.paper_trading as paper_trading_cli
+import apex.cli_commands.scanner as scanner_cli
 import apex.cli_commands.system as system_cli
 from apex.cli_app import app
 from apex.data.providers.errors import ProviderRequestError
@@ -55,6 +56,8 @@ class FakeServices(AbstractContextManager["FakeServices"]):
     def __init__(self, *, candles: object, ticker: object) -> None:
         self.candles = candles
         self.ticker = ticker
+        self.futures_universe = object()
+        self.futures_screener = object()
 
     def __enter__(self) -> Self:
         return self
@@ -139,24 +142,36 @@ def test_scan_command_emits_json_result(monkeypatch: pytest.MonkeyPatch, tmp_pat
     symbols = tmp_path / "symbols.yaml"
     symbols.write_text("symbols:\n  - BTC/USDT\n", encoding="utf-8")
     fake_scan = object()
+    settings = SimpleNamespace(
+        analysis_timeframes=("5m",),
+        futures_screener=SimpleNamespace(to_domain=lambda: object()),
+    )
+
     monkeypatch.setattr(
-        legacy_cli,
+        scanner_cli,
         "bootstrap",
-        lambda: SimpleNamespace(settings=SimpleNamespace(analysis_timeframes=("5m",))),
+        lambda: SimpleNamespace(settings=settings),
     )
     monkeypatch.setattr(
-        legacy_cli,
+        scanner_cli,
         "create_market_data_services",
         lambda settings: FakeServices(candles=object(), ticker=object()),
     )
-    monkeypatch.setattr(legacy_cli, "load_default_risk_config", lambda: object())
-    monkeypatch.setattr(legacy_cli, "scan_symbols", lambda *args, **kwargs: fake_scan)
+    monkeypatch.setattr(scanner_cli, "load_default_risk_config", lambda: object())
     monkeypatch.setattr(
-        legacy_cli,
+        scanner_cli,
+        "select_futures_scan_symbols",
+        lambda *args, **kwargs: SimpleNamespace(
+            symbols=("BTC/USDT",),
+            screening=None,
+        ),
+    )
+    monkeypatch.setattr(scanner_cli, "scan_symbols", lambda *args, **kwargs: fake_scan)
+    monkeypatch.setattr(
+        scanner_cli,
         "serialize_scan_result",
         lambda result: {"best_overall": None, "failures": {}},
     )
-    monkeypatch.setattr(legacy_cli, "format_scan_text", lambda result: "scan text")
 
     result = runner.invoke(app, ["scan", "--symbols-file", str(symbols), "--output", "json"])
 

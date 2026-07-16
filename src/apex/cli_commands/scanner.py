@@ -1,4 +1,4 @@
-"""Mode-aware market scanner CLI command."""
+"""Dynamic futures opportunity scanner CLI command."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from apex.application import (
 from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.data.providers.errors import MarketDataProviderError
 from apex.domain import RiskMode
-from apex.presentation import normalize_output_mode
 from apex.presentation.scanner import render_futures_scan
 
 
@@ -42,7 +41,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
             "text",
             "--output",
             "-o",
-            help="text, json, verbose, or debug",
+            help="text or json",
         ),
         report: Path | None = typer.Option(None, "--report"),
         record: Path | None = typer.Option(None, "--record"),
@@ -53,7 +52,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
         """Discover, analyze, and rank the active futures symbol universe."""
 
         try:
-            output_mode = normalize_output_mode(output)
+            output_mode = _normalize_scanner_output(output)
             context = bootstrap()
             risk_config = load_default_risk_config()
             with (
@@ -105,7 +104,16 @@ def register_scanner_commands(app: typer.Typer) -> None:
             if record_db is not None:
                 write_analysis_record_sqlite(record_db, analysis_record)
 
-        if output_mode.value == "json":
+        if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_futures_scan(payload, mode=output_mode))
+        typer.echo(render_futures_scan(payload))
+
+
+def _normalize_scanner_output(value: str) -> str:
+    """Normalize the scanner's intentionally small output surface."""
+
+    normalized = value.strip().lower()
+    if normalized not in {"text", "json"}:
+        raise ValueError("scanner output must be one of: text, json")
+    return normalized
