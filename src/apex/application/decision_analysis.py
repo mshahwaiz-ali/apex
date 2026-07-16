@@ -209,14 +209,19 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
     base_text = _integrated.format_symbol_text(analysis)
     route = getattr(analysis, "market_strategy_route", None)
     near_entry = getattr(analysis, "near_current_entry", None)
+    environment = getattr(analysis, "market_environment", None)
     scanner = _scanner_label(analysis.scanner_type)
-    decision = "NO_TRADE" if analysis.assessment.setup is None else analysis.assessment.setup.direction.value.upper()
+    decision = (
+        "NO_TRADE"
+        if analysis.assessment.setup is None
+        else analysis.assessment.setup.direction.value.upper()
+    )
     lines = [f"{analysis.symbol} | {scanner} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
         lines.extend(
             (
-                f"Environment tradeable: {'yes' if analysis.market_environment and analysis.market_environment.tradeable else 'no'}",
+                f"Environment tradeable: {'yes' if environment is not None and environment.tradeable else 'no'}",
                 f"Strategy routed: {strategies}",
                 f"Preferred direction: {route.preferred_direction.value}",
                 f"Routing score: {route.routing_score:.1f}",
@@ -281,7 +286,13 @@ def _decision_reason_code(
         "INVALIDATED",
     }:
         return near_entry.entry_state
-    return "NO_TRADE" if analysis.assessment.setup is None else near_entry.entry_state if near_entry else "NO_TRADE"
+    return (
+        "NO_TRADE"
+        if analysis.assessment.setup is None
+        else near_entry.entry_state
+        if near_entry
+        else "NO_TRADE"
+    )
 
 
 def _scanner_label(scanner_type: MarketCategory) -> str:
