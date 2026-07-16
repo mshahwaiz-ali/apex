@@ -48,6 +48,7 @@ from apex.paper_trading import (
     ScheduledPaperCycleResult,
     run_scheduled_paper_cycle,
 )
+from apex.cli_commands.registration import remove_registered_commands
 from apex.presentation import OutputMode, normalize_output_mode
 from apex.presentation.paper import render_paper_pipeline
 
@@ -279,6 +280,8 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         _emit_pipeline(result, selected_format)
+
+    remove_registered_commands(app, {"scheduled-spot-pipeline"})
 
 
 def _paper_store(data_dir: Path) -> PaperTradeStore:

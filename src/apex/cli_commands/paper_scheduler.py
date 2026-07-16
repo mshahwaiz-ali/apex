@@ -15,6 +15,7 @@ from apex.paper_trading import (
     PaperTradeStore,
     run_scheduled_paper_cycle,
 )
+from apex.cli_commands.registration import remove_registered_commands
 from apex.presentation import (
     OutputMode,
     normalize_output_mode,
@@ -127,6 +128,8 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
             stale_lock_minutes=stale_lock_minutes,
             format_=format_,
         )
+
+    remove_registered_commands(app, {"scheduled-spot"})
 
 
 def _emit_scheduler(payload: dict[str, object], output_mode: OutputMode) -> None:

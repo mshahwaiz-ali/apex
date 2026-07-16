@@ -73,7 +73,7 @@ def test_combined_pipeline_commands_are_registered() -> None:
 
     assert result.exit_code == 0
     assert "scheduled-futures-pipeline" in result.stdout
-    assert "scheduled-spot-pipeline" in result.stdout
+    assert "scheduled-spot-pipeline" not in result.stdout
 
 
 def test_emit_pipeline_json_is_machine_readable(monkeypatch: Any, capsys: Any) -> None:

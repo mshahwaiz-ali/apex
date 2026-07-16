@@ -32,11 +32,6 @@ from apex.cli_commands.readiness import register_readiness_commands
 from apex.cli_commands.research_overlay import install_research_output_overlay
 from apex.cli_commands.scanner import register_scanner_commands
 from apex.cli_commands.simulation import register_simulation_command
-from apex.cli_commands.spot_analysis import register_spot_analysis_commands
-from apex.cli_commands.spot_live import register_spot_live_commands
-from apex.cli_commands.spot_live_scanner import register_spot_live_scanner_commands
-from apex.cli_commands.spot_orchestration import register_spot_orchestration_commands
-from apex.cli_commands.spot_planning import register_spot_planning_commands
 from apex.cli_commands.system import register_system_commands
 from apex.cli_commands.validation_evidence import register_validation_evidence_commands
 from apex.cli_commands.validation_overlay import install_validation_output_overlay
@@ -62,11 +57,6 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_forward_edge_commands(app)
     register_evidence_bundle_commands(app)
     register_evidence_pipeline_commands(app)
-    register_spot_analysis_commands(app)
-    register_spot_orchestration_commands(app)
-    register_spot_live_commands(app)
-    register_spot_live_scanner_commands(app)
-    register_spot_planning_commands(app)
     remove_commands(app, {"chronological-backtest-campaign"})
     register_risk_mode_campaign_command(app)
     install_research_output_overlay(app)

@@ -231,4 +231,4 @@ def test_cli_commands_are_registered() -> None:
 
     assert result.exit_code == 0
     assert "intake-futures" in result.stdout
-    assert "intake-spot" in result.stdout
+    assert "intake-spot" not in result.stdout

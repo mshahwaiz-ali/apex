@@ -35,6 +35,7 @@ from apex.domain import RiskMode
 from apex.domain.spot_market import SpotScannerMode
 from apex.paper_trading.intake import IntakeMarketType, IntakeSummary, intake_summary_payload
 from apex.paper_trading.store import PaperTradeStore
+from apex.cli_commands.registration import remove_registered_commands
 from apex.presentation import OutputMode, normalize_output_mode
 from apex.presentation.paper_progress import render_paper_intake
 
@@ -179,6 +180,8 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         _emit_summary(summary, output=output, format_=format_)
+
+    remove_registered_commands(app, {"intake-spot"})
 
 
 def _paper_store(data_dir: Path) -> PaperTradeStore:

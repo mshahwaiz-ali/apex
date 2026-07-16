@@ -30,7 +30,7 @@ def register_paper_cycle_command(app: typer.Typer) -> None:
         market_type: str = typer.Option(
             "futures",
             "--market-type",
-            help="Paper market to advance: futures or spot.",
+            help="Paper market to advance. Only futures is currently active.",
         ),
         timeframe: str = typer.Option("5m", "--timeframe"),
         candle_limit: int = typer.Option(80, "--candles", min=1, max=1000),
@@ -67,8 +67,8 @@ def register_paper_cycle_command(app: typer.Typer) -> None:
         """Fetch closed candles and advance one deterministic paper cycle."""
 
         normalized_market = market_type.strip().lower()
-        if normalized_market not in {"spot", "futures"}:
-            raise typer.BadParameter("market-type must be spot or futures")
+        if normalized_market != "futures":
+            raise typer.BadParameter("market-type must be futures")
         parsed_report_date = _parse_report_date(report_date)
         if daily_report is not None and parsed_report_date is None:
             raise typer.BadParameter("--daily-report requires --report-date")
