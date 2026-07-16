@@ -6,6 +6,12 @@ import logging
 from pathlib import Path
 
 
+_THIRD_PARTY_LOG_LEVELS: dict[str, int] = {
+    "httpcore": logging.WARNING,
+    "httpx": logging.WARNING,
+}
+
+
 def configure_logging(level: str, log_dir: Path) -> None:
     """Configure console and file logging for the process."""
 
@@ -20,3 +26,5 @@ def configure_logging(level: str, log_dir: Path) -> None:
         handlers=handlers,
         force=True,
     )
+    for logger_name, logger_level in _THIRD_PARTY_LOG_LEVELS.items():
+        logging.getLogger(logger_name).setLevel(logger_level)
