@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -14,6 +13,7 @@ from apex.application.spot_plan_io import (
     spot_planning_result_to_payload,
     write_spot_planning_result,
 )
+from apex.cli_commands.spot_output import emit_spot_plan, output_mode
 
 
 def register_spot_planning_commands(app: typer.Typer) -> None:
@@ -31,11 +31,16 @@ def register_spot_planning_commands(app: typer.Typer) -> None:
         ] = DEFAULT_SPOT_CONFIG_PATH,
         output: Annotated[
             Path | None,
-            typer.Option("--output", dir_okay=False),
+            typer.Option("--output", dir_okay=False, help="Optional JSON file destination."),
         ] = None,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
         """Build a bounded research-only spot entry, allocation, and exit plan."""
 
+        mode = output_mode(output_format)
         try:
             result = build_spot_plan_from_files(input_path=input_file, config_path=config)
             payload = spot_planning_result_to_payload(result)
@@ -44,4 +49,4 @@ def register_spot_planning_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        emit_spot_plan(payload, mode=mode)
