@@ -54,6 +54,9 @@ def run_provider_backed_paper_cycle(
     daily_report_date: date | None = None,
     daily_report_path: Path | None = None,
     force_report: bool = False,
+    initial_wallet_balance: float | None = None,
+    maximum_wallet_exposure_pct: float = 100.0,
+    maximum_open_risk_pct: float = 100.0,
 ) -> PaperRuntimeResult:
     """Fetch each active symbol once and execute one deterministic paper cycle.
 
@@ -100,6 +103,9 @@ def run_provider_backed_paper_cycle(
         daily_report_date=daily_report_date,
         daily_report_path=daily_report_path,
         force_report=force_report,
+        initial_wallet_balance=initial_wallet_balance,
+        maximum_wallet_exposure_pct=maximum_wallet_exposure_pct,
+        maximum_open_risk_pct=maximum_open_risk_pct,
     )
     return PaperRuntimeResult(
         cycle=cycle,
