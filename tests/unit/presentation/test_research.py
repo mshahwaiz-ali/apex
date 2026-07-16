@@ -123,8 +123,8 @@ def test_overlay_adds_format_and_preserves_json_mode() -> None:
     assert "output_format" in inspect.signature(command.callback).parameters
 
     runner = CliRunner()
-    json_result = runner.invoke(app, ["compare-backtests", "--format", "json"])
-    text_result = runner.invoke(app, ["compare-backtests"])
+    json_result = runner.invoke(app, ["--format", "json"])
+    text_result = runner.invoke(app, [])
 
     assert json_result.exit_code == 0
     assert json.loads(json_result.stdout) == {"winner": "right", "delta": 0.25}
