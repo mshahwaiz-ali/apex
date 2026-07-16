@@ -104,7 +104,6 @@ _DEFAULT_PROFILES: Mapping[StrategyType, StrategyProfile] = MappingProxyType(
         StrategyType.MOMENTUM_CONTINUATION: StrategyProfile(
             neutral_metrics=frozenset({"liquidity_quality"})
         ),
-        StrategyType.MOMENTUM_GAINER_CONTINUATION: StrategyProfile(),
     }
 )
 

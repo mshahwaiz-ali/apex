@@ -13,9 +13,6 @@ from apex.strategies.higher_timeframe_breakout import (
 )
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
-from apex.strategies.momentum_gainer_continuation import (
-    generate_momentum_gainer_continuation_candidates,
-)
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
@@ -37,10 +34,6 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
     (StrategyType.LIQUIDITY_REVERSAL, generate_liquidity_reversal_candidates),
     (StrategyType.RANGE_REVERSAL, generate_range_reversal_candidates),
     (StrategyType.MOMENTUM_CONTINUATION, generate_momentum_continuation_candidates),
-    (
-        StrategyType.MOMENTUM_GAINER_CONTINUATION,
-        generate_momentum_gainer_continuation_candidates,
-    ),
 )
 
 

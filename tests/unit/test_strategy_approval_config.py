@@ -44,13 +44,6 @@ def test_default_strategy_approval_configuration_loads() -> None:
         )
         == 84.0
     )
-    assert (
-        config.minimum_score_for(
-            StrategyType.MOMENTUM_GAINER_CONTINUATION,
-            RiskMode.EXTREME,
-        )
-        == 70.0
-    )
 
 
 def test_all_risk_mode_thresholds_are_required() -> None:

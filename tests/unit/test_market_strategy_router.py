@@ -55,7 +55,6 @@ def test_overextension_blocks_momentum_chase_strategies() -> None:
     )
 
     assert StrategyType.MOMENTUM_CONTINUATION not in route.allowed_strategies
-    assert StrategyType.MOMENTUM_GAINER_CONTINUATION in route.blocked_strategies
     assert "CHASE_STRATEGIES_BLOCKED" in route.reason_codes
 
 

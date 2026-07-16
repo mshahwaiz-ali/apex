@@ -130,10 +130,7 @@ def evaluate_candidate_quality_gate(
                 )
             )
 
-    if strategy in {
-        StrategyType.MOMENTUM_CONTINUATION,
-        StrategyType.MOMENTUM_GAINER_CONTINUATION,
-    }:
+    if strategy is StrategyType.MOMENTUM_CONTINUATION:
         if quality.extension_penalty > 0.40:
             reasons.append(
                 QualityGateReason(
@@ -158,18 +155,6 @@ def evaluate_candidate_quality_gate(
                     blocking=True,
                 )
             )
-        if (
-            strategy is StrategyType.MOMENTUM_GAINER_CONTINUATION
-            and candidate.candidate.provisional
-        ):
-            reasons.append(
-                QualityGateReason(
-                    code=QualityGateReasonCode.GAINER_PROVISIONAL_EVIDENCE,
-                    message="Provisional gainer evidence cannot receive controlled approval.",
-                    blocking=risk_mode is RiskMode.STANDARD,
-                )
-            )
-
     blocking = any(reason.blocking for reason in reasons)
     return CandidateQualityGateDecision(
         approved=not blocking,

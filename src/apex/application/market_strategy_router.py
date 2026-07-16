@@ -50,7 +50,6 @@ _REGIME_STRATEGIES: dict[MarketRegime, tuple[StrategyType, ...]] = {
     MarketRegime.BREAKOUT_EXPANSION_UP: (
         StrategyType.BREAKOUT_CONTINUATION,
         StrategyType.MOMENTUM_CONTINUATION,
-        StrategyType.MOMENTUM_GAINER_CONTINUATION,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.BREAKOUT_EXPANSION_DOWN: (
@@ -138,7 +137,6 @@ def route_market_strategies(environment: MarketEnvironment) -> MarketStrategyRou
 
     if environment.extension_state in {ExtensionState.OVEREXTENDED, ExtensionState.EXTREME}:
         allowed.discard(StrategyType.MOMENTUM_CONTINUATION)
-        allowed.discard(StrategyType.MOMENTUM_GAINER_CONTINUATION)
         codes.append("CHASE_STRATEGIES_BLOCKED")
         reasons.append("Momentum chase strategies blocked because price is overextended")
 

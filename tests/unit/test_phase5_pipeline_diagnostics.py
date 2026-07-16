@@ -73,8 +73,8 @@ def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> No
             no_trade_reason="opposing candidates remain unresolved inside the conflict margin",
             candidates=[
                 {
-                    "candidate_id": "gainer-1",
-                    "strategy": "momentum_gainer_continuation",
+                    "candidate_id": "momentum-1",
+                    "strategy": "momentum_continuation",
                     "direction": "short",
                     "outcome": "downgraded",
                     "final_score": 68.0,
@@ -115,7 +115,7 @@ def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> No
     }
     assert payload["average_final_score_by_strategy"] == {
         "breakout_continuation": 52.0,
-        "momentum_gainer_continuation": 68.0,
+        "momentum_continuation": 68.0,
         "trend_pullback": 82.0,
     }
 

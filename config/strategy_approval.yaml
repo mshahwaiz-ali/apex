@@ -29,9 +29,3 @@ strategies:
       STANDARD: 86.0
       AGGRESSIVE: 78.0
       EXTREME: 68.0
-  momentum_gainer_continuation:
-    quality_class: RESTRICTED
-    minimum_scores:
-      STANDARD: 88.0
-      AGGRESSIVE: 80.0
-      EXTREME: 70.0

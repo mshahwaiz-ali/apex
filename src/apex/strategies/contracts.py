@@ -21,7 +21,6 @@ class StrategyType(StrEnum):
     LIQUIDITY_REVERSAL = "liquidity_reversal"
     RANGE_REVERSAL = "range_reversal"
     MOMENTUM_CONTINUATION = "momentum_continuation"
-    MOMENTUM_GAINER_CONTINUATION = "momentum_gainer_continuation"
 
 
 class EntryMode(StrEnum):

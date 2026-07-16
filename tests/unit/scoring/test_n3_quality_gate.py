@@ -194,24 +194,6 @@ def test_direct_breakout_requires_volume_and_target_space() -> None:
     assert QualityGateReasonCode.DIRECT_BREAKOUT_TARGET_SPACE_INSUFFICIENT in codes
 
 
-def test_standard_provisional_gainer_is_rejected() -> None:
-    decision = evaluate_candidate_quality_gate(
-        _scored_candidate(
-            strategy=StrategyType.MOMENTUM_GAINER_CONTINUATION,
-            score=92.0,
-            entry_mode=EntryMode.MOMENTUM_CONTINUATION,
-            provisional=True,
-        ),
-        risk_mode=RiskMode.STANDARD,
-        config=_config(),
-    )
-
-    assert decision.approved is False
-    assert QualityGateReasonCode.GAINER_PROVISIONAL_EVIDENCE in {
-        reason.code for reason in decision.reasons if reason.blocking
-    }
-
-
 def test_extreme_mode_remains_experimental_only() -> None:
     decision = evaluate_strategy_approval(
         strategy=StrategyType.MOMENTUM_CONTINUATION,
