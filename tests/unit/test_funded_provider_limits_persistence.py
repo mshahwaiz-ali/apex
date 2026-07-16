@@ -66,6 +66,8 @@ def _policy(**overrides: object) -> AccountPolicy:
         "maximum_consecutive_losses": 2,
         "required_stop_loss": True,
         "weekend_trading_allowed": False,
+        "overnight_holding_allowed": True,
+        "news_trading_allowed": False,
         "allowed_sessions": (),
     }
     payload.update(overrides)
@@ -126,6 +128,11 @@ def test_policy_compatibility_rejects_external_rule_conflicts() -> None:
             preset,
             _policy(provider_name="Other Provider"),
         )
+    with pytest.raises(ValueError, match="challenge phase does not match"):
+        validate_provider_preset_against_policy(
+            preset,
+            _policy(challenge_phase="PHASE_2"),
+        )
     with pytest.raises(ValueError, match="daily drawdown limit differs"):
         validate_provider_preset_against_policy(
             preset,
@@ -141,6 +148,11 @@ def test_policy_compatibility_rejects_external_rule_conflicts() -> None:
             preset,
             _policy(weekend_trading_allowed=True),
         )
+    with pytest.raises(ValueError, match="news trading forbidden"):
+        validate_provider_preset_against_policy(
+            preset,
+            _policy(news_trading_allowed=True),
+        )
 
 
 def test_prepared_readiness_input_contains_exact_provider_evidence(tmp_path: Path) -> None:
@@ -154,11 +166,15 @@ def test_prepared_readiness_input_contains_exact_provider_evidence(tmp_path: Pat
         template,
         preset=preset,
         policy=_policy(),
+        as_of=date(2026, 7, 16),
+        maximum_age_days=30,
     )
 
     assert payload["provider_limits"]["provider_name"] == "Example Funded"
     assert payload["provider_limits"]["verified_on"] == "2026-07-01"
     assert payload["provider_verification"]["preset_sha256"] == preset.preset_sha256
+    assert payload["provider_policy_binding"]["compatible"] is True
+    assert payload["provider_policy_binding"]["execution_authorized"] is False
     assert payload["account_policy_type"] == "FUNDED"
     assert payload["execution_authorized"] is False
 
