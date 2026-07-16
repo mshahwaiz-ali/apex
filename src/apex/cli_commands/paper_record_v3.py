@@ -107,11 +107,6 @@ def register_paper_record_v3(app: typer.Typer) -> None:
                     candle_limit=candle_limit,
                     risk_config=risk_config,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    gainer_state_thresholds=getattr(
-                        context.settings,
-                        "gainer_state_thresholds",
-                        None,
-                    ),
                 )
             if analysis.assessment.setup is None:
                 _emit_trade_payload(

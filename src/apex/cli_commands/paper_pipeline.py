@@ -115,11 +115,6 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                     risk_config=risk_config,
                     scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    gainer_state_thresholds=getattr(
-                        context.settings,
-                        "gainer_state_thresholds",
-                        None,
-                    ),
                 )
                 diagnostics = build_futures_pipeline_diagnostics(scan)
 

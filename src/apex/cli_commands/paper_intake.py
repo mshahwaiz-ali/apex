@@ -87,11 +87,6 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
                     risk_config=risk_config,
                     scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    gainer_state_thresholds=getattr(
-                        context.settings,
-                        "gainer_state_thresholds",
-                        None,
-                    ),
                 )
             store = _paper_store(context.settings.data_dir)
             summary = run_locked_paper_intake(

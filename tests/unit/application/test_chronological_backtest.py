@@ -48,10 +48,8 @@ def test_chronological_runner_passes_only_prefix_candles(
         risk_config: Any,
         generated_at: datetime,
         strategy_routing: Any,
-        gainer_state_thresholds: Any,
     ) -> SymbolAnalysis:
         assert strategy_routing is None
-        assert gainer_state_thresholds is None
         candles = provider.fetch_candles(symbol, "5m", limit=candle_limit)
         assert len(candles) == candle_limit
         assert all(candle.close_time <= generated_at for candle in candles)

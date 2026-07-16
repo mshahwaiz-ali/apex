@@ -9,7 +9,7 @@ from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
 from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
-from apex.domain import GainerStateThresholds, RiskMode
+from apex.domain import RiskMode
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
 
@@ -26,7 +26,6 @@ def analyze_selected_symbol(
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> SymbolAnalysis:
     """Normalize a user-entered symbol and run the futures analysis pipeline."""
 
@@ -43,5 +42,4 @@ def analyze_selected_symbol(
             exposure=exposure,
             generated_at=generated_at,
             strategy_routing=strategy_routing,
-            gainer_state_thresholds=gainer_state_thresholds,
         )

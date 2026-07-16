@@ -98,9 +98,6 @@ def register_analysis_commands(app: typer.Typer) -> None:
                     risk_config=load_default_risk_config(),
                     risk_mode=account.risk_mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    gainer_state_thresholds=getattr(
-                        context.settings, "gainer_state_thresholds", None
-                    ),
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

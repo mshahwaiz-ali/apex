@@ -22,7 +22,6 @@ from apex.backtesting import (
     simulate_trade,
     summarize_trades,
 )
-from apex.domain import GainerStateThresholds
 from apex.domain.models import Candle, TickerSnapshot
 from apex.risk import DEFAULT_RISK_CONFIG, RiskConfig
 from apex.risk.contracts import RiskDecision
@@ -40,7 +39,6 @@ class ChronologicalBacktestRequest:
     risk_config: RiskConfig = field(default_factory=lambda: DEFAULT_RISK_CONFIG)
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
     strategy_routing: Mapping[str, Sequence[str]] | None = None
-    gainer_state_thresholds: GainerStateThresholds | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -220,7 +218,6 @@ def run_chronological_pipeline_backtest(
                 risk_config=request.risk_config,
                 generated_at=decision_time,
                 strategy_routing=request.strategy_routing,
-                gainer_state_thresholds=request.gainer_state_thresholds,
             )
         except Exception as exc:
             failures[decision_time.isoformat()] = str(exc)

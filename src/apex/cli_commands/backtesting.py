@@ -189,7 +189,6 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 candidate_cooldown_candles=candidate_cooldown,
                 risk_config=risk_config,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
             with futures_risk_mode_scope(risk_mode):
                 result = run_chronological_pipeline_backtest(request)
@@ -368,11 +367,6 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         dataset_source=dataset_source,
                         risk_config=risk_config,
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
-                        gainer_state_thresholds=getattr(
-                            context.settings,
-                            "gainer_state_thresholds",
-                            None,
-                        ),
                     )
                 )
             else:
@@ -385,11 +379,6 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         dataset_source=dataset_source,
                         risk_config=risk_config,
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
-                        gainer_state_thresholds=getattr(
-                            context.settings,
-                            "gainer_state_thresholds",
-                            None,
-                        ),
                     )
                 )
         except ValueError as exc:

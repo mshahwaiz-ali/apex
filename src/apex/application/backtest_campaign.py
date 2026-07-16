@@ -17,7 +17,6 @@ from apex.application.chronological_backtest import (
 )
 from apex.application.symbols import normalize_market_symbol
 from apex.backtesting import BacktestConfig
-from apex.domain import GainerStateThresholds
 from apex.domain.models import Candle
 from apex.risk import DEFAULT_RISK_CONFIG, RiskConfig
 
@@ -61,7 +60,6 @@ class BacktestCampaignRequest:
     dataset_source: str = "local"
     risk_config: RiskConfig = field(default_factory=lambda: DEFAULT_RISK_CONFIG)
     strategy_routing: Mapping[str, Sequence[str]] | None = None
-    gainer_state_thresholds: GainerStateThresholds | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -96,7 +94,6 @@ class MultiSymbolBacktestCampaignRequest:
     dataset_source: str = "local"
     risk_config: RiskConfig = field(default_factory=lambda: DEFAULT_RISK_CONFIG)
     strategy_routing: Mapping[str, Sequence[str]] | None = None
-    gainer_state_thresholds: GainerStateThresholds | None = None
 
     def __post_init__(self) -> None:
         if not self.symbols:
@@ -222,7 +219,6 @@ def run_backtest_campaign(
             risk_config=request.risk_config,
             backtest_config=variant.backtest_config,
             strategy_routing=request.strategy_routing,
-            gainer_state_thresholds=request.gainer_state_thresholds,
         )
         result = runner(variant_request)
         runs.append(
@@ -274,7 +270,6 @@ def run_multi_symbol_backtest_campaign(
                 risk_config=request.risk_config,
                 backtest_config=variant.backtest_config,
                 strategy_routing=request.strategy_routing,
-                gainer_state_thresholds=request.gainer_state_thresholds,
             )
             result = runner(variant_request)
             runs.append(

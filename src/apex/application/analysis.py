@@ -25,7 +25,6 @@ from apex.data.providers.base import MarketDataProvider
 from apex.domain import (
     EntryClassificationInput,
     FuturesDirection,
-    GainerStateThresholds,
     MarketCategory,
     classify_entry_state,
 )
@@ -122,7 +121,6 @@ def analyze_symbol(
     generated_at: datetime | None = None,
     scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> SymbolAnalysis:
     """Run the deterministic Phase 4 to Phase 6 stack for one symbol."""
 
@@ -140,7 +138,7 @@ def analyze_symbol(
     )
     # Legacy arguments remain accepted temporarily for compatibility with
     # preserved paper and backtest callers. They no longer alter live analysis.
-    del scanner_type, gainer_state_thresholds
+    del scanner_type
     phase4 = analyze_phase4(context, decision_time=decision_time)
     routed_phase4 = apply_strategy_routing(
         phase4,
@@ -398,7 +396,6 @@ def scan_symbols(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> ScanResult:
     """Analyze each symbol exactly once using the default market route."""
 
@@ -419,7 +416,6 @@ def scan_symbols(
                     risk_config=risk_config,
                     generated_at=timestamp,
                     strategy_routing=strategy_routing,
-                    gainer_state_thresholds=gainer_state_thresholds,
                 )
             )
         except Exception as exc:  # Scanner must isolate per-symbol failures.

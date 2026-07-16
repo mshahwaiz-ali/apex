@@ -240,7 +240,6 @@ def analyze(
                 candle_limit=candle_limit,
                 risk_config=risk_config,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -694,7 +693,6 @@ def backtest(
                 candle_limit=candle_limit,
                 risk_config=risk_config,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
             if analysis.assessment.setup is None:
                 payload: dict[str, object] = {
@@ -756,7 +754,6 @@ def paper_record(
                 candle_limit=candle_limit,
                 risk_config=risk_config,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -1261,7 +1258,6 @@ def _analysis_for_execution(symbol: str, candle_limit: int) -> SymbolAnalysis:
                 candle_limit=candle_limit,
                 risk_config=risk_config,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc

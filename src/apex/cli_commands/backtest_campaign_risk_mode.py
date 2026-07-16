@@ -135,11 +135,6 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
                             dataset_source=dataset_source,
                             risk_config=risk_config,
                             strategy_routing=getattr(context.settings, "strategy_routing", None),
-                            gainer_state_thresholds=getattr(
-                                context.settings,
-                                "gainer_state_thresholds",
-                                None,
-                            ),
                         )
                     )
                 else:
@@ -152,11 +147,6 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
                             dataset_source=dataset_source,
                             risk_config=risk_config,
                             strategy_routing=getattr(context.settings, "strategy_routing", None),
-                            gainer_state_thresholds=getattr(
-                                context.settings,
-                                "gainer_state_thresholds",
-                                None,
-                            ),
                         )
                     )
         except ValueError as exc:

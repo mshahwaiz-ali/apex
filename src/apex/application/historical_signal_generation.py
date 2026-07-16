@@ -19,7 +19,6 @@ from apex.backtesting.historical_signal_replay import (
     HistoricalReplayProvider,
     HistoricalSignalSplit,
 )
-from apex.domain import GainerStateThresholds, MarketCategory
 from apex.risk import DEFAULT_RISK_CONFIG, RiskConfig
 
 
@@ -100,9 +99,7 @@ def generate_historical_signals(
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
-    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
 ) -> HistoricalSignalGenerationResult:
     """Replay the existing deterministic analysis stack without future data."""
 
@@ -135,9 +132,7 @@ def generate_historical_signals(
                     candle_limit=candle_limit,
                     risk_config=risk_config,
                     generated_at=point.decision_time,
-                    scanner_type=scanner_type,
                     strategy_routing=strategy_routing,
-                    gainer_state_thresholds=gainer_state_thresholds,
                 )
                 payload = serialize_symbol_analysis(analysis)
                 records.append(
