@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from apex.config import DEFAULT_STRATEGY_ROUTING
 from apex.domain import GainerState, GainerStateResult, MarketCategory
 from apex.risk import RiskAssessment
-from apex.strategies import Phase4AnalysisResult, StrategyType
+from apex.strategies import Phase4AnalysisResult, StrategyType, TradeCandidate
 
 _GAINER_CONTINUATION_STATES = frozenset(
     {
@@ -130,11 +130,98 @@ def build_strategy_routing_payload(
             else {}
         ),
         "phase4_strategy_diagnostics": diagnostics,
+        "candidate_diagnostics": _candidate_diagnostics(phase4),
         "near_miss_state_counts": near_miss_counts,
         "eligible": setup is not None,
         "reasons": reasons,
         "rejections": list(assessment.reasons),
     }
+
+
+def _candidate_diagnostics(phase4: Phase4AnalysisResult | None) -> list[dict[str, object]]:
+    """Describe generated candidates and explicit no-generation outcomes."""
+
+    if phase4 is None:
+        return []
+    diagnostics = phase4.strategy_diagnostics or {}
+    records: list[dict[str, object]] = []
+    for strategy in phase4.evaluated_strategies:
+        strategy_candidates = tuple(
+            candidate for candidate in phase4.candidates if candidate.strategy is strategy
+        )
+        diagnostic = diagnostics.get(strategy)
+        if strategy_candidates:
+            records.extend(_generated_candidate_payload(candidate) for candidate in strategy_candidates)
+            continue
+        records.append(
+            {
+                "strategy": strategy.value,
+                "direction": None,
+                "generated": False,
+                "candidate_score": None,
+                "entry_zone_low": None,
+                "entry_zone_high": None,
+                "ideal_entry": None,
+                "maximum_chase_price": None,
+                "current_price": None,
+                "entry_quality": None,
+                "chase_classification": None,
+                "accepted": False,
+                "rejected": True,
+                "rejection_codes": (
+                    [code.value for code in diagnostic.rejection_codes]
+                    if diagnostic is not None
+                    else []
+                ),
+                "rejection_reasons": list(diagnostic.reasons) if diagnostic is not None else [],
+                "nearest_future_trigger": None,
+                "near_miss_state": (
+                    diagnostic.near_miss_state.value if diagnostic is not None else None
+                ),
+                "invalidation": None,
+            }
+        )
+    return records
+
+
+def _generated_candidate_payload(candidate: TradeCandidate) -> dict[str, object]:
+    metadata = candidate.metadata
+    return {
+        "strategy": candidate.strategy.value,
+        "direction": candidate.direction.value,
+        "generated": True,
+        "candidate_score": None,
+        "entry_zone_low": candidate.entry.lower,
+        "entry_zone_high": candidate.entry.upper,
+        "ideal_entry": candidate.entry.preferred,
+        "maximum_chase_price": candidate.entry.max_chase_price,
+        "current_price": candidate.entry.current_price,
+        "entry_quality": candidate.quality.entry_quality * 100.0,
+        "chase_classification": (
+            "EXTENDED" if candidate.entry.is_extended else "WITHIN_LIMITS"
+        ),
+        "accepted": None,
+        "rejected": None,
+        "rejection_codes": [],
+        "rejection_reasons": [],
+        "nearest_future_trigger": _metadata_number(
+            metadata,
+            "reclaim_trigger",
+            "retest_trigger",
+            "trigger_price",
+        ),
+        "near_miss_state": None,
+        "invalidation": candidate.invalidation.price,
+    }
+
+
+def _metadata_number(metadata: Mapping[str, object], *keys: str) -> float | None:
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            continue
+        return float(value)
+    return None
 
 
 def _route_key(scanner_type: MarketCategory) -> str:
