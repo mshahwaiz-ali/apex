@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from apex.backtesting import BacktestSignal
+from apex.backtesting.contracts import BacktestSignal
 from apex.paper_trading.contracts import PaperTrade, PaperTradeState
 from apex.paper_trading.portfolio import (
     build_paper_portfolio_snapshot,
