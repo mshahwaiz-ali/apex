@@ -4,6 +4,7 @@ policies:
     type: PAPER
     provider_name: null
     challenge_phase: null
+    provider_preset_sha256: null
     initial_balance: 10000.0
     external_daily_drawdown_limit_pct: 5.0
     external_total_drawdown_limit_pct: 10.0
@@ -17,11 +18,14 @@ policies:
     maximum_consecutive_losses: 2
     required_stop_loss: true
     weekend_trading_allowed: true
+    overnight_holding_allowed: true
+    news_trading_allowed: true
     allowed_sessions: []
   FUNDED_GENERIC:
     type: FUNDED
     provider_name: null
     challenge_phase: null
+    provider_preset_sha256: null
     initial_balance: 50000.0
     external_daily_drawdown_limit_pct: 5.0
     external_total_drawdown_limit_pct: 10.0
@@ -35,4 +39,6 @@ policies:
     maximum_consecutive_losses: 2
     required_stop_loss: true
     weekend_trading_allowed: false
+    overnight_holding_allowed: true
+    news_trading_allowed: true
     allowed_sessions: []
