@@ -38,6 +38,14 @@ from apex.paper_trading import (
     summarize_paper_trades,
     update_paper_trade,
 )
+from apex.presentation import (
+    OutputMode,
+    normalize_output_mode,
+    render_fields,
+    render_section,
+    render_title,
+)
+from apex.presentation.paper import render_paper_report, render_paper_trade
 
 
 def register_paper_trading_commands(app: typer.Typer) -> None:
@@ -78,9 +86,15 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         ),
         session: str | None = typer.Option(None, "--session"),
         is_weekend: bool = typer.Option(False, "--weekend"),
+        format_: str = typer.Option(
+            "text",
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Analyze and record only after risk-mode and account-policy approval."""
 
+        output_mode = _output_mode(format_)
         canonical_symbol = normalize_market_symbol(symbol)
         try:
             context = bootstrap()
@@ -106,7 +120,14 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
                     ),
                 )
             if analysis.assessment.setup is None:
-                typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | no approved setup")
+                _emit_trade_payload(
+                    {
+                        "symbol": canonical_symbol,
+                        "result": "NO_TRADE",
+                        "reasons": ["No approved setup was available."],
+                    },
+                    output_mode,
+                )
                 return
             preliminary_context = resolve_account_context(
                 wallet_balance=wallet_balance,
@@ -151,8 +172,15 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         )
         if futures_plan.get("status") == "REJECTED":
             rejected_reasons = cast(list[object], futures_plan.get("reasons", []))
-            reasons = "; ".join(str(reason) for reason in rejected_reasons)
-            typer.echo(f"{canonical_symbol}: NO_PAPER_TRADE | {reasons}")
+            _emit_trade_payload(
+                {
+                    "symbol": canonical_symbol,
+                    "result": "REJECTED",
+                    "reasons": rejected_reasons,
+                    "futures_plan": futures_plan,
+                },
+                output_mode,
+            )
             return
         futures_plan["proposed_exposure_classification"] = exposure.as_dict()
         if account_context.snapshot is not None:
@@ -174,9 +202,14 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         )
         store.upsert(trade)
         guidance = derive_paper_trade_guidance(trade)
-        typer.echo(
-            f"{canonical_symbol}: PAPER_RECORDED | id={trade.trade_id} "
-            f"| state={trade.state.value} | action={guidance.current_action.value}"
+        _emit_trade_payload(
+            {
+                "result": "RECORDED",
+                "trade": asdict(trade),
+                "current_action": guidance.current_action.value,
+                "instruction": guidance.instruction,
+            },
+            output_mode,
         )
 
     @app.command("update")
@@ -190,9 +223,15 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             dir_okay=False,
             help="Optional persistent account-state JSON file to update with lifecycle events.",
         ),
+        format_: str = typer.Option(
+            "text",
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Update paper trades and optionally synchronize persistent account state."""
 
+        output_mode = _output_mode(format_)
         canonical = normalize_market_symbol(symbol) if symbol is not None else None
         try:
             context = bootstrap()
@@ -241,20 +280,50 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         store.save(tuple(updated))
         if account_store is not None and account_state is not None:
             account_store.save(account_state)
-        actionable = sum(1 for trade in updated if trade.is_open)
-        typer.echo(f"PAPER_UPDATED | trades={len(updated)} | actionable={actionable}")
-        for trade in updated:
-            if canonical is not None and trade.signal.symbol != canonical:
-                continue
-            guidance = derive_paper_trade_guidance(trade)
-            typer.echo(
-                f"- {trade.signal.symbol} | state={trade.state.value} "
-                f"| action={guidance.current_action.value} | {guidance.instruction}"
-            )
+        selected = [
+            trade
+            for trade in updated
+            if canonical is None or trade.signal.symbol == canonical
+        ]
+        trade_payloads = [_trade_guidance_payload(trade) for trade in selected]
+        payload: dict[str, object] = {
+            "result": "UPDATED",
+            "trade_count": len(updated),
+            "actionable_count": sum(1 for trade in updated if trade.is_open),
+            "trades": trade_payloads,
+        }
+        if output_mode is OutputMode.JSON:
+            typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
+            return
+        sections = [
+            render_title("Paper Trading Update"),
+            render_section(
+                "Outcome",
+                render_fields(
+                    (
+                        ("Trades stored", len(updated)),
+                        ("Trades shown", len(selected)),
+                        ("Open trades", payload["actionable_count"]),
+                    )
+                ),
+            ),
+        ]
+        sections.extend(
+            render_paper_trade(item, mode=output_mode)
+            for item in trade_payloads
+        )
+        typer.echo("\n\n".join(sections))
 
     @app.command("report")
     def paper_report(
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text", "--output", "-o", help="Legacy text or json output selector."
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
         report: Path | None = typer.Option(
             None,
             "--report",
@@ -264,6 +333,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
     ) -> None:
         """Show paper performance plus lifecycle-backed operator guidance."""
 
+        output_mode = _output_mode(format_ or output)
         context = bootstrap()
         store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
         trades = store.load()
@@ -278,23 +348,21 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             report.write_text(
                 json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-        if output == "json":
-            typer.echo(json.dumps(payload, indent=2, default=str))
+        if output_mode is OutputMode.JSON:
+            typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
             return
-        typer.echo(
-            f"PAPER_REPORT | total={performance.total_trades} "
-            f"| open={performance.open_trades} | closed={performance.closed_trades} "
-            f"| net_pnl={performance.net_pnl:.2f} | win_rate={performance.win_rate:.2%}"
-        )
-        for item in cast(list[dict[str, object]], guidance_report["trades"]):
-            typer.echo(
-                f"- {item['symbol']} | state={item['paper_state']} "
-                f"| action={item['current_action']} | {item['instruction']}"
-            )
+        typer.echo(render_paper_report(payload, mode=output_mode))
 
     @app.command("replay-report")
     def paper_replay_report(
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text", "--output", "-o", help="Legacy text or json output selector."
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
         report: Path | None = typer.Option(
             None,
             "--report",
@@ -304,6 +372,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
     ) -> None:
         """Replay stored lifecycle events and attach current operator guidance."""
 
+        output_mode = _output_mode(format_ or output)
         context = bootstrap()
         store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
         trades = store.load()
@@ -315,15 +384,31 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
             report.write_text(
                 json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-        if output == "json":
-            typer.echo(json.dumps(payload, indent=2, default=str))
+        if output_mode is OutputMode.JSON:
+            typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
             return
-        typer.echo(
-            f"PAPER_REPLAY_REPORT | replayed={payload['replayed_count']} "
-            f"| failures={payload['failure_count']}"
-        )
-        for item in cast(list[dict[str, object]], guidance["trades"]):
-            typer.echo(
-                f"- {item['symbol']} | state={item['paper_state']} "
-                f"| action={item['current_action']}"
-            )
+        typer.echo(render_paper_report(payload, mode=output_mode, replay=True))
+
+
+def _output_mode(value: str) -> OutputMode:
+    try:
+        return normalize_output_mode(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _trade_guidance_payload(trade: PaperTrade) -> dict[str, object]:
+    guidance = derive_paper_trade_guidance(trade)
+    return {
+        "result": "UPDATED",
+        "trade": asdict(trade),
+        "current_action": guidance.current_action.value,
+        "instruction": guidance.instruction,
+    }
+
+
+def _emit_trade_payload(payload: dict[str, object], output_mode: OutputMode) -> None:
+    if output_mode is OutputMode.JSON:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        return
+    typer.echo(render_paper_trade(payload, mode=output_mode))
