@@ -17,7 +17,9 @@ runner = CliRunner()
 
 def _app() -> typer.Typer:
     app = typer.Typer(no_args_is_help=True)
-    lifecycle_cli.register_paper_lifecycle_health_command(app)
+    paper_app = typer.Typer(no_args_is_help=True)
+    lifecycle_cli.register_paper_lifecycle_health_command(paper_app)
+    app.add_typer(paper_app, name="paper")
     return app
 
 
@@ -96,10 +98,10 @@ def _patch_bootstrap(monkeypatch: Any, tmp_path: Path) -> None:
 
 
 def test_lifecycle_health_command_is_registered() -> None:
-    result = runner.invoke(_app(), ["--help"])
+    result = runner.invoke(_app(), ["paper", "--help"])
 
     assert result.exit_code == 0
-    assert "lifecycle-health" in result.stdout
+    assert "lifecycle-health" in result.output
 
 
 def test_lifecycle_health_json_report_contains_source_hashes(
@@ -113,6 +115,7 @@ def test_lifecycle_health_json_report_contains_source_hashes(
     result = runner.invoke(
         _app(),
         [
+            "paper",
             "lifecycle-health",
             "--output",
             "json",
@@ -121,8 +124,8 @@ def test_lifecycle_health_json_report_contains_source_hashes(
         ],
     )
 
-    assert result.exit_code == 0, result.stdout
-    payload = json.loads(result.stdout)
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
     assert payload == json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == 2
     assert payload["source"]["log_name"] == "pipeline-futures.jsonl"
@@ -143,6 +146,7 @@ def test_invalid_output_does_not_create_report(
     result = runner.invoke(
         _app(),
         [
+            "paper",
             "lifecycle-health",
             "--output",
             "invalid",
@@ -152,7 +156,7 @@ def test_invalid_output_does_not_create_report(
     )
 
     assert result.exit_code != 0
-    assert "output must be text or json" in result.stdout
+    assert "output must be text or json" in result.output
     assert not report_path.exists()
 
 
@@ -166,15 +170,16 @@ def test_report_overwrite_requires_force(
 
     first = runner.invoke(
         _app(),
-        ["lifecycle-health", "--report", str(report_path)],
+        ["paper", "lifecycle-health", "--report", str(report_path)],
     )
     rejected = runner.invoke(
         _app(),
-        ["lifecycle-health", "--report", str(report_path)],
+        ["paper", "lifecycle-health", "--report", str(report_path)],
     )
     forced = runner.invoke(
         _app(),
         [
+            "paper",
             "lifecycle-health",
             "--report",
             str(report_path),
@@ -182,7 +187,7 @@ def test_report_overwrite_requires_force(
         ],
     )
 
-    assert first.exit_code == 0, first.stdout
+    assert first.exit_code == 0, first.output
     assert rejected.exit_code != 0
-    assert "refusing to overwrite" in rejected.stdout
-    assert forced.exit_code == 0, forced.stdout
+    assert "refusing to overwrite" in rejected.output
+    assert forced.exit_code == 0, forced.output
