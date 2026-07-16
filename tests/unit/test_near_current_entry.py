@@ -65,6 +65,7 @@ def test_ready_now_entry_remains_actionable_near_ideal() -> None:
     assert decision.entry_state == "READY_NOW"
     assert decision.actionable_now is True
     assert decision.chase_risk is ChaseRisk.LOW
+    assert decision.entry_quality_score is not None
     assert decision.entry_quality_score > 75.0
 
 
@@ -118,5 +119,6 @@ def test_missing_precision_plan_returns_no_trade() -> None:
     decision = evaluate_near_current_entry(None, environment, route)
 
     assert decision.entry_state == "NO_TRADE"
-    assert decision.entry_quality_score == 0.0
+    assert decision.entry_quality_score is None
+    assert decision.chase_risk is None
     assert decision.actionable_now is False
