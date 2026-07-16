@@ -18,7 +18,6 @@ from apex.cli_commands.historical_futures_edge_validation import (
     register_historical_futures_edge_validation_commands,
 )
 from apex.cli_commands.history_review import register_history_review_commands
-from apex.cli_commands.market_data import register_market_data_commands
 from apex.cli_commands.p1_review import register_p1_review_command
 from apex.cli_commands.paper_cycle import register_paper_cycle_command
 from apex.cli_commands.paper_daily import register_paper_daily_command
@@ -37,15 +36,19 @@ from apex.cli_commands.spot_live import register_spot_live_commands
 from apex.cli_commands.spot_live_scanner import register_spot_live_scanner_commands
 from apex.cli_commands.spot_orchestration import register_spot_orchestration_commands
 from apex.cli_commands.spot_planning import register_spot_planning_commands
+from apex.cli_commands.system import register_system_commands
 from apex.cli_commands.validation_evidence import register_validation_evidence_commands
 from apex.cli_commands.validation_pipeline import register_validation_pipeline_commands
 from apex.cli_overlay import remove_commands
 
 
 def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
-    remove_commands(app, {"fetch", "ticker", "analyze", "scan", "backtest"})
+    remove_commands(
+        app,
+        {"version", "validate-config", "smoke", "fetch", "ticker", "analyze", "scan", "backtest"},
+    )
     remove_commands(paper_app, {"record", "update", "report", "replay-report"})
-    register_market_data_commands(app)
+    register_system_commands(app)
     register_analysis_commands(app)
     register_scanner_commands(app)
     register_dataset_commands(app)
