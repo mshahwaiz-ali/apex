@@ -23,6 +23,10 @@ from apex.funded.provider_limits_registry import (
     FundedProviderLimitPreset,
     FundedProviderLimitsRegistry,
 )
+from apex.funded.provider_policy_binding import (
+    ProviderPolicyBinding,
+    bind_provider_policy,
+)
 from apex.funded.provider_readiness_input import (
     prepare_funded_readiness_input,
     write_funded_readiness_input,
@@ -62,6 +66,8 @@ __all__ = [
     "FundedReadinessReason",
     "FundedReadinessReport",
     "ManualExecutionChecklist",
+    "ProviderPolicyBinding",
+    "bind_provider_policy",
     "build_funded_history_readiness_artifact",
     "build_funded_readiness_artifact",
     "evaluate_funded_readiness",
