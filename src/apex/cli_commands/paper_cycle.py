@@ -1,4 +1,4 @@
-"""Provider-backed P1 paper-operation CLI command."""
+"""Provider-backed paper-operation CLI command."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ from apex.paper_trading import (
     run_provider_backed_paper_cycle,
     write_paper_operation_cycle_result,
 )
+from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation.paper import render_paper_cycle
 
 
 def register_paper_cycle_command(app: typer.Typer) -> None:
@@ -50,7 +52,17 @@ def register_paper_cycle_command(app: typer.Typer) -> None:
             help="Optional operational cycle summary path.",
         ),
         force: bool = typer.Option(False, "--force", help="Allow report overwrite."),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="Legacy text or json output selector.",
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Fetch closed candles and advance one deterministic paper cycle."""
 
@@ -89,7 +101,7 @@ def register_paper_cycle_command(app: typer.Typer) -> None:
             payload["cycle_report_path"] = str(cycle_report)
         if daily_report is not None:
             payload["daily_report_path"] = str(daily_report)
-        _emit_result(payload, result, output)
+        _emit_result(payload, format_ or output)
 
 
 def paper_runtime_payload(result: PaperRuntimeResult) -> dict[str, Any]:
@@ -115,24 +127,15 @@ def _parse_report_date(value: str | None) -> date | None:
         raise typer.BadParameter("report-date must use YYYY-MM-DD") from exc
 
 
-def _emit_result(payload: dict[str, Any], result: PaperRuntimeResult, output: str) -> None:
-    normalized_output = output.strip().lower()
-    if normalized_output == "json":
+def _emit_result(payload: dict[str, Any], mode: str) -> None:
+    try:
+        output_mode = normalize_output_mode(mode)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if output_mode is OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
         return
-    if normalized_output != "text":
-        raise typer.BadParameter("output must be text or json")
-    cycle = result.cycle
-    typer.echo(
-        "PAPER_CYCLE "
-        f"| market={cycle.market_type} "
-        f"| eligible={cycle.eligible_trade_count} "
-        f"| advanced={cycle.advanced_trade_count} "
-        f"| unchanged={cycle.unchanged_trade_count} "
-        f"| provider_failures={len(result.provider_failures)}"
-    )
-    for symbol, reason in result.provider_failures:
-        typer.echo(f"- PROVIDER_FAILURE | symbol={symbol} | reason={reason}")
+    typer.echo(render_paper_cycle(payload, mode=output_mode))
 
 
 def _jsonable(value: Any) -> Any:
