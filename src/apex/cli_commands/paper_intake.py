@@ -15,7 +15,7 @@ from apex.application import (
     build_futures_plan_result,
     create_market_data_services,
     load_default_risk_config,
-    load_symbols,
+    resolve_futures_symbols,
     scan_symbols,
 )
 from apex.application.paper_intake import (
@@ -45,7 +45,14 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
 
     @app.command("intake-futures")
     def intake_futures(
-        symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
+        symbols_file: Path | None = typer.Option(
+            None,
+            "--symbols-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional static symbol override. Defaults to live Binance futures discovery.",
+        ),
         risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
         wallet_balance: float = typer.Option(100.0, "--wallet-balance", min=0.01),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
@@ -66,13 +73,16 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
         started_at = datetime.now(UTC)
         try:
             context = bootstrap()
-            symbols = load_symbols(symbols_file)
             risk_config = load_default_risk_config()
             account = build_futures_account_input(
                 wallet_balance=wallet_balance,
                 risk_mode=risk_mode,
             )
             with create_market_data_services(context.settings) as services:
+                symbols = resolve_futures_symbols(
+                    services.futures_universe,
+                    symbols_file=symbols_file,
+                )
                 scan = scan_symbols(
                     symbols,
                     services.candles,

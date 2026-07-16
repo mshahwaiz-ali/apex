@@ -14,7 +14,7 @@ from apex.application import (
     build_futures_plan_result,
     create_market_data_services,
     load_default_risk_config,
-    load_symbols,
+    resolve_futures_symbols,
     scan_symbols,
 )
 from apex.application.paper_intake import append_intake_log, intake_futures_scan, intake_spot_scan
@@ -58,7 +58,14 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
 
     @app.command("scheduled-futures-pipeline")
     def scheduled_futures_pipeline(
-        symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
+        symbols_file: Path | None = typer.Option(
+            None,
+            "--symbols-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional static symbol override. Defaults to live Binance futures discovery.",
+        ),
         risk_mode: RiskMode = typer.Option(
             RiskMode.STANDARD,
             "--risk-mode",
@@ -93,7 +100,6 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
         diagnostics: dict[str, Any] = {}
         try:
             context = bootstrap()
-            symbols = load_symbols(symbols_file)
             risk_config = load_default_risk_config()
             account = build_futures_account_input(
                 wallet_balance=wallet_balance,
@@ -101,6 +107,10 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
             )
             store = _paper_store(context.settings.data_dir)
             with create_market_data_services(context.settings) as services:
+                symbols = resolve_futures_symbols(
+                    services.futures_universe,
+                    symbols_file=symbols_file,
+                )
                 scan = scan_symbols(
                     symbols,
                     services.candles,

@@ -12,7 +12,7 @@ from apex.application import (
     build_analysis_record,
     create_market_data_services,
     load_default_risk_config,
-    load_symbols,
+    resolve_futures_symbols,
     scan_symbols,
     serialize_scan_result,
     write_analysis_record,
@@ -29,7 +29,14 @@ from apex.presentation.scanner import render_futures_scan
 def register_scanner_commands(app: typer.Typer) -> None:
     @app.command("scan")
     def scan(
-        symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
+        symbols_file: Path | None = typer.Option(
+            None,
+            "--symbols-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional static symbol override. Defaults to live Binance futures discovery.",
+        ),
         output: str = typer.Option(
             "text",
             "--output",
@@ -42,17 +49,20 @@ def register_scanner_commands(app: typer.Typer) -> None:
         candle_limit: int = typer.Option(200, "--candles", min=40, max=999),
         risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
     ) -> None:
-        """Analyze and rank the configured futures symbol universe."""
+        """Discover, analyze, and rank the active futures symbol universe."""
 
         try:
             output_mode = normalize_output_mode(output)
-            symbols = load_symbols(symbols_file)
             context = bootstrap()
             risk_config = load_default_risk_config()
             with (
                 futures_risk_mode_scope(risk_mode),
                 create_market_data_services(context.settings) as services,
             ):
+                symbols = resolve_futures_symbols(
+                    services.futures_universe,
+                    symbols_file=symbols_file,
+                )
                 result = scan_symbols(
                     symbols,
                     services.candles,

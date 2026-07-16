@@ -9,11 +9,12 @@ from typing import Protocol
 from apex.config import FileSettings
 from apex.data.cache.candles import FileCandleCache
 from apex.data.providers import (
+    BinanceFuturesUniverseProvider,
     BinanceMarketDataProvider,
     CachedMarketDataProvider,
     ResamplingMarketDataProvider,
 )
-from apex.data.providers.base import MarketDataProvider
+from apex.data.providers.base import FuturesUniverseProvider, MarketDataProvider
 
 
 class ManagedMarketDataProvider(MarketDataProvider, Protocol):
@@ -23,7 +24,15 @@ class ManagedMarketDataProvider(MarketDataProvider, Protocol):
         """Release provider resources."""
 
 
+class ManagedFuturesUniverseProvider(FuturesUniverseProvider, Protocol):
+    """Futures-universe provider that owns closable runtime resources."""
+
+    def close(self) -> None:
+        """Release provider resources."""
+
+
 ProviderBuilder = Callable[[], ManagedMarketDataProvider]
+FuturesUniverseProviderBuilder = Callable[[], ManagedFuturesUniverseProvider]
 
 
 @dataclass(slots=True)
@@ -32,11 +41,14 @@ class MarketDataServices:
 
     candles: MarketDataProvider
     ticker: MarketDataProvider
+    futures_universe: FuturesUniverseProvider
     _live_provider: ManagedMarketDataProvider
+    _futures_universe_provider: ManagedFuturesUniverseProvider
 
     def close(self) -> None:
         """Close the underlying live provider once."""
 
+        self._futures_universe_provider.close()
         self._live_provider.close()
 
     def __enter__(self) -> MarketDataServices:
@@ -51,6 +63,9 @@ def create_market_data_services(
     *,
     provider_name: str = "binance",
     provider_builders: dict[str, ProviderBuilder] | None = None,
+    futures_universe_provider_builder: FuturesUniverseProviderBuilder = (
+        BinanceFuturesUniverseProvider
+    ),
 ) -> MarketDataServices:
     """Build live ticker and optionally cached candle providers."""
 
@@ -65,6 +80,8 @@ def create_market_data_services(
             f"Unsupported market-data provider: {provider_name}. Supported: {supported}"
         ) from exc
 
+    futures_universe_provider = futures_universe_provider_builder()
+
     candle_provider: MarketDataProvider = live_provider
     if settings.cache_enabled:
         cache = FileCandleCache(settings.data_dir / "cache" / "candles")
@@ -78,5 +95,7 @@ def create_market_data_services(
     return MarketDataServices(
         candles=candle_provider,
         ticker=live_provider,
+        futures_universe=futures_universe_provider,
         _live_provider=live_provider,
+        _futures_universe_provider=futures_universe_provider,
     )

@@ -42,6 +42,7 @@ from apex.application.decision_analysis import (
     write_json_report,
 )
 from apex.application.futures_account import build_futures_account_input
+from apex.application.futures_symbol_resolution import resolve_futures_symbols
 from apex.application.market_data import create_market_data_services
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.risk_approval import (
@@ -87,6 +88,7 @@ __all__ = [
     "parse_campaign_variants",
     "run_backtest_campaign",
     "run_chronological_pipeline_backtest",
+    "resolve_futures_symbols",
     "run_multi_symbol_backtest_campaign",
     "scan_symbols",
     "serialize_scan_result",
