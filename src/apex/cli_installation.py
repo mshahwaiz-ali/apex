@@ -15,6 +15,7 @@ from apex.cli_commands.forward_edge import register_forward_edge_commands
 from apex.cli_commands.funded_history import register_funded_history_commands
 from apex.cli_commands.funded_plan_generation import register_funded_plan_generation_commands
 from apex.cli_commands.funded_plan_reporting import register_funded_plan_reporting_commands
+from apex.cli_commands.funded_plan_schema import register_funded_plan_schema_commands
 from apex.cli_commands.historical_futures_edge import register_historical_futures_edge_commands
 from apex.cli_commands.historical_futures_edge_validation import (
     register_historical_futures_edge_validation_commands,
@@ -71,6 +72,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_funded_history_commands(app)
     register_funded_plan_generation_commands(app)
     register_funded_plan_reporting_commands(app)
+    register_funded_plan_schema_commands(app)
     register_paper_trading_commands(paper_app)
     register_paper_cycle_command(paper_app)
     register_paper_scheduler_commands(paper_app)
