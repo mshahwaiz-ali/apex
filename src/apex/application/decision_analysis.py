@@ -20,7 +20,6 @@ from apex.application.near_current_entry import (
     near_current_entry_payload,
 )
 from apex.data.providers.base import MarketDataProvider
-from apex.domain import GainerStateThresholds, MarketCategory
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
@@ -50,9 +49,7 @@ def analyze_symbol(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
-    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> SymbolAnalysis:
     """Run integrated analysis and attach routing and entry decisions."""
@@ -67,9 +64,7 @@ def analyze_symbol(
         risk_config=risk_config,
         exposure=exposure,
         generated_at=generated_at,
-        scanner_type=scanner_type,
         strategy_routing=strategy_routing,
-        gainer_state_thresholds=gainer_state_thresholds,
         market_environment_config=market_environment_config,
     )
     environment = base.market_environment
@@ -94,9 +89,6 @@ def analyze_symbol(
         evaluated_timeframes=base.evaluated_timeframes,
         regime_by_timeframe=base.regime_by_timeframe,
         data_quality_by_timeframe=base.data_quality_by_timeframe,
-        scanner_type=base.scanner_type,
-        gainer_state=base.gainer_state,
-        gainer_evidence=base.gainer_evidence,
         strategy_routing=base.strategy_routing,
         precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
@@ -118,7 +110,6 @@ def scan_symbols(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> ScanResult:
     """Analyze each symbol once with routing and entry decisions."""
@@ -140,7 +131,6 @@ def scan_symbols(
                     risk_config=risk_config,
                     generated_at=timestamp,
                     strategy_routing=strategy_routing,
-                    gainer_state_thresholds=gainer_state_thresholds,
                     market_environment_config=market_environment_config,
                 )
             )
@@ -197,19 +187,18 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
 
 
 def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
-    """Format analysis with explicit scanner, pipeline, and actionability stages."""
+    """Format analysis with explicit pipeline and actionability stages."""
 
     base_text = _integrated.format_symbol_text(analysis)
     route = getattr(analysis, "market_strategy_route", None)
     near_entry = getattr(analysis, "near_current_entry", None)
     environment = getattr(analysis, "market_environment", None)
-    scanner = _scanner_label(analysis.scanner_type)
     decision = (
         "NO_TRADE"
         if analysis.assessment.setup is None
         else analysis.assessment.setup.direction.value.upper()
     )
-    lines = [f"{analysis.symbol} | {scanner} | {decision}", base_text]
+    lines = [f"{analysis.symbol} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
         lines.extend(
@@ -288,16 +277,9 @@ def _decision_reason_code(
     )
 
 
-def _scanner_label(scanner_type: MarketCategory) -> str:
-    if scanner_type is MarketCategory.NORMAL_MARKET:
-        return "NORMAL"
-    return "GAINER"
-
-
-def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str, str]:
+def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str]:
     setup = analysis.assessment.setup
-    scanner = analysis.scanner_type.value
     if setup is None:
-        return (1, 0.0, 0.0, analysis.symbol, scanner)
+        return (1, 0.0, 0.0, analysis.symbol)
     max_risk_reward = max(target.risk_reward for target in setup.take_profits)
-    return (0, -setup.confidence_score, -max_risk_reward, analysis.symbol, scanner)
+    return (0, -setup.confidence_score, -max_risk_reward, analysis.symbol)

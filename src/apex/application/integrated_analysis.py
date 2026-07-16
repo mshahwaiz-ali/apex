@@ -10,7 +10,6 @@ from typing import Any
 
 from apex.application import analysis as _analysis
 from apex.data.providers.base import MarketDataProvider
-from apex.domain import GainerStateThresholds, MarketCategory
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
@@ -98,9 +97,7 @@ def analyze_symbol(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
-    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> SymbolAnalysis:
     """Run base analysis and attach one fused market-environment result."""
@@ -127,9 +124,7 @@ def analyze_symbol(
         risk_config=risk_config,
         exposure=exposure,
         generated_at=decision_time,
-        scanner_type=scanner_type,
         strategy_routing=strategy_routing,
-        gainer_state_thresholds=gainer_state_thresholds,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -139,9 +134,6 @@ def analyze_symbol(
         evaluated_timeframes=base.evaluated_timeframes,
         regime_by_timeframe=base.regime_by_timeframe,
         data_quality_by_timeframe=base.data_quality_by_timeframe,
-        scanner_type=base.scanner_type,
-        gainer_state=base.gainer_state,
-        gainer_evidence=base.gainer_evidence,
         strategy_routing=base.strategy_routing,
         precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
@@ -161,7 +153,6 @@ def scan_symbols(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
-    gainer_state_thresholds: GainerStateThresholds | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> ScanResult:
     """Analyze each symbol once with environment-aware results."""
@@ -183,7 +174,6 @@ def scan_symbols(
                     risk_config=risk_config,
                     generated_at=timestamp,
                     strategy_routing=strategy_routing,
-                    gainer_state_thresholds=gainer_state_thresholds,
                     market_environment_config=market_environment_config,
                 )
             )

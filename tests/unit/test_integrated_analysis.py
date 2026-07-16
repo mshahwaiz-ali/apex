@@ -15,7 +15,6 @@ from apex.application.integrated_analysis import (
     serialize_scan_result,
     serialize_symbol_analysis,
 )
-from apex.domain import MarketCategory
 from apex.market_environment import (
     ConflictState,
     ExtensionState,
@@ -55,7 +54,6 @@ def _analysis_object(environment: MarketEnvironment | None) -> base_analysis.Sym
         SimpleNamespace(
             symbol="BTC/USDT",
             generated_at=datetime(2026, 7, 16, tzinfo=UTC),
-            scanner_type=MarketCategory.NORMAL_MARKET,
             market_environment=environment,
             assessment=SimpleNamespace(setup=None),
         ),
