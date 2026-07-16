@@ -1,4 +1,4 @@
-"""CLI status inspection for sustained P1 paper validation."""
+"""CLI status inspection for sustained paper validation."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ import typer
 
 from apex.application import bootstrap
 from apex.paper_trading import PaperOperationsStatus, build_paper_operations_status
+from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation.paper import render_paper_status
 
 
 def register_paper_status_command(app: typer.Typer) -> None:
@@ -20,7 +22,17 @@ def register_paper_status_command(app: typer.Typer) -> None:
     def operations_status(
         maximum_run_age_minutes: int = typer.Option(15, "--maximum-run-age-minutes", min=1),
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="Legacy text or json output selector.",
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Inspect cycle, intake, pipeline freshness, failures, locks, and reports."""
 
@@ -35,7 +47,7 @@ def register_paper_status_command(app: typer.Typer) -> None:
         except (OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        _emit_status(status, output)
+        _emit_status(status, format_ or output)
 
 
 def paper_operations_status_payload(status: PaperOperationsStatus) -> dict[str, Any]:
@@ -49,42 +61,16 @@ def paper_operations_status_payload(status: PaperOperationsStatus) -> dict[str, 
     return payload
 
 
-def _emit_status(status: PaperOperationsStatus, output: str) -> None:
-    normalized = output.strip().lower()
+def _emit_status(status: PaperOperationsStatus, mode: str) -> None:
     payload = paper_operations_status_payload(status)
-    if normalized == "json":
+    try:
+        output_mode = normalize_output_mode(mode)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if output_mode is OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
         return
-    if normalized != "text":
-        raise typer.BadParameter("output must be text or json")
-
-    typer.echo(
-        "PAPER_OPERATIONS_STATUS "
-        f"| operations_ready={str(status.operations_ready).lower()} "
-        f"| scheduler_ready={str(status.scheduler_ready).lower()} "
-        f"| trades={status.total_trade_count} "
-        f"| daily_reports={status.daily_report_count} "
-        f"| reviews={status.review_report_count}"
-    )
-    for market in status.markets:
-        typer.echo(
-            f"- {market.market_type.upper()} "
-            f"| ready={str(market.operationally_ready).lower()} "
-            f"| cycle_fresh={str(market.scheduler_fresh).lower()} "
-            f"| intake_fresh={str(market.intake_fresh).lower()} "
-            f"| pipeline_fresh={str(market.pipeline_fresh).lower()} "
-            f"| pipeline_outcome={market.latest_pipeline_outcome} "
-            f"| run_id={market.latest_pipeline_run_id} "
-            f"| failure_stage={market.latest_pipeline_failure_stage} "
-            f"| consecutive_failures={market.consecutive_pipeline_failures} "
-            f"| malformed_logs={market.malformed_cycle_log_count + market.malformed_intake_log_count + market.malformed_pipeline_log_count} "
-            f"| cycle_lock_stale={str(market.lock_stale).lower()} "
-            f"| intake_lock_stale={str(market.intake_lock_stale).lower()} "
-            f"| pipeline_lock_stale={str(market.pipeline_lock_stale).lower()} "
-            f"| open={market.open_trade_count} "
-            f"| closed={market.closed_trade_count} "
-            f"| provider_failures={market.latest_provider_failure_count}"
-        )
+    typer.echo(render_paper_status(payload, mode=output_mode))
 
 
 def _jsonable(value: Any) -> Any:
