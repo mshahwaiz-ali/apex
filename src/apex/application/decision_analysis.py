@@ -73,8 +73,15 @@ def analyze_symbol(
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
+    setup = base.assessment.setup
     near_entry = (
-        evaluate_near_current_entry(base.precision_entry, environment, route)
+        evaluate_near_current_entry(
+            base.precision_entry,
+            environment,
+            route,
+            selected_strategy=setup.strategy if setup is not None else None,
+            selected_direction=setup.direction if setup is not None else None,
+        )
         if environment is not None and route is not None
         else None
     )
