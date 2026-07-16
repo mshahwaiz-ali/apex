@@ -149,12 +149,13 @@ class TimeframeMarketSnapshot:
             "upper_wick_ratio",
             "lower_wick_ratio",
             "range_position",
-            "volatility_expansion",
             "data_confidence",
         ):
             value = getattr(self, name)
             if value is not None and not 0 <= value <= 1:
                 raise ValueError(f"{name.replace('_', ' ')} must be between zero and one")
+        if self.volatility_expansion is not None and self.volatility_expansion < 0:
+            raise ValueError("volatility expansion cannot be negative")
         if self.relative_volume is not None and self.relative_volume < 0:
             raise ValueError("relative volume cannot be negative")
         if self.volume is not None and self.volume < 0:
