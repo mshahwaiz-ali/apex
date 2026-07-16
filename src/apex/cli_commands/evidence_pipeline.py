@@ -9,6 +9,8 @@ from typing import Annotated, Any
 
 import typer
 
+from apex.cli_commands.research_output import emit_payload, output_mode
+from apex.presentation.validation import render_validation
 from apex.validation.evidence_pipeline import run_evidence_pipeline
 from apex.validation.forward_edge import ForwardEdgePolicy
 
@@ -64,9 +66,14 @@ def register_evidence_pipeline_commands(app: typer.Typer) -> None:
             typer.Option("--maximum-evidence-age-days", min=1),
         ] = None,
         force: Annotated[bool, typer.Option("--force")] = False,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
         """Publish N4.8 through N4.11 evidence artifacts as one atomic run."""
 
+        mode = output_mode(output_format)
         try:
             dimensions = _load_dimensions(dimensions_file)
             pipeline = run_evidence_pipeline(
@@ -98,11 +105,16 @@ def register_evidence_pipeline_commands(app: typer.Typer) -> None:
         except (FileExistsError, FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(
-            "EVIDENCE_PIPELINE_COMPLETED "
-            f"| pipeline_id={pipeline.pipeline_id} "
-            f"| output={pipeline.output_directory} "
-            f"| forward_paper={pipeline.forward_validation_path is not None}"
+        payload: dict[str, object] = {
+            "pipeline_id": pipeline.pipeline_id,
+            "output_directory": str(pipeline.output_directory),
+            "forward_paper": pipeline.forward_validation_path is not None,
+            "dimensions": dimensions,
+        }
+        emit_payload(
+            payload,
+            mode=mode,
+            rendered=render_validation(payload, title="Evidence Pipeline", mode=mode),
         )
 
 
