@@ -202,7 +202,12 @@ def _number(value: object) -> float | None:
 def _format_spread_percentage(value: float | None) -> str:
     if value is None:
         return UNAVAILABLE
-    decimals = 4 if abs(value) < 0.1 else 2
+    if abs(value) < 0.01:
+        decimals = 6
+    elif abs(value) < 0.1:
+        decimals = 4
+    else:
+        decimals = 2
     return format_percentage(value, decimals=decimals)
 
 
