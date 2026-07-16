@@ -1,101 +1,44 @@
-# Apex Command Guide
+# Apex CLI Command Guide
 
-This file documents the active Apex CLI commands. Each command below includes a one-line purpose so the normal workflow is easy to scan.
+This file is the practical user guide for the Apex command-line interface.
 
-## Quick command index
+Apex is organized by workflow. New usage should prefer the grouped commands shown here. Older flat command names remain available as hidden compatibility aliases for existing scripts.
 
-| Command | Purpose |
-| --- | --- |
-| `apex --help` | Show the active command tree. |
-| `apex version` | Print the installed Apex version. |
-| `apex validate-config` | Validate the configured YAML settings. |
-| `apex smoke` | Run a lightweight application bootstrap check. |
-| `apex fetch SYMBOL` | Fetch public OHLCV candles. |
-| `apex ticker SYMBOL` | Fetch the current public ticker snapshot. |
-| `apex analyze SYMBOL` | Analyze one symbol and build a futures plan. |
-| `apex scan` | Scan and rank a configured symbol universe. |
-| `apex export-dataset SYMBOL` | Export closed candles to a reproducible JSON dataset. |
-| `apex simulate-current-setup SYMBOL` | Simulate the currently approved live setup, if one exists. |
-| `apex chronological-backtest SYMBOL` | Replay the production pipeline through historical candles. |
-| `apex chronological-backtest-campaign SYMBOLS` | Run multiple chronological variants across one or more symbols. |
-| `apex compare-backtests LEFT RIGHT` | Compare saved chronological reports for reproducibility. |
-| `apex paper record SYMBOL` | Record an approved setup into local paper trading. |
-| `apex paper update [SYMBOL]` | Update open paper trades from fresh candles. |
-| `apex paper report` | Summarize local paper-trading performance. |
-| `apex paper replay-report` | Replay stored paper lifecycle events into an audit report. |
-| `apex execute preview SYMBOL` | Preview a local testnet-simulation execution intent. |
-| `apex execute testnet SYMBOL --confirm` | Record a guarded local testnet-simulation event. |
-| `apex execute status` | Show execution safety status. |
-| `apex execute reconcile` | Reconcile local execution audit events with deterministic snapshots. |
-| `apex execute readiness` | Report local simulation readiness and exchange-readiness blockers. |
-| `apex execute kill-switch enable` | Enable the local execution kill switch. |
-| `apex intelligence summary` | Show optional intelligence feature flags. |
-| `apex optimize evaluate` | Evaluate one performance or campaign report. |
-| `apex optimize compare` | Compare baseline and candidate performance reports. |
-| `apex optimize calibrate` | Evaluate train/validation calibration without using the final test for selection. |
+> Apex performs analysis, research, paper trading, validation, and guarded local/testnet-oriented simulation. It does not authorize real-money execution.
 
-## 1. Setup and environment
-
-Purpose: prepare the local environment and verify that the Apex CLI is available.
-
-Enter the local repository:
+## 1. Start here
 
 ```bash
 cd ~/data_drive/apex
-```
-
-Activate the existing virtual environment when required:
-
-```bash
+git pull --rebase origin main
 source .venv/bin/activate
-```
-
-Create it first if it does not exist:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Install Apex with development dependencies:
-
-```bash
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
-
-Verify the installed CLI:
-
-```bash
 apex --help
-apex version
 ```
 
-Validate the default configuration directory:
+Main workflow groups:
+
+| Group | Purpose |
+| --- | --- |
+| `apex futures` | Find and analyze leveraged futures opportunities. |
+| `apex spot` | Find and analyze long-only spot opportunities. |
+| `apex paper` | Record, update, and review simulated trades. |
+| `apex research` | Run datasets, backtests, comparisons, and edge reports. |
+| `apex validation` | Review forward evidence and readiness gates. |
+| `apex system` | Check installation, configuration, and public market data. |
+| `apex execute` | Use guarded local/testnet simulation and safety controls. |
+
+Use help at any level:
 
 ```bash
-apex validate-config
-```
-
-Validate another configuration directory:
-
-```bash
-apex validate-config --config-dir path/to/config
-```
-
-Run the lightweight application bootstrap check:
-
-```bash
-apex smoke
+apex futures --help
+apex futures scan --help
+apex paper --help
+apex research --help
 ```
 
 ## 2. Symbol format
 
-Purpose: explain how Apex normalizes user-provided market symbols.
-
-Commands that accept manual market symbols normalize them to canonical `BASE/QUOTE` form.
-
-Valid examples:
+Most commands accept either compact or slashed symbols:
 
 ```text
 BTCUSDT
@@ -104,677 +47,422 @@ ethusdt
 ETH/USDT
 ```
 
-These all normalize to an uppercase slashed symbol such as `BTC/USDT`.
+Apex normalizes supported symbols to canonical uppercase `BASE/QUOTE` form. For unusual markets, prefer explicit `BASE/QUOTE` notation.
 
-Compact symbols must end in one configured quote asset. For unusual or ambiguous markets, use explicit `BASE/QUOTE` form.
+## 3. Futures trade discovery
 
-## 3. Public market data
-
-Purpose: fetch public market data only; these commands never place orders.
-
-Fetch closed OHLCV candles:
+### Scan the futures universe
 
 ```bash
-apex fetch BTCUSDT
+apex futures scan
 ```
 
-Choose a timeframe and candle count:
+What it does:
+
+- loads the configured symbol universe;
+- fetches closed multi-timeframe candles;
+- runs normal-market and/or gainer analysis;
+- applies strategy routing, scoring, precision-entry, and risk rules;
+- ranks valid opportunities and explains rejected candidates.
+
+Useful examples:
 
 ```bash
-apex fetch BTCUSDT --timeframe 5m --limit 200
+apex futures scan --mode normal
+apex futures scan --mode gainers
+apex futures scan --mode all --candles 200
+apex futures scan --output json
+apex futures scan --report data/reports/latest_scan.json
 ```
 
-Short options are also available:
+Scanner modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `normal` | Standard market scanner; compatibility default. |
+| `gainers` | Fast-mover/gainer-specific analysis path. |
+| `all` | Runs normal and gainer paths independently. |
+
+### Analyze one futures symbol
 
 ```bash
-apex fetch BTCUSDT -t 15m -l 50
+apex futures analyze BTCUSDT
 ```
 
-Fetch the current ticker:
+What it does:
+
+- analyzes one symbol in depth;
+- evaluates structure, momentum, volume, volatility, liquidity, and timeframe alignment;
+- returns a trade, wait state, invalidation, or structured rejection;
+- builds entry, stop, targets, leverage-aware position geometry, and management guidance when approved.
+
+Useful examples:
 
 ```bash
-apex ticker BTCUSDT
+apex futures analyze BTCUSDT --candles 200
+apex futures analyze BTCUSDT --output json
+apex futures analyze BTCUSDT --report data/reports/btc_analysis.json
+apex futures analyze BTCUSDT --record data/reports/analysis.jsonl
+apex futures analyze BTCUSDT --record-db data/reports/analysis.db
 ```
 
-## 4. Single-symbol analysis
-
-Purpose: analyze one symbol, produce a risk decision, and include futures-account planning.
-
-Run complete deterministic analysis with text output:
+### Simulate the current approved setup
 
 ```bash
-apex analyze BTCUSDT
+apex futures simulate BTCUSDT
 ```
 
-Request JSON output:
+This analyzes the current market first and simulates only an approved setup. It returns a no-simulation result when no setup is approved; it does not manufacture trades.
 
 ```bash
-apex analyze BTCUSDT --output json
+apex futures simulate BTCUSDT --candles 240 --replay-timeframe 5m
+apex futures simulate BTCUSDT --output json
 ```
 
-Use a specific analysis history length:
+## 4. Spot trade discovery
+
+Spot commands are long-only. They do not use leverage, borrowing, margin, or short selling.
+
+### Scan spot markets
 
 ```bash
-apex analyze BTCUSDT --candles 200
+apex spot scan --help
 ```
 
-Append a reproducible JSONL analysis record:
+Scans selected live spot markets and ranks eligible opportunities.
+
+### Analyze one spot symbol
 
 ```bash
-apex analyze BTCUSDT --record data/reports/analysis_records.jsonl
+apex spot analyze BTCUSDT --help
 ```
 
-Upsert reproducible analysis records into SQLite:
+Runs deterministic spot analysis and returns the selected long-only plan or rejection reason.
+
+### Run the complete live spot workflow
 
 ```bash
-apex analyze BTCUSDT --record-db data/reports/analysis_records.db
+apex spot live BTCUSDT --help
 ```
 
-`analyze` terminal output supports `text` and `json`. It includes futures-account inputs and, when a setup is approved, a canonical futures plan.
+Fetches live market data and executes the complete spot analysis workflow.
 
-## 5. Market scanner
-
-Purpose: analyze many symbols and rank the best available opportunities.
-
-Scan the default symbol universe from `config/symbols.yaml`:
+### Build a bounded spot plan
 
 ```bash
-apex scan
+apex spot plan --help
+apex spot orchestrate --help
 ```
 
-Use a different symbol file:
+These commands build bounded entry, allocation, target, exit, and account-limit plans from validated spot structure.
 
-```bash
-apex scan --symbols-file config/symbols.yaml
-```
+## 5. Paper trading
 
-Request JSON terminal output:
+Paper commands store and update simulated positions locally. They never place exchange orders.
 
-```bash
-apex scan --output json
-```
-
-Append a reproducible JSONL scan record:
-
-```bash
-apex scan --record data/reports/analysis_records.jsonl
-```
-
-Upsert reproducible scan records into SQLite:
-
-```bash
-apex scan --record-db data/reports/analysis_records.db
-```
-
-Write the complete JSON scan payload to a file while retaining terminal output:
-
-```bash
-apex scan \
-  --output text \
-  --report data/reports/latest_scan.json
-```
-
-Use a specific candle history length per symbol:
-
-```bash
-apex scan --candles 200
-```
-
-Run a dedicated scanner path:
-
-```bash
-apex scan --mode normal
-apex scan --mode gainers
-apex scan --mode all
-```
-
-`normal` is the compatibility default. `all` evaluates normal-market and gainer paths independently and preserves `scanner_type` in JSON output. Strategy routes are configured under `strategy_routing` in `config/default.yaml`; gainer-state thresholds are configured under `gainer_state_thresholds`. Routing is enforced before scoring and JSON output includes skipped-strategy explanations.
-
-When the active provider exposes ticker, order-book, exchange-filter, or liquidation-cluster snapshots, scan and analyze JSON include those fields under `timeframe_data_quality`, and approved setups use them inside `precision_entry` scoring.
-
-The built-in Binance public provider supplies ticker, order-book, and exchange-filter snapshots. Liquidation-cluster snapshots require a derivatives provider implementation.
-
-## 6. Historical dataset export
-
-Purpose: write closed historical candles into a reproducible local JSON dataset.
-
-Verified baseline export:
-
-```bash
-apex export-dataset BTCUSDT \
-  --timeframes 1m,3m,5m,15m,30m,1h,4h \
-  --candles 500 \
-  --output data/btc_usdt_baseline_full.json
-```
-
-The exporter:
-
-- normalizes the market symbol;
-- fetches each requested timeframe from the configured provider;
-- includes only fully closed candles;
-- creates parent directories when needed;
-- writes deterministic, schema-versioned UTF-8 JSON;
-- refuses to replace an existing output file by default.
-
-Replace an existing dataset deliberately:
-
-```bash
-apex export-dataset BTCUSDT \
-  --timeframes 1m,3m,5m,15m,30m,1h,4h \
-  --candles 500 \
-  --output data/btc_usdt_baseline_full.json \
-  --force
-```
-
-The current exporter writes JSON only. CSV is accepted as an input format by chronological backtesting when a compatible historical dataset already exists, but `export-dataset` does not currently create CSV files.
-
-## 7. Current setup simulation
-
-Purpose: simulate only the currently approved live setup; it does not manufacture trades.
-
-Simulate the currently approved live setup over fetched replay candles:
-
-```bash
-apex simulate-current-setup BTCUSDT
-```
-
-Request JSON output:
-
-```bash
-apex simulate-current-setup BTCUSDT --output json
-```
-
-Choose the analysis candle count and replay timeframe:
-
-```bash
-apex simulate-current-setup BTCUSDT \
-  --candles 240 \
-  --replay-timeframe 5m
-```
-
-This command analyzes the current market first. When no setup is approved, it returns a no-simulation result rather than manufacturing a trade.
-
-The former generic command name `backtest` is not part of the active CLI. Use `simulate-current-setup` for this behavior.
-
-## 8. Chronological backtesting
-
-Purpose: replay the production analysis pipeline over historical candles with no future leakage.
-
-Verified dataset-backed baseline:
-
-```bash
-apex chronological-backtest BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json \
-  --replay-timeframe 5m \
-  --analysis-candles 200 \
-  --decision-interval 1 \
-  --candidate-cooldown 3 \
-  --report-output reports/btc_baseline.json
-```
-
-### Dataset mode
-
-Use `--dataset` to replay a local JSON or CSV historical candle dataset:
-
-```bash
-apex chronological-backtest BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json
-```
-
-The loader verifies the expected symbol and required timeframes.
-
-### Live-provider history mode
-
-When `--dataset` is omitted, Apex fetches historical candles from the configured live provider:
-
-```bash
-apex chronological-backtest BTCUSDT \
-  --history-candles 500 \
-  --replay-timeframe 5m
-```
-
-This is still a historical simulation. It does not place orders.
-
-Approved setup target ladders are preserved during simulation. Partial targets close their configured percentages, and any remaining quantity continues toward later targets, stop, or expiry.
-
-### Important options
-
-`--analysis-candles` controls the rolling analysis window. The production warm-up contract is 200 closed candles, so the established baseline uses:
-
-```bash
---analysis-candles 200
-```
-
-`--decision-interval` controls how many replay candles elapse between fresh decisions:
-
-```bash
---decision-interval 1
-```
-
-`--candidate-cooldown` prevents immediate repeated consideration of the same candidate after it appears:
-
-```bash
---candidate-cooldown 3
-```
-
-`--history-candles` applies only when Apex fetches history from the provider rather than loading `--dataset`.
-
-`--report-output` writes the complete JSON report:
-
-```bash
---report-output reports/btc_baseline.json
-```
-
-`--record-db` upserts the complete report into a local SQLite index keyed by stable `run_id`:
-
-```bash
---record-db reports/backtest_runs.db
-```
-
-Existing reports are protected. Replace one deliberately with:
-
-```bash
---force
-```
-
-The command also prints the complete JSON report to standard output.
-
-### Chronological campaign mode
-
-Purpose: run multiple deterministic backtest variants without editing runtime configuration.
-
-Run a compact multi-variant campaign through the same production chronological pipeline:
-
-```bash
-apex chronological-backtest-campaign BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json \
-  --report-output reports/btc_campaign.json \
-  --record-db reports/backtest_campaigns.db
-```
-
-By default the campaign evaluates baseline, faster-decision, and slower-decision variants.
-Use `--variants` for explicit local experiments without editing production config:
-
-```bash
-apex chronological-backtest-campaign BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json \
-  --variants base:5m:200:1:3,fast:5m:120:1:1
-```
-
-Each variant keeps its own stable run identity and complete report payload. The campaign report adds a stable `campaign_id`, ranking table, best variant, and SQLite campaign index support.
-
-For curated multi-symbol datasets, pass comma-separated symbols. Apex runs every symbol and variant independently through the chronological pipeline and ranks the combined results:
-
-```bash
-apex chronological-backtest-campaign BTCUSDT,ETHUSDT \
-  --dataset data/curated_futures_baseline.json \
-  --variants base:5m:200:1:3,fast:5m:120:1:1 \
-  --report-output reports/curated_campaign.json
-```
-
-## 9. Reproducibility comparison
-
-Purpose: compare two saved chronological reports for identity and metric drift.
-
-Compare two saved chronological reports:
-
-```bash
-apex compare-backtests \
-  reports/btc_baseline.json \
-  reports/btc_baseline_repeat.json
-```
-
-The comparison checks run identity and aggregate results, including:
-
-- dataset hash equality;
-- configuration hash equality;
-- selected metric values from both reports;
-- metric deltas, including `trade_count` derived from report field `total_trades`.
-
-Matching dataset and configuration hashes establish that both reports used the same historical input and deterministic configuration. Zero metric deltas then confirm equal selected outcomes.
-
-## 10. Paper trading
-
-Purpose: track approved setups locally without placing exchange orders.
-
-Analyze a symbol and record an approved setup locally:
+### Record an approved setup
 
 ```bash
 apex paper record BTCUSDT
-```
-
-Paper records store the analysis payload, futures-plan snapshot, and replayable lifecycle events.
-
-Choose the analysis history length:
-
-```bash
 apex paper record BTCUSDT --candles 200
 ```
 
-Replay stored paper lifecycle events into an audit report:
+Stores the original analysis, futures-plan snapshot, and replayable lifecycle state.
 
-```bash
-apex paper replay-report \
-  --report data/reports/paper_replay.json
-```
-
-Update all open paper trades with fresh candles:
+### Update open paper trades
 
 ```bash
 apex paper update
-```
-
-Update only one normalized symbol:
-
-```bash
 apex paper update BTCUSDT
+apex paper update BTCUSDT --timeframe 5m --candles 80
 ```
 
-Choose the update timeframe and candle count:
+Fetches fresh candles and applies entry, target, partial-close, stop, invalidation, and expiry rules.
 
-```bash
-apex paper update BTCUSDT \
-  --timeframe 5m \
-  --candles 80
-```
-
-Show paper-trading performance:
+### Show paper performance
 
 ```bash
 apex paper report
-```
-
-Request JSON output:
-
-```bash
 apex paper report --output json
 ```
 
-Paper trades are stored locally under the configured data directory, normally in:
+### Replay the paper audit history
+
+```bash
+apex paper replay-report --report data/reports/paper_replay.json
+```
+
+Default local store:
 
 ```text
 data/paper_trading/trades.json
 ```
 
-Target ladders are preserved during paper updates. Partial targets move trades into `partially_closed`, accumulate realized PnL, and keep remaining size open for later lifecycle events.
+## 6. Research and backtesting
 
-## 11. Execution and testnet status
-
-Purpose: keep execution explicitly local-testnet-simulation-only until external gates pass.
-
-Apex does not currently submit real exchange orders. The registered execution commands provide guarded local testnet-simulation behavior only.
-Execution audit events include a schema version, the local testnet-simulation environment, deterministic client order IDs, deterministic idempotency keys, and an explicit `live_fallback=false` marker.
-Approved setup target ladders and partial-close percentages are preserved in execution previews, local testnet simulations, and audit records.
-The execution package also exposes a deterministic fake testnet adapter for offline validation; it does not connect to any exchange.
-
-Preview an execution intent without submitting or recording an order:
+### Export a reproducible dataset
 
 ```bash
-apex execute preview BTCUSDT
-```
-
-Request JSON output:
-
-```bash
-apex execute preview BTCUSDT --output json
-```
-
-Record a local testnet simulation event after explicit confirmation:
-
-```bash
-apex execute testnet BTCUSDT --confirm
-```
-
-Without `--confirm`, execution remains disabled by configuration passed to the simulator.
-
-Show execution safety status:
-
-```bash
-apex execute status
-```
-
-Reconcile the local execution audit against deterministic adapter snapshots:
-
-```bash
-apex execute reconcile \
-  --snapshots data/execution/snapshots.json \
-  --report reports/execution_reconciliation.json
-```
-
-Without `--snapshots`, reconciliation still reports local rejected and missing-adapter events from the audit log. Snapshot reconciliation is provider-independent and does not prove exchange connectivity.
-
-Report readiness without blurring local simulation and exchange readiness:
-
-```bash
-apex execute readiness \
-  --reconciliation reports/execution_reconciliation.json \
-  --report reports/execution_readiness.json
-```
-
-The readiness report can mark local simulation as ready while still returning `exchange_ready=false` with blockers such as missing exchange-specific adapters, credentials, and exchange-side reconciliation.
-
-Enable the local execution kill switch:
-
-```bash
-apex execute kill-switch enable
-```
-
-Current execution status is accurately described as:
-
-```text
-local_testnet_simulation_only
-```
-
-Do not treat these commands as proof of exchange connectivity or real order execution. A non-testnet execution environment is rejected instead of being silently downgraded.
-
-## 12. Intelligence commands
-
-Purpose: report optional intelligence metadata flags without changing trade decisions.
-
-Show optional deterministic intelligence configuration status:
-
-```bash
-apex intelligence summary
-```
-
-Request JSON output:
-
-```bash
-apex intelligence summary --output json
-```
-
-This command reports metadata such as funding, open-interest, and correlation feature flags. It does not independently change trade decisions.
-
-## 13. Optimization commands
-
-Purpose: compare measurable reports without automatically rewriting production configuration.
-
-Evaluate one existing performance report without changing configuration:
-
-```bash
-apex optimize evaluate \
-  --input path/to/performance_report.json
-```
-
-Campaign JSON reports are valid inputs. Apex evaluates the selected best variant aggregated across symbols:
-
-```bash
-apex optimize evaluate \
-  --input reports/curated_campaign.json
-```
-
-Request JSON output:
-
-```bash
-apex optimize evaluate \
-  --input path/to/performance_report.json \
-  --output json
-```
-
-Compare a baseline and candidate performance report:
-
-```bash
-apex optimize compare \
-  --baseline path/to/baseline.json \
-  --candidate path/to/candidate.json
-```
-
-Select the controlled optimization variable group when required:
-
-```bash
-apex optimize compare \
-  --baseline path/to/baseline.json \
-  --candidate path/to/candidate.json \
-  --group scoring_thresholds
-```
-
-Evaluate a walk-forward calibration candidate without using the final test set for selection:
-
-```bash
-apex optimize calibrate \
-  --train-baseline reports/train_baseline.json \
-  --train-candidate reports/train_candidate.json \
-  --validation-baseline reports/validation_baseline.json \
-  --validation-candidate reports/validation_candidate.json \
-  --train-start 2026-01-01 \
-  --train-end 2026-02-01 \
-  --validation-start 2026-02-02 \
-  --validation-end 2026-03-01 \
-  --out-of-sample-start 2026-03-02 \
-  --out-of-sample-end 2026-04-01
-```
-
-These framework commands write their latest result under:
-
-```text
-data/optimization/
-```
-
-They do not automatically rewrite strategy configuration.
-
-## 14. Quality validation
-
-Purpose: run the local non-mutating validation gate before claiming completion.
-
-Run non-mutating validation commands:
-
-```bash
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff check .
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m mypy src
-```
-
-These commands verify tests, lint rules, formatting, and static typing without intentionally rewriting project files.
-
-Run mutation commands separately when you deliberately want automatic changes:
-
-```bash
-.venv/bin/python -m ruff format .
-.venv/bin/python -m ruff check --fix .
-```
-
-After automatic formatting or fixes, rerun the complete non-mutating validation set.
-
-## 15. Practical baseline workflow
-
-Purpose: keep strategy changes reproducible and easy to compare.
-
-Use this controlled sequence for strategy development and calibration:
-
-```text
-export dataset
-→ run baseline
-→ repeat baseline
-→ compare reports
-→ make one controlled change
-→ rerun quality checks
-→ run candidate backtest
-→ compare candidate against baseline
-```
-
-Concrete example:
-
-```bash
-apex export-dataset BTCUSDT \
+apex research export BTCUSDT \
   --timeframes 1m,3m,5m,15m,30m,1h,4h \
   --candles 500 \
-  --output data/btc_usdt_baseline_full.json
+  --output data/btc_usdt_dataset.json
+```
 
-apex chronological-backtest BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json \
+Exports normalized, fully closed candles into deterministic JSON. Existing output files are protected unless `--force` is supplied.
+
+### Run a chronological backtest
+
+```bash
+apex research backtest BTCUSDT \
+  --dataset data/btc_usdt_dataset.json \
   --replay-timeframe 5m \
   --analysis-candles 200 \
   --decision-interval 1 \
   --candidate-cooldown 3 \
   --report-output reports/btc_baseline.json
-
-apex chronological-backtest BTCUSDT \
-  --dataset data/btc_usdt_baseline_full.json \
-  --replay-timeframe 5m \
-  --analysis-candles 200 \
-  --decision-interval 1 \
-  --candidate-cooldown 3 \
-  --report-output reports/btc_baseline_repeat.json
-
-apex compare-backtests \
-  reports/btc_baseline.json \
-  reports/btc_baseline_repeat.json
-
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff check .
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m mypy src
 ```
 
-Do not alter production indicator periods or trading thresholds merely to produce trades. A valid zero-trade baseline remains useful when it is deterministic and failure-free.
+This replays the production pipeline in time order without future leakage and models entries, stops, targets, partial exits, fees, slippage, and expiry.
 
-## 16. Generated paths
-
-Purpose: document where Apex writes local datasets, reports, and runtime state.
-
-### `data/`
-
-The configured runtime data directory stores generated datasets and local subsystem state, including examples such as:
-
-```text
-data/btc_usdt_baseline_full.json
-data/paper_trading/trades.json
-data/optimization/latest-evaluate.json
-data/optimization/latest-compare.json
-```
-
-### `reports/`
-
-The top-level `reports/` directory is suitable for chronological backtest outputs:
-
-```text
-reports/btc_baseline.json
-reports/btc_baseline_repeat.json
-```
-
-The repository `.gitignore` excludes:
-
-```text
-/reports/
-```
-
-These generated reports therefore remain local unless intentionally moved or tracked elsewhere.
-
-## 17. Discovering command help
-
-Use Typer help at any command level to confirm the installed interface:
+Without `--dataset`, Apex can fetch historical candles from the configured provider:
 
 ```bash
-apex --help
-apex analyze --help
-apex scan --help
-apex export-dataset --help
-apex simulate-current-setup --help
-apex chronological-backtest --help
-apex compare-backtests --help
-apex paper --help
-apex execute --help
-apex optimize --help
-apex intelligence --help
+apex research backtest BTCUSDT --history-candles 500 --replay-timeframe 5m
 ```
+
+### Run a campaign
+
+```bash
+apex research campaign BTCUSDT \
+  --dataset data/btc_usdt_dataset.json \
+  --report-output reports/btc_campaign.json
+```
+
+Campaigns run reproducible variants and rank their results. Use `--variants` for controlled experiments.
+
+### Compare two reports
+
+```bash
+apex research compare \
+  reports/btc_baseline.json \
+  reports/btc_baseline_repeat.json
+```
+
+Checks dataset/config identity and reports metric drift.
+
+### Historical edge reports
+
+```bash
+apex research edge-report --help
+apex research edge-validate --help
+```
+
+These summarize performance by split and setup segment, then test stability on untouched data.
+
+## 7. Validation and readiness
+
+```bash
+apex validation forward-edge --help
+apex validation inspect-evidence --help
+apex validation build-evidence --help
+apex validation review --help
+apex validation daily --help
+apex validation history --help
+apex validation funded-readiness --help
+```
+
+Purpose:
+
+- evaluate completed paper trades;
+- build reproducible evidence bundles;
+- compare live paper behavior with historical expectations;
+- review accumulated validation history;
+- report readiness blockers for manual review.
+
+A readiness result is evidence, not execution authorization.
+
+## 8. System and market data
+
+### Version and startup checks
+
+```bash
+apex system version
+apex system check
+```
+
+### Validate resolved configuration
+
+```bash
+apex system config
+apex system config --config-dir path/to/config
+```
+
+### Fetch public candles
+
+```bash
+apex system candles BTCUSDT
+apex system candles BTCUSDT --timeframe 5m --limit 200
+```
+
+### Fetch the latest ticker
+
+```bash
+apex system ticker BTCUSDT
+```
+
+These commands use public market data and never place orders.
+
+## 9. Execution safety tools
+
+The execution group is restricted to guarded local/testnet-oriented simulation and audit tooling.
+
+```bash
+apex execute preview BTCUSDT
+apex execute testnet BTCUSDT --confirm
+apex execute status
+apex execute reconcile --help
+apex execute readiness --help
+apex execute kill-switch enable
+```
+
+Important boundaries:
+
+- no funded-account authorization;
+- no silent fallback from production to testnet;
+- explicit confirmation is required for simulated submission;
+- kill-switch, duplicate protection, audit, and reconciliation remain mandatory.
+
+## 10. Common output and file options
+
+| Option | Purpose |
+| --- | --- |
+| `--output text` | Human-readable terminal output. |
+| `--output json` | Machine-readable JSON output. |
+| `--report PATH` | Write a complete JSON report while retaining terminal output. |
+| `--record PATH` | Append an analysis record to JSONL. |
+| `--record-db PATH` | Store or index records in SQLite. |
+| `--candles N` | Control fetched analysis history where supported. |
+| `--force` | Deliberately replace a protected output file where supported. |
+
+Always run the command's own help to confirm its exact options:
+
+```bash
+apex COMMAND --help
+apex GROUP COMMAND --help
+```
+
+## 11. Advanced compatibility commands
+
+The legacy flat names and internal groups remain callable for scripts and specialist workflows, but they are hidden from normal top-level help.
+
+Examples:
+
+```text
+apex scan                    -> apex futures scan
+apex analyze BTCUSDT         -> apex futures analyze BTCUSDT
+apex simulate-current-setup  -> apex futures simulate
+apex spot-scan-live          -> apex spot scan
+apex chronological-backtest  -> apex research backtest
+apex compare-backtests       -> apex research compare
+apex validate-config         -> apex system config
+apex smoke                   -> apex system check
+```
+
+Advanced hidden groups include `dataset`, `optimize`, and `intelligence`. Use them only when a documented research workflow specifically requires them.
+
+## 12. Troubleshooting
+
+### Command not found
+
+```bash
+source .venv/bin/activate
+python -m pip install -e "[dev]"
+apex --help
+```
+
+If editable installation already exists, reinstall with:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+### Invalid symbol
+
+Use explicit format:
+
+```text
+BTC/USDT
+```
+
+### Configuration error
+
+```bash
+apex system config
+```
+
+Read the reported file and field, correct the YAML, and rerun the command.
+
+### Market-data failure
+
+Check connectivity and provider behavior with:
+
+```bash
+apex system ticker BTCUSDT
+apex system candles BTCUSDT --timeframe 5m --limit 10
+```
+
+### No trade returned
+
+`NO_TRADE`, wait states, invalidation, or rejection are valid analytical results. Use JSON output to inspect detailed reasons:
+
+```bash
+apex futures analyze BTCUSDT --output json
+```
+
+## 13. Development validation
+
+Before claiming a code change is complete:
+
+```bash
+cd ~/data_drive/apex
+git pull --rebase origin main
+source .venv/bin/activate
+
+.venv/bin/ruff format <files>
+.venv/bin/ruff check <files> --fix
+.venv/bin/ruff check <files>
+.venv/bin/mypy src/apex
+.venv/bin/pytest -q
+```
+
+Automatic fixes must be followed by the non-mutating checks. Do not claim Ruff, mypy, or pytest passed without their actual terminal output.
+
+## 14. Recommended operating sequence
+
+For normal futures use:
+
+```text
+system check
+-> futures scan
+-> futures analyze selected symbol
+-> paper record
+-> paper update
+-> paper report
+-> validation review
+```
+
+For research:
+
+```text
+export dataset
+-> run baseline backtest
+-> repeat baseline
+-> compare reports
+-> change one variable group
+-> run candidate backtest
+-> compare candidate with baseline
+-> validate out of sample
+```
+
+Generated datasets, reports, paper state, optimization output, and execution audit files should remain local unless intentionally committed.
