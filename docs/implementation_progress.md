@@ -394,3 +394,32 @@ backtesting, calibration, paper trading, or execution.
 N4.7 establishes the reproducible evidence pipeline only. No historical profitability, funded
 eligibility, production readiness, or live-trading readiness is claimed without completed empirical
 campaign results.
+
+## N4.8 — Forward-paper lifecycle health evidence
+
+### Implemented; validation pending for the current repair batch
+
+- Added deterministic lifecycle-health evaluation of the latest successful scheduled paper-pipeline
+  audit containing lifecycle analytics.
+- Added explicit policy thresholds for sample size, provider failures, missing candles, persistence
+  failures, invalidations, unfilled terminal trades, average realized R, realized net PnL, and
+  required realized-performance evidence.
+- Added `apex paper lifecycle-health` with text and JSON output, optional report persistence,
+  overwrite protection, and explicit `--force-report` behavior.
+- Invalid output selection is rejected before bootstrap, evidence loading, or report persistence.
+- Lifecycle-health artifacts use schema version 2 and bind the report to the exact source run,
+  source JSONL line, selected source-record hash, complete source-log hash, and lifecycle-analytics
+  hash.
+- Artifact identity excludes absolute local paths, allowing identical evidence and policy to produce
+  identical reports across machines.
+- Persisted reports are atomic, self-hashed, reload-verified, and explicitly contain
+  `execution_authorized: false`.
+- Added focused unit coverage for record selection, malformed inputs, policy preservation,
+  deterministic identity, path independence, source-evidence mutation, overwrite protection,
+  tamper detection, CLI registration, JSON export, invalid-output side-effect prevention, and
+  force-overwrite behavior.
+- Added `docs/paper_lifecycle_health.md` and command-reference coverage.
+
+N4.8 records forward-paper operational evidence only. It does not establish historical edge,
+forward expectancy, testnet readiness, funded eligibility, production readiness, or real-money
+safety.
