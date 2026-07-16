@@ -74,11 +74,37 @@ Apex rejects preparation when:
 
 - provider names differ;
 - challenge phases differ;
+- an attached preset SHA-256 differs;
 - daily or total external drawdown limits differ;
 - the account policy permits more daily trades than the provider;
-- the account policy permits weekend trading when the provider forbids it.
+- the account policy permits weekend trading when the provider forbids it;
+- the account policy permits overnight holding when the provider forbids it;
+- the account policy permits news-event trading when the provider forbids it.
 
 Internal risk limits may remain stricter than provider limits.
+
+## Provider-policy binding
+
+`funded-provider-prepare` emits a typed, path-independent `provider_policy_binding` snapshot. It records:
+
+- provider ID and display name;
+- challenge phase;
+- deterministic preset SHA-256;
+- provider verification date;
+- drawdown model;
+- weekend, overnight, and news permissions;
+- compatibility status and stable reasons;
+- `execution_authorized: false`.
+
+Both funded-readiness review paths consume this binding. An otherwise approved account-policy decision cannot become funded-ready when the binding is missing, incompatible, stale, authorizing, or inconsistent with the canonical provider name and verification date.
+
+Stable readiness blockers include:
+
+```text
+PROVIDER_POLICY_BINDING_REQUIRED
+PROVIDER_POLICY_MISMATCH
+PROVIDER_LIMITS_STALE
+```
 
 ## Prepare a funded-readiness input
 
@@ -102,7 +128,7 @@ The command requires a fresh, verified preset. A verification date is rejected w
 - older than `maximum_verification_age_days`;
 - marked unverified.
 
-The prepared input contains canonical `provider_limits` plus a `provider_verification` block with the exact provider ID, phase, source reference, drawdown model, permissions, and preset SHA-256.
+The prepared input contains canonical `provider_limits`, `provider_verification`, and `provider_policy_binding` blocks. The selected provider identity, challenge phase, permissions, verification date, and preset SHA-256 remain attached to the subsequent review decision.
 
 ## Follow-on review
 
@@ -129,9 +155,9 @@ The resulting evidence can then be sealed using the existing funded-readiness ar
 
 ## Safety boundary
 
-Registry validation and readiness-input preparation do not authorize trading.
+Registry validation, provider-policy binding, and readiness-input preparation do not authorize trading.
 
-Every prepared input contains:
+Every prepared input and provider-policy binding contains:
 
 ```json
 {
@@ -139,7 +165,7 @@ Every prepared input contains:
 }
 ```
 
-A valid provider preset or a `ready: true` review does not authorize:
+A valid provider preset, compatible binding, or a `ready: true` review does not authorize:
 
 - autonomous order placement;
 - funded-account execution;
