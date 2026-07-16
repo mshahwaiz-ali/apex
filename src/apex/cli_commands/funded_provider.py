@@ -84,6 +84,8 @@ def register_funded_provider_commands(app: typer.Typer) -> None:
                 template_payload,
                 preset=preset,
                 policy=policy,
+                as_of=selected_date,
+                maximum_age_days=loaded_registry.maximum_verification_age_days,
             )
             write_funded_readiness_input(output, payload, force=force)
         except (FileExistsError, KeyError, OSError, TypeError, ValueError) as exc:
@@ -95,6 +97,7 @@ def register_funded_provider_commands(app: typer.Typer) -> None:
             f"| phase={preset.challenge_phase} "
             f"| verified_on={preset.verified_on.isoformat()} "
             f"| preset_sha256={preset.preset_sha256 or preset.content_sha256} "
+            "| execution_authorized=false "
             f"| output={output}"
         )
 
