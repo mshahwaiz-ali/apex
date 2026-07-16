@@ -346,11 +346,21 @@ def _r_multiple(value: object) -> str:
 
 
 def _first(*sources_and_keys: object) -> object:
-    *sources, keys = sources_and_keys
-    for key in keys if isinstance(keys, tuple) else (keys,):
+    sources: list[Mapping[str, object]] = []
+    keys: list[str] = []
+    reading_keys = False
+
+    for value in sources_and_keys:
+        if not reading_keys and isinstance(value, Mapping):
+            sources.append(value)
+            continue
+        reading_keys = True
+        keys.append(str(value))
+
+    for key in keys:
         for source in sources:
-            if isinstance(source, Mapping) and source.get(str(key)) is not None:
-                return source[str(key)]
+            if source.get(key) is not None:
+                return source[key]
     return None
 
 

@@ -24,6 +24,6 @@ def test_smoke_command_bootstraps_application(
         encoding="utf-8",
     )
     monkeypatch.setenv("APEX_CONFIG_DIR", str(config_dir))
-    result = runner.invoke(app, ["smoke"])
+    result = runner.invoke(app, ["smoke", "--output", "json"])
     assert result.exit_code == 0
     assert '"status": "ok"' in result.stdout

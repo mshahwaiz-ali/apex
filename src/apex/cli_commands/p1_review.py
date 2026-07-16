@@ -1,4 +1,4 @@
-"""Operational CLI for the combined P1 forward-paper review artifact."""
+"""Operational CLI for the combined forward-paper review artifact."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from typing import Any, cast
 import typer
 
 from apex.backtesting import EvidenceQuality, HistoricalEdgeProfile
+from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation.paper_progress import render_operational_review
 from apex.paper_trading import (
     ForwardPaperEdgeProfile,
     ForwardPaperValidationResult,
@@ -30,7 +32,7 @@ class _ValidationStatusOnly:
 
 
 def register_p1_review_command(app: typer.Typer) -> None:
-    """Register the combined operational P1 review command."""
+    """Register the combined operational paper review command."""
 
     @app.command("p1-review")
     def p1_review(
@@ -73,8 +75,13 @@ def register_p1_review_command(app: typer.Typer) -> None:
         minimum_closed_trades: int = typer.Option(100, "--minimum-closed-trades", min=1),
         manual_execution_usable: bool = typer.Option(False, "--manual-execution-usable"),
         force: bool = typer.Option(False, "--force"),
+        format_: str = typer.Option(
+            OutputMode.TEXT.value,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
-        """Build a hash-verified combined P1 review from persisted evidence."""
+        """Build a hash-verified operational review from persisted evidence."""
 
         try:
             historical = load_historical_edge_profile(historical_profile)
@@ -106,6 +113,7 @@ def register_p1_review_command(app: typer.Typer) -> None:
                 manual_execution_usable=manual_execution_usable,
             )
             write_forward_paper_review_report(review, output, force=force)
+            mode = normalize_output_mode(format_)
         except (
             FileExistsError,
             FileNotFoundError,
@@ -116,12 +124,17 @@ def register_p1_review_command(app: typer.Typer) -> None:
         ) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
+        if mode is OutputMode.JSON:
+            typer.echo(json.dumps(review.payload, indent=2, sort_keys=True, default=str))
+            return
+
         typer.echo(
-            "P1_REVIEW_COMPLETED "
-            f"| state={review.payload['review_state']} "
-            f"| production_eligible={str(review.payload['production_eligible']).lower()} "
-            f"| anomalies={len(audit.anomalies)} "
-            f"| output={output}"
+            render_operational_review(
+                review.payload,
+                output_path=output,
+                anomaly_count=len(audit.anomalies),
+                mode=mode,
+            )
         )
 
 

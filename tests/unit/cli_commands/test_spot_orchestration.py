@@ -16,7 +16,14 @@ RUNNER = CliRunner()
 def _invoke(fixture: str, *extra: str):
     return RUNNER.invoke(
         app,
-        ["spot-orchestrate", "--input", str(FIXTURES / fixture), *extra],
+        [
+            "spot-orchestrate",
+            "--input",
+            str(FIXTURES / fixture),
+            "--format",
+            "json",
+            *extra,
+        ],
     )
 
 

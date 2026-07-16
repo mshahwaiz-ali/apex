@@ -5,12 +5,7 @@ from datetime import UTC, datetime
 
 from apex.application.paper_pipeline import PaperPipelineResult
 from apex.backtesting import BacktestSignal
-from apex.cli_commands.paper_pipeline import (
-    _analytics_float_text,
-    _analytics_int,
-    _emit_pipeline,
-    _market_trades,
-)
+from apex.cli_commands.paper_pipeline import _emit_pipeline, _market_trades
 from apex.paper_trading import (
     IntakeMarketType,
     IntakeSummary,
@@ -124,25 +119,21 @@ def test_market_trades_isolates_spot_and_futures_histories() -> None:
     )
 
 
-def test_analytics_scalar_formatting_is_safe_for_partial_payloads() -> None:
-    assert _analytics_int({"count": 3}, "count") == 3
-    assert _analytics_int({"count": True}, "count") == 0
-    assert _analytics_int({}, "count") == 0
-    assert _analytics_float_text({"value": 1.23456}, "value") == "1.2346"
-    assert _analytics_float_text({"value": None}, "value") == "na"
-
-
-def test_text_output_includes_concise_lifecycle_metrics(capsys) -> None:
+def test_text_output_includes_operator_facing_lifecycle_metrics(capsys) -> None:
     _emit_pipeline(_pipeline_result(), "text")
 
     output = capsys.readouterr().out
-    assert "waiting=1" in output
-    assert "entered=1" in output
-    assert "partial_targets=2" in output
-    assert "target_completions=1" in output
-    assert "invalidated=1" in output
-    assert "net_pnl=3.2500" in output
-    assert "average_r=1.6250" in output
+    assert "Paper Trading Pipeline" in output
+    assert "Lifecycle evidence" in output
+    assert "Waiting for entry" in output
+    assert "Entered trades" in output
+    assert "Partial exits" in output
+    assert "Completed targets" in output
+    assert "Invalidated" in output
+    assert "Realized net PnL" in output
+    assert "3.25" in output
+    assert "Average realized R" in output
+    assert "1.62R" in output
 
 
 def test_json_output_preserves_lifecycle_analytics(capsys) -> None:

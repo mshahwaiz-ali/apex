@@ -112,7 +112,7 @@ def test_emit_pipeline_text_surfaces_scanner_counts(monkeypatch: Any, capsys: An
 
     pipeline_cli._emit_pipeline(
         result,  # type: ignore[arg-type]
-        "text",
+        "verbose",
         diagnostics={
             "scan_analysis_count": 4,
             "scanner_failure_count": 2,
@@ -121,8 +121,11 @@ def test_emit_pipeline_text_surfaces_scanner_counts(monkeypatch: Any, capsys: An
     )
 
     output = capsys.readouterr().out
-    assert "scan_analyses=4" in output
-    assert "scanner_failures=2" in output
+    assert "Pipeline diagnostics" in output
+    assert "Scan analyses" in output
+    assert ": 4" in output
+    assert "Scanner failures" in output
+    assert ": 2" in output
 
 
 def test_cycle_paths_are_market_separated(tmp_path: Path) -> None:

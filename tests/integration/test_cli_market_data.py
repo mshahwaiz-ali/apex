@@ -14,6 +14,8 @@ from apex.application import (
 import apex.cli as legacy_cli
 import apex.cli_commands.analysis as analysis_cli
 import apex.cli_commands.backtesting as backtesting_cli
+import apex.cli_commands.paper_trading as paper_trading_cli
+import apex.cli_commands.system as system_cli
 from apex.cli_app import app
 from apex.data.providers.errors import ProviderRequestError
 from apex.execution.contracts import ExecutionIntent
@@ -62,9 +64,9 @@ class FakeServices(AbstractContextManager["FakeServices"]):
 
 
 def test_fetch_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
+    monkeypatch.setattr(system_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
-        legacy_cli,
+        system_cli,
         "create_market_data_services",
         lambda settings: FakeServices(candles=FakeCandleProvider(), ticker=object()),
     )
@@ -76,9 +78,9 @@ def test_fetch_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_ticker_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
+    monkeypatch.setattr(system_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
-        legacy_cli,
+        system_cli,
         "create_market_data_services",
         lambda settings: FakeServices(candles=object(), ticker=FakeTickerProvider()),
     )
@@ -90,9 +92,9 @@ def test_ticker_reports_provider_failure(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_ticker_does_not_mask_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(legacy_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
+    monkeypatch.setattr(system_cli, "bootstrap", lambda: SimpleNamespace(settings=object()))
     monkeypatch.setattr(
-        legacy_cli,
+        system_cli,
         "create_market_data_services",
         lambda settings: FakeServices(candles=object(), ticker=BuggyTickerProvider()),
     )
@@ -127,16 +129,10 @@ def test_analyze_command_emits_text_result(monkeypatch: pytest.MonkeyPatch) -> N
         "serialize_symbol_analysis",
         lambda analysis: {"decision": "NO_TRADE"},
     )
-    monkeypatch.setattr(
-        analysis_cli,
-        "format_symbol_text",
-        lambda analysis: "BTC/USDT: NO_TRADE",
-    )
-
-    result = runner.invoke(app, ["analyze", "BTC/USDT"])
+    result = runner.invoke(app, ["analyze", "BTC/USDT", "--output", "json"])
 
     assert result.exit_code == 0
-    assert "BTC/USDT: NO_TRADE" in result.output
+    assert json.loads(result.output)["decision"] == "NO_TRADE"
 
 
 def test_scan_command_emits_json_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -187,38 +183,13 @@ def test_analysis_and_scan_help_expose_record_option() -> None:
     assert "--record-db" in campaign.output
 
 
-def test_simulate_current_setup_delegates_to_legacy_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, object] = {}
-
-    def fake_simulate_current_setup(**kwargs: object) -> None:
-        captured.update(kwargs)
-
-    monkeypatch.setattr(
-        backtesting_cli,
-        "legacy_simulate_current_setup",
-        fake_simulate_current_setup,
-    )
-
-    result = runner.invoke(
-        app,
-        [
-            "simulate-current-setup",
-            "BTCUSDT",
-            "--candles",
-            "240",
-            "--replay-timeframe",
-            "5m",
-        ],
-    )
+def test_simulate_current_setup_help_exposes_current_options() -> None:
+    result = runner.invoke(app, ["simulate-current-setup", "--help"])
 
     assert result.exit_code == 0
-    assert captured == {
-        "symbol": "BTC/USDT",
-        "output": "text",
-        "candle_limit": 240,
-        "replay_timeframe": "5m",
-    }
-
+    assert "--output" in result.output
+    assert "--candles" in result.output
+    assert "--replay-timeframe" in result.output
 
 def test_chronological_campaign_command_runs_application_layer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     dataset = tmp_path / "dataset.json"
@@ -276,6 +247,8 @@ def test_chronological_campaign_command_runs_application_layer(monkeypatch: pyte
             str(dataset),
             "--variants",
             "base:5m:200:1:3,candidate:5m:120:2:1",
+            "--format",
+            "json",
         ],
     )
 
@@ -354,6 +327,8 @@ def test_chronological_campaign_command_supports_multi_symbol_dataset(
             str(dataset),
             "--variants",
             "base:5m:200:1:3,candidate:5m:120:2:1",
+            "--format",
+            "json",
         ],
     )
 
@@ -365,7 +340,7 @@ def test_chronological_campaign_command_supports_multi_symbol_dataset(
 
 def test_paper_report_command_emits_metrics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        legacy_cli,
+        paper_trading_cli,
         "bootstrap",
         lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
     )
@@ -373,12 +348,13 @@ def test_paper_report_command_emits_metrics(monkeypatch: pytest.MonkeyPatch, tmp
     result = runner.invoke(app, ["paper", "report"])
 
     assert result.exit_code == 0
-    assert "PAPER_REPORT | total=0" in result.output
+    assert "Paper Trading Report" in result.output
+    assert "Total trades" in result.output
 
 
 def test_paper_replay_report_command_writes_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        legacy_cli,
+        paper_trading_cli,
         "bootstrap",
         lambda: SimpleNamespace(settings=SimpleNamespace(data_dir=tmp_path)),
     )
@@ -387,7 +363,8 @@ def test_paper_replay_report_command_writes_report(monkeypatch: pytest.MonkeyPat
     result = runner.invoke(app, ["paper", "replay-report", "--report", str(report)])
 
     assert result.exit_code == 0
-    assert "PAPER_REPLAY_REPORT | replayed=0" in result.output
+    assert "Paper Trading Replay Report" in result.output
+    assert "Total trades" in result.output
     assert report.exists()
 
 

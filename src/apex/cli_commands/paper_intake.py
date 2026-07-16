@@ -35,6 +35,8 @@ from apex.domain import RiskMode
 from apex.domain.spot_market import SpotScannerMode
 from apex.paper_trading.intake import IntakeMarketType, IntakeSummary, intake_summary_payload
 from apex.paper_trading.store import PaperTradeStore
+from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation.paper_progress import render_paper_intake
 
 
 def register_paper_intake_commands(app: typer.Typer) -> None:
@@ -47,7 +49,17 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
         risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
         wallet_balance: float = typer.Option(100.0, "--wallet-balance", min=0.01),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="Legacy output selector: text or json.",
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Scan futures and admit approved actionable plans to the paper store."""
 
@@ -98,7 +110,7 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
             )
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        _emit_summary(summary, output)
+        _emit_summary(summary, output=output, format_=format_)
 
     @app.command("intake-spot")
     def intake_spot(
@@ -129,7 +141,17 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
             case_sensitive=False,
         ),
         candle_limit: int = typer.Option(200, "--candles", min=60, max=1000),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="Legacy output selector: text or json.",
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Scan cash spot and admit approved long-only plans to the paper store."""
 
@@ -163,35 +185,37 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
             )
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
-        _emit_summary(summary, output)
+        _emit_summary(summary, output=output, format_=format_)
 
 
 def _paper_store(data_dir: Path) -> PaperTradeStore:
     return PaperTradeStore(data_dir / "paper_trading" / "trades.json")
 
 
-def _emit_summary(summary: IntakeSummary, output: str) -> None:
-    normalized = output.strip().lower()
+def _emit_summary(
+    summary: IntakeSummary,
+    *,
+    output: str,
+    format_: str | None,
+) -> None:
     payload = intake_summary_payload(summary)
-    if normalized == "json":
+    try:
+        mode = _resolve_presentation_mode(output=output, format_=format_)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--format") from exc
+
+    if mode is OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
         return
-    if normalized != "text":
-        raise typer.BadParameter("output must be text or json")
-    typer.echo(
-        f"PAPER_INTAKE_{summary.market_type.value.upper()} "
-        f"| observed={summary.candidates_observed} "
-        f"| accepted={summary.accepted} "
-        f"| rejected={summary.rejected} "
-        f"| duplicates={summary.duplicates_skipped} "
-        f"| persistence_failures={summary.persistence_failures}"
-    )
-    if summary.reason_counts:
-        typer.echo(
-            "REASONS | "
-            + " | ".join(
-                f"{reason}={count}" for reason, count in summary.reason_counts.items()
-            )
-        )
-    if summary.created_trade_ids:
-        typer.echo("CREATED | " + ",".join(summary.created_trade_ids))
+
+    typer.echo(render_paper_intake(payload, mode=mode))
+
+
+def _resolve_presentation_mode(*, output: str, format_: str | None) -> OutputMode:
+    if format_ is not None:
+        return normalize_output_mode(format_)
+
+    legacy = output.strip().lower()
+    if legacy not in {"text", "json"}:
+        raise ValueError("legacy output must be text or json")
+    return normalize_output_mode(legacy)

@@ -10,6 +10,8 @@ import typer
 from apex.application import bootstrap
 from apex.paper_trading.evidence_progress import build_forward_evidence_progress
 from apex.paper_trading.store import PaperTradeStore
+from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation.paper_progress import render_evidence_progress
 
 
 def register_paper_evidence_progress_command(app: typer.Typer) -> None:
@@ -18,7 +20,17 @@ def register_paper_evidence_progress_command(app: typer.Typer) -> None:
     @app.command("evidence-progress")
     def evidence_progress(
         minimum_closed_trades: int = typer.Option(100, "--minimum-closed-trades", min=1),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="Legacy output selector: text or json.",
+        ),
+        format_: str | None = typer.Option(
+            None,
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         context = bootstrap()
         store = PaperTradeStore(context.settings.data_dir / "paper_trading" / "trades.json")
@@ -26,26 +38,26 @@ def register_paper_evidence_progress_command(app: typer.Typer) -> None:
             store.load(),
             minimum_closed_trades=minimum_closed_trades,
         )
-        normalized = output.strip().lower()
-        if normalized == "json":
-            payload = asdict(progress)
-            payload["all_segments_sufficient"] = progress.all_segments_sufficient
+        payload = asdict(progress)
+        payload["all_segments_sufficient"] = progress.all_segments_sufficient
+
+        try:
+            mode = _resolve_presentation_mode(output=output, format_=format_)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--format") from exc
+
+        if mode is OutputMode.JSON:
             typer.echo(json.dumps(payload, indent=2, sort_keys=True))
             return
-        if normalized != "text":
-            raise typer.BadParameter("output must be text or json")
-        typer.echo(
-            "PAPER_EVIDENCE_PROGRESS "
-            f"| closed={progress.total_closed_trades} "
-            f"| segments={len(progress.segments)} "
-            f"| all_sufficient={str(progress.all_segments_sufficient).lower()}"
-        )
-        for segment in progress.segments:
-            label = ",".join(f"{key}={value}" for key, value in segment.dimensions.items())
-            typer.echo(
-                f"- {label} | closed={segment.closed_trade_count} "
-                f"| remaining={segment.remaining_closed_trades} "
-                f"| expectancy_r={segment.expectancy_r:.4f} "
-                f"| profit_factor={segment.profit_factor} "
-                f"| drawdown_r={segment.maximum_drawdown_r:.4f}"
-            )
+
+        typer.echo(render_evidence_progress(payload, mode=mode))
+
+
+def _resolve_presentation_mode(*, output: str, format_: str | None) -> OutputMode:
+    if format_ is not None:
+        return normalize_output_mode(format_)
+
+    legacy = output.strip().lower()
+    if legacy not in {"text", "json"}:
+        raise ValueError("legacy output must be text or json")
+    return normalize_output_mode(legacy)
