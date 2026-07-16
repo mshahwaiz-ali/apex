@@ -26,6 +26,7 @@ __all__ = [
 
 FUNDED_PLAN_PACKAGE_SCHEMA_VERSION = "1.0"
 _JSON_OBJECT = TypeAdapter(dict[str, Any])
+_ANY_VALUE = TypeAdapter(Any)
 
 
 def _canonical_json(value: object) -> str:
@@ -81,12 +82,11 @@ class FundedPlanEvidencePackage(BaseModel):
 
 
 def _normalized(value: object) -> dict[str, Any]:
-    if isinstance(value, BaseModel):
-        payload = value.model_dump(mode="json")
-    elif hasattr(value, "__dataclass_fields__"):
-        payload = TypeAdapter(type(value)).dump_python(value, mode="json")
-    else:
-        payload = value
+    payload = (
+        value.model_dump(mode="json")
+        if isinstance(value, BaseModel)
+        else _ANY_VALUE.dump_python(value, mode="json")
+    )
     return _JSON_OBJECT.validate_python(payload)
 
 
@@ -218,6 +218,10 @@ def verify_funded_plan_evidence_package(
         if isinstance(package, FundedPlanEvidencePackage)
         else FundedPlanEvidencePackage.model_validate(package)
     )
+    if verified.schema_version != FUNDED_PLAN_PACKAGE_SCHEMA_VERSION:
+        raise ValueError("unsupported funded-plan package schema version")
+    if verified.manifest.schema_version != FUNDED_PLAN_PACKAGE_SCHEMA_VERSION:
+        raise ValueError("unsupported funded-plan manifest schema version")
     if verified.execution_authorized is not False:
         raise ValueError("evidence package must be explicitly non-authorizing")
     binding = ProviderPolicyBinding.model_validate(verified.provider_binding)
