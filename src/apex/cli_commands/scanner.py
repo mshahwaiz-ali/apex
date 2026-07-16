@@ -11,7 +11,6 @@ from apex.application import (
     bootstrap,
     build_analysis_record,
     create_market_data_services,
-    format_scan_text,
     load_default_risk_config,
     load_symbols,
     scan_symbols,
@@ -23,13 +22,20 @@ from apex.application import (
 from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.data.providers.errors import MarketDataProviderError
 from apex.domain import RiskMode
+from apex.presentation import normalize_output_mode
+from apex.presentation.scanner import render_futures_scan
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
     @app.command("scan")
     def scan(
         symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="text, json, verbose, or debug",
+        ),
         report: Path | None = typer.Option(None, "--report"),
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
@@ -40,6 +46,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
         """Analyze and rank the configured futures symbol universe."""
 
         try:
+            output_mode = normalize_output_mode(output)
             symbols = load_symbols(symbols_file)
             context = bootstrap()
             risk_config = load_default_risk_config()
@@ -84,7 +91,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
             if record_db is not None:
                 write_analysis_record_sqlite(record_db, analysis_record)
 
-        if output == "json":
+        if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(format_scan_text(result))
+        typer.echo(render_futures_scan(payload, mode=output_mode))
