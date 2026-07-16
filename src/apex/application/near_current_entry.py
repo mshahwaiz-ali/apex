@@ -7,8 +7,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from apex.application.market_strategy_router import MarketStrategyRoute, PreferredDirection
+from apex.application.market_strategy_router import (
+    MarketStrategyRoute,
+    PreferredDirection,
+    strategy_allowed_for_direction,
+)
 from apex.market_environment import ExtensionState, MarketEnvironment, VolatilityState
+from apex.strategies import StrategyType, TradeDirection
 
 
 class ChaseRisk(StrEnum):
@@ -44,6 +49,9 @@ def evaluate_near_current_entry(
     precision_entry: Mapping[str, Any] | None,
     environment: MarketEnvironment,
     route: MarketStrategyRoute,
+    *,
+    selected_strategy: StrategyType | None = None,
+    selected_direction: TradeDirection | None = None,
 ) -> NearCurrentEntryDecision:
     """Combine precision geometry with market-environment actionability."""
 
@@ -74,7 +82,17 @@ def evaluate_near_current_entry(
     reasons: list[str] = []
     score = base_score
 
-    if not environment.tradeable or route.preferred_direction is PreferredDirection.NONE:
+    route_allows_setup = (
+        selected_strategy is None
+        or selected_direction is None
+        or strategy_allowed_for_direction(route, selected_strategy, selected_direction)
+    )
+    if not route_allows_setup:
+        state = "NO_TRADE"
+        score = 0.0
+        codes.append("SELECTED_SETUP_BLOCKED_BY_ROUTE")
+        reasons.append("Selected strategy or direction conflicts with the fused market route")
+    elif not environment.tradeable or route.preferred_direction is PreferredDirection.NONE:
         state = "NO_TRADE"
         score = 0.0
         codes.append("ENVIRONMENT_BLOCKED_ENTRY")
@@ -85,16 +103,17 @@ def evaluate_near_current_entry(
         reasons.append("Precision quality was blended with environment routing confidence")
 
     chase_risk = _chase_risk(distance_pct, environment)
-    if chase_risk is ChaseRisk.EXTREME and state not in {"INVALIDATED", "MISSED_ENTRY"}:
-        state = "MISSED_ENTRY"
-        score = min(score, 35.0)
-        codes.append("MAXIMUM_CHASE_RISK")
-        reasons.append("Current price is too extended for a controlled near-current entry")
-    elif chase_risk is ChaseRisk.HIGH and state == "READY_NOW":
-        state = "WAIT_FOR_RETEST"
-        score = min(score, 60.0)
-        codes.append("READY_NOW_DOWNGRADED_FOR_CHASE")
-        reasons.append("Entry is geometrically valid but chase risk requires a retest")
+    if state != "NO_TRADE":
+        if chase_risk is ChaseRisk.EXTREME and state not in {"INVALIDATED", "MISSED_ENTRY"}:
+            state = "MISSED_ENTRY"
+            score = min(score, 35.0)
+            codes.append("MAXIMUM_CHASE_RISK")
+            reasons.append("Current price is too extended for a controlled near-current entry")
+        elif chase_risk is ChaseRisk.HIGH and state == "READY_NOW":
+            state = "WAIT_FOR_RETEST"
+            score = min(score, 60.0)
+            codes.append("READY_NOW_DOWNGRADED_FOR_CHASE")
+            reasons.append("Entry is geometrically valid but chase risk requires a retest")
 
     if environment.extension_state in {ExtensionState.OVEREXTENDED, ExtensionState.EXTREME}:
         score -= 15.0
