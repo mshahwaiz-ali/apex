@@ -13,6 +13,7 @@ from apex.domain.entry import (
     EntryClassificationResult,
     classify_entry_state,
 )
+from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.futures import (
     EntryPlan,
     EntryState,
@@ -138,6 +139,7 @@ __all__ = [
     "EntryZone",
     "ExchangeFilterSnapshot",
     "FuturesAccountInput",
+    "FuturesContractMetadata",
     "FuturesDirection",
     "InitialProtectionInstruction",
     "LeverageMode",

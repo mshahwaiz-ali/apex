@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
+from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
@@ -64,6 +65,17 @@ class DerivativesDataProvider(Protocol):
 
     def fetch_open_interest(self, symbol: str) -> OpenInterestSnapshot:
         """Fetch the latest public open-interest snapshot."""
+
+
+class FuturesUniverseProvider(Protocol):
+    """Optional futures exchange-universe contract."""
+
+    @property
+    def name(self) -> str:
+        """Return the provider identifier."""
+
+    def fetch_futures_contracts(self) -> tuple[FuturesContractMetadata, ...]:
+        """Fetch normalized futures exchange-contract metadata."""
 
 
 class MarketMicrostructureProvider(Protocol):
