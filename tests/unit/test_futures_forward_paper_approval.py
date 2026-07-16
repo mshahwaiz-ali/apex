@@ -259,18 +259,6 @@ def test_failed_forward_validation_remains_paper_only() -> None:
     assert result["eligibility"] == "PAPER_ONLY"
 
 
-def test_aggressive_mode_cannot_become_funded_eligible() -> None:
-    historical = _historical()
-    result = build_futures_plan_result(
-        _setup(),
-        _account(RiskMode.AGGRESSIVE),
-        historical_edge_validation=historical,
-        forward_paper_validation=_forward(historical),
-        setup_segment_context=SEGMENT_CONTEXT,
-    )
-
-    assert result["status"] == "APPROVED"
-    assert result["eligibility"] == "PAPER_ONLY"
 
 
 def test_forward_evidence_requires_historical_evidence() -> None:

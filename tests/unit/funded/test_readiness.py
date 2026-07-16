@@ -118,24 +118,6 @@ def test_funded_readiness_requires_provider_policy_binding() -> None:
     assert FundedReadinessReason.PROVIDER_POLICY_BINDING_REQUIRED in report.reasons
 
 
-def test_funded_readiness_rejects_non_standard_mode() -> None:
-    report = evaluate_funded_readiness(
-        provider_limits=_limits(),
-        forward_validation=_validation(),
-        risk_mode=RiskMode.AGGRESSIVE,
-        account_policy_type=AccountPolicyType.FUNDED,
-        account_policy_decision=_policy_decision(),
-        provider_policy_binding=_binding(),
-        daily_lockout_verified=True,
-        total_buffer_verified=True,
-        pre_trade_checklist=_checklist(),
-        post_trade_checklist=_checklist(),
-        kill_switch_state=KillSwitchState.ENABLED,
-        generated_at=datetime(2026, 7, 14, tzinfo=UTC),
-    )
-
-    assert report.ready is False
-    assert FundedReadinessReason.STANDARD_MODE_REQUIRED in report.reasons
 
 
 def test_funded_readiness_requires_verified_provider_and_p1() -> None:

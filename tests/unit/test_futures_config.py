@@ -32,9 +32,12 @@ def test_default_futures_configuration_loads() -> None:
     assert config.execution_costs.total_cost_fraction > 0
 
 
-def test_all_risk_modes_are_required() -> None:
-    with pytest.raises(ValidationError, match="missing risk-mode configuration"):
-        FuturesProductConfig(risk_modes={RiskMode.STANDARD: _defaults()})
+def test_standard_risk_mode_is_required() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="missing risk-mode configuration: STANDARD",
+    ):
+        FuturesProductConfig(risk_modes={})
 
 
 def test_invalid_leverage_order_is_rejected() -> None:

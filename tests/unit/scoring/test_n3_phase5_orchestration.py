@@ -35,11 +35,3 @@ def test_phase5_allows_explicit_research_opt_out() -> None:
     assert result.metadata["strategy_quality_risk_mode"] == ""
 
 
-def test_futures_phase5_supports_explicit_aggressive_mode() -> None:
-    result = analyze_futures_phase5(
-        _empty_phase4(),
-        risk_mode=RiskMode.AGGRESSIVE,
-    )
-
-    assert result.metadata["strategy_quality_gate_enabled"] is True
-    assert result.metadata["strategy_quality_risk_mode"] == RiskMode.AGGRESSIVE.value

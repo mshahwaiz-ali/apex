@@ -16,11 +16,7 @@ from apex.strategies import StrategyType
 
 
 def _thresholds() -> dict[RiskMode, float]:
-    return {
-        RiskMode.STANDARD: 80.0,
-        RiskMode.AGGRESSIVE: 72.0,
-        RiskMode.EXTREME: 64.0,
-    }
+    return {RiskMode.STANDARD: 80.0}
 
 
 def _rule() -> StrategyApprovalRule:
@@ -46,14 +42,6 @@ def test_default_strategy_approval_configuration_loads() -> None:
     )
 
 
-def test_all_risk_mode_thresholds_are_required() -> None:
-    with pytest.raises(ValidationError, match="missing strategy approval risk modes"):
-        StrategyApprovalRule(
-            quality_class=StrategyQualityClass.PREFERRED,
-            minimum_scores={RiskMode.STANDARD: 74.0},
-        )
-
-
 def test_thresholds_must_be_between_zero_and_one_hundred() -> None:
     invalid = _thresholds()
     invalid[RiskMode.STANDARD] = 101.0
@@ -75,22 +63,14 @@ def test_unknown_strategy_is_rejected() -> None:
         "strategies": {
             strategy.value: {
                 "quality_class": "CONTROLLED",
-                "minimum_scores": {
-                    "STANDARD": 80,
-                    "AGGRESSIVE": 72,
-                    "EXTREME": 64,
-                },
+                "minimum_scores": {"STANDARD": 80},
             }
             for strategy in StrategyType
         }
     }
     payload["strategies"]["unknown_strategy"] = {
         "quality_class": "RESTRICTED",
-        "minimum_scores": {
-            "STANDARD": 90,
-            "AGGRESSIVE": 80,
-            "EXTREME": 70,
-        },
+        "minimum_scores": {"STANDARD": 90},
     }
 
     with pytest.raises(ValidationError):
@@ -100,7 +80,7 @@ def test_unknown_strategy_is_rejected() -> None:
 def test_threshold_lookup_is_deterministic() -> None:
     config = load_strategy_approval_config(Path("config/strategy_approval.yaml"))
 
-    first = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.AGGRESSIVE)
-    second = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.AGGRESSIVE)
+    first = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.STANDARD)
+    second = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.STANDARD)
 
-    assert first == second == 71.0
+    assert first == second == 78.0

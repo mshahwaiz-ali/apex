@@ -140,20 +140,6 @@ def test_base_rejection_is_preserved_without_evidence_override() -> None:
     assert result.historical_evidence is not None
 
 
-def test_non_standard_modes_keep_existing_operational_limits() -> None:
-    validation = _validation(
-        HistoricalEdgeValidationStatus.PASSED_VALIDATION,
-        promoted=EvidenceQuality.VALIDATED_OUT_OF_SAMPLE,
-        stable=True,
-    )
-
-    aggressive = _evaluate(validation, risk_mode=RiskMode.AGGRESSIVE)
-    extreme = _evaluate(validation, risk_mode=RiskMode.EXTREME)
-
-    assert aggressive.eligibility is SetupEligibility.PAPER_ONLY
-    assert extreme.eligibility is SetupEligibility.EXPERIMENTAL_ONLY
-    assert aggressive.historical_reasons == ()
-    assert extreme.historical_reasons == ()
 
 
 def test_payload_serializes_attached_evidence_deterministically() -> None:

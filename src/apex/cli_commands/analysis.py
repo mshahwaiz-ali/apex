@@ -44,7 +44,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
         risk_mode: str | None = typer.Option(
             None,
             "--risk-mode",
-            help="STANDARD, AGGRESSIVE, or EXTREME. Defaults to product configuration.",
+            help="STANDARD. Defaults to product configuration.",
         ),
         leverage_mode: str | None = typer.Option(
             None,

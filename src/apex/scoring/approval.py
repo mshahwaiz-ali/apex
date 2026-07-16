@@ -30,8 +30,6 @@ class ApprovalReasonCode(StrEnum):
     ACCOUNT_POLICY_LOCKED = "ACCOUNT_POLICY_LOCKED"
     HISTORICAL_EVIDENCE_INSUFFICIENT = "HISTORICAL_EVIDENCE_INSUFFICIENT"
     FORWARD_PAPER_EVIDENCE_REQUIRED = "FORWARD_PAPER_EVIDENCE_REQUIRED"
-    AGGRESSIVE_MODE_PAPER_ONLY = "AGGRESSIVE_MODE_PAPER_ONLY"
-    EXTREME_MODE_EXPERIMENTAL_ONLY = "EXTREME_MODE_EXPERIMENTAL_ONLY"
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,23 +165,7 @@ def evaluate_strategy_approval(
         )
     )
 
-    if risk_mode is RiskMode.EXTREME:
-        eligibility = SetupEligibility.EXPERIMENTAL_ONLY
-        reasons.append(
-            ApprovalReason(
-                code=ApprovalReasonCode.EXTREME_MODE_EXPERIMENTAL_ONLY,
-                message="EXTREME mode remains restricted to experimental use.",
-            )
-        )
-    elif risk_mode is RiskMode.AGGRESSIVE:
-        eligibility = SetupEligibility.PAPER_ONLY
-        reasons.append(
-            ApprovalReason(
-                code=ApprovalReasonCode.AGGRESSIVE_MODE_PAPER_ONLY,
-                message="AGGRESSIVE mode remains paper-only until validation is complete.",
-            )
-        )
-    elif not historical_evidence_available:
+    if not historical_evidence_available:
         eligibility = SetupEligibility.PAPER_ONLY
         reasons.append(
             ApprovalReason(
@@ -200,7 +182,7 @@ def evaluate_strategy_approval(
             )
         )
 
-    if risk_mode is RiskMode.STANDARD and rule.quality_class is StrategyQualityClass.RESTRICTED:
+    if rule.quality_class is StrategyQualityClass.RESTRICTED:
         reasons.append(
             ApprovalReason(
                 code=ApprovalReasonCode.STANDARD_MODE_STRATEGY_RESTRICTED,

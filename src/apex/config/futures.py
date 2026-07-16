@@ -17,7 +17,7 @@ from apex.domain import LeverageMode, MarginMode, RiskMode
 
 
 class RiskModeDefaults(BaseModel):
-    """Canonical trade-risk defaults for one of the three supported modes."""
+    """Canonical trade-risk defaults for the supported futures mode."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

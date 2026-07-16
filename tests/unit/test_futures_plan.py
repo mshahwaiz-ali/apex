@@ -79,24 +79,24 @@ def _strings(value: object) -> list[str]:
     return cast(list[str], value)
 
 
-def _aggressive_account(
+def _standard_account(
     *,
     wallet_balance: float = 200.0,
     leverage_mode: LeverageMode = LeverageMode.AUTOMATIC,
     manual_leverage: float | None = None,
-    loss_percentage: float = 0.75,
+    loss_percentage: float = 0.25,
 ) -> FuturesAccountInput:
     return FuturesAccountInput(
         wallet_balance=wallet_balance,
         leverage_mode=leverage_mode,
         manual_leverage=manual_leverage,
-        risk_mode=RiskMode.AGGRESSIVE,
+        risk_mode=RiskMode.STANDARD,
         maximum_account_loss_percentage=loss_percentage,
     )
 
 
 def test_build_futures_plan_uses_risk_mode_preference_in_automatic_mode() -> None:
-    plan = build_futures_plan(_setup(), _aggressive_account())
+    plan = build_futures_plan(_setup(), _standard_account())
     risk_mode_config = _mapping(plan["risk_mode_config"])
     entry = _mapping(plan["entry"])
     entry_classification = _mapping(plan["entry_classification"])
@@ -113,27 +113,27 @@ def test_build_futures_plan_uses_risk_mode_preference_in_automatic_mode() -> Non
     stop_management = cast(list[dict[str, object]], management["stop_management"])
 
     assert plan["status"] == "APPROVED"
-    assert plan["risk_mode"] == "AGGRESSIVE"
-    assert risk_mode_config["preferred_leverage"] == 5.0
+    assert plan["risk_mode"] == "STANDARD"
+    assert risk_mode_config["preferred_leverage"] == 2.0
     assert entry["state"] == "READY_NOW"
     assert entry_classification["state"] == "READY_NOW"
     assert entry["classification_reasons"]
     assert precision_entry["entry_state"] == "READY_NOW"
     assert cast(float, precision_score["final_score"]) > 0
-    assert position["leverage"] == 5.0
+    assert position["leverage"] == 2.0
     assert cast(float, position["required_margin"]) > 0
-    assert cast(float, position["wallet_exposure_percentage"]) <= 25.0
+    assert cast(float, position["wallet_exposure_percentage"]) <= 15.0
     assert cast(float, position["estimated_fees"]) > 0
     assert cast(float, position["estimated_slippage"]) > 0
-    assert position["total_maximum_planned_loss"] == pytest.approx(1.5)
+    assert position["total_maximum_planned_loss"] == pytest.approx(0.5)
     assert target_rows[0]["close_percentage"] == 60.0
     assert lifecycle["state"] == "GENERATED"
 
     assert management["current_action"] == "ENTER"
     assert management_entry["action"] == "ENTER_NOW"
     assert management_entry["order_type"] == "MARKET"
-    assert initial_protection["risk_percentage"] == 0.75
-    assert initial_protection["risk_amount"] == pytest.approx(1.5)
+    assert initial_protection["risk_percentage"] == 0.25
+    assert initial_protection["risk_amount"] == pytest.approx(0.5)
     assert management_targets[0]["cumulative_close_percentage"] == 60.0
     assert management_targets[1]["cumulative_close_percentage"] == 100.0
     assert cast(float, management_targets[0]["expected_r_multiple"]) > 0
@@ -142,10 +142,10 @@ def test_build_futures_plan_uses_risk_mode_preference_in_automatic_mode() -> Non
 
 
 def test_build_futures_plan_preserves_safe_manual_leverage() -> None:
-    account = _aggressive_account(
+    account = _standard_account(
         wallet_balance=100.0,
         leverage_mode=LeverageMode.MANUAL,
-        manual_leverage=10.0,
+        manual_leverage=5.0,
     )
 
     plan = build_futures_plan(_setup(), account)
@@ -153,47 +153,47 @@ def test_build_futures_plan_preserves_safe_manual_leverage() -> None:
     management = _mapping(plan["management_plan"])
     initial_protection = _mapping(management["initial_protection"])
 
-    assert position["leverage"] == 10.0
+    assert position["leverage"] == 5.0
     assert cast(float, position["required_margin"]) > 0
-    assert cast(float, position["wallet_exposure_percentage"]) <= 25.0
+    assert cast(float, position["wallet_exposure_percentage"]) <= 15.0
     assert position["leverage_selection_reason"] == (
         "manual leverage preserved after safety validation"
     )
-    assert initial_protection["leverage"] == 10.0
+    assert initial_protection["leverage"] == 5.0
 
 
 def test_manual_leverage_above_profile_maximum_is_rejected() -> None:
-    account = _aggressive_account(
+    account = _standard_account(
         wallet_balance=100.0,
         leverage_mode=LeverageMode.MANUAL,
-        manual_leverage=11.0,
+        manual_leverage=6.0,
     )
 
-    with pytest.raises(FuturesPlanSafetyError, match="exceeds AGGRESSIVE maximum"):
+    with pytest.raises(FuturesPlanSafetyError, match="exceeds STANDARD maximum"):
         build_futures_plan(_setup(), account)
 
 
 def test_account_loss_override_above_mode_limit_is_rejected() -> None:
-    account = _aggressive_account(loss_percentage=1.0)
+    account = _standard_account(loss_percentage=0.5)
 
     result = build_futures_plan_result(_setup(), account)
 
     assert result["status"] == "REJECTED"
-    assert any("AGGRESSIVE mode limit 0.75%" in reason for reason in _strings(result["reasons"]))
+    assert any("STANDARD mode limit 0.25%" in reason for reason in _strings(result["reasons"]))
 
 
 def test_modeled_planned_loss_is_sized_to_account_limit() -> None:
-    result = build_futures_plan_result(_setup(), _aggressive_account())
+    result = build_futures_plan_result(_setup(), _standard_account())
     position = _mapping(result["position"])
 
     assert result["status"] == "APPROVED"
-    assert position["total_maximum_planned_loss"] == pytest.approx(1.5)
+    assert position["total_maximum_planned_loss"] == pytest.approx(0.5)
 
 
 def test_build_futures_plan_classifies_missed_long_entry() -> None:
     plan = build_futures_plan(
         _setup(inside_zone=False, current_price=101.6),
-        _aggressive_account(),
+        _standard_account(),
     )
     entry = _mapping(plan["entry"])
     management = _mapping(plan["management_plan"])
@@ -207,7 +207,7 @@ def test_build_futures_plan_classifies_missed_long_entry() -> None:
 def test_build_futures_plan_classifies_short_retest() -> None:
     plan = build_futures_plan(
         _setup(direction="short", inside_zone=False, current_price=99.5),
-        _aggressive_account(),
+        _standard_account(),
     )
     entry = _mapping(plan["entry"])
     management = _mapping(plan["management_plan"])

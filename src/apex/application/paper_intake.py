@@ -52,7 +52,7 @@ def intake_futures_scan(
                 management_plan=management if isinstance(management, dict) else None,
                 account_policy_snapshot=account_policy,
                 source_command=source_command,
-                source_mode=scan.scanner_mode.value,
+                source_mode="futures",
             )
         )
     return persist_intake_candidates(

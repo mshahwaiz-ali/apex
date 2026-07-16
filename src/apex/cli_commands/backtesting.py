@@ -105,7 +105,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             typer.Option(
                 "--risk-mode",
                 case_sensitive=False,
-                help="Strategy approval mode: STANDARD, AGGRESSIVE, or EXTREME.",
+                help="Strategy approval mode: STANDARD.",
             ),
         ] = RiskMode.STANDARD,
         dataset: Annotated[

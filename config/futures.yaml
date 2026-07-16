@@ -20,21 +20,3 @@ risk_modes:
     maximum_open_risk_percentage: 0.75
     maximum_daily_loss_percentage: 1.0
     maximum_consecutive_losses: 2
-  AGGRESSIVE:
-    account_loss_percentage: 0.75
-    minimum_leverage: 1.0
-    preferred_leverage: 5.0
-    maximum_leverage: 10.0
-    maximum_wallet_exposure_percentage: 25.0
-    maximum_open_risk_percentage: 1.5
-    maximum_daily_loss_percentage: 2.5
-    maximum_consecutive_losses: 3
-  EXTREME:
-    account_loss_percentage: 2.0
-    minimum_leverage: 1.0
-    preferred_leverage: 10.0
-    maximum_leverage: 20.0
-    maximum_wallet_exposure_percentage: 35.0
-    maximum_open_risk_percentage: 3.0
-    maximum_daily_loss_percentage: 5.0
-    maximum_consecutive_losses: 4

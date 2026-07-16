@@ -24,8 +24,6 @@ class LeverageMode(StrEnum):
 
 class RiskMode(StrEnum):
     STANDARD = "STANDARD"
-    AGGRESSIVE = "AGGRESSIVE"
-    EXTREME = "EXTREME"
 
 
 class FuturesDirection(StrEnum):

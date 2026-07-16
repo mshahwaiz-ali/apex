@@ -21,7 +21,7 @@ def test_automatic_leverage_rejects_manual_value() -> None:
             wallet_balance=100,
             leverage_mode=LeverageMode.AUTOMATIC,
             manual_leverage=20,
-            risk_mode=RiskMode.AGGRESSIVE,
+            risk_mode=RiskMode.STANDARD,
             maximum_account_loss_percentage=3,
         )
 
@@ -31,7 +31,7 @@ def test_manual_leverage_requires_value() -> None:
         FuturesAccountInput(
             wallet_balance=100,
             leverage_mode=LeverageMode.MANUAL,
-            risk_mode=RiskMode.AGGRESSIVE,
+            risk_mode=RiskMode.STANDARD,
             maximum_account_loss_percentage=3,
         )
 
@@ -40,7 +40,7 @@ def test_maximum_account_loss_amount() -> None:
     account = FuturesAccountInput(
         wallet_balance=100,
         leverage_mode=LeverageMode.AUTOMATIC,
-        risk_mode=RiskMode.AGGRESSIVE,
+        risk_mode=RiskMode.STANDARD,
         maximum_account_loss_percentage=3,
     )
 

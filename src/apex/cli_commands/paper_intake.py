@@ -45,7 +45,6 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
     @app.command("intake-futures")
     def intake_futures(
         symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
-        mode: str = typer.Option("normal", "--mode", help="normal, gainers, or all"),
         risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
         wallet_balance: float = typer.Option(100.0, "--wallet-balance", min=0.01),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
@@ -85,7 +84,6 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=candle_limit,
                     risk_config=risk_config,
-                    scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                 )
             store = _paper_store(context.settings.data_dir)

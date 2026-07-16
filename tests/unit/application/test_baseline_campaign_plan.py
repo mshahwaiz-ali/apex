@@ -27,7 +27,7 @@ def _plan() -> BaselineCampaignPlan:
         identifier="futures-baseline-v1",
         datasets=(_dataset(),),
         strategies=(StrategyType.TREND_PULLBACK, StrategyType.BREAKOUT_CONTINUATION),
-        risk_modes=(RiskMode.STANDARD, RiskMode.AGGRESSIVE),
+        risk_modes=(RiskMode.STANDARD,),
         variant_ids=("baseline", "fee-stress"),
         fee_pct=0.04,
         slippage_pct=0.02,
@@ -70,25 +70,14 @@ def test_dataset_values_are_deduplicated_without_reordering() -> None:
     assert dataset.market_regimes == ("bullish", "ranging")
 
 
-def test_manifest_requires_exact_risk_mode_coverage() -> None:
-    with pytest.raises(ValueError, match="cover every planned risk mode"):
-        BaselineCampaignManifest(
-            plan=_plan(),
-            campaign_ids_by_risk_mode={RiskMode.STANDARD: "campaign-standard"},
-        )
-
-
 def test_manifest_payload_orders_risk_modes_deterministically() -> None:
     manifest = BaselineCampaignManifest(
         plan=_plan(),
-        campaign_ids_by_risk_mode={
-            RiskMode.STANDARD: "campaign-standard",
-            RiskMode.AGGRESSIVE: "campaign-aggressive",
-        },
+        campaign_ids_by_risk_mode={RiskMode.STANDARD: "campaign-standard"},
     )
 
     payload = manifest.to_payload()
-    assert list(payload["campaign_ids_by_risk_mode"]) == ["AGGRESSIVE", "STANDARD"]
+    assert list(payload["campaign_ids_by_risk_mode"]) == ["STANDARD"]
     assert payload["plan"]["plan_id"] == manifest.plan.plan_id
 
 

@@ -194,14 +194,3 @@ def test_direct_breakout_requires_volume_and_target_space() -> None:
     assert QualityGateReasonCode.DIRECT_BREAKOUT_TARGET_SPACE_INSUFFICIENT in codes
 
 
-def test_extreme_mode_remains_experimental_only() -> None:
-    decision = evaluate_strategy_approval(
-        strategy=StrategyType.MOMENTUM_CONTINUATION,
-        risk_mode=RiskMode.EXTREME,
-        score=75.0,
-        entry_state=EntryState.READY_NOW,
-        config=_config(),
-    )
-
-    assert decision.approved is True
-    assert decision.eligibility is SetupEligibility.EXPERIMENTAL_ONLY

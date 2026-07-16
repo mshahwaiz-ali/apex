@@ -46,7 +46,7 @@ def register_risk_mode_campaign_command(app: typer.Typer) -> None:
             typer.Option(
                 "--risk-mode",
                 case_sensitive=False,
-                help="Strategy approval mode: STANDARD, AGGRESSIVE, or EXTREME.",
+                help="Strategy approval mode: STANDARD.",
             ),
         ] = RiskMode.STANDARD,
         dataset: Annotated[

@@ -26,14 +26,10 @@ DEFAULT_ACCOUNT_POLICIES_PATH = Path("config/account_policies.yaml")
 
 class RiskProfile(StrEnum):
     CONTROLLED = "controlled"
-    AGGRESSIVE = "aggressive"
-    EXTREME = "extreme"
 
     @property
     def risk_mode(self) -> RiskMode:
-        if self is RiskProfile.CONTROLLED:
-            return RiskMode.STANDARD
-        return RiskMode(self.value.upper())
+        return RiskMode.STANDARD
 
 
 def _positive(name: str, value: float) -> None:
@@ -229,11 +225,7 @@ def resolve_risk_config_for_mode(
     policies = load_account_policies_config(account_policies_path)
     policy = policies.policy_for(account_policy_name)
 
-    profile = {
-        RiskMode.STANDARD: RiskProfile.CONTROLLED,
-        RiskMode.AGGRESSIVE: RiskProfile.AGGRESSIVE,
-        RiskMode.EXTREME: RiskProfile.EXTREME,
-    }[selected_mode]
+    profile = RiskProfile.CONTROLLED
 
     # Phase 6 requires per-trade risk not to exceed the open-risk ceiling.
     # Preserve the selected mode's per-trade allowance while still applying

@@ -58,7 +58,6 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
     @app.command("scheduled-futures-pipeline")
     def scheduled_futures_pipeline(
         symbols_file: Path = typer.Option(Path("config/symbols.yaml"), "--symbols-file"),
-        mode: str = typer.Option("normal", "--mode", help="normal, gainers, or all"),
         risk_mode: RiskMode = typer.Option(
             RiskMode.STANDARD,
             "--risk-mode",
@@ -113,7 +112,6 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=analysis_candles + 1,
                     risk_config=risk_config,
-                    scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                 )
                 diagnostics = build_futures_pipeline_diagnostics(scan)
