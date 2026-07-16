@@ -26,8 +26,28 @@ def test_ticker_is_readable_and_includes_spread() -> None:
 
     assert "Market Ticker — BTCUSDT" in rendered
     assert "Spread percentage" in rendered
+    assert "0.20%" in rendered
     assert "24h quote volume" in rendered
     assert '"last_price"' not in rendered
+
+
+def test_ticker_preserves_precision_for_tiny_spread_percentage() -> None:
+    rendered = render_ticker(
+        {
+            "symbol": "BTCUSDT",
+            "last_price": 64_560.01,
+            "bid_price": 64_560.00,
+            "ask_price": 64_560.01,
+            "quote_volume_24h": 1_500_000.0,
+            "captured_at": "2026-07-16T12:00:00+00:00",
+            "source": "binance",
+        }
+    )
+
+    assert "Spread percentage" in rendered
+    assert "0.0000%" not in rendered
+    assert "0.00002%" not in rendered
+    assert "0.0000" in rendered
 
 
 def test_candles_default_to_summary_and_verbose_adds_rows() -> None:
@@ -73,7 +93,6 @@ def test_candles_default_to_summary_and_verbose_adds_rows() -> None:
 def test_config_default_is_summary_and_verbose_shows_resolved_settings() -> None:
     payload = {
         "environment": "development",
-        "provider": "binance",
         "analysis_timeframes": ["5m", "15m", "1h"],
         "data_dir": "data",
         "cache_enabled": True,
@@ -84,6 +103,8 @@ def test_config_default_is_summary_and_verbose_shows_resolved_settings() -> None
 
     assert "Status" in text
     assert "Valid" in text
+    assert "Provider" in text
+    assert "Binance" in text
     assert "5m, 15m, 1h" in text
     assert "Resolved Settings" not in text
     assert "Resolved Settings" in verbose
