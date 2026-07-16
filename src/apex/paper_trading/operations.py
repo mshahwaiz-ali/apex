@@ -17,6 +17,10 @@ from apex.paper_trading.forward_validation import (
     write_forward_paper_daily_report,
 )
 from apex.paper_trading.management import advance_paper_trade
+from apex.paper_trading.portfolio import (
+    PaperPortfolioSnapshot,
+    build_paper_portfolio_snapshot,
+)
 from apex.paper_trading.store import PaperTradeStore
 
 _SUPPORTED_MARKET_TYPES = frozenset({"spot", "futures"})
@@ -36,6 +40,7 @@ class PaperOperationCycleResult:
     missing_candle_trade_ids: tuple[str, ...]
     trade_ids: tuple[str, ...]
     daily_report: ForwardPaperDailyReport | None = None
+    portfolio: PaperPortfolioSnapshot | None = None
 
     def __post_init__(self) -> None:
         if self.market_type not in _SUPPORTED_MARKET_TYPES:
@@ -69,6 +74,9 @@ def run_paper_operation_cycle(
     daily_report_date: date | None = None,
     daily_report_path: Path | None = None,
     force_report: bool = False,
+    initial_wallet_balance: float | None = None,
+    maximum_wallet_exposure_pct: float = 100.0,
+    maximum_open_risk_pct: float = 100.0,
 ) -> PaperOperationCycleResult:
     """Advance one deterministic cycle and optionally persist its daily report.
 
@@ -137,6 +145,16 @@ def run_paper_operation_cycle(
                 force=force_report,
             )
 
+    portfolio = (
+        None
+        if initial_wallet_balance is None
+        else build_paper_portfolio_snapshot(
+            ordered,
+            initial_wallet_balance=initial_wallet_balance,
+            maximum_wallet_exposure_pct=maximum_wallet_exposure_pct,
+            maximum_open_risk_pct=maximum_open_risk_pct,
+        )
+    )
     return PaperOperationCycleResult(
         market_type=normalized_market,
         started_at=started_at.astimezone(timezone.utc),
@@ -148,6 +166,7 @@ def run_paper_operation_cycle(
         missing_candle_trade_ids=tuple(sorted(missing)),
         trade_ids=tuple(sorted(eligible_ids)),
         daily_report=daily_report,
+        portfolio=portfolio,
     )
 
 
