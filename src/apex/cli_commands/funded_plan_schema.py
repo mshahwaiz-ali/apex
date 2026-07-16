@@ -9,7 +9,12 @@ import typer
 from pydantic import TypeAdapter
 
 from apex.domain import AccountPolicy, AccountPolicyState, FuturesAccountInput
-from apex.funded import FundedPlanEligibility, ProviderPolicyBinding
+from apex.funded import (
+    FundedPlanEligibility,
+    FundedPlanEvidenceManifest,
+    FundedPlanEvidencePackage,
+    ProviderPolicyBinding,
+)
 from apex.risk import RiskApprovedSetup
 
 __all__ = ["build_funded_plan_schema_bundle", "register_funded_plan_schema_commands"]
@@ -18,7 +23,7 @@ FUNDED_PLAN_SCHEMA_VERSION = "1.0"
 
 
 def build_funded_plan_schema_bundle() -> dict[str, object]:
-    """Return canonical JSON schemas for every funded-plan input contract."""
+    """Return canonical JSON schemas for funded-plan inputs and evidence packages."""
 
     return {
         "schema_version": FUNDED_PLAN_SCHEMA_VERSION,
@@ -30,6 +35,12 @@ def build_funded_plan_schema_bundle() -> dict[str, object]:
             "state": TypeAdapter(AccountPolicyState).json_schema(),
             "provider_binding": TypeAdapter(ProviderPolicyBinding).json_schema(),
             "funded_eligibility": TypeAdapter(FundedPlanEligibility).json_schema(),
+            "funded_plan_evidence_manifest": TypeAdapter(
+                FundedPlanEvidenceManifest
+            ).json_schema(),
+            "funded_plan_evidence_package": TypeAdapter(
+                FundedPlanEvidencePackage
+            ).json_schema(),
         },
     }
 
@@ -47,7 +58,7 @@ def register_funded_plan_schema_commands(app: typer.Typer) -> None:
         ),
         force: bool = typer.Option(False, "--force", help="Replace an existing output file."),
     ) -> None:
-        """Write canonical funded-plan input schemas to one JSON file."""
+        """Write canonical funded-plan schemas to one JSON file."""
 
         if output_path.exists() and not force:
             raise typer.BadParameter(f"output already exists: {output_path}")
