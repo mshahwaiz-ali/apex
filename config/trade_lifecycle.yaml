@@ -1,0 +1,11 @@
+trade_lifecycle:
+  maximum_pending_bars: 15
+  maximum_open_bars: 60
+  trailing_distance_rate: 0.005
+  fee_rate: 0.0004
+  slippage_rate: 0.0002
+  conservative_intrabar_ordering: true
+  move_stop_to_cost_adjusted_breakeven_after_first_target: true
+  activate_runner_on_penultimate_allocation: true
+  exit_on_fast_failure: true
+  exit_on_momentum_failure: true
