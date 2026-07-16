@@ -170,6 +170,7 @@ def serialize_symbol_analysis(analysis: _analysis.SymbolAnalysis) -> dict[str, A
     payload["near_current_entry"] = (
         near_current_entry_payload(near_entry) if isinstance(near_entry, NearCurrentEntryDecision) else None
     )
+    payload["decision_reason_code"] = _decision_reason_code(analysis, near_entry)
     return payload
 
 
@@ -203,29 +204,48 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
 
 
 def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
-    """Format analysis with route and near-current entry actionability."""
+    """Format analysis with explicit scanner, pipeline, and actionability stages."""
 
     base_text = _integrated.format_symbol_text(analysis)
     route = getattr(analysis, "market_strategy_route", None)
     near_entry = getattr(analysis, "near_current_entry", None)
-    lines = [base_text]
+    scanner = _scanner_label(analysis.scanner_type)
+    decision = "NO_TRADE" if analysis.assessment.setup is None else analysis.assessment.setup.direction.value.upper()
+    lines = [f"{analysis.symbol} | {scanner} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
         lines.extend(
             (
+                f"Environment tradeable: {'yes' if analysis.market_environment and analysis.market_environment.tradeable else 'no'}",
+                f"Strategy routed: {strategies}",
                 f"Preferred direction: {route.preferred_direction.value}",
-                f"Strategy priority: {strategies}",
                 f"Routing score: {route.routing_score:.1f}",
             )
         )
+    phase5 = analysis.phase5_diagnostics or {}
+    lines.extend(
+        (
+            f"Raw candidates: {analysis.candidate_count}",
+            f"Phase 5 accepted selection: {'yes' if phase5.get('selected') else 'no'}",
+            f"Decision reason: {_decision_reason_code(analysis, near_entry)}",
+        )
+    )
     if isinstance(near_entry, NearCurrentEntryDecision):
+        quality = (
+            f"{near_entry.entry_quality_score:.1f}"
+            if near_entry.entry_quality_score is not None
+            else "unavailable"
+        )
+        chase = near_entry.chase_risk.value if near_entry.chase_risk is not None else "unavailable"
         lines.extend(
             (
-                f"Near-current state: {near_entry.entry_state}",
-                f"Entry quality / chase: {near_entry.entry_quality_score:.1f} / {near_entry.chase_risk.value}",
+                f"Entry state: {near_entry.entry_state}",
+                f"Entry quality / chase: {quality} / {chase}",
                 f"Actionable now: {'yes' if near_entry.actionable_now else 'no'}",
             )
         )
+        if near_entry.reasons:
+            lines.append(f"Current condition: {near_entry.reasons[0]}")
     return "\n".join(lines)
 
 
@@ -238,6 +258,38 @@ def format_scan_text(result: ScanResult) -> str:
     return "\n".join(lines)
 
 
+def _decision_reason_code(
+    analysis: _analysis.SymbolAnalysis,
+    near_entry: NearCurrentEntryDecision | None,
+) -> str:
+    environment = getattr(analysis, "market_environment", None)
+    route = getattr(analysis, "market_strategy_route", None)
+    phase5 = analysis.phase5_diagnostics or {}
+    if environment is not None and not environment.tradeable:
+        return "ENVIRONMENT_BLOCKED"
+    if route is not None and not route.strategy_priority:
+        return "NO_ROUTED_STRATEGY"
+    if analysis.candidate_count == 0:
+        return "NO_CANDIDATE_GENERATED"
+    if not phase5.get("selected"):
+        return "CANDIDATE_REJECTED"
+    if near_entry is not None and near_entry.entry_state in {
+        "WAIT_FOR_RECLAIM",
+        "WAIT_FOR_RETEST",
+        "APPROACHING_ENTRY",
+        "MISSED_ENTRY",
+        "INVALIDATED",
+    }:
+        return near_entry.entry_state
+    return "NO_TRADE" if analysis.assessment.setup is None else near_entry.entry_state if near_entry else "NO_TRADE"
+
+
+def _scanner_label(scanner_type: MarketCategory) -> str:
+    if scanner_type is MarketCategory.NORMAL_MARKET:
+        return "NORMAL"
+    return "GAINER"
+
+
 def _scanner_categories(mode: ScannerMode) -> tuple[MarketCategory, ...]:
     if mode is ScannerMode.NORMAL:
         return (MarketCategory.NORMAL_MARKET,)
@@ -246,9 +298,10 @@ def _scanner_categories(mode: ScannerMode) -> tuple[MarketCategory, ...]:
     return (MarketCategory.NORMAL_MARKET, MarketCategory.GAINER)
 
 
-def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str]:
+def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str, str]:
     setup = analysis.assessment.setup
+    scanner = analysis.scanner_type.value
     if setup is None:
-        return (1, 0.0, 0.0, analysis.symbol)
+        return (1, 0.0, 0.0, analysis.symbol, scanner)
     max_risk_reward = max(target.risk_reward for target in setup.take_profits)
-    return (0, -setup.confidence_score, -max_risk_reward, analysis.symbol)
+    return (0, -setup.confidence_score, -max_risk_reward, analysis.symbol, scanner)
