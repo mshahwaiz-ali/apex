@@ -56,8 +56,15 @@ def _state(**overrides: object) -> AccountPolicyState:
 def test_default_policy_configuration_loads() -> None:
     config = load_account_policies_config(Path("config/account_policies.yaml"))
 
-    assert config.policy_for().type is AccountPolicyType.PAPER
-    assert config.policy_for("FUNDED_GENERIC").type is AccountPolicyType.FUNDED
+    paper = config.policy_for()
+    funded = config.policy_for("FUNDED_GENERIC")
+    assert paper.type is AccountPolicyType.PAPER
+    assert paper.news_trading_allowed is True
+    assert paper.overnight_holding_allowed is True
+    assert funded.type is AccountPolicyType.FUNDED
+    assert funded.weekend_trading_allowed is False
+    assert funded.news_trading_allowed is True
+    assert funded.overnight_holding_allowed is True
 
 
 def test_invalid_internal_daily_stop_is_rejected() -> None:
