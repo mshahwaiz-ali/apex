@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 
-from apex.application.analysis import SymbolAnalysis, analyze_symbol
+from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
 from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
