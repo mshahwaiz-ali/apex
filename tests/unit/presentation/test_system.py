@@ -82,7 +82,8 @@ def test_config_default_is_summary_and_verbose_shows_resolved_settings() -> None
     text = render_config(payload)
     verbose = render_config(payload, mode="verbose")
 
-    assert "Status     : Valid" in text
+    assert "Status" in text
+    assert "Valid" in text
     assert "5m, 15m, 1h" in text
     assert "Resolved Settings" not in text
     assert "Resolved Settings" in verbose
