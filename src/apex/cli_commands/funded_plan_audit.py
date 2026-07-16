@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
+from pydantic import BaseModel
 
 from apex.funded import (
     build_funded_plan_audit_summary,
@@ -19,13 +20,14 @@ from apex.funded import (
 __all__ = ["register_funded_plan_audit_commands"]
 
 
-def _write_json(payload: object, path: Path, *, force: bool) -> None:
+def _write_json(payload: BaseModel, path: Path, *, force: bool) -> None:
     if path.exists() and not force:
         raise FileExistsError(f"output already exists: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    if hasattr(payload, "model_dump"):
-        payload = payload.model_dump(mode="json")
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def register_funded_plan_audit_commands(app: typer.Typer) -> None:
