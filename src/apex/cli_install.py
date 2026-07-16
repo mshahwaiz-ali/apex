@@ -17,6 +17,12 @@ from apex.cli_commands.forward_edge_artifact_verify import (
     register_forward_edge_artifact_verify_commands,
 )
 from apex.cli_commands.funded_history import register_funded_history_commands
+from apex.cli_commands.funded_history_readiness_artifact import (
+    register_funded_history_readiness_artifact_commands,
+)
+from apex.cli_commands.funded_history_readiness_artifact_verify import (
+    register_funded_history_readiness_artifact_verify_commands,
+)
 from apex.cli_commands.funded_readiness_artifact import (
     register_funded_readiness_artifact_commands,
 )
@@ -84,6 +90,8 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_readiness_commands(app)
     register_funded_readiness_artifact_commands(app)
     register_funded_readiness_artifact_verify_commands(app)
+    register_funded_history_readiness_artifact_commands(app)
+    register_funded_history_readiness_artifact_verify_commands(app)
     register_validation_evidence_commands(app)
     register_validation_pipeline_commands(app)
     register_daily_validation_commands(app)
