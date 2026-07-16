@@ -2,9 +2,9 @@
 
 This directory is organized by subsystem. Document names describe their purpose rather than internal milestone codes.
 
-## Core planning and status
+## Core context and status
 
-- [Project plan](project_plan/README.md)
+- [Background information](background_information/README.md)
 - [Implementation progress](progress/implementation_progress.md)
 - [Spot workflow progress](progress/spot_workflow_progress.md)
 
@@ -26,4 +26,5 @@ This directory is organized by subsystem. Document names describe their purpose 
 - Use lowercase `snake_case` filenames.
 - Use descriptive subjects instead of milestone prefixes such as `S1`, `N4`, or `P1`.
 - Keep operational instructions separate from architecture and implementation-status documents.
+- Keep durable context under `background_information/`.
 - Preserve obsolete or superseded material under `archive/` rather than mixing it with active documentation.
