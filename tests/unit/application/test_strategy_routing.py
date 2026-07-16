@@ -1,14 +1,10 @@
-"""Tests for deterministic scanner/regime/gainer strategy routing."""
+"""Tests for canonical deterministic strategy routing."""
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import cast
 
-from apex.application.strategy_routing import (
-    apply_strategy_routing,
-    build_strategy_routing_payload,
-)
-from apex.domain import GainerState, GainerStateResult, MarketCategory
+from apex.application.strategy_routing import apply_strategy_routing, build_strategy_routing_payload
 from apex.risk import RiskAssessment, RiskDecision, RiskRejectionCode
 from apex.strategies import Phase4AnalysisResult, StrategyType
 from apex.structure.regime import MarketRegime
@@ -40,79 +36,33 @@ def _assessment() -> RiskAssessment:
     )
 
 
-def test_strategy_routing_filters_candidates_by_scanner_route() -> None:
+def test_strategy_routing_filters_by_canonical_enabled_list() -> None:
+    routed = apply_strategy_routing(_phase4(), routing_config={"enabled": ["trend_pullback"]})
+    assert routed.eligible_strategies == (StrategyType.TREND_PULLBACK,)
+    assert routed.skipped_strategies is not None
+    assert "disabled by configured strategy routing" in routed.skipped_strategies[StrategyType.BREAKOUT_CONTINUATION]
+
+
+def test_strategy_routing_temporarily_ignores_legacy_category_arguments() -> None:
     routed = apply_strategy_routing(
         _phase4(),
-        scanner_type=MarketCategory.GAINER,
-        gainer_result=GainerStateResult(
-            state=GainerState.ACCELERATION,
-            evidence=("rapid gainer",),
-        ),
-        routing_config={
-            "normal_market": ["trend_pullback"],
-            "gainer": ["momentum_gainer_continuation"],
-        },
+        scanner_type="GAINER",
+        gainer_result={"state": "DISTRIBUTION"},
+        routing_config={"enabled": ["momentum_gainer_continuation"]},
     )
-
     assert routed.eligible_strategies == (StrategyType.MOMENTUM_GAINER_CONTINUATION,)
-    assert routed.skipped_strategies is not None
-    assert (
-        "disabled by configured gainer scanner route"
-        in routed.skipped_strategies[StrategyType.TREND_PULLBACK]
-    )
 
 
-def test_strategy_routing_rejects_unfavorable_gainer_state() -> None:
-    routed = apply_strategy_routing(
-        _phase4(),
-        scanner_type=MarketCategory.GAINER,
-        gainer_result=GainerStateResult(
-            state=GainerState.DISTRIBUTION,
-            evidence=("weak close",),
-        ),
-        routing_config={
-            "normal_market": ["trend_pullback"],
-            "gainer": ["momentum_gainer_continuation"],
-        },
-    )
-
-    assert routed.eligible_strategies is not None
-    assert StrategyType.MOMENTUM_GAINER_CONTINUATION not in routed.eligible_strategies
-    assert routed.skipped_strategies is not None
-    assert (
-        "requires fresh, accelerating, or controlled gainer state"
-        in routed.skipped_strategies[StrategyType.MOMENTUM_GAINER_CONTINUATION]
-    )
-
-
-def test_strategy_routing_payload_explains_regime_and_route_rejections() -> None:
-    routed = apply_strategy_routing(
-        _phase4(),
-        scanner_type=MarketCategory.NORMAL_MARKET,
-        gainer_result=None,
-        routing_config={
-            "normal_market": ["trend_pullback"],
-            "gainer": ["momentum_gainer_continuation"],
-        },
-    )
+def test_strategy_routing_payload_explains_regime_and_rejections() -> None:
+    routed = apply_strategy_routing(_phase4(), routing_config={"enabled": ["trend_pullback"]})
     payload = build_strategy_routing_payload(
-        scanner_type=MarketCategory.NORMAL_MARKET,
         assessment=_assessment(),
-        gainer_result=None,
         phase4=routed,
-        routing_config={
-            "normal_market": ["trend_pullback"],
-            "gainer": ["momentum_gainer_continuation"],
-        },
+        routing_config={"enabled": ["trend_pullback"]},
     )
-
     assert payload["decision_regime"] == "breakout_expansion"
     assert payload["routed_eligible_strategies"] == ["trend_pullback"]
-
-    skipped_strategies = cast(
-        Mapping[str, str],
-        payload["skipped_strategies"],
-    )
-    assert skipped_strategies["breakout_continuation"].startswith(
-        "breakout_continuation is disabled"
-    )
+    assert "scanner_type" not in payload
+    assert "route_key" not in payload
+    skipped_strategies = cast(Mapping[str, str], payload["skipped_strategies"])
+    assert skipped_strategies["breakout_continuation"].startswith("breakout_continuation is disabled")

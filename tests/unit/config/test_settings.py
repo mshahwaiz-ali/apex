@@ -8,7 +8,6 @@ from apex.config import (
     DEFAULT_TIMEFRAME_ROLES,
     FileSettings,
 )
-from apex.domain import GainerStateThresholds
 
 
 def test_default_timeframe_roles_include_higher_context() -> None:
@@ -20,7 +19,7 @@ def test_default_timeframe_roles_include_higher_context() -> None:
     assert settings.timeframe_roles == DEFAULT_TIMEFRAME_ROLES
     assert settings.timeframe_resampling_sources == DEFAULT_TIMEFRAME_RESAMPLING_SOURCES
     assert settings.strategy_routing == DEFAULT_STRATEGY_ROUTING
-    assert settings.gainer_state_thresholds == GainerStateThresholds()
+    assert set(settings.strategy_routing) == {"enabled"}
 
 
 def test_settings_reject_missing_enabled_timeframe_role() -> None:
@@ -89,7 +88,7 @@ def test_settings_reject_unknown_strategy_route() -> None:
 
 def test_settings_reject_invalid_strategy_route_member() -> None:
     routing = deepcopy(DEFAULT_STRATEGY_ROUTING)
-    routing["gainer"] = ["not_a_strategy"]
+    routing["enabled"] = ["not_a_strategy"]
 
     with pytest.raises(ValueError, match="unsupported strategy"):
         FileSettings(strategy_routing=routing)
@@ -97,14 +96,7 @@ def test_settings_reject_invalid_strategy_route_member() -> None:
 
 def test_settings_reject_duplicate_strategy_route_member() -> None:
     routing = deepcopy(DEFAULT_STRATEGY_ROUTING)
-    routing["normal_market"] = ["trend_pullback", "trend_pullback"]
+    routing["enabled"] = ["trend_pullback", "trend_pullback"]
 
     with pytest.raises(ValueError, match="cannot contain duplicates"):
         FileSettings(strategy_routing=routing)
-
-
-def test_settings_reject_invalid_gainer_threshold() -> None:
-    with pytest.raises(ValueError, match="greater than or equal"):
-        FileSettings.model_validate(
-            {"gainer_state_thresholds": {"fresh_total_return_pct": -1}}
-        )

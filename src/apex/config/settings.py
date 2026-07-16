@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from apex.data.timeframes import timeframe_delta
-from apex.domain import GainerStateThresholds
 from apex.strategies import StrategyType
 
 _VALID_TIMEFRAME_ROLES = {
@@ -80,17 +79,12 @@ DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS: dict[str, int] = {
 }
 
 DEFAULT_STRATEGY_ROUTING: dict[str, list[str]] = {
-    "normal_market": [
+    "enabled": [
         StrategyType.TREND_PULLBACK.value,
         StrategyType.BREAKOUT_CONTINUATION.value,
         StrategyType.LIQUIDITY_REVERSAL.value,
         StrategyType.RANGE_REVERSAL.value,
         StrategyType.MOMENTUM_CONTINUATION.value,
-    ],
-    "gainer": [
-        StrategyType.MOMENTUM_GAINER_CONTINUATION.value,
-        StrategyType.MOMENTUM_CONTINUATION.value,
-        StrategyType.BREAKOUT_CONTINUATION.value,
     ],
 }
 
@@ -119,7 +113,6 @@ class FileSettings(BaseModel):
     intelligence_funding_enabled: bool = False
     intelligence_open_interest_enabled: bool = False
     intelligence_correlation_enabled: bool = False
-    gainer_state_thresholds: GainerStateThresholds = Field(default_factory=GainerStateThresholds)
     strategy_routing: dict[str, list[str]] = Field(
         default_factory=lambda: {
             key: list(values) for key, values in DEFAULT_STRATEGY_ROUTING.items()
