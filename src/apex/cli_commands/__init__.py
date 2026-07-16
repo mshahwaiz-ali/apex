@@ -39,6 +39,7 @@ from apex.cli_commands.spot_orchestration import register_spot_orchestration_com
 from apex.cli_commands.spot_planning import register_spot_planning_commands
 from apex.cli_commands.system import register_system_commands
 from apex.cli_commands.validation_evidence import register_validation_evidence_commands
+from apex.cli_commands.validation_overlay import install_validation_output_overlay
 from apex.cli_commands.validation_pipeline import register_validation_pipeline_commands
 from apex.cli_overlay import remove_commands
 
@@ -75,6 +76,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_daily_validation_commands(app)
     register_history_review_commands(app)
     register_funded_history_commands(app)
+    install_validation_output_overlay(app)
     register_paper_trading_commands(paper_app)
     register_paper_cycle_command(paper_app)
     register_paper_scheduler_commands(paper_app)
