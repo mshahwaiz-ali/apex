@@ -23,6 +23,7 @@ from apex.cli_commands.funded_history_readiness_artifact import (
 from apex.cli_commands.funded_history_readiness_artifact_verify import (
     register_funded_history_readiness_artifact_verify_commands,
 )
+from apex.cli_commands.funded_provider import register_funded_provider_commands
 from apex.cli_commands.funded_readiness_artifact import (
     register_funded_readiness_artifact_commands,
 )
@@ -88,6 +89,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     remove_commands(app, {"chronological-backtest-campaign"})
     register_risk_mode_campaign_command(app)
     register_readiness_commands(app)
+    register_funded_provider_commands(app)
     register_funded_readiness_artifact_commands(app)
     register_funded_readiness_artifact_verify_commands(app)
     register_funded_history_readiness_artifact_commands(app)
