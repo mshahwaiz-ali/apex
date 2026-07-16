@@ -25,12 +25,9 @@ from apex.data.providers.base import MarketDataProvider
 from apex.domain import (
     EntryClassificationInput,
     FuturesDirection,
-    GainerStateInput,
-    GainerStateResult,
     GainerStateThresholds,
     MarketCategory,
     classify_entry_state,
-    classify_gainer_state,
 )
 from apex.domain.models import (
     Candle,
@@ -141,16 +138,12 @@ def analyze_symbol(
         candle_limit=candle_limit,
         received_at=decision_time,
     )
-    gainer_result = (
-        _classify_gainer_context(context, thresholds=gainer_state_thresholds)
-        if scanner_type is MarketCategory.GAINER
-        else None
-    )
+    # Legacy arguments remain accepted temporarily for compatibility with
+    # preserved paper and backtest callers. They no longer alter live analysis.
+    del scanner_type, gainer_state_thresholds
     phase4 = analyze_phase4(context, decision_time=decision_time)
     routed_phase4 = apply_strategy_routing(
         phase4,
-        scanner_type=scanner_type,
-        gainer_result=gainer_result,
         routing_config=strategy_routing,
     )
     phase5 = analyze_futures_phase5(routed_phase4)
@@ -182,18 +175,11 @@ def analyze_symbol(
         data_quality_by_timeframe={
             frame.timeframe: _frame_data_quality_payload(frame) for frame in context.frames
         },
-        scanner_type=scanner_type,
-        gainer_state=gainer_result.state.value if gainer_result is not None else None,
-        gainer_evidence=(
-            {
-                "evidence": list(gainer_result.evidence),
-                "missing_optional_data": list(gainer_result.missing_optional_data),
-            }
-            if gainer_result is not None
-            else None
-        ),
+        scanner_type=MarketCategory.NORMAL_MARKET,
+        gainer_state=None,
+        gainer_evidence=None,
         strategy_routing=_strategy_routing_payload(
-            scanner_type, assessment, gainer_result, routed_phase4, strategy_routing
+            assessment, routed_phase4, strategy_routing
         ),
         precision_entry=precision_entry,
         phase5_diagnostics={
@@ -474,9 +460,8 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload.update(
         {
             "generated_at": analysis.generated_at.isoformat(),
-            "scanner_type": analysis.scanner_type.value,
-            "gainer_state": analysis.gainer_state,
-            "gainer_evidence": dict(analysis.gainer_evidence or {}),
+            # Scanner-category fields are intentionally omitted from new
+            # payloads. Historical readers retain their compatibility handling.
             "strategy_routing": dict(analysis.strategy_routing or {}),
             "phase5_diagnostics": dict(analysis.phase5_diagnostics or {}),
             "candidate_count": analysis.candidate_count,
@@ -791,41 +776,14 @@ def _frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
     }
 
 
-def _classify_gainer_context(
-    context: StrategyContext,
-    *,
-    thresholds: GainerStateThresholds | None,
-) -> GainerStateResult:
-    frame = context.frames[-1]
-    ema_extension_pct = None
-    ema_fast = frame.features.ema_fast
-    if ema_fast is not None and ema_fast != 0:
-        ema_extension_pct = (frame.current_price - ema_fast) / ema_fast * 100
-    return classify_gainer_state(
-        GainerStateInput(
-            return_24h_pct=None,
-            recent_return_pct=frame.features.rate_of_change,
-            relative_volume=frame.features.relative_volume,
-            range_expansion=frame.features.volatility_expansion,
-            close_location=frame.features.range_position,
-            ema_extension_pct=ema_extension_pct,
-        ),
-        thresholds=thresholds,
-    )
-
-
 def _strategy_routing_payload(
-    scanner_type: MarketCategory,
     assessment: RiskAssessment,
-    gainer_result: GainerStateResult | None,
     phase4: Any,
     routing_config: Mapping[str, Sequence[str]] | None,
 ) -> dict[str, Any]:
     return dict(
         build_strategy_routing_payload(
-            scanner_type=scanner_type,
             assessment=assessment,
-            gainer_result=gainer_result,
             phase4=phase4,
             routing_config=routing_config,
         )

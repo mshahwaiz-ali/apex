@@ -183,10 +183,7 @@ def test_scan_analyzes_each_symbol_once_with_default_route() -> None:
         timeframes=("5m",),
         candle_limit=200,
         generated_at=NOW,
-        strategy_routing={
-            "normal_market": ["trend_pullback"],
-            "gainer": ["range_reversal"],
-        },
+        strategy_routing={"enabled": ["trend_pullback"]},
     )
 
     payload = serialize_scan_result(result)
@@ -195,12 +192,11 @@ def test_scan_analyzes_each_symbol_once_with_default_route() -> None:
     assert len(payload["results"]) == 1
 
     analysis = payload["results"][0]
-    assert analysis["scanner_type"] == "NORMAL_MARKET"
-    assert analysis["gainer_state"] is None
-    assert analysis["strategy_routing"]["route_key"] == "normal_market"
-    assert analysis["strategy_routing"]["enabled_strategies"] == [
-        "trend_pullback"
-    ]
+    assert "scanner_type" not in analysis
+    assert "gainer_state" not in analysis
+    assert "gainer_evidence" not in analysis
+    assert "route_key" not in analysis["strategy_routing"]
+    assert analysis["strategy_routing"]["enabled_strategies"] == ["trend_pullback"]
 
     assert "scanner_mode" not in payload
     assert "best_normal_market" not in payload
