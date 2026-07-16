@@ -12,7 +12,7 @@ This folder reorganizes the finalized Apex Trading Agent plan into smaller, prac
 ## Document authority
 
 - `plan.md` remains the authoritative high-level roadmap when present at the repository root.
-- `docs/implementation_progress.md` remains the authoritative implementation-status record.
+- `docs/progress/implementation_progress.md` remains the authoritative implementation-status record.
 - The documents in this folder are organized reference material derived from the finalized project plan. They should be updated when architecture, scope, or validation policy changes.
 
 ## Core objective
