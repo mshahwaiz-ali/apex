@@ -7,6 +7,7 @@ This directory is organized by subsystem. Document names describe their purpose 
 - [Background information](background_information/README.md)
 - [Implementation progress](progress/implementation_progress.md)
 - [Spot workflow progress](progress/spot_workflow_progress.md)
+- [CLI usage guide](reference/cli_usage_guide.md)
 
 ## Subsystems
 
