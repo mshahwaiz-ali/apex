@@ -17,7 +17,6 @@ DIMENSIONS = {
     "symbol": "BTC/USDT",
     "direction": "long",
     "risk_mode": "STANDARD",
-    "scanner_type": "normal",
     "market_regime": "trend",
     "score_band": "75_84",
 }

@@ -444,9 +444,16 @@ def _reason_tuple(value: object) -> tuple[EvidenceReason, ...]:
 
 
 def _normalize_dimensions(value: Mapping[str, str]) -> dict[str, str]:
+    # Ignore retired persisted keys while keeping new evidence canonical.
     if not value:
         raise ValueError("evidence dimensions cannot be empty")
-    return dict(sorted((key.strip(), item.strip()) for key, item in value.items()))
+    return dict(
+        sorted(
+            (key.strip(), item.strip())
+            for key, item in value.items()
+            if key.strip() != "scanner_type"
+        )
+    )
 
 
 def _string_mapping(value: object) -> dict[str, str]:

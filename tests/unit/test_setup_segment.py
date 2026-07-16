@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from apex.domain import RiskMode, ScannerMode
+from apex.domain import RiskMode
 from apex.risk.contracts import (
     ActionableEntry,
     LeverageRange,
@@ -55,7 +55,6 @@ def test_identity_is_derived_from_setup_and_account_mode() -> None:
         setup=_setup(),
         risk_mode=RiskMode.STANDARD,
         context=SetupSegmentContext(
-            scanner_type=ScannerMode.NORMAL,
             market_regime=" Trend ",
         ),
     )
@@ -68,17 +67,6 @@ def test_identity_is_derived_from_setup_and_account_mode() -> None:
         "market_regime": "trend",
         "score_band": "85_89",
     }
-
-
-def test_all_scanner_mode_cannot_identify_one_setup_segment() -> None:
-    with pytest.raises(
-        ValueError,
-        match="must identify normal or gainers analysis",
-    ):
-        SetupSegmentContext(
-            scanner_type=ScannerMode.ALL,
-            market_regime="trend",
-        )
 
 
 def _setup() -> RiskApprovedSetup:

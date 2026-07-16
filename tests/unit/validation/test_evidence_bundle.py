@@ -13,7 +13,6 @@ DIMENSIONS = {
     "symbol": "BTC/USDT",
     "direction": "long",
     "risk_mode": "STANDARD",
-    "scanner_type": "normal",
     "market_regime": "trend",
     "score_band": "75_84",
 }
@@ -81,6 +80,29 @@ def test_resolves_complete_protocol_compatible_bundle(tmp_path: Path) -> None:
     assert bundle.forward.status.value == "PASSED_VALIDATION"
     assert bundle.forward.forward_profile is not None
     assert bundle.forward.forward_profile.sample_size == 30
+
+
+def test_legacy_scanner_dimension_matches_canonical_segment(tmp_path: Path) -> None:
+    historical, forward = _write_reports(tmp_path)
+
+    for path in (historical, forward):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["results"][0]["dimensions"]["scanner_type"] = "gainers"
+        path.write_text(json.dumps(document), encoding="utf-8")
+
+    bundle = load_evidence_bundle(
+        historical_validation_path=historical,
+        forward_validation_path=forward,
+        dimensions=DIMENSIONS,
+        as_of=datetime(2026, 7, 16, tzinfo=UTC),
+    )
+
+    assert bundle.status is EvidenceBundleStatus.COMPLETE
+    assert dict(bundle.dimensions) == DIMENSIONS
+    assert bundle.historical is not None
+    assert dict(bundle.historical.dimensions) == DIMENSIONS
+    assert bundle.forward is not None
+    assert dict(bundle.forward.dimensions) == DIMENSIONS
 
 
 def test_bundle_identity_is_independent_of_as_of_time(tmp_path: Path) -> None:

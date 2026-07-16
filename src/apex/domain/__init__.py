@@ -35,7 +35,6 @@ from apex.domain.lifecycle import (
     TradeLifecycleEventType,
     replay_lifecycle_events,
 )
-from apex.domain.market import ScannerMode
 from apex.domain.models import (
     AnalysisResult,
     Candle,
@@ -155,7 +154,6 @@ __all__ = [
     "PrecisionEntryScore",
     "RecommendedOrderType",
     "RiskMode",
-    "ScannerMode",
     "SpotAccountInput",
     "SpotBalanceInput",
     "SpotDecision",

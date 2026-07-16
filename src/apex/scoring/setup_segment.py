@@ -7,23 +7,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from apex.domain import RiskMode, ScannerMode
+from apex.domain import RiskMode
 from apex.risk.contracts import RiskApprovedSetup
 from apex.strategies import StrategyType, TradeDirection
-
-_SETUP_SCANNER_MODES = frozenset({ScannerMode.NORMAL, ScannerMode.GAINERS})
 
 
 @dataclass(frozen=True, slots=True)
 class SetupSegmentContext:
     """Typed orchestration dimensions not owned by a risk-approved setup."""
 
-    scanner_type: ScannerMode
     market_regime: str
 
     def __post_init__(self) -> None:
-        if self.scanner_type not in _SETUP_SCANNER_MODES:
-            raise ValueError("setup segment scanner type must identify normal or gainers analysis")
         normalized_regime = self.market_regime.strip().lower()
         if not normalized_regime:
             raise ValueError("setup segment market regime cannot be empty")
@@ -38,7 +33,6 @@ class SetupSegmentIdentity:
     symbol: str
     direction: TradeDirection
     risk_mode: RiskMode
-    scanner_type: ScannerMode
     market_regime: str
     score_band: str
 
@@ -49,8 +43,6 @@ class SetupSegmentIdentity:
         normalized_regime = self.market_regime.strip().lower()
         if not normalized_regime:
             raise ValueError("setup segment market regime cannot be empty")
-        if self.scanner_type not in _SETUP_SCANNER_MODES:
-            raise ValueError("setup segment scanner type must identify normal or gainers analysis")
         if not self.score_band.strip():
             raise ValueError("setup segment score band cannot be empty")
         object.__setattr__(self, "symbol", normalized_symbol)
@@ -71,7 +63,6 @@ class SetupSegmentIdentity:
             symbol=setup.symbol,
             direction=setup.direction,
             risk_mode=risk_mode,
-            scanner_type=context.scanner_type,
             market_regime=context.market_regime,
             score_band=score_band_for(setup.confidence_score),
         )

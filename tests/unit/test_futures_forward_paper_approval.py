@@ -12,7 +12,7 @@ from apex.backtesting import (
     HistoricalEdgeValidationResult,
     HistoricalEdgeValidationStatus,
 )
-from apex.domain import FuturesAccountInput, RiskMode, ScannerMode
+from apex.domain import FuturesAccountInput, RiskMode
 from apex.paper_trading import (
     ForwardPaperEdgeProfile,
     ForwardPaperValidationReason,
@@ -37,14 +37,12 @@ DIMENSIONS = {
     "symbol": "BTCUSDT",
     "direction": TradeDirection.LONG.value,
     "risk_mode": RiskMode.STANDARD.value,
-    "scanner_type": "normal",
     "market_regime": "trend",
     "score_band": "85_89",
 }
 
 
 SEGMENT_CONTEXT = SetupSegmentContext(
-    scanner_type=ScannerMode.NORMAL,
     market_regime="trend",
 )
 
