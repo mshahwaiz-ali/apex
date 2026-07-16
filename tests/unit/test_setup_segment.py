@@ -65,7 +65,6 @@ def test_identity_is_derived_from_setup_and_account_mode() -> None:
         "symbol": "BTCUSDT",
         "direction": TradeDirection.LONG.value,
         "risk_mode": RiskMode.STANDARD.value,
-        "scanner_type": ScannerMode.NORMAL.value,
         "market_regime": "trend",
         "score_band": "85_89",
     }

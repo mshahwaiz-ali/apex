@@ -85,7 +85,6 @@ class SetupSegmentIdentity:
                 "symbol": self.symbol,
                 "direction": self.direction.value,
                 "risk_mode": self.risk_mode.value,
-                "scanner_type": self.scanner_type.value,
                 "market_regime": self.market_regime,
                 "score_band": self.score_band,
             }
