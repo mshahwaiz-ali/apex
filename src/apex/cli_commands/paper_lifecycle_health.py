@@ -73,6 +73,7 @@ def register_paper_lifecycle_health_command(app: typer.Typer) -> None:
     ) -> None:
         """Evaluate the latest successful scheduled pipeline analytics record."""
 
+        normalized_output = _normalize_output(output)
         try:
             context = bootstrap()
             audit_path = (
@@ -108,7 +109,7 @@ def register_paper_lifecycle_health_command(app: typer.Typer) -> None:
         except (FileExistsError, FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        _emit_lifecycle_health(audit, artifact.payload, output)
+        _emit_lifecycle_health(audit, artifact.payload, normalized_output)
 
 
 def paper_lifecycle_health_audit_payload(audit: PaperLifecycleHealthAudit) -> dict[str, Any]:
@@ -120,17 +121,21 @@ def paper_lifecycle_health_audit_payload(audit: PaperLifecycleHealthAudit) -> di
     return payload
 
 
+def _normalize_output(output: str) -> str:
+    normalized = output.strip().lower()
+    if normalized not in {"text", "json"}:
+        raise typer.BadParameter("output must be text or json")
+    return normalized
+
+
 def _emit_lifecycle_health(
     audit: PaperLifecycleHealthAudit,
     payload: dict[str, Any],
     output: str,
 ) -> None:
-    normalized = output.strip().lower()
-    if normalized == "json":
+    if output == "json":
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
         return
-    if normalized != "text":
-        raise typer.BadParameter("output must be text or json")
 
     health = audit.health
     reasons = ",".join(reason.value for reason in health.reasons) or "none"
