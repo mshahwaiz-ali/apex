@@ -282,7 +282,6 @@ def scan(
         help="Optional SQLite scan record database path.",
     ),
     candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
-    mode: str = typer.Option("normal", "--mode", help="normal, gainers, or all"),
 ) -> None:
     """Analyze the configured symbol universe and rank opportunities."""
 
@@ -303,9 +302,7 @@ def scan(
                 ),
                 candle_limit=candle_limit,
                 risk_config=risk_config,
-                scanner_mode=mode,
                 strategy_routing=getattr(context.settings, "strategy_routing", None),
-                gainer_state_thresholds=getattr(context.settings, "gainer_state_thresholds", None),
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc

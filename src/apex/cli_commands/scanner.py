@@ -40,7 +40,6 @@ def register_scanner_commands(app: typer.Typer) -> None:
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=999),
-        mode: str = typer.Option("normal", "--mode", help="normal, gainers, or all"),
         risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
     ) -> None:
         """Analyze and rank the configured futures symbol universe."""
@@ -66,13 +65,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=candle_limit + 1,
                     risk_config=risk_config,
-                    scanner_mode=mode,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    gainer_state_thresholds=getattr(
-                        context.settings,
-                        "gainer_state_thresholds",
-                        None,
-                    ),
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

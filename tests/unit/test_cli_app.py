@@ -39,3 +39,23 @@ def test_frozen_and_removed_workflows_are_not_registered() -> None:
         "intelligence",
         "execute",
     }.isdisjoint(group_names)
+
+
+def test_futures_scan_does_not_expose_gainer_mode_option() -> None:
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(app, ["futures", "scan", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--mode" not in result.output
+    assert "gainers" not in result.output.lower()
+
+
+def test_root_scan_does_not_expose_gainer_mode_option() -> None:
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(app, ["scan", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--mode" not in result.output
+    assert "gainers" not in result.output.lower()
