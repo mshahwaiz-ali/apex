@@ -176,6 +176,13 @@ def build_futures_plan(
     plan["account_policy_decision"] = (
         policy_decision.model_dump(mode="json") if policy_decision is not None else None
     )
+    plan["opportunity_status"] = "SETUP_AVAILABLE"
+    plan["execution_approval"] = {
+        "status": "APPROVED",
+        "approved": True,
+        "eligibility": plan["eligibility"],
+        "reasons": [],
+    }
     return plan
 
 
@@ -208,19 +215,36 @@ def build_futures_plan_result(
             setup_segment_context=setup_segment_context,
         )
     except StrategyApprovalError as exc:
+        reasons = list(_strategy_decision_reason_messages(exc.decision))
+        eligibility = exc.decision.eligibility.value
         return {
             "status": "REJECTED",
+            "opportunity_status": "SETUP_AVAILABLE",
+            "execution_approval": {
+                "status": "REJECTED",
+                "approved": False,
+                "eligibility": eligibility,
+                "reasons": reasons,
+            },
             "risk_mode": account.risk_mode.value,
-            "eligibility": exc.decision.eligibility.value,
+            "eligibility": eligibility,
             "strategy_approval": exc.decision.to_payload(),
-            "reasons": list(_strategy_decision_reason_messages(exc.decision)),
+            "reasons": reasons,
         }
     except FuturesPlanSafetyError as exc:
+        reasons = list(exc.reasons)
         return {
             "status": "REJECTED",
+            "opportunity_status": "SETUP_AVAILABLE",
+            "execution_approval": {
+                "status": "REJECTED",
+                "approved": False,
+                "eligibility": "REJECTED",
+                "reasons": reasons,
+            },
             "risk_mode": account.risk_mode.value,
             "eligibility": "REJECTED",
-            "reasons": list(exc.reasons),
+            "reasons": reasons,
         }
 
 

@@ -32,7 +32,7 @@ def intake_futures_scan(
     plan_builder: FuturesPlanBuilder,
     source_command: str = "paper intake-futures",
 ) -> IntakeSummary:
-    """Admit only approved, actionable futures plans from one scanner result."""
+    """Admit only execution-approved, actionable futures plans from one scan."""
 
     candidates: list[IntakeCandidate | IntakeResult] = []
     for analysis in scan.analyses:

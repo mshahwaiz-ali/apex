@@ -92,6 +92,11 @@ def test_approved_plan_serializes_risk_and_policy_snapshots() -> None:
     )
 
     assert result["status"] == "APPROVED"
+    assert result["opportunity_status"] == "SETUP_AVAILABLE"
+    approval = _mapping(result["execution_approval"])
+    assert approval["status"] == "APPROVED"
+    assert approval["approved"] is True
+    assert approval["reasons"] == []
     assert result["risk_mode"] == "STANDARD"
     assert _mapping(result["risk_mode_config"])["account_loss_percentage"] == 0.25
     assert _mapping(result["account_policy"])["type"] == "FUNDED"
@@ -115,6 +120,13 @@ def test_account_policy_lockout_rejects_plan_before_position_approval() -> None:
     )
 
     assert result["status"] == "REJECTED"
+    assert result["opportunity_status"] == "SETUP_AVAILABLE"
+    approval = _mapping(result["execution_approval"])
+    assert approval["status"] == "REJECTED"
+    assert approval["approved"] is False
+    assert "account policy lockout: DAILY_DRAWDOWN" in _strings(
+        approval["reasons"]
+    )
     assert "account policy lockout: DAILY_DRAWDOWN" in _strings(result["reasons"])
 
 
@@ -128,6 +140,13 @@ def test_risk_mode_limit_rejects_oversized_account_loss_override() -> None:
     result = build_futures_plan_result(_setup(), account)
 
     assert result["status"] == "REJECTED"
+    assert result["opportunity_status"] == "SETUP_AVAILABLE"
+    approval = _mapping(result["execution_approval"])
+    assert approval["approved"] is False
+    assert any(
+        "STANDARD mode limit 0.25%" in reason
+        for reason in _strings(approval["reasons"])
+    )
     assert any("STANDARD mode limit 0.25%" in reason for reason in _strings(result["reasons"]))
 
 

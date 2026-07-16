@@ -16,6 +16,7 @@ from apex.paper_trading import (
     IntakeCandidate,
     IntakeMarketType,
     IntakeReason,
+    IntakeResult,
     IntakeStatus,
     PaperTrade,
     PaperTradeState,
@@ -232,3 +233,117 @@ def test_cli_commands_are_registered() -> None:
     assert result.exit_code == 0
     assert "intake-futures" in result.stdout
     assert "intake-spot" not in result.stdout
+
+def test_execution_rejected_opportunity_is_not_admitted_to_paper() -> None:
+    analysis = SimpleNamespace(
+        symbol="BTC/USDT",
+        generated_at=_NOW,
+        assessment=SimpleNamespace(
+            decision=RiskDecision.APPROVED,
+            setup=SimpleNamespace(
+                strategy=SimpleNamespace(value="trend_pullback"),
+                direction=SimpleNamespace(value="long"),
+            ),
+        ),
+        precision_entry={"state": "ready_now"},
+        strategy_routing={},
+    )
+    plan = {
+        "status": "REJECTED",
+        "opportunity_status": "SETUP_AVAILABLE",
+        "execution_approval": {
+            "status": "REJECTED",
+            "approved": False,
+            "eligibility": "REJECTED",
+            "reasons": ["account policy lockout: DAILY_DRAWDOWN"],
+        },
+        "entry": {"state": "ready_now"},
+    }
+
+    result = build_futures_intake_candidate(
+        analysis,  # type: ignore[arg-type]
+        futures_plan=plan,
+        management_plan=None,
+        account_policy_snapshot=None,
+        source_command="paper intake-futures",
+        source_mode="futures",
+    )
+
+    assert result.status is IntakeStatus.REJECTED
+    assert result.reason is IntakeReason.EXECUTION_NOT_APPROVED
+    assert result.detail == "account policy lockout: DAILY_DRAWDOWN"
+
+
+def test_accepted_candidate_preserves_execution_approval_metadata() -> None:
+    analysis = SimpleNamespace(
+        symbol="BTC/USDT",
+        generated_at=_NOW,
+        assessment=SimpleNamespace(
+            decision=RiskDecision.APPROVED,
+            setup=SimpleNamespace(
+                strategy=SimpleNamespace(value="trend_pullback"),
+                direction=SimpleNamespace(value="long"),
+            ),
+        ),
+        precision_entry={"state": "ready_now"},
+        strategy_routing={},
+    )
+    paper_trade = _trade()
+    plan = {
+        "status": "APPROVED",
+        "opportunity_status": "SETUP_AVAILABLE",
+        "execution_approval": {
+            "status": "APPROVED",
+            "approved": True,
+            "eligibility": "PAPER_ONLY",
+            "reasons": [],
+        },
+        "eligibility": "PAPER_ONLY",
+        "risk_mode": "STANDARD",
+        "entry": {"state": "ready_now"},
+    }
+
+    import apex.paper_trading.intake as intake_module
+
+    original_create = intake_module.create_paper_trade
+    try:
+        intake_module.create_paper_trade = lambda *args, **kwargs: paper_trade
+        result = build_futures_intake_candidate(
+            analysis,  # type: ignore[arg-type]
+            futures_plan=plan,
+            management_plan=None,
+            account_policy_snapshot=None,
+            source_command="paper intake-futures",
+            source_mode="futures",
+        )
+    finally:
+        intake_module.create_paper_trade = original_create
+
+    assert isinstance(result, IntakeCandidate)
+    assert result.analysis_payload["opportunity_status"] == "SETUP_AVAILABLE"
+    assert result.analysis_payload["execution_approval"] == {
+        "status": "APPROVED",
+        "approved": True,
+        "eligibility": "PAPER_ONLY",
+        "reasons": [],
+    }
+
+
+def test_intake_summary_counts_execution_approval_rejections(tmp_path) -> None:
+    store = PaperTradeStore(tmp_path / "trades.json")
+    rejected = IntakeResult(
+        status=IntakeStatus.REJECTED,
+        reason=IntakeReason.EXECUTION_NOT_APPROVED,
+        market_type=IntakeMarketType.FUTURES,
+        symbol="BTC/USDT",
+        detail="account policy lockout",
+    )
+
+    summary = persist_intake_candidates(
+        store,
+        (rejected,),
+        market_type=IntakeMarketType.FUTURES,
+    )
+
+    assert summary.rejected == 1
+    assert summary.reason_counts == {"EXECUTION_NOT_APPROVED": 1}

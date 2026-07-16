@@ -35,6 +35,7 @@ class IntakeStatus(StrEnum):
 class IntakeReason(StrEnum):
     ACCEPTED = "ACCEPTED"
     NO_APPROVED_SETUP = "NO_APPROVED_SETUP"
+    EXECUTION_NOT_APPROVED = "EXECUTION_NOT_APPROVED"
     MISSING_ACTIONABLE_PLAN = "MISSING_ACTIONABLE_PLAN"
     NON_ACTIONABLE_ENTRY_STATE = "NON_ACTIONABLE_ENTRY_STATE"
     INVALIDATED = "INVALIDATED"
@@ -148,7 +149,25 @@ def build_futures_intake_candidate(
             analysis.symbol,
             IntakeReason.NO_APPROVED_SETUP,
         )
-    if not futures_plan or not _plan_is_actionable(futures_plan):
+    if not futures_plan:
+        return _rejection(
+            IntakeMarketType.FUTURES,
+            analysis.symbol,
+            IntakeReason.MISSING_ACTIONABLE_PLAN,
+        )
+
+    execution_approval = _execution_approval(futures_plan)
+    if execution_approval and not bool(execution_approval.get("approved")):
+        reasons = execution_approval.get("reasons")
+        detail = _first_reason(reasons) or "execution approval rejected"
+        return _rejection(
+            IntakeMarketType.FUTURES,
+            analysis.symbol,
+            IntakeReason.EXECUTION_NOT_APPROVED,
+            detail=detail,
+        )
+
+    if not _plan_is_actionable(futures_plan):
         return _rejection(
             IntakeMarketType.FUTURES,
             analysis.symbol,
@@ -185,6 +204,11 @@ def build_futures_intake_candidate(
         "analysis_timestamp": analysis.generated_at.isoformat(),
         "source_command": source_command,
         "source_mode": source_mode,
+        "opportunity_status": futures_plan.get(
+            "opportunity_status",
+            "SETUP_AVAILABLE",
+        ),
+        "execution_approval": futures_plan.get("execution_approval"),
         "eligibility": futures_plan.get("eligibility", "paper_only"),
         "strategy_approval": futures_plan.get("strategy_approval"),
         "risk_mode": futures_plan.get("risk_mode"),
@@ -456,6 +480,21 @@ def _entry_state(payload: Any) -> str:
         return ""
     value = payload.get("state") or payload.get("entry_state")
     return str(value or "").strip().lower()
+
+
+def _execution_approval(plan: dict[str, Any]) -> dict[str, Any]:
+    value = plan.get("execution_approval")
+    return value if isinstance(value, dict) else {}
+
+
+def _first_reason(value: Any) -> str | None:
+    if not isinstance(value, list | tuple):
+        return None
+    for item in value:
+        text = str(item).strip()
+        if text:
+            return text
+    return None
 
 
 def _plan_is_actionable(plan: dict[str, Any]) -> bool:

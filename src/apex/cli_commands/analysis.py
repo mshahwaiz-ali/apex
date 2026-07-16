@@ -111,8 +111,22 @@ def register_analysis_commands(app: typer.Typer) -> None:
         }
         assessment = getattr(result, "assessment", None)
         setup = getattr(assessment, "setup", None)
+        payload["opportunity_status"] = (
+            "SETUP_AVAILABLE" if setup is not None else "NO_SETUP"
+        )
         if setup is not None:
             payload["futures_plan"] = build_futures_plan_result(setup, account)
+        else:
+            payload["execution_approval"] = {
+                "status": "NOT_APPLICABLE",
+                "approved": False,
+                "eligibility": "NO_SETUP",
+                "reasons": list(payload.get("reasons") or ()),
+            }
+        futures_plan = payload.get("futures_plan")
+        if isinstance(futures_plan, dict):
+            payload["execution_approval"] = futures_plan.get("execution_approval")
+
         if record is not None or record_db is not None:
             analysis_record = build_analysis_record(payload)
             if record is not None:

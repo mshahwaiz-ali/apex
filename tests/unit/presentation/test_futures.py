@@ -181,3 +181,37 @@ def test_unavailable_geometry_is_explicit() -> None:
     assert "TRX/USDT — Long Setup" in text
     assert "Entry zone" in text
     assert "Unavailable" in text
+
+def test_execution_rejection_preserves_market_setup_presentation() -> None:
+    payload = {
+        "symbol": "BTC/USDT",
+        "decision": "LONG",
+        "strategy": "TREND_PULLBACK",
+        "current_price": 100.0,
+        "entry_state": "READY_NOW",
+        "entry_zone": {
+            "low": 99.5,
+            "high": 100.5,
+            "preferred": 100.0,
+            "maximum_chase_price": 101.0,
+        },
+        "stop_loss": 98.0,
+        "take_profits": [{"price": 104.0, "risk_reward": 2.0}],
+        "confidence_score": 82.0,
+        "opportunity_status": "SETUP_AVAILABLE",
+        "execution_approval": {
+            "status": "REJECTED",
+            "approved": False,
+            "eligibility": "REJECTED",
+            "reasons": ["account policy lockout: DAILY_DRAWDOWN"],
+        },
+    }
+
+    rendered = render_futures_analysis(payload)
+
+    assert "BTC/USDT — Long Setup" in rendered
+    assert "Execution Approval" in rendered
+    assert "Approved to execute" in rendered
+    assert "No" in rendered
+    assert "account policy lockout: DAILY_DRAWDOWN" in rendered
+    assert "No Trade" not in rendered

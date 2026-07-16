@@ -41,6 +41,10 @@ def render_futures_analysis(
     else:
         sections.append(_render_watch_conditions(payload))
 
+    execution_approval = _render_execution_approval(payload)
+    if execution_approval:
+        sections.append(execution_approval)
+
     risk_profile = _render_risk_profile(payload)
     if risk_profile:
         sections.append(risk_profile)
@@ -144,6 +148,27 @@ def _render_trade_quality(payload: Mapping[str, object]) -> str:
             )
         ),
     )
+
+
+def _render_execution_approval(payload: Mapping[str, object]) -> str:
+    approval = _mapping(payload.get("execution_approval"))
+    if not approval:
+        plan = _mapping(payload.get("futures_plan"))
+        approval = _mapping(plan.get("execution_approval"))
+    if not approval:
+        return ""
+
+    approved = bool(approval.get("approved"))
+    reasons = _strings(approval.get("reasons"))
+    fields: list[tuple[str, object]] = [
+        ("Execution status", humanize_code(approval.get("status"))),
+        ("Approved to execute", "Yes" if approved else "No"),
+        ("Eligibility", humanize_code(approval.get("eligibility"))),
+    ]
+    if reasons:
+        fields.append(("Block reason", reasons[0]))
+
+    return render_section("Execution Approval", render_fields(fields))
 
 
 def _render_risk_profile(payload: Mapping[str, object]) -> str:
