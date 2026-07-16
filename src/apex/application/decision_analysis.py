@@ -63,7 +63,7 @@ def analyze_symbol(
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
-        candle_limit=candle_limit,
+        candle_limit=candle_limit + 1,
         risk_config=risk_config,
         exposure=exposure,
         generated_at=generated_at,
