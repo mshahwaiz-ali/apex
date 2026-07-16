@@ -13,6 +13,7 @@ from apex.cli_commands.evidence_bundle import register_evidence_bundle_commands
 from apex.cli_commands.evidence_pipeline import register_evidence_pipeline_commands
 from apex.cli_commands.forward_edge import register_forward_edge_commands
 from apex.cli_commands.funded_history import register_funded_history_commands
+from apex.cli_commands.funded_plan_audit import register_funded_plan_audit_commands
 from apex.cli_commands.funded_plan_generation import register_funded_plan_generation_commands
 from apex.cli_commands.funded_plan_package import register_funded_plan_package_commands
 from apex.cli_commands.funded_plan_reproduction import register_funded_plan_reproduction_commands
@@ -77,6 +78,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_funded_plan_schema_commands(app)
     register_funded_plan_package_commands(app)
     register_funded_plan_reproduction_commands(app)
+    register_funded_plan_audit_commands(app)
     register_paper_trading_commands(paper_app)
     register_paper_cycle_command(paper_app)
     register_paper_scheduler_commands(paper_app)
