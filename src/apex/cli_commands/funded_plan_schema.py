@@ -13,6 +13,7 @@ from apex.funded import (
     FundedPlanEligibility,
     FundedPlanEvidenceManifest,
     FundedPlanEvidencePackage,
+    FundedPlanReproductionReport,
     ProviderPolicyBinding,
 )
 from apex.risk import RiskApprovedSetup
@@ -23,7 +24,7 @@ FUNDED_PLAN_SCHEMA_VERSION = "1.0"
 
 
 def build_funded_plan_schema_bundle() -> dict[str, object]:
-    """Return canonical JSON schemas for funded-plan inputs and evidence packages."""
+    """Return canonical JSON schemas for funded-plan evidence workflows."""
 
     return {
         "schema_version": FUNDED_PLAN_SCHEMA_VERSION,
@@ -40,6 +41,9 @@ def build_funded_plan_schema_bundle() -> dict[str, object]:
             ).json_schema(),
             "funded_plan_evidence_package": TypeAdapter(
                 FundedPlanEvidencePackage
+            ).json_schema(),
+            "funded_plan_reproduction_report": TypeAdapter(
+                FundedPlanReproductionReport
             ).json_schema(),
         },
     }
