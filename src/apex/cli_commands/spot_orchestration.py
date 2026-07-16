@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -15,6 +14,7 @@ from apex.application.spot_orchestration_io import (
     analyze_spot_orchestration_from_files,
     write_spot_orchestration_result,
 )
+from apex.cli_commands.spot_output import emit_spot_analysis, output_mode
 
 
 def register_spot_orchestration_commands(app: typer.Typer) -> None:
@@ -41,11 +41,16 @@ def register_spot_orchestration_commands(app: typer.Typer) -> None:
         ] = DEFAULT_SPOT_STRATEGY_CONFIG_PATH,
         output: Annotated[
             Path | None,
-            typer.Option("--output", dir_okay=False),
+            typer.Option("--output", dir_okay=False, help="Optional JSON file destination."),
         ] = None,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
         """Evaluate canonical structure/regime data and build a spot plan when approved."""
 
+        mode = output_mode(output_format)
         try:
             result = analyze_spot_orchestration_from_files(
                 input_path=input_file,
@@ -58,4 +63,4 @@ def register_spot_orchestration_commands(app: typer.Typer) -> None:
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        emit_spot_analysis(payload, mode=mode, title="Spot Orchestration")
