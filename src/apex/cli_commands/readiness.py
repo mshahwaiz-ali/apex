@@ -16,6 +16,7 @@ from apex.funded import (
     FundedProviderLimits,
     FundedReadinessReport,
     ManualExecutionChecklist,
+    ProviderPolicyBinding,
     evaluate_funded_readiness,
 )
 from apex.validation import (
@@ -168,6 +169,7 @@ def _funded_report_from_input(payload: dict[str, Any]) -> FundedReadinessReport:
         risk_mode=RiskMode(str(payload["risk_mode"])),
         account_policy_type=AccountPolicyType(str(payload["account_policy_type"])),
         account_policy_decision=AccountPolicyDecision.model_validate(policy_data),
+        provider_policy_binding=_provider_policy_binding(payload),
         daily_lockout_verified=bool(payload["daily_lockout_verified"]),
         total_buffer_verified=bool(payload["total_buffer_verified"]),
         pre_trade_checklist=_checklist(pre_trade_data),
@@ -175,6 +177,15 @@ def _funded_report_from_input(payload: dict[str, Any]) -> FundedReadinessReport:
         kill_switch_state=KillSwitchState(str(payload["kill_switch_state"])),
         generated_at=_timestamp(payload.get("generated_at")),
     )
+
+
+def _provider_policy_binding(payload: dict[str, Any]) -> ProviderPolicyBinding | None:
+    value = payload.get("provider_policy_binding")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise TypeError("provider_policy_binding must be an object")
+    return ProviderPolicyBinding.model_validate(value)
 
 
 def _checklist(payload: dict[str, Any]) -> ManualExecutionChecklist:
