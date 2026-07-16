@@ -20,7 +20,7 @@ from apex.application.near_current_entry import (
     near_current_entry_payload,
 )
 from apex.data.providers.base import MarketDataProvider
-from apex.domain import GainerStateThresholds, MarketCategory, ScannerMode
+from apex.domain import GainerStateThresholds, MarketCategory
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
@@ -117,44 +117,40 @@ def scan_symbols(
     candle_limit: int = 200,
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     generated_at: datetime | None = None,
-    scanner_mode: ScannerMode | str = ScannerMode.NORMAL,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     gainer_state_thresholds: GainerStateThresholds | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> ScanResult:
-    """Analyze scanner symbols with routing and entry decisions."""
+    """Analyze each symbol once with routing and entry decisions."""
 
     timestamp = generated_at or datetime.now(UTC)
-    mode = scanner_mode if isinstance(scanner_mode, ScannerMode) else ScannerMode(scanner_mode)
     analyses: list[_analysis.SymbolAnalysis] = []
     failures: dict[str, str] = {}
-    for scanner_type in _scanner_categories(mode):
-        for symbol in symbols:
-            failure_key = symbol if mode is ScannerMode.NORMAL else f"{scanner_type.value}:{symbol}"
-            try:
-                analyses.append(
-                    analyze_symbol(
-                        symbol,
-                        provider,
-                        timeframes=timeframes,
-                        timeframe_roles=timeframe_roles,
-                        timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
-                        candle_limit=candle_limit,
-                        risk_config=risk_config,
-                        generated_at=timestamp,
-                        scanner_type=scanner_type,
-                        strategy_routing=strategy_routing,
-                        gainer_state_thresholds=gainer_state_thresholds,
-                        market_environment_config=market_environment_config,
-                    )
+
+    for symbol in symbols:
+        try:
+            analyses.append(
+                analyze_symbol(
+                    symbol,
+                    provider,
+                    timeframes=timeframes,
+                    timeframe_roles=timeframe_roles,
+                    timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+                    candle_limit=candle_limit,
+                    risk_config=risk_config,
+                    generated_at=timestamp,
+                    strategy_routing=strategy_routing,
+                    gainer_state_thresholds=gainer_state_thresholds,
+                    market_environment_config=market_environment_config,
                 )
-            except Exception as exc:  # Scanner intentionally isolates per-symbol failures.
-                failures[failure_key] = str(exc)
+            )
+        except Exception as exc:  # Scanner intentionally isolates per-symbol failures.
+            failures[symbol] = str(exc)
+
     return ScanResult(
         generated_at=timestamp,
         analyses=tuple(sorted(analyses, key=_scan_sort_key)),
         failures=failures,
-        scanner_mode=mode,
     )
 
 
@@ -178,24 +174,21 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     """Return scanner JSON with decision-aware nested analyses."""
 
     approved = tuple(item for item in result.analyses if item.assessment.setup is not None)
-    normal = tuple(item for item in approved if item.scanner_type is MarketCategory.NORMAL_MARKET)
-    gainers = tuple(item for item in approved if item.scanner_type is MarketCategory.GAINER)
     long_setups = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None and item.assessment.setup.direction.value == "long"
+        if item.assessment.setup is not None
+        and item.assessment.setup.direction.value == "long"
     )
     short_setups = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None and item.assessment.setup.direction.value == "short"
+        if item.assessment.setup is not None
+        and item.assessment.setup.direction.value == "short"
     )
     return {
         "generated_at": result.generated_at.isoformat(),
-        "scanner_mode": result.scanner_mode.value,
         "best_overall": serialize_symbol_analysis(approved[0]) if approved else None,
-        "best_normal_market": serialize_symbol_analysis(normal[0]) if normal else None,
-        "best_gainer": serialize_symbol_analysis(gainers[0]) if gainers else None,
         "top_long_setups": [serialize_symbol_analysis(item) for item in long_setups],
         "top_short_setups": [serialize_symbol_analysis(item) for item in short_setups],
         "results": [serialize_symbol_analysis(item) for item in result.analyses],
@@ -299,14 +292,6 @@ def _scanner_label(scanner_type: MarketCategory) -> str:
     if scanner_type is MarketCategory.NORMAL_MARKET:
         return "NORMAL"
     return "GAINER"
-
-
-def _scanner_categories(mode: ScannerMode) -> tuple[MarketCategory, ...]:
-    if mode is ScannerMode.NORMAL:
-        return (MarketCategory.NORMAL_MARKET,)
-    if mode is ScannerMode.GAINERS:
-        return (MarketCategory.GAINER,)
-    return (MarketCategory.NORMAL_MARKET, MarketCategory.GAINER)
 
 
 def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str, str]:

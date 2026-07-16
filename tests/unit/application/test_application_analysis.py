@@ -9,7 +9,7 @@ from apex.application.analysis import (
     scan_symbols,
     serialize_scan_result,
 )
-from apex.domain import Candle, GainerStateThresholds
+from apex.domain import Candle
 from apex.domain.models import (
     ExchangeFilterSnapshot,
     LiquidationCluster,
@@ -175,38 +175,14 @@ def test_scan_isolates_symbol_failures() -> None:
     assert "current_price_source" in payload["results"][0]["timeframe_data_quality"]["5m"]
 
 
-def test_scan_all_mode_preserves_normal_and_gainer_paths() -> None:
+def test_scan_analyzes_each_symbol_once_with_default_route() -> None:
+    provider = FakeProvider()
     result = scan_symbols(
         ("BTC/USDT",),
-        FakeProvider(),
+        provider,
         timeframes=("5m",),
         candle_limit=200,
         generated_at=NOW,
-        scanner_mode="all",
-    )
-
-    payload = serialize_scan_result(result)
-
-    assert payload["scanner_mode"] == "all"
-    assert {item["scanner_type"] for item in payload["results"]} == {
-        "NORMAL_MARKET",
-        "GAINER",
-    }
-    assert any(item["gainer_state"] is not None for item in payload["results"])
-    normal = next(item for item in payload["results"] if item["scanner_type"] == "NORMAL_MARKET")
-    gainer = next(item for item in payload["results"] if item["scanner_type"] == "GAINER")
-    assert "range_reversal" in normal["strategy_routing"]["enabled_strategies"]
-    assert "range_reversal" in gainer["strategy_routing"]["disabled_strategies"]
-
-
-def test_scan_uses_configured_strategy_routing() -> None:
-    result = scan_symbols(
-        ("BTC/USDT",),
-        FakeProvider(),
-        timeframes=("5m",),
-        candle_limit=200,
-        generated_at=NOW,
-        scanner_mode="all",
         strategy_routing={
             "normal_market": ["trend_pullback"],
             "gainer": ["range_reversal"],
@@ -214,31 +190,21 @@ def test_scan_uses_configured_strategy_routing() -> None:
     )
 
     payload = serialize_scan_result(result)
-    normal = next(item for item in payload["results"] if item["scanner_type"] == "NORMAL_MARKET")
-    gainer = next(item for item in payload["results"] if item["scanner_type"] == "GAINER")
 
-    assert normal["strategy_routing"]["route_key"] == "normal_market"
-    assert normal["strategy_routing"]["enabled_strategies"] == ["trend_pullback"]
-    assert "range_reversal" in normal["strategy_routing"]["disabled_strategies"]
-    assert gainer["strategy_routing"]["route_key"] == "gainer"
-    assert gainer["strategy_routing"]["enabled_strategies"] == ["range_reversal"]
-    assert "momentum_gainer_continuation" in gainer["strategy_routing"]["disabled_strategies"]
+    assert provider.requests == [("BTC/USDT", "5m", 200)]
+    assert len(payload["results"]) == 1
 
+    analysis = payload["results"][0]
+    assert analysis["scanner_type"] == "NORMAL_MARKET"
+    assert analysis["gainer_state"] is None
+    assert analysis["strategy_routing"]["route_key"] == "normal_market"
+    assert analysis["strategy_routing"]["enabled_strategies"] == [
+        "trend_pullback"
+    ]
 
-def test_scan_uses_configured_gainer_state_thresholds() -> None:
-    result = scan_symbols(
-        ("BTC/USDT",),
-        FakeProvider(),
-        timeframes=("5m",),
-        candle_limit=200,
-        generated_at=NOW,
-        scanner_mode="gainers",
-        gainer_state_thresholds=GainerStateThresholds(fresh_total_return_pct=100.0),
-    )
-
-    payload = serialize_scan_result(result)
-
-    assert payload["results"][0]["gainer_state"] == "CHAOTIC"
+    assert "scanner_mode" not in payload
+    assert "best_normal_market" not in payload
+    assert "best_gainer" not in payload
 
 
 def test_strategy_context_uses_configured_timeframe_roles() -> None:

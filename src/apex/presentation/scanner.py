@@ -36,7 +36,6 @@ def render_futures_scan(
             "Scan Summary",
             render_fields(
                 (
-                    ("Mode", humanize_code(payload.get("scanner_mode"))),
                     ("Risk mode", humanize_code(payload.get("risk_mode"))),
                     ("Markets analyzed", len(results)),
                     ("Actionable setups", len(approved)),

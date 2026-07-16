@@ -58,7 +58,6 @@ def _approved(symbol: str) -> dict[str, object]:
 
 def test_scan_summary_and_market_separators_are_clear() -> None:
     payload = {
-        "scanner_mode": "all",
         "risk_mode": "STANDARD",
         "results": [_approved("BTC/USDT"), _no_trade("ETH/USDT", preferred="short")],
         "failures": {},
@@ -80,7 +79,6 @@ def test_scan_summary_and_market_separators_are_clear() -> None:
 
 def test_empty_actionable_section_explains_bias_is_not_entry() -> None:
     payload = {
-        "scanner_mode": "normal",
         "risk_mode": "AGGRESSIVE",
         "results": [_no_trade("TRX/USDT", preferred="short")],
         "failures": {},
@@ -96,7 +94,6 @@ def test_empty_actionable_section_explains_bias_is_not_entry() -> None:
 
 def test_failures_are_grouped_separately() -> None:
     payload = {
-        "scanner_mode": "normal",
         "risk_mode": "STANDARD",
         "results": [],
         "failures": {"SOL/USDT": "provider timeout"},
@@ -111,7 +108,6 @@ def test_failures_are_grouped_separately() -> None:
 
 def test_verbose_mode_reuses_symbol_diagnostics() -> None:
     payload = {
-        "scanner_mode": "normal",
         "risk_mode": "STANDARD",
         "results": [_no_trade("TRX/USDT", preferred="short")],
         "failures": {},
@@ -125,7 +121,6 @@ def test_verbose_mode_reuses_symbol_diagnostics() -> None:
 
 def test_debug_mode_exposes_raw_symbol_diagnostics() -> None:
     payload = {
-        "scanner_mode": "normal",
         "risk_mode": "STANDARD",
         "results": [_no_trade("TRX/USDT", preferred="short")],
         "failures": {},

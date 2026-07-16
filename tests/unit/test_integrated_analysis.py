@@ -15,7 +15,7 @@ from apex.application.integrated_analysis import (
     serialize_scan_result,
     serialize_symbol_analysis,
 )
-from apex.domain import MarketCategory, ScannerMode
+from apex.domain import MarketCategory
 from apex.market_environment import (
     ConflictState,
     ExtensionState,
@@ -117,7 +117,6 @@ def test_scanner_json_nests_market_environment(monkeypatch: pytest.MonkeyPatch) 
         generated_at=datetime(2026, 7, 16, tzinfo=UTC),
         analyses=(analysis,),
         failures={},
-        scanner_mode=ScannerMode.NORMAL,
     )
 
     payload = serialize_scan_result(result)
