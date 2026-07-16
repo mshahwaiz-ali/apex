@@ -29,6 +29,7 @@ from apex.cli_commands.paper_scheduler import register_paper_scheduler_commands
 from apex.cli_commands.paper_status import register_paper_status_command
 from apex.cli_commands.paper_trading import register_paper_trading_commands
 from apex.cli_commands.readiness import register_readiness_commands
+from apex.cli_commands.research_overlay import install_research_output_overlay
 from apex.cli_commands.scanner import register_scanner_commands
 from apex.cli_commands.simulation import register_simulation_command
 from apex.cli_commands.spot_analysis import register_spot_analysis_commands
@@ -67,6 +68,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_spot_planning_commands(app)
     remove_commands(app, {"chronological-backtest-campaign"})
     register_risk_mode_campaign_command(app)
+    install_research_output_overlay(app)
     register_readiness_commands(app)
     register_validation_evidence_commands(app)
     register_validation_pipeline_commands(app)
