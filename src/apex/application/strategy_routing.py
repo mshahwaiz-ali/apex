@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
-
 from apex.config import DEFAULT_STRATEGY_ROUTING
 from apex.risk import RiskAssessment
 from apex.strategies import Phase4AnalysisResult, StrategyType, TradeCandidate
@@ -14,16 +12,9 @@ def apply_strategy_routing(
     phase4: Phase4AnalysisResult,
     *,
     routing_config: Mapping[str, Sequence[str]] | None = None,
-    scanner_type: Any = None,
-    gainer_result: Any = None,
 ) -> Phase4AnalysisResult:
-    """Filter candidates through the canonical enabled-strategy configuration.
+    """Filter candidates through the canonical enabled-strategy configuration."""
 
-    Legacy category arguments remain temporarily accepted so older callers can
-    transition without restoring category-specific routing behavior.
-    """
-
-    del scanner_type, gainer_result
     configured = _normalize_routing_config(routing_config)
     eligible = tuple(
         strategy
@@ -58,12 +49,9 @@ def build_strategy_routing_payload(
     assessment: RiskAssessment,
     phase4: Phase4AnalysisResult | None = None,
     routing_config: Mapping[str, Sequence[str]] | None = None,
-    scanner_type: Any = None,
-    gainer_result: Any = None,
 ) -> dict[str, object]:
     """Return reproducible routing metadata without category-specific paths."""
 
-    del scanner_type, gainer_result
     enabled = _normalize_routing_config(routing_config)
     disabled = tuple(strategy for strategy in StrategyType if strategy not in enabled)
     setup = assessment.setup

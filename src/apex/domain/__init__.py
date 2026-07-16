@@ -35,15 +35,7 @@ from apex.domain.lifecycle import (
     TradeLifecycleEventType,
     replay_lifecycle_events,
 )
-from apex.domain.market import (
-    GainerState,
-    GainerStateInput,
-    GainerStateResult,
-    GainerStateThresholds,
-    MarketCategory,
-    ScannerMode,
-    classify_gainer_state,
-)
+from apex.domain.market import ScannerMode
 from apex.domain.models import (
     AnalysisResult,
     Candle,
@@ -148,10 +140,6 @@ __all__ = [
     "ExchangeFilterSnapshot",
     "FuturesAccountInput",
     "FuturesDirection",
-    "GainerState",
-    "GainerStateInput",
-    "GainerStateResult",
-    "GainerStateThresholds",
     "InitialProtectionInstruction",
     "LeverageMode",
     "LiquidationCluster",
@@ -160,7 +148,6 @@ __all__ = [
     "ManagementTarget",
     "ManagementTriggerType",
     "MarginMode",
-    "MarketCategory",
     "OrderBookLevel",
     "OrderBookSnapshot",
     "PositionPlan",
@@ -219,7 +206,6 @@ __all__ = [
     "TradeLifecycleState",
     "TradeManagementPlan",
     "classify_entry_state",
-    "classify_gainer_state",
     "entry_action_for_state",
     "evaluate_account_policy",
     "evaluate_spot_symbol_eligibility",

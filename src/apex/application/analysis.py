@@ -25,7 +25,6 @@ from apex.data.providers.base import MarketDataProvider
 from apex.domain import (
     EntryClassificationInput,
     FuturesDirection,
-    MarketCategory,
     classify_entry_state,
 )
 from apex.domain.models import (
@@ -69,9 +68,6 @@ class SymbolAnalysis:
     evaluated_timeframes: tuple[str, ...]
     regime_by_timeframe: Mapping[str, str]
     data_quality_by_timeframe: Mapping[str, Mapping[str, Any]]
-    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET
-    gainer_state: str | None = None
-    gainer_evidence: Mapping[str, Any] | None = None
     strategy_routing: Mapping[str, Any] | None = None
     precision_entry: Mapping[str, Any] | None = None
     phase5_diagnostics: Mapping[str, Any] | None = None
@@ -119,7 +115,6 @@ def analyze_symbol(
     risk_config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
-    scanner_type: MarketCategory = MarketCategory.NORMAL_MARKET,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
 ) -> SymbolAnalysis:
     """Run the deterministic Phase 4 to Phase 6 stack for one symbol."""
@@ -136,9 +131,6 @@ def analyze_symbol(
         candle_limit=candle_limit,
         received_at=decision_time,
     )
-    # Legacy arguments remain accepted temporarily for compatibility with
-    # preserved paper and backtest callers. They no longer alter live analysis.
-    del scanner_type
     phase4 = analyze_phase4(context, decision_time=decision_time)
     routed_phase4 = apply_strategy_routing(
         phase4,
@@ -173,9 +165,6 @@ def analyze_symbol(
         data_quality_by_timeframe={
             frame.timeframe: _frame_data_quality_payload(frame) for frame in context.frames
         },
-        scanner_type=MarketCategory.NORMAL_MARKET,
-        gainer_state=None,
-        gainer_evidence=None,
         strategy_routing=_strategy_routing_payload(
             assessment, routed_phase4, strategy_routing
         ),

@@ -43,16 +43,6 @@ def test_strategy_routing_filters_by_canonical_enabled_list() -> None:
     assert "disabled by configured strategy routing" in routed.skipped_strategies[StrategyType.BREAKOUT_CONTINUATION]
 
 
-def test_strategy_routing_temporarily_ignores_legacy_category_arguments() -> None:
-    routed = apply_strategy_routing(
-        _phase4(),
-        scanner_type="GAINER",
-        gainer_result={"state": "DISTRIBUTION"},
-        routing_config={"enabled": ["momentum_gainer_continuation"]},
-    )
-    assert routed.eligible_strategies == (StrategyType.MOMENTUM_GAINER_CONTINUATION,)
-
-
 def test_strategy_routing_payload_explains_regime_and_rejections() -> None:
     routed = apply_strategy_routing(_phase4(), routing_config={"enabled": ["trend_pullback"]})
     payload = build_strategy_routing_payload(
