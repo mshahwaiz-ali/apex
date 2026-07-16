@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -14,6 +15,13 @@ from apex.paper_trading import (
     PaperTradeStore,
     run_scheduled_paper_cycle,
 )
+from apex.presentation import (
+    OutputMode,
+    normalize_output_mode,
+    render_fields,
+    render_section,
+    render_title,
+)
 
 
 def register_paper_scheduler_commands(app: typer.Typer) -> None:
@@ -25,7 +33,13 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
         timeframe: str,
         candle_limit: int,
         stale_lock_minutes: int,
+        format_: str,
     ) -> None:
+        try:
+            output_mode = normalize_output_mode(format_)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+
         started_at = datetime.now(UTC)
         try:
             context = bootstrap()
@@ -46,27 +60,42 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
                     config=PaperTradeConfig(),
                 )
         except PaperCycleAlreadyRunningError as exc:
-            typer.echo(f"PAPER_SCHEDULE_SKIPPED | market={market_type} | reason={exc}")
+            payload = {
+                "market_type": market_type,
+                "outcome": "skipped",
+                "reason": str(exc),
+            }
+            _emit_scheduler(payload, output_mode)
             raise typer.Exit(code=0) from exc
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
 
         runtime = result.runtime
-        typer.echo(
-            "PAPER_SCHEDULE_COMPLETED "
-            f"| market={market_type} "
-            f"| eligible={runtime.cycle.eligible_trade_count} "
-            f"| advanced={runtime.cycle.advanced_trade_count} "
-            f"| unchanged={runtime.cycle.unchanged_trade_count} "
-            f"| provider_failures={len(runtime.provider_failures)} "
-            f"| log={result.log_path}"
-        )
+        payload = {
+            "market_type": market_type,
+            "outcome": "completed",
+            "eligible_trade_count": runtime.cycle.eligible_trade_count,
+            "advanced_trade_count": runtime.cycle.advanced_trade_count,
+            "unchanged_trade_count": runtime.cycle.unchanged_trade_count,
+            "provider_failure_count": len(runtime.provider_failures),
+            "provider_failures": [
+                {"symbol": symbol, "reason": reason}
+                for symbol, reason in runtime.provider_failures
+            ],
+            "log_path": str(result.log_path),
+        }
+        _emit_scheduler(payload, output_mode)
 
     @app.command("scheduled-futures")
     def scheduled_futures(
         timeframe: str = typer.Option("5m", "--timeframe"),
         candle_limit: int = typer.Option(80, "--candles", min=1, max=1000),
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
+        format_: str = typer.Option(
+            "text",
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Run one overlap-safe futures paper cycle for cron or systemd."""
 
@@ -75,6 +104,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
             timeframe=timeframe,
             candle_limit=candle_limit,
             stale_lock_minutes=stale_lock_minutes,
+            format_=format_,
         )
 
     @app.command("scheduled-spot")
@@ -82,6 +112,11 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
         timeframe: str = typer.Option("5m", "--timeframe"),
         candle_limit: int = typer.Option(80, "--candles", min=1, max=1000),
         stale_lock_minutes: int = typer.Option(30, "--stale-lock-minutes", min=1),
+        format_: str = typer.Option(
+            "text",
+            "--format",
+            help="Presentation format: text, json, verbose, or debug.",
+        ),
     ) -> None:
         """Run one overlap-safe spot paper cycle for cron or systemd."""
 
@@ -90,4 +125,57 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
             timeframe=timeframe,
             candle_limit=candle_limit,
             stale_lock_minutes=stale_lock_minutes,
+            format_=format_,
         )
+
+
+def _emit_scheduler(payload: dict[str, object], output_mode: OutputMode) -> None:
+    if output_mode is OutputMode.JSON:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+
+    completed = payload.get("outcome") == "completed"
+    sections = [
+        render_title("Paper Trading Scheduler"),
+        render_section(
+            "Run status",
+            render_fields(
+                (
+                    ("Market", str(payload.get("market_type", "Unavailable")).title()),
+                    ("Outcome", str(payload.get("outcome", "Unavailable")).title()),
+                    ("Eligible trades", payload.get("eligible_trade_count")),
+                    ("Advanced trades", payload.get("advanced_trade_count")),
+                    ("Unchanged trades", payload.get("unchanged_trade_count")),
+                    ("Provider failures", payload.get("provider_failure_count")),
+                )
+            ),
+        ),
+        render_section(
+            "Next action",
+            (
+                "Review lifecycle changes and continue scheduled collection."
+                if completed
+                else f"No cycle ran: {payload.get('reason', 'scheduler lock is active')}."
+            ),
+        ),
+    ]
+    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
+        sections.append(
+            render_section(
+                "Scheduler diagnostics",
+                render_fields((("Log path", payload.get("log_path")),)),
+            )
+        )
+    if output_mode is OutputMode.DEBUG:
+        sections.append(
+            render_section(
+                "Deterministic payload summary",
+                render_fields(
+                    (
+                        ("Top-level keys", ", ".join(sorted(payload))),
+                        ("Payload field count", len(payload)),
+                    )
+                ),
+            )
+        )
+    typer.echo("\n\n".join(sections))
