@@ -203,7 +203,6 @@ def test_chronological_campaign_command_runs_application_layer(monkeypatch: pyte
             settings=SimpleNamespace(
                 analysis_timeframes=("5m",),
                 strategy_routing=None,
-                gainer_state_thresholds=None,
             )
         ),
     )
@@ -274,7 +273,6 @@ def test_chronological_campaign_command_supports_multi_symbol_dataset(
             settings=SimpleNamespace(
                 analysis_timeframes=("5m",),
                 strategy_routing=None,
-                gainer_state_thresholds=None,
             )
         ),
     )
