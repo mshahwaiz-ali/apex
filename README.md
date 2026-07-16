@@ -669,7 +669,7 @@ Use another symbol universe:
 apex scan --symbols-file config/symbols.yaml
 ```
 
-The scanner is designed so that one failed symbol does not invalidate the entire scan. Use `--mode normal`, `--mode gainers`, or `--mode all` to choose the scanner path. JSON output includes `scanner_type`, entry state, gainer-state evidence when applicable, and routing metadata. The normal-market and gainer strategy routes are configured in `config/default.yaml` under `strategy_routing`; gainer state thresholds are configured under `gainer_state_thresholds`. Routing is enforced before candidate scoring and records regime, scanner-route, selected-strategy, and gainer-state rejection explanations.
+The scanner isolates symbol-level failures so one unavailable or invalid market does not invalidate the complete scan. Each configured symbol is analyzed once through the canonical strategy route. JSON output includes entry-state, strategy-routing, candidate, and risk diagnostics.
 
 ---
 
