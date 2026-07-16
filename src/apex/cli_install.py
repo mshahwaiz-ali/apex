@@ -13,6 +13,9 @@ from apex.cli_commands.evidence_bundle import register_evidence_bundle_commands
 from apex.cli_commands.evidence_pipeline import register_evidence_pipeline_commands
 from apex.cli_commands.forward_edge import register_forward_edge_commands
 from apex.cli_commands.forward_edge_artifact import register_forward_edge_artifact_commands
+from apex.cli_commands.forward_edge_artifact_verify import (
+    register_forward_edge_artifact_verify_commands,
+)
 from apex.cli_commands.funded_history import register_funded_history_commands
 from apex.cli_commands.historical_futures_edge import register_historical_futures_edge_commands
 from apex.cli_commands.historical_futures_edge_validation import (
@@ -58,6 +61,7 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_historical_futures_edge_validation_commands(app)
     register_forward_edge_commands(app)
     register_forward_edge_artifact_commands(app)
+    register_forward_edge_artifact_verify_commands(app)
     register_evidence_bundle_commands(app)
     register_evidence_pipeline_commands(app)
     register_spot_analysis_commands(app)
