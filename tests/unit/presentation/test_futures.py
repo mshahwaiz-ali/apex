@@ -6,17 +6,18 @@ from apex.presentation.futures import render_futures_analysis
 def _base_payload() -> dict[str, object]:
     return {
         "symbol": "TRX/USDT",
-        "assessment": {"setup": None},
+        "decision": "NO_TRADE",
+        "reasons": ["Phase 5 selected no trade candidate"],
         "candidate_count": 0,
         "decision_reason_code": "NO_CANDIDATE_GENERATED",
         "market_environment": {
             "primary_regime": "FAILED_BREAKOUT_DOWN",
             "higher_timeframe_bias": "STRONGLY_BEARISH",
-            "volatility_regime": "NORMAL",
+            "volatility_state": "NORMAL",
             "extension_state": "EXTREME",
-            "long_suitability": 15.8,
-            "short_suitability": 84.2,
-            "warnings": [
+            "long_suitability_score": 15.8,
+            "short_suitability_score": 84.2,
+            "reason_codes": [
                 "PRIMARY_REGIME_FAILED_BREAKOUT_DOWN",
                 "HIGHER_TIMEFRAME_BIAS_STRONGLY_BEARISH",
                 "EXTENSION_WARNING",
@@ -117,16 +118,17 @@ def test_wait_for_reclaim_is_clear() -> None:
 
 def test_approved_short_setup_displays_action_first() -> None:
     payload = _base_payload()
-    payload["assessment"] = {
-        "setup": {
-            "direction": "short",
+    payload.update(
+        {
+            "decision": "SHORT",
             "strategy": "failed_breakout",
             "current_price": 0.2801,
+            "entry_state": "READY_NOW",
             "entry_zone": {
                 "low": 0.2795,
                 "high": 0.2805,
                 "preferred": 0.2800,
-                "max_chase_price": 0.2788,
+                "maximum_chase_price": 0.2788,
             },
             "stop_loss": 0.2830,
             "take_profits": [
@@ -134,16 +136,16 @@ def test_approved_short_setup_displays_action_first() -> None:
                 {"price": 0.2720, "risk_reward": 2.8},
             ],
             "confidence_score": 82.4,
+            "decision_reason_code": "READY_NOW",
+            "near_current_entry": {
+                "entry_state": "READY_NOW",
+                "actionable_now": True,
+                "entry_quality_score": 88.0,
+                "chase_risk": "LOW",
+                "reasons": ["Short entry is available near the current price"],
+            },
         }
-    }
-    payload["decision_reason_code"] = "READY_NOW"
-    payload["near_current_entry"] = {
-        "entry_state": "READY_NOW",
-        "actionable_now": True,
-        "entry_quality_score": 88.0,
-        "chase_risk": "LOW",
-        "reasons": ["Short entry is available near the current price"],
-    }
+    )
 
     text = render_futures_analysis(payload)
 
@@ -159,19 +161,20 @@ def test_approved_short_setup_displays_action_first() -> None:
 
 def test_unavailable_geometry_is_explicit() -> None:
     payload = _base_payload()
-    payload["assessment"] = {
-        "setup": {
-            "direction": "long",
+    payload.update(
+        {
+            "decision": "LONG",
             "strategy": "reclaim_entry",
+            "entry_state": "APPROACHING_ENTRY",
             "entry_zone": {},
             "take_profits": [],
             "confidence_score": 70.0,
+            "near_current_entry": {
+                "entry_state": "APPROACHING_ENTRY",
+                "actionable_now": False,
+            },
         }
-    }
-    payload["near_current_entry"] = {
-        "entry_state": "APPROACHING_ENTRY",
-        "actionable_now": False,
-    }
+    )
 
     text = render_futures_analysis(payload)
 
