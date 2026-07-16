@@ -9,6 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from apex.config.futures_screener import FuturesScreenerSettings
 from apex.data.timeframes import timeframe_delta
 from apex.strategies import StrategyType
 
@@ -101,6 +102,9 @@ class FileSettings(BaseModel):
     data_dir: Path = Path("data")
     log_dir: Path = Path("logs")
     cache_enabled: bool = True
+    futures_screener: FuturesScreenerSettings = Field(
+        default_factory=FuturesScreenerSettings
+    )
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))
     timeframe_resampling_sources: dict[str, str] = Field(

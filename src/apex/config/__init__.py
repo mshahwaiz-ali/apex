@@ -10,6 +10,7 @@ from apex.config.futures import (
     RiskModeDefaults,
     load_futures_product_config,
 )
+from apex.config.futures_screener import FuturesScreenerSettings
 from apex.config.settings import (
     DEFAULT_STRATEGY_ROUTING,
     DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS,
@@ -46,6 +47,7 @@ __all__ = [
     "FileSettings",
     "FuturesExecutionCostConfig",
     "FuturesProductConfig",
+    "FuturesScreenerSettings",
     "RiskModeDefaults",
     "SpotAllocationConfig",
     "SpotEntryConfig",

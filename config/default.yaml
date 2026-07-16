@@ -3,6 +3,11 @@ log_level: INFO
 data_dir: data
 log_dir: logs
 cache_enabled: true
+futures_screener:
+  minimum_quote_volume_24h: 5000000
+  maximum_spread_percentage: 0.25
+  minimum_absolute_movement_percentage: 1.0
+  shortlist_size: 30
 advanced_intelligence_enabled: false
 intelligence_funding_enabled: false
 intelligence_open_interest_enabled: false

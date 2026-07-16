@@ -12,8 +12,9 @@ from apex.application import (
     build_analysis_record,
     create_market_data_services,
     load_default_risk_config,
-    resolve_futures_symbols,
     scan_symbols,
+    select_futures_scan_symbols,
+    serialize_futures_screening,
     serialize_scan_result,
     write_analysis_record,
     write_analysis_record_sqlite,
@@ -59,12 +60,18 @@ def register_scanner_commands(app: typer.Typer) -> None:
                 futures_risk_mode_scope(risk_mode),
                 create_market_data_services(context.settings) as services,
             ):
-                symbols = resolve_futures_symbols(
+                selection = select_futures_scan_symbols(
                     services.futures_universe,
+                    services.futures_screener,
+                    config=(
+                        context.settings
+                        .futures_screener
+                        .to_domain()
+                    ),
                     symbols_file=symbols_file,
                 )
                 result = scan_symbols(
-                    symbols,
+                    selection.symbols,
                     services.candles,
                     timeframes=context.settings.analysis_timeframes,
                     timeframe_roles=getattr(context.settings, "timeframe_roles", None),
@@ -85,6 +92,10 @@ def register_scanner_commands(app: typer.Typer) -> None:
 
         payload = serialize_scan_result(result)
         payload["risk_mode"] = risk_mode.value
+        if selection.screening is not None:
+            payload["screening"] = serialize_futures_screening(
+                selection.screening
+            )
         if report is not None:
             write_json_report(payload, report)
         if record is not None or record_db is not None:

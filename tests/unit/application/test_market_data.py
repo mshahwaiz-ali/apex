@@ -5,6 +5,7 @@ import pytest
 from apex.application.market_data import create_market_data_services
 from apex.config import FileSettings
 from apex.data.providers import CachedMarketDataProvider, ResamplingMarketDataProvider
+from apex.domain.futures_screening import FuturesTickerSnapshot
 from apex.domain.models import Candle, TickerSnapshot
 
 
@@ -28,6 +29,11 @@ class FakeProvider:
     def fetch_ticker(self, symbol: str) -> TickerSnapshot:
         raise AssertionError("not needed in construction tests")
 
+    def fetch_futures_tickers(
+        self,
+    ) -> tuple[FuturesTickerSnapshot, ...]:
+        raise AssertionError("not needed in construction tests")
+
 
 def make_settings(tmp_path: Path, *, cache_enabled: bool) -> FileSettings:
     return FileSettings(
@@ -49,6 +55,7 @@ def test_builds_cached_candles_and_live_ticker(tmp_path: Path) -> None:
 
     assert isinstance(services.candles, CachedMarketDataProvider)
     assert services.ticker is provider
+    assert services.futures_screener is provider
 
     services.close()
     assert provider.closed is True
@@ -64,6 +71,7 @@ def test_disabling_cache_reuses_live_provider(tmp_path: Path) -> None:
     ) as services:
         assert services.candles is provider
         assert services.ticker is provider
+        assert services.futures_screener is provider
 
     assert provider.closed is True
 

@@ -14,11 +14,19 @@ from apex.data.providers import (
     CachedMarketDataProvider,
     ResamplingMarketDataProvider,
 )
-from apex.data.providers.base import FuturesUniverseProvider, MarketDataProvider
+from apex.data.providers.base import (
+    FuturesMarketScreenerProvider,
+    FuturesUniverseProvider,
+    MarketDataProvider,
+)
 
 
-class ManagedMarketDataProvider(MarketDataProvider, Protocol):
-    """Market-data provider that owns closable runtime resources."""
+class ManagedMarketDataProvider(
+    MarketDataProvider,
+    FuturesMarketScreenerProvider,
+    Protocol,
+):
+    """Live futures provider with screening and closable resources."""
 
     def close(self) -> None:
         """Release provider resources."""
@@ -41,6 +49,7 @@ class MarketDataServices:
 
     candles: MarketDataProvider
     ticker: MarketDataProvider
+    futures_screener: FuturesMarketScreenerProvider
     futures_universe: FuturesUniverseProvider
     _live_provider: ManagedMarketDataProvider
     _futures_universe_provider: ManagedFuturesUniverseProvider
@@ -95,6 +104,7 @@ def create_market_data_services(
     return MarketDataServices(
         candles=candle_provider,
         ticker=live_provider,
+        futures_screener=live_provider,
         futures_universe=futures_universe_provider,
         _live_provider=live_provider,
         _futures_universe_provider=futures_universe_provider,

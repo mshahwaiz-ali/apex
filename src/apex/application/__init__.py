@@ -42,6 +42,11 @@ from apex.application.decision_analysis import (
     write_json_report,
 )
 from apex.application.futures_account import build_futures_account_input
+from apex.application.futures_scan_selection import (
+    FuturesScanSelection,
+    select_futures_scan_symbols,
+    serialize_futures_screening,
+)
 from apex.application.futures_symbol_resolution import resolve_futures_symbols
 from apex.application.market_data import create_market_data_services
 from apex.application.precision_entry import build_precision_entry_plan
@@ -63,6 +68,7 @@ __all__ = [
     "BaselineDatasetRef",
     "ChronologicalBacktestRequest",
     "FuturesPlanSafetyError",
+    "FuturesScanSelection",
     "MultiSymbolBacktestCampaignRequest",
     "ScanResult",
     "SymbolAnalysis",
@@ -91,6 +97,8 @@ __all__ = [
     "resolve_futures_symbols",
     "run_multi_symbol_backtest_campaign",
     "scan_symbols",
+    "select_futures_scan_symbols",
+    "serialize_futures_screening",
     "serialize_scan_result",
     "serialize_symbol_analysis",
     "split_campaign_candles_by_symbol",
