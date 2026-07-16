@@ -192,3 +192,22 @@ def test_source_verification_rejects_missing_declared_line(tmp_path: Path) -> No
         "source_identity_mismatch",
         "source_log_hash_mismatch",
     )
+
+
+def test_source_verification_rejects_malformed_declared_line(tmp_path: Path) -> None:
+    artifact_path, source_log = _write_artifact(tmp_path)
+    source_log.write_text("not-json\n", encoding="utf-8")
+
+    verification = verify_paper_lifecycle_health_artifact_source(
+        artifact_path,
+        source_log,
+    )
+
+    assert verification.status is PaperLifecycleHealthSourceStatus.SOURCE_RECORD_INVALID
+    assert verification.reasons == (
+        "source_line_invalid_json",
+        "source_record_hash_mismatch",
+        "analytics_hash_mismatch",
+        "source_identity_mismatch",
+        "source_log_hash_mismatch",
+    )
