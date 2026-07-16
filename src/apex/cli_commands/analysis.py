@@ -14,21 +14,26 @@ from apex.application import (
     build_futures_account_input,
     build_futures_plan_result,
     create_market_data_services,
-    format_symbol_text,
-    format_trade_management_plan,
     load_default_risk_config,
     serialize_symbol_analysis,
     write_analysis_record,
     write_analysis_record_sqlite,
 )
 from apex.data.providers.errors import MarketDataProviderError
+from apex.presentation import normalize_output_mode
+from apex.presentation.futures import render_futures_analysis
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
     @app.command("analyze")
     def analyze(
         symbol: str = typer.Argument(..., help="Any provider-supported futures market symbol."),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
+        output: str = typer.Option(
+            "text",
+            "--output",
+            "-o",
+            help="text, json, verbose, or debug",
+        ),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
         wallet_balance: float = typer.Option(
             100.0,
@@ -71,6 +76,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
         ),
     ) -> None:
         try:
+            output_mode = normalize_output_mode(output)
             account = build_futures_account_input(
                 wallet_balance=wallet_balance,
                 risk_mode=risk_mode,
@@ -117,27 +123,8 @@ def register_analysis_commands(app: typer.Typer) -> None:
             if record_db is not None:
                 write_analysis_record_sqlite(record_db, analysis_record)
 
-        if output == "json":
+        if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
 
-        typer.echo(format_symbol_text(result))
-        typer.echo(
-            "Futures account: "
-            f"wallet={account.wallet_balance:.2f} "
-            f"risk={account.risk_mode.value} "
-            f"leverage={account.leverage_mode.value} "
-            f"max_loss={account.maximum_account_loss_amount:.2f} "
-            f"margin={account.margin_mode.value}"
-        )
-        futures_plan = payload.get("futures_plan")
-        if isinstance(futures_plan, dict):
-            status = futures_plan.get("status", "UNKNOWN")
-            typer.echo(f"Futures plan: {status}")
-            management_plan = futures_plan.get("management_plan")
-            if status == "APPROVED" and isinstance(management_plan, dict):
-                typer.echo(format_trade_management_plan(management_plan))
-            reasons = futures_plan.get("reasons", [])
-            if isinstance(reasons, list):
-                for reason in reasons:
-                    typer.echo(f"- {reason}")
+        typer.echo(render_futures_analysis(payload, mode=output_mode))
