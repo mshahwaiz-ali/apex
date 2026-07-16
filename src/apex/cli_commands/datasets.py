@@ -10,7 +10,9 @@ import typer
 
 from apex.application import bootstrap, create_market_data_services, normalize_market_symbol
 from apex.application.historical_dataset_export import build_dataset_payload, write_dataset
+from apex.cli_commands.research_output import emit_payload, output_mode
 from apex.data.providers.errors import MarketDataProviderError
+from apex.presentation.research import render_dataset_export
 
 
 def register_dataset_commands(app: typer.Typer) -> None:
@@ -36,7 +38,12 @@ def register_dataset_commands(app: typer.Typer) -> None:
             bool,
             typer.Option("--force", help="Allow replacing an existing file."),
         ] = False,
+        output_format: Annotated[
+            str,
+            typer.Option("--format", help="text, json, verbose, or debug"),
+        ] = "text",
     ) -> None:
+        mode = output_mode(output_format)
         canonical = normalize_market_symbol(symbol)
         requested = _parse_timeframes(timeframes)
         try:
@@ -66,7 +73,11 @@ def register_dataset_commands(app: typer.Typer) -> None:
         candle_payload = payload.get("candles")
         if not isinstance(candle_payload, Sequence) or isinstance(candle_payload, (str, bytes)):
             raise typer.BadParameter("dataset payload candles must be a sequence")
-        typer.echo(f"Exported {len(candle_payload)} closed candles to {output}")
+        emit_payload(
+            payload,
+            mode=mode,
+            rendered=render_dataset_export(payload, output_path=output, mode=mode),
+        )
 
 
 def _parse_timeframes(value: str) -> tuple[str, ...]:
