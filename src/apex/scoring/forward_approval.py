@@ -177,6 +177,19 @@ class ForwardEvidenceAwareStrategyApprovalDecision:
         return payload
 
 
+def _comparable_segment_dimensions(
+    dimensions: Mapping[str, str] | tuple[tuple[str, str], ...],
+) -> dict[str, str]:
+    """Normalize legacy evidence dimensions before exact segment comparison."""
+
+    items = dimensions.items() if isinstance(dimensions, Mapping) else dimensions
+    return {
+        key: value
+        for key, value in items
+        if key != "scanner_type"
+    }
+
+
 def evaluate_strategy_approval_with_forward_paper_evidence(
     *,
     strategy: StrategyType,
@@ -218,13 +231,15 @@ def evaluate_strategy_approval_with_forward_paper_evidence(
             forward_paper_reasons=(),
         )
 
-    expected_dimensions = dict(setup_segment.to_dimensions())
+    expected_dimensions = _comparable_segment_dimensions(setup_segment.to_dimensions())
     historical_dimensions = (
-        dict(historical.historical_evidence.dimensions)
+        _comparable_segment_dimensions(historical.historical_evidence.dimensions)
         if historical.historical_evidence is not None
         else None
     )
-    forward_dimensions = dict(attachment.dimensions) if attachment is not None else None
+    forward_dimensions = (
+        _comparable_segment_dimensions(attachment.dimensions) if attachment is not None else None
+    )
 
     dimensions_match = (
         historical_dimensions == expected_dimensions and forward_dimensions == expected_dimensions

@@ -200,6 +200,25 @@ def test_exact_standard_segment_can_become_funded_eligible() -> None:
     assert approval["forward_paper_evidence"]["status"] == "PASSED_VALIDATION"
 
 
+def test_legacy_scanner_dimension_does_not_cause_segment_mismatch() -> None:
+    historical = _historical()
+    legacy_forward_dimensions = {**DIMENSIONS, "scanner_type": "gainers"}
+
+    result = build_futures_plan_result(
+        _setup(),
+        _account(),
+        historical_edge_validation=historical,
+        forward_paper_validation=_forward(
+            historical,
+            dimensions=legacy_forward_dimensions,
+        ),
+        setup_segment_context=SEGMENT_CONTEXT,
+    )
+
+    assert result["status"] == "APPROVED"
+    assert result["eligibility"] == "FUNDED_ELIGIBLE"
+
+
 def test_mismatched_forward_segment_remains_paper_only() -> None:
     historical = _historical()
     mismatched = {**DIMENSIONS, "market_regime": "range"}
