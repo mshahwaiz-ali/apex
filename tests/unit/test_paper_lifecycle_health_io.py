@@ -113,6 +113,11 @@ def test_loader_selects_latest_successful_market_record(tmp_path: Path) -> None:
     assert audit.completed_at == datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
     assert audit.analytics.realized_net_pnl == 12.0
     assert audit.health.status is PaperLifecycleHealthStatus.HEALTHY
+    assert audit.log_name == "pipeline-futures.jsonl"
+    assert audit.source_line_number == 4
+    assert len(audit.source_record_sha256) == 64
+    assert len(audit.source_log_sha256) == 64
+    assert len(audit.analytics_sha256) == 64
 
 
 def test_loader_skips_success_records_without_analytics(tmp_path: Path) -> None:
@@ -190,9 +195,65 @@ def test_artifact_is_deterministic_and_preserves_policy(tmp_path: Path) -> None:
     second = build_paper_lifecycle_health_artifact(audit, policy=policy)
 
     assert first == second
+    assert first.payload["schema_version"] == 2
     assert first.payload["policy"]["minimum_terminal_trades"] == 10
     assert first.payload["source"]["run_id"] == "run-1"
+    assert first.payload["source"]["source_record_sha256"] == audit.source_record_sha256
+    assert first.payload["source"]["source_log_sha256"] == audit.source_log_sha256
+    assert first.payload["source"]["analytics_sha256"] == audit.analytics_sha256
     assert first.payload["execution_authorized"] is False
+
+
+def test_artifact_identity_is_independent_of_parent_directory(tmp_path: Path) -> None:
+    first_path = tmp_path / "first" / "pipeline-futures.jsonl"
+    second_path = tmp_path / "second" / "pipeline-futures.jsonl"
+    first_path.parent.mkdir()
+    second_path.parent.mkdir()
+    records = [_record("run-1", "futures", analytics=_analytics())]
+    _write_jsonl(first_path, records)
+    _write_jsonl(second_path, records)
+    policy = PaperLifecycleHealthPolicy()
+
+    first = build_paper_lifecycle_health_artifact(
+        load_latest_paper_lifecycle_health(
+            first_path,
+            market_type=IntakeMarketType.FUTURES,
+            policy=policy,
+        ),
+        policy=policy,
+    )
+    second = build_paper_lifecycle_health_artifact(
+        load_latest_paper_lifecycle_health(
+            second_path,
+            market_type=IntakeMarketType.FUTURES,
+            policy=policy,
+        ),
+        policy=policy,
+    )
+
+    assert first == second
+
+
+def test_source_hashes_change_when_evidence_changes(tmp_path: Path) -> None:
+    audit_path = tmp_path / "pipeline-futures.jsonl"
+    _write_jsonl(audit_path, [_record("run-1", "futures", analytics=_analytics())])
+    first = load_latest_paper_lifecycle_health(
+        audit_path,
+        market_type=IntakeMarketType.FUTURES,
+    )
+
+    _write_jsonl(
+        audit_path,
+        [_record("run-1", "futures", analytics=_analytics(realized_net_pnl=11.0))],
+    )
+    second = load_latest_paper_lifecycle_health(
+        audit_path,
+        market_type=IntakeMarketType.FUTURES,
+    )
+
+    assert first.source_record_sha256 != second.source_record_sha256
+    assert first.source_log_sha256 != second.source_log_sha256
+    assert first.analytics_sha256 != second.analytics_sha256
 
 
 def test_artifact_round_trip_and_overwrite_protection(tmp_path: Path) -> None:
