@@ -19,7 +19,6 @@ class Phase6DiagnosticSummary:
     approved: int
     rejected: int
     rejection_code_counts: Mapping[str, int]
-    rejection_counts_by_scanner_category: Mapping[str, Mapping[str, int]]
     rejection_counts_by_strategy: Mapping[str, Mapping[str, int]]
     approved_counts_by_strategy: Mapping[str, int]
     approved_counts_by_direction: Mapping[str, int]
@@ -43,9 +42,6 @@ class Phase6DiagnosticSummary:
                 "rejected": self.rejected,
             },
             "rejection_code_counts": _sorted_counts(self.rejection_code_counts),
-            "rejection_counts_by_scanner_category": _sorted_nested_counts(
-                self.rejection_counts_by_scanner_category
-            ),
             "rejection_counts_by_strategy": _sorted_nested_counts(
                 self.rejection_counts_by_strategy
             ),
@@ -83,7 +79,6 @@ def build_phase6_diagnostic_summary(
     """Aggregate structured Phase 6 decisions without parsing human-readable reasons."""
 
     rejection_codes: Counter[str] = Counter()
-    rejection_by_scanner: dict[str, Counter[str]] = defaultdict(Counter)
     rejection_by_strategy: dict[str, Counter[str]] = defaultdict(Counter)
     approved_by_strategy: Counter[str] = Counter()
     approved_by_direction: Counter[str] = Counter()
@@ -101,7 +96,6 @@ def build_phase6_diagnostic_summary(
 
     for analysis in analyses:
         assessment = analysis.assessment
-        scanner = analysis.scanner_type.value
         selected_strategy = _selected_strategy(analysis)
 
         if assessment.decision is RiskDecision.APPROVED:
@@ -128,7 +122,6 @@ def build_phase6_diagnostic_summary(
         for code in assessment.rejection_codes:
             value = code.value
             rejection_codes[value] += 1
-            rejection_by_scanner[scanner][value] += 1
             if selected_strategy is not None:
                 rejection_by_strategy[selected_strategy][value] += 1
 
@@ -137,7 +130,6 @@ def build_phase6_diagnostic_summary(
         approved=approved,
         rejected=rejected,
         rejection_code_counts=rejection_codes,
-        rejection_counts_by_scanner_category=rejection_by_scanner,
         rejection_counts_by_strategy=rejection_by_strategy,
         approved_counts_by_strategy=approved_by_strategy,
         approved_counts_by_direction=approved_by_direction,
@@ -154,13 +146,12 @@ def build_phase6_diagnostic_summary(
 
 
 def phase6_analysis_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
-    """Return one stable Phase 6 audit payload for a symbol/scanner path."""
+    """Return one stable Phase 6 audit payload for a symbol."""
 
     assessment = analysis.assessment
     setup = assessment.setup
     payload: dict[str, Any] = {
         "symbol": analysis.symbol,
-        "scanner_type": analysis.scanner_type.value,
         "decision": assessment.decision.value,
         "configuration_id": assessment.configuration_id,
         "rejection_codes": [code.value for code in assessment.rejection_codes],

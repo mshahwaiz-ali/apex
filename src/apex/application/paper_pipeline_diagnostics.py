@@ -24,7 +24,6 @@ class Phase4DiagnosticSummary:
 
     rejection_code_counts: Mapping[str, int]
     rejection_counts_by_strategy: Mapping[str, int]
-    rejection_counts_by_scanner_category: Mapping[str, int]
     rejection_counts_by_decision_regime: Mapping[str, int]
     rejection_counts_by_near_miss_state: Mapping[str, int]
     candidate_counts_by_strategy: Mapping[str, int]
@@ -45,9 +44,6 @@ class Phase4DiagnosticSummary:
             "rejection_code_counts": _sorted_counts(self.rejection_code_counts),
             "rejection_counts_by_strategy": _sorted_counts(
                 self.rejection_counts_by_strategy
-            ),
-            "rejection_counts_by_scanner_category": _sorted_counts(
-                self.rejection_counts_by_scanner_category
             ),
             "rejection_counts_by_decision_regime": _sorted_counts(
                 self.rejection_counts_by_decision_regime
@@ -81,7 +77,6 @@ def build_phase4_diagnostic_summary(
 
     rejection_codes: Counter[str] = Counter()
     by_strategy: Counter[str] = Counter()
-    by_scanner: Counter[str] = Counter()
     by_regime: Counter[str] = Counter()
     by_near_miss: Counter[str] = Counter()
     candidate_counts: Counter[str] = Counter()
@@ -95,7 +90,6 @@ def build_phase4_diagnostic_summary(
         skipped_strategies = _mapping(routing.get("skipped_strategies"))
         regime = _optional_string(routing.get("decision_regime"))
         htf_breakout = routing.get("higher_timeframe_breakout") is True
-        scanner = analysis.scanner_type.value
 
         evaluated += len(diagnostics)
         eligible += len(routed_eligible)
@@ -118,7 +112,6 @@ def build_phase4_diagnostic_summary(
             for code in codes:
                 rejection_codes[code] += 1
                 by_strategy[strategy] += 1
-                by_scanner[scanner] += 1
                 if regime is not None:
                     by_regime[regime] += 1
                 if near_miss is not None:
@@ -139,7 +132,6 @@ def build_phase4_diagnostic_summary(
     return Phase4DiagnosticSummary(
         rejection_code_counts=rejection_codes,
         rejection_counts_by_strategy=by_strategy,
-        rejection_counts_by_scanner_category=by_scanner,
         rejection_counts_by_decision_regime=by_regime,
         rejection_counts_by_near_miss_state=by_near_miss,
         candidate_counts_by_strategy=candidate_counts,
@@ -187,14 +179,13 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
 
 
 def _analysis_key(analysis: SymbolAnalysis) -> str:
-    return f"{analysis.symbol}:{analysis.scanner_type.value}"
+    return analysis.symbol
 
 
 def _analysis_diagnostics(analysis: SymbolAnalysis) -> dict[str, Any]:
     routing = analysis.strategy_routing or {}
     return {
         "symbol": analysis.symbol,
-        "scanner_type": analysis.scanner_type.value,
         "candidate_count": analysis.candidate_count,
         "decision_regime": routing.get("decision_regime"),
         "higher_timeframe_breakout": routing.get("higher_timeframe_breakout") is True,

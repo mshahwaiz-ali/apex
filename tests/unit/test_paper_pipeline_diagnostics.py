@@ -8,12 +8,11 @@ from apex.application.paper_pipeline_diagnostics import (
     build_futures_pipeline_diagnostics,
     build_phase4_diagnostic_summary,
 )
-from apex.domain import MarketCategory
 
 
 def _analysis(
-    scanner_type: MarketCategory,
     *,
+    symbol: str = "BTC/USDT",
     candidate_count: int,
     regime: str = "uncertain",
     higher_timeframe_breakout: bool = True,
@@ -45,21 +44,20 @@ def _analysis(
     return cast(
         SymbolAnalysis,
         SimpleNamespace(
-            symbol="BTC/USDT",
-            scanner_type=scanner_type,
+            symbol=symbol,
             candidate_count=candidate_count,
             strategy_routing=default_routing if routing is None else routing,
         ),
     )
 
 
-def test_aggregates_phase4_diagnostics_by_symbol_and_scanner() -> None:
+def test_aggregates_phase4_diagnostics_by_symbol() -> None:
     scan = cast(
         ScanResult,
         SimpleNamespace(
             analyses=(
-                _analysis(MarketCategory.NORMAL_MARKET, candidate_count=0),
-                _analysis(MarketCategory.GAINER, candidate_count=1),
+                _analysis(symbol="BTC/USDT", candidate_count=0),
+                _analysis(symbol="ETH/USDT", candidate_count=1),
             ),
             failures={"ETH/USDT": "provider timeout"},
         ),
@@ -70,23 +68,20 @@ def test_aggregates_phase4_diagnostics_by_symbol_and_scanner() -> None:
     assert diagnostics["scan_analysis_count"] == 2
     assert diagnostics["scanner_failure_count"] == 1
     assert diagnostics["scanner_failures"] == {"ETH/USDT": "provider timeout"}
-    assert set(diagnostics["phase4_analyses"]) == {
-        "BTC/USDT:NORMAL_MARKET",
-        "BTC/USDT:GAINER",
-    }
-    normal = diagnostics["phase4_analyses"]["BTC/USDT:NORMAL_MARKET"]
-    gainer = diagnostics["phase4_analyses"]["BTC/USDT:GAINER"]
-    assert normal["candidate_count"] == 0
-    assert gainer["candidate_count"] == 1
-    assert normal["higher_timeframe_breakout"] is True
-    assert normal["near_miss_state_counts"] == {"wait_for_retest": 1}
+    assert set(diagnostics["phase4_analyses"]) == {"BTC/USDT", "ETH/USDT"}
+    btc = diagnostics["phase4_analyses"]["BTC/USDT"]
+    eth = diagnostics["phase4_analyses"]["ETH/USDT"]
+    assert btc["candidate_count"] == 0
+    assert eth["candidate_count"] == 1
+    assert btc["higher_timeframe_breakout"] is True
+    assert btc["near_miss_state_counts"] == {"wait_for_retest": 1}
 
 
 def test_run_summary_counts_rejections_candidates_and_strategy_states() -> None:
     summary = build_phase4_diagnostic_summary(
         (
-            _analysis(MarketCategory.NORMAL_MARKET, candidate_count=0),
-            _analysis(MarketCategory.GAINER, candidate_count=1),
+            _analysis(symbol="BTC/USDT", candidate_count=0),
+            _analysis(symbol="ETH/USDT", candidate_count=1),
         )
     ).to_payload()
 
@@ -97,10 +92,6 @@ def test_run_summary_counts_rejections_candidates_and_strategy_states() -> None:
     assert summary["rejection_counts_by_strategy"] == {
         "breakout_continuation": 1,
         "range_reversal": 2,
-    }
-    assert summary["rejection_counts_by_scanner_category"] == {
-        "GAINER": 1,
-        "NORMAL_MARKET": 2,
     }
     assert summary["rejection_counts_by_decision_regime"] == {"uncertain": 3}
     assert summary["rejection_counts_by_near_miss_state"] == {
@@ -123,10 +114,9 @@ def test_run_summary_counts_rejections_candidates_and_strategy_states() -> None:
 def test_run_summary_tracks_higher_timeframe_breakout_fallback() -> None:
     summary = build_phase4_diagnostic_summary(
         (
-            _analysis(MarketCategory.NORMAL_MARKET, candidate_count=0),
-            _analysis(MarketCategory.GAINER, candidate_count=1),
+            _analysis(symbol="BTC/USDT", candidate_count=0),
+            _analysis(symbol="ETH/USDT", candidate_count=1),
             _analysis(
-                MarketCategory.NORMAL_MARKET,
                 candidate_count=1,
                 regime="strong_uptrend",
                 higher_timeframe_breakout=False,
@@ -146,12 +136,10 @@ def test_partial_or_absent_routing_diagnostics_are_not_fabricated() -> None:
     summary = build_phase4_diagnostic_summary(
         (
             _analysis(
-                MarketCategory.NORMAL_MARKET,
                 candidate_count=0,
                 routing={},
             ),
             _analysis(
-                MarketCategory.GAINER,
                 candidate_count=0,
                 routing={
                     "decision_regime": "compression",
@@ -203,7 +191,6 @@ def test_serialized_summary_order_is_deterministic() -> None:
     payload = build_phase4_diagnostic_summary(
         (
             _analysis(
-                MarketCategory.NORMAL_MARKET,
                 candidate_count=0,
                 routing=routing,
             ),

@@ -9,12 +9,11 @@ from apex.application.phase5_pipeline_diagnostics import (
     build_phase5_diagnostic_summary,
     phase5_analysis_payload,
 )
-from apex.domain import MarketCategory
 
 
 def _analysis(
-    scanner_type: MarketCategory,
     *,
+    symbol: str = "BTC/USDT",
     selected: bool,
     selected_candidate_id: str | None = None,
     no_trade_reason: str | None = None,
@@ -24,8 +23,7 @@ def _analysis(
     return cast(
         SymbolAnalysis,
         SimpleNamespace(
-            symbol="BTC/USDT",
-            scanner_type=scanner_type,
+            symbol=symbol,
             candidate_count=len(candidate_payloads),
             strategy_routing={},
             phase5_diagnostics={
@@ -47,7 +45,7 @@ def _analysis(
 def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> None:
     analyses = (
         _analysis(
-            MarketCategory.NORMAL_MARKET,
+            symbol="BTC/USDT",
             selected=True,
             selected_candidate_id="normal-1",
             candidates=[
@@ -70,7 +68,7 @@ def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> No
             ],
         ),
         _analysis(
-            MarketCategory.GAINER,
+            symbol="ETH/USDT",
             selected=False,
             no_trade_reason="opposing candidates remain unresolved inside the conflict margin",
             candidates=[
@@ -126,7 +124,6 @@ def test_phase5_summary_does_not_infer_missing_selection_identity() -> None:
     payload = build_phase5_diagnostic_summary(
         (
             _analysis(
-                MarketCategory.NORMAL_MARKET,
                 selected=True,
                 candidates=[
                     {
@@ -148,7 +145,7 @@ def test_phase5_summary_does_not_infer_missing_selection_identity() -> None:
 
 
 def test_phase5_analysis_payload_handles_absent_diagnostics() -> None:
-    analysis = _analysis(MarketCategory.GAINER, selected=False)
+    analysis = _analysis(symbol="ETH/USDT", selected=False)
     analysis.phase5_diagnostics.clear()  # type: ignore[union-attr]
 
     payload = phase5_analysis_payload(analysis)
@@ -160,13 +157,12 @@ def test_phase5_analysis_payload_handles_absent_diagnostics() -> None:
     assert payload["candidates"] == []
 
 
-def test_pipeline_payload_preserves_distinct_scanner_paths_and_phase5_summary() -> None:
+def test_pipeline_payload_preserves_distinct_symbol_paths_and_phase5_summary() -> None:
     scan = cast(
         ScanResult,
         SimpleNamespace(
             analyses=(
                 _analysis(
-                    MarketCategory.NORMAL_MARKET,
                     selected=True,
                     selected_candidate_id="normal-1",
                     candidates=[
@@ -181,7 +177,7 @@ def test_pipeline_payload_preserves_distinct_scanner_paths_and_phase5_summary() 
                     ],
                 ),
                 _analysis(
-                    MarketCategory.GAINER,
+                    symbol="ETH/USDT",
                     selected=False,
                     no_trade_reason="no Phase 4 candidates were generated",
                 ),
@@ -192,10 +188,7 @@ def test_pipeline_payload_preserves_distinct_scanner_paths_and_phase5_summary() 
 
     payload = build_futures_pipeline_diagnostics(scan)
 
-    assert set(payload["phase5_analyses"]) == {
-        "BTC/USDT:NORMAL_MARKET",
-        "BTC/USDT:GAINER",
-    }
+    assert set(payload["phase5_analyses"]) == {"BTC/USDT", "ETH/USDT"}
     assert payload["phase5_summary"]["analysis_funnel"] == {
         "observed": 2,
         "with_candidates": 1,

@@ -28,7 +28,6 @@ class Phase5DiagnosticSummary:
     candidates_downgraded: int
     outcome_counts: Mapping[str, int]
     outcome_counts_by_strategy: Mapping[str, Mapping[str, int]]
-    outcome_counts_by_scanner_category: Mapping[str, Mapping[str, int]]
     candidate_counts_by_strategy: Mapping[str, int]
     selected_counts_by_strategy: Mapping[str, int]
     selected_counts_by_direction: Mapping[str, int]
@@ -67,9 +66,6 @@ class Phase5DiagnosticSummary:
             "outcome_counts_by_strategy": _sorted_nested_counts(
                 self.outcome_counts_by_strategy
             ),
-            "outcome_counts_by_scanner_category": _sorted_nested_counts(
-                self.outcome_counts_by_scanner_category
-            ),
             "candidate_counts_by_strategy": _sorted_counts(
                 self.candidate_counts_by_strategy
             ),
@@ -92,7 +88,6 @@ def build_phase5_diagnostic_summary(
 
     outcome_counts: Counter[str] = Counter()
     outcomes_by_strategy: dict[str, Counter[str]] = defaultdict(Counter)
-    outcomes_by_scanner: dict[str, Counter[str]] = defaultdict(Counter)
     candidate_counts: Counter[str] = Counter()
     selected_by_strategy: Counter[str] = Counter()
     selected_by_direction: Counter[str] = Counter()
@@ -137,7 +132,6 @@ def build_phase5_diagnostic_summary(
             candidate_counts[strategy] += 1
             outcome_counts[outcome] += 1
             outcomes_by_strategy[strategy][outcome] += 1
-            outcomes_by_scanner[analysis.scanner_type.value][outcome] += 1
             if outcome in _ACCEPTED_OUTCOMES:
                 accepted += 1
             elif outcome == "downgraded":
@@ -168,7 +162,6 @@ def build_phase5_diagnostic_summary(
         candidates_downgraded=downgraded,
         outcome_counts=outcome_counts,
         outcome_counts_by_strategy=outcomes_by_strategy,
-        outcome_counts_by_scanner_category=outcomes_by_scanner,
         candidate_counts_by_strategy=candidate_counts,
         selected_counts_by_strategy=selected_by_strategy,
         selected_counts_by_direction=selected_by_direction,
@@ -185,7 +178,6 @@ def phase5_analysis_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
     diagnostics = _mapping(getattr(analysis, "phase5_diagnostics", None))
     return {
         "symbol": analysis.symbol,
-        "scanner_type": analysis.scanner_type.value,
         "candidate_count": _non_negative_int(diagnostics.get("candidate_count")),
         "ranked_count": _non_negative_int(diagnostics.get("ranked_count")),
         "rejected_count": _non_negative_int(diagnostics.get("rejected_count")),

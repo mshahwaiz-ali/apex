@@ -10,7 +10,6 @@ from apex.application.phase6_pipeline_diagnostics import (
     build_phase6_diagnostic_summary,
     phase6_analysis_payload,
 )
-from apex.domain import MarketCategory
 from apex.risk import (
     ActionableEntry,
     LeverageRange,
@@ -108,7 +107,6 @@ def _approved_analysis() -> SymbolAnalysis:
         SymbolAnalysis,
         SimpleNamespace(
             symbol="BTC/USDT",
-            scanner_type=MarketCategory.NORMAL_MARKET,
             assessment=assessment,
             candidate_count=1,
             strategy_routing={},
@@ -143,7 +141,6 @@ def _rejected_analysis() -> SymbolAnalysis:
         SymbolAnalysis,
         SimpleNamespace(
             symbol="ETH/USDT",
-            scanner_type=MarketCategory.GAINER,
             assessment=assessment,
             candidate_count=1,
             strategy_routing={},
@@ -174,9 +171,6 @@ def test_phase6_summary_aggregates_approvals_rejections_and_geometry() -> None:
     assert payload["rejection_code_counts"] == {
         "leverage_unsafe": 1,
         "stop_too_tight": 1,
-    }
-    assert payload["rejection_counts_by_scanner_category"] == {
-        "GAINER": {"leverage_unsafe": 1, "stop_too_tight": 1}
     }
     assert payload["rejection_counts_by_strategy"] == {
         "breakout_continuation": {
@@ -215,7 +209,7 @@ def test_phase6_analysis_payload_preserves_structured_details() -> None:
     assert rejected["rejection_codes"] == ["stop_too_tight", "leverage_unsafe"]
 
 
-def test_pipeline_payload_includes_phase6_summary_and_distinct_paths() -> None:
+def test_pipeline_payload_includes_phase6_summary_and_symbol_paths() -> None:
     scan = cast(
         ScanResult,
         SimpleNamespace(
@@ -227,7 +221,4 @@ def test_pipeline_payload_includes_phase6_summary_and_distinct_paths() -> None:
     payload = build_futures_pipeline_diagnostics(scan)
 
     assert payload["phase6_summary"]["decision_funnel"]["approved"] == 1
-    assert set(payload["phase6_analyses"]) == {
-        "BTC/USDT:NORMAL_MARKET",
-        "ETH/USDT:GAINER",
-    }
+    assert set(payload["phase6_analyses"]) == {"BTC/USDT", "ETH/USDT"}
