@@ -10,7 +10,13 @@ from typing import Any, cast
 
 import typer
 
-from apex.cli_commands.readiness import _checklist, _load_mapping, _mapping, _timestamp
+from apex.cli_commands.readiness import (
+    _checklist,
+    _load_mapping,
+    _mapping,
+    _provider_policy_binding,
+    _timestamp,
+)
 from apex.domain import AccountPolicyDecision, AccountPolicyType, RiskMode
 from apex.execution import KillSwitchState
 from apex.funded import FundedProviderLimits, evaluate_funded_readiness
@@ -93,6 +99,7 @@ def _evaluate(payload: dict[str, Any], history: dict[str, Any]) -> object:
         risk_mode=RiskMode(str(payload["risk_mode"])),
         account_policy_type=AccountPolicyType(str(payload["account_policy_type"])),
         account_policy_decision=AccountPolicyDecision.model_validate(policy_data),
+        provider_policy_binding=_provider_policy_binding(payload),
         daily_lockout_verified=bool(payload["daily_lockout_verified"]),
         total_buffer_verified=bool(payload["total_buffer_verified"]),
         pre_trade_checklist=_checklist(pre_trade_data),
