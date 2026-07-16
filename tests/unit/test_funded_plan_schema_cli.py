@@ -24,6 +24,7 @@ _EXPECTED_SCHEMAS = {
     "funded_eligibility",
     "funded_plan_evidence_manifest",
     "funded_plan_evidence_package",
+    "funded_plan_reproduction_report",
 }
 
 
@@ -45,10 +46,13 @@ def test_schema_bundle_contains_all_funded_plan_contracts() -> None:
         assert isinstance(schema, dict)
         assert schema.get("type") == "object"
 
-    manifest_schema = schemas["funded_plan_evidence_manifest"]
-    package_schema = schemas["funded_plan_evidence_package"]
-    assert manifest_schema["properties"]["execution_authorized"]["const"] is False
-    assert package_schema["properties"]["execution_authorized"]["const"] is False
+    for schema_name in (
+        "funded_plan_evidence_manifest",
+        "funded_plan_evidence_package",
+        "funded_plan_reproduction_report",
+    ):
+        schema = schemas[schema_name]
+        assert schema["properties"]["execution_authorized"]["const"] is False
 
 
 def test_schema_command_writes_non_authorizing_bundle(tmp_path: Path) -> None:
@@ -58,7 +62,7 @@ def test_schema_command_writes_non_authorizing_bundle(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "FUNDED_PLAN_SCHEMA_WRITTEN" in result.output
-    assert "schemas=8" in result.output
+    assert "schemas=9" in result.output
     assert "execution_authorized=false" in result.output
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["schema_version"] == FUNDED_PLAN_SCHEMA_VERSION
