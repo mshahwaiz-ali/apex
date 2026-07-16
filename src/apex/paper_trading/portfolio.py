@@ -170,11 +170,11 @@ def _first_number(
 
 
 def _finite_nonnegative(value: object) -> float | None:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return None
     return number if math.isfinite(number) and number >= 0.0 else None
 
