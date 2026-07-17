@@ -28,21 +28,15 @@ def apply_strategy_routing(
         strategy_analysis.evaluated_strategies,
         routing_config,
     )
-    candidates = tuple(
-        candidate
-        for candidate in strategy_analysis.candidates
-        if candidate.strategy in enabled
-    )
-    actionability_by_candidate = {
-        entry.candidate: entry.status
+    enabled_candidates_with_status = tuple(
+        entry
         for entry in strategy_analysis.candidate_actionability
-    }
+        if entry.candidate.strategy in enabled
+    )
+    candidates = tuple(entry.candidate for entry in enabled_candidates_with_status)
     candidate_actionability = tuple(
-        CandidateActionability(
-            candidate=candidate,
-            status=actionability_by_candidate[candidate],
-        )
-        for candidate in candidates
+        CandidateActionability(candidate=entry.candidate, status=entry.status)
+        for entry in enabled_candidates_with_status
     )
     newly_suppressed = tuple(
         SuppressedStrategyCandidate(
@@ -205,13 +199,9 @@ def _candidate_payloads(
 ) -> list[dict[str, object]]:
     if analysis is None:
         return []
-    statuses = {
-        entry.candidate: entry.status
-        for entry in analysis.candidate_actionability
-    }
     records = [
-        _candidate_payload(candidate, status=statuses.get(candidate))
-        for candidate in analysis.candidates
+        _candidate_payload(entry.candidate, status=entry.status)
+        for entry in analysis.candidate_actionability
     ]
     produced = {candidate.strategy for candidate in analysis.candidates}
     diagnostics = analysis.strategy_diagnostics or {}
