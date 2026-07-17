@@ -1,4 +1,4 @@
-"""Immutable contracts for deterministic Phase 6 risk analysis."""
+"""Immutable contracts for deterministic risk analysis."""
 
 from __future__ import annotations
 

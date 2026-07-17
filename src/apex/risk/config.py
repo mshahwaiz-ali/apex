@@ -1,7 +1,7 @@
-"""Validated configuration for the deterministic Phase 6 risk engine.
+"""Validated configuration for the deterministic risk analysis risk engine.
 
 ``RiskConfig`` remains the compatibility contract consumed by the existing
-Phase-6 setup engine. Runtime account and futures limits are resolved from the
+risk-analysis setup engine. Runtime account and futures limits are resolved from the
 canonical futures risk-mode and account-policy configuration files instead of
 being duplicated in ``config/risk.yaml``.
 """
@@ -41,7 +41,7 @@ def _positive(name: str, value: float) -> None:
 class RiskConfig:
     """Compatibility view combining setup geometry with canonical risk limits."""
 
-    identifier: str = "phase6-standard-v2"
+    identifier: str = "risk_assessment-standard-v2"
     profile: RiskProfile = RiskProfile.CONTROLLED
     account_equity: float = 10_000.0
     risk_per_trade_pct: float = 0.25
@@ -215,7 +215,7 @@ def resolve_risk_config_for_mode(
     account_policies_path: str | Path = DEFAULT_ACCOUNT_POLICIES_PATH,
     account_policy_name: str | None = None,
 ) -> RiskConfig:
-    """Resolve canonical Phase 6 limits for a selected futures risk mode."""
+    """Resolve canonical risk analysis limits for a selected futures risk mode."""
 
     selected_mode = (
         risk_mode if isinstance(risk_mode, RiskMode) else RiskMode(str(risk_mode).upper())
@@ -227,7 +227,7 @@ def resolve_risk_config_for_mode(
 
     profile = RiskProfile.CONTROLLED
 
-    # Phase 6 requires per-trade risk not to exceed the open-risk ceiling.
+    # risk analysis requires per-trade risk not to exceed the open-risk ceiling.
     # Preserve the selected mode's per-trade allowance while still applying
     # the tighter policy ceiling whenever it remains compatible.
     maximum_open_risk_pct = max(
@@ -240,7 +240,7 @@ def resolve_risk_config_for_mode(
 
     return replace(
         base_config,
-        identifier=f"phase6-{selected_mode.value.lower()}-v2",
+        identifier=f"risk_assessment-{selected_mode.value.lower()}-v2",
         profile=profile,
         risk_per_trade_pct=defaults.account_loss_percentage,
         maximum_leverage=defaults.maximum_leverage,

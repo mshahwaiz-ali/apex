@@ -1,4 +1,4 @@
-"""Stable Phase 6 risk-decision diagnostics for futures scan runs."""
+"""Stable risk-decision diagnostics for futures scan runs."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from apex.risk import RiskDecision
 
 
 @dataclass(frozen=True, slots=True)
-class Phase6DiagnosticSummary:
-    """Deterministic run-level Phase 6 approval and rejection statistics."""
+class RiskAnalysisDiagnosticSummary:
+    """Deterministic run-level risk approval and rejection statistics."""
 
     analyses_observed: int
     approved: int
@@ -33,7 +33,7 @@ class Phase6DiagnosticSummary:
     stop_distance_observations: int
 
     def to_payload(self) -> dict[str, Any]:
-        """Serialize Phase 6 analytics with deterministic key ordering."""
+        """Serialize risk-analysis diagnostics with deterministic key ordering."""
 
         return {
             "decision_funnel": {
@@ -73,10 +73,10 @@ class Phase6DiagnosticSummary:
         }
 
 
-def build_phase6_diagnostic_summary(
+def build_risk_analysis_diagnostic_summary(
     analyses: Sequence[SymbolAnalysis],
-) -> Phase6DiagnosticSummary:
-    """Aggregate structured Phase 6 decisions without parsing human-readable reasons."""
+) -> RiskAnalysisDiagnosticSummary:
+    """Aggregate structured risk decisions without parsing human-readable reasons."""
 
     rejection_codes: Counter[str] = Counter()
     rejection_by_strategy: dict[str, Counter[str]] = defaultdict(Counter)
@@ -125,7 +125,7 @@ def build_phase6_diagnostic_summary(
             if selected_strategy is not None:
                 rejection_by_strategy[selected_strategy][value] += 1
 
-    return Phase6DiagnosticSummary(
+    return RiskAnalysisDiagnosticSummary(
         analyses_observed=len(analyses),
         approved=approved,
         rejected=rejected,
@@ -145,8 +145,8 @@ def build_phase6_diagnostic_summary(
     )
 
 
-def phase6_analysis_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
-    """Return one stable Phase 6 audit payload for a symbol."""
+def risk_analysis_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
+    """Return one stable risk-analysis audit payload for a symbol."""
 
     assessment = analysis.assessment
     setup = assessment.setup

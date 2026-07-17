@@ -17,7 +17,7 @@ def test_optimization_does_not_mutate_runtime_config() -> None:
 def test_intelligence_does_not_execute_or_control_risk() -> None:
     source = _source("src/apex/intelligence")
 
-    for forbidden in ("apex.execution", "submit", "order", "analyze_phase6"):
+    for forbidden in ("apex.execution", "submit", "order", "analyze_risk"):
         assert forbidden not in source
 
 

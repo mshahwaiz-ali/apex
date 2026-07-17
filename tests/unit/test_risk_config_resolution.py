@@ -1,4 +1,4 @@
-"""Tests for canonical Phase-6 risk configuration resolution."""
+"""Tests for canonical risk-analysis risk configuration resolution."""
 
 from pathlib import Path
 

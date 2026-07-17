@@ -5,7 +5,7 @@ from apex.risk.contracts import ActionableEntry, StopLoss
 from apex.risk.engine import _position_size
 
 
-def test_phase6_position_size_reserves_cap_for_execution_costs() -> None:
+def test_risk_analysis_position_size_reserves_cap_for_execution_costs() -> None:
     config = RiskConfig(
         account_equity=10_000.0,
         risk_per_trade_pct=0.75,
@@ -44,7 +44,7 @@ def test_phase6_position_size_reserves_cap_for_execution_costs() -> None:
     assert position.required_leverage == pytest.approx(3.125)
 
 
-def test_phase6_execution_costs_reduce_gross_only_notional() -> None:
+def test_risk_analysis_execution_costs_reduce_gross_only_notional() -> None:
     config = RiskConfig(
         account_equity=10_000.0,
         risk_per_trade_pct=0.75,

@@ -10,7 +10,7 @@ FORBIDDEN_TERMS = (
 )
 
 
-def test_phase6_contains_no_future_phase_concepts() -> None:
+def test_risk_analysis_contains_no_future_phase_concepts() -> None:
     package = Path("src/apex/risk")
     source = "\n".join(
         path.read_text(encoding="utf-8").lower() for path in sorted(package.glob("*.py"))
@@ -19,7 +19,7 @@ def test_phase6_contains_no_future_phase_concepts() -> None:
         assert forbidden not in source
 
 
-def test_phase6_does_not_import_future_phase_packages() -> None:
+def test_risk_analysis_does_not_import_future_phase_packages() -> None:
     package = Path("src/apex/risk")
     source = "\n".join(
         path.read_text(encoding="utf-8").lower() for path in sorted(package.glob("*.py"))

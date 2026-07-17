@@ -49,7 +49,7 @@ from apex.risk import (
     RiskAssessment,
     RiskConfig,
     RiskDecision,
-    analyze_phase6,
+    analyze_risk,
     load_risk_config,
 )
 from apex.risk.contracts import RiskApprovedSetup
@@ -126,7 +126,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_strategy_route: MarketStrategyRoute | None = None,
 ) -> SymbolAnalysis:
-    """Run the deterministic Phase 4 to Phase 6 stack for one symbol."""
+    """Run the deterministic Phase 4 to risk analysis stack for one symbol."""
 
     if candle_limit < 40:
         raise ValueError("analysis requires at least 40 candles per timeframe")
@@ -149,7 +149,7 @@ def analyze_symbol(
         routed_phase4,
         environment_route=market_strategy_route,
     )
-    assessment = analyze_phase6(
+    assessment = analyze_risk(
         phase5,
         config=risk_config,
         exposure=exposure,

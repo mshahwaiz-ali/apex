@@ -18,7 +18,7 @@ def test_resolve_standard_risk_config_uses_canonical_futures_limits() -> None:
 
     resolved = resolve_risk_config_for_mode(base, RiskMode.STANDARD)
 
-    assert resolved.identifier == 'phase6-standard-v2'
+    assert resolved.identifier == 'risk_assessment-standard-v2'
     assert resolved.profile is RiskProfile.CONTROLLED
     assert resolved.risk_per_trade_pct == pytest.approx(0.25)
     assert resolved.maximum_leverage == pytest.approx(5.0)
@@ -35,7 +35,7 @@ def test_resolve_standard_risk_config_uses_canonical_futures_limits() -> None:
 def test_resolve_risk_config_for_mode_accepts_case_insensitive_standard() -> None:
     resolved = resolve_risk_config_for_mode(RiskConfig(), 'standard')
 
-    assert resolved.identifier == 'phase6-standard-v2'
+    assert resolved.identifier == 'risk_assessment-standard-v2'
     assert resolved.profile is RiskProfile.CONTROLLED
     assert resolved.risk_per_trade_pct == pytest.approx(0.25)
 

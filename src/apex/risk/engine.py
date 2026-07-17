@@ -1,4 +1,4 @@
-"""Deterministic Phase 6 risk calculations and orchestration."""
+"""Deterministic risk calculations and orchestration."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ def _position_size(
     total_loss_fraction = structural_loss_fraction + execution_cost_fraction
 
     if total_loss_fraction <= 0.0:
-        raise ValueError("modeled Phase 6 loss fraction must be positive")
+        raise ValueError("modeled risk loss fraction must be positive")
 
     notional_value = risk_amount / total_loss_fraction
     quantity = notional_value / entry.preferred
@@ -320,7 +320,7 @@ def _candidate_from(selected: RankedCandidate) -> TradeCandidate:
     return selected.candidate
 
 
-def analyze_phase6(
+def analyze_risk(
     phase5: CandidateSelectionResult,
     *,
     config: RiskConfig = DEFAULT_RISK_CONFIG,

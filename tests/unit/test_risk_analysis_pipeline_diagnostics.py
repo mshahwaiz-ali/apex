@@ -6,9 +6,9 @@ from typing import cast
 
 from apex.application.analysis import ScanResult, SymbolAnalysis
 from apex.application.paper_pipeline_diagnostics import build_futures_pipeline_diagnostics
-from apex.application.phase6_pipeline_diagnostics import (
-    build_phase6_diagnostic_summary,
-    phase6_analysis_payload,
+from apex.application.risk_analysis_diagnostics import (
+    build_risk_analysis_diagnostic_summary,
+    risk_analysis_payload,
 )
 from apex.risk import (
     ActionableEntry,
@@ -158,8 +158,8 @@ def _rejected_analysis() -> SymbolAnalysis:
     )
 
 
-def test_phase6_summary_aggregates_approvals_rejections_and_geometry() -> None:
-    payload = build_phase6_diagnostic_summary(
+def test_risk_analysis_summary_aggregates_approvals_rejections_and_geometry() -> None:
+    payload = build_risk_analysis_diagnostic_summary(
         (_approved_analysis(), _rejected_analysis())
     ).to_payload()
 
@@ -195,9 +195,9 @@ def test_phase6_summary_aggregates_approvals_rejections_and_geometry() -> None:
     }
 
 
-def test_phase6_analysis_payload_preserves_structured_details() -> None:
-    approved = phase6_analysis_payload(_approved_analysis())
-    rejected = phase6_analysis_payload(_rejected_analysis())
+def test_risk_analysis_payload_preserves_structured_details() -> None:
+    approved = risk_analysis_payload(_approved_analysis())
+    rejected = risk_analysis_payload(_rejected_analysis())
 
     assert approved["decision"] == "approved"
     assert approved["approved_setup"]["candidate_id"] == "candidate-1"

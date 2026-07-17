@@ -12,7 +12,7 @@ from apex.risk import (
     RiskDecision,
     RiskRejectionCode,
     StopQualityBand,
-    analyze_phase6,
+    analyze_risk,
     load_risk_config,
     resolve_risk_config_for_mode,
 )
@@ -144,7 +144,7 @@ def _ranked(candidate_id: str, candidate: TradeCandidate, rank: int) -> RankedCa
 
 
 def test_long_candidate_receives_controlled_risk_setup() -> None:
-    result = analyze_phase6(_phase5(_candidate()))
+    result = analyze_risk(_phase5(_candidate()))
     assert result.decision is RiskDecision.APPROVED
     assert result.setup is not None
     assert result.setup.stop_loss.price < result.setup.entry.lower
@@ -169,7 +169,7 @@ def test_long_candidate_receives_controlled_risk_setup() -> None:
 
 
 def test_short_candidate_is_directionally_symmetric() -> None:
-    result = analyze_phase6(_phase5(_candidate(direction=TradeDirection.SHORT)))
+    result = analyze_risk(_phase5(_candidate(direction=TradeDirection.SHORT)))
     assert result.setup is not None
     assert result.setup.stop_loss.price > result.setup.entry.upper
     assert result.setup.take_profits[0].price < result.setup.entry.lower
@@ -205,7 +205,7 @@ def test_multiple_targets_receive_deterministic_partial_closes() -> None:
         ),
     )
 
-    result = analyze_phase6(_phase5(candidate))
+    result = analyze_risk(_phase5(candidate))
 
     assert result.setup is not None
     assert tuple(target.partial_close_pct for target in result.setup.take_profits) == (
@@ -216,29 +216,29 @@ def test_multiple_targets_receive_deterministic_partial_closes() -> None:
 
 
 def test_no_selected_candidate_remains_no_trade() -> None:
-    result = analyze_phase6(_phase5())
+    result = analyze_risk(_phase5())
     assert result.decision is RiskDecision.REJECTED
     assert result.rejection_codes == (RiskRejectionCode.NO_SELECTED_CANDIDATE,)
     assert result.reasons == ("candidate selection produced no trade candidate",)
 
 
 def test_extended_entry_is_rejected() -> None:
-    result = analyze_phase6(_phase5(_candidate(extended=True)))
+    result = analyze_risk(_phase5(_candidate(extended=True)))
     assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
 
 
 def test_long_current_price_above_chase_boundary_is_rejected() -> None:
-    result = analyze_phase6(_phase5(_candidate(current_price=102.0)))
+    result = analyze_risk(_phase5(_candidate(current_price=102.0)))
     assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
 
 
 def test_short_current_price_below_chase_boundary_is_rejected() -> None:
-    result = analyze_phase6(_phase5(_candidate(direction=TradeDirection.SHORT, current_price=98.0)))
+    result = analyze_risk(_phase5(_candidate(direction=TradeDirection.SHORT, current_price=98.0)))
     assert result.rejection_codes == (RiskRejectionCode.ENTRY_TOO_EXTENDED,)
 
 
 def test_stop_outside_configured_bounds_is_rejected() -> None:
-    tight = analyze_phase6(
+    tight = analyze_risk(
         _phase5(
             _candidate(
                 entry_lower=99.92,
@@ -247,19 +247,19 @@ def test_stop_outside_configured_bounds_is_rejected() -> None:
             )
         )
     )
-    wide = analyze_phase6(_phase5(_candidate(invalidation=90.0)))
+    wide = analyze_risk(_phase5(_candidate(invalidation=90.0)))
     assert tight.rejection_codes == (RiskRejectionCode.STOP_TOO_TIGHT,)
     assert wide.rejection_codes == (RiskRejectionCode.STOP_TOO_WIDE,)
 
 
 def test_insufficient_target_space_is_rejected() -> None:
-    result = analyze_phase6(_phase5(_candidate(target=102.0)))
+    result = analyze_risk(_phase5(_candidate(target=102.0)))
     assert result.rejection_codes == (RiskRejectionCode.INSUFFICIENT_TARGET_SPACE,)
 
 
 def test_position_size_never_exceeds_configured_account_risk() -> None:
     config = RiskConfig(account_equity=20_000.0, risk_per_trade_pct=0.25)
-    result = analyze_phase6(_phase5(_candidate()), config=config)
+    result = analyze_risk(_phase5(_candidate()), config=config)
     assert result.setup is not None
     position = result.setup.position_size
     assert position.risk_amount == pytest.approx(50.0)
@@ -282,12 +282,12 @@ def test_required_leverage_above_safe_maximum_is_rejected() -> None:
         maximum_directional_risk_pct=20.0,
         maximum_correlated_risk_pct=20.0,
     )
-    result = analyze_phase6(_phase5(_candidate()), config=config)
+    result = analyze_risk(_phase5(_candidate()), config=config)
     assert result.rejection_codes == (RiskRejectionCode.LEVERAGE_UNSAFE,)
 
 
 def test_exposure_limits_reject_new_trade() -> None:
-    result = analyze_phase6(
+    result = analyze_risk(
         _phase5(_candidate()),
         exposure=ExposureState(open_trades=3, open_risk_amount=100.0),
     )
@@ -295,7 +295,7 @@ def test_exposure_limits_reject_new_trade() -> None:
 
 
 def test_all_applicable_exposure_limits_are_reported() -> None:
-    result = analyze_phase6(
+    result = analyze_risk(
         _phase5(_candidate()),
         exposure=ExposureState(
             open_trades=3,
@@ -317,7 +317,7 @@ def test_all_applicable_exposure_limits_are_reported() -> None:
 
 
 def test_correlated_exposure_limit_rejects_new_trade() -> None:
-    result = analyze_phase6(
+    result = analyze_risk(
         _phase5(_candidate()),
         exposure=ExposureState(open_risk_amount=60.0, correlated_risk_amount=60.0),
     )
@@ -338,7 +338,7 @@ def test_exposure_rejects_correlated_risk_above_total_risk() -> None:
         ExposureState(open_risk_amount=10.0, correlated_risk_amount=11.0)
 
 
-def test_phase6_uses_only_selected_phase5_candidate() -> None:
+def test_risk_analysis_uses_only_selected_phase5_candidate() -> None:
     selected = _ranked("selected", _candidate(), 1)
     unselected_extended = _ranked("unselected", _candidate(extended=True), 2)
     phase5 = CandidateSelectionResult(
@@ -362,7 +362,7 @@ def test_phase6_uses_only_selected_phase5_candidate() -> None:
         metadata={},
     )
 
-    result = analyze_phase6(phase5)
+    result = analyze_risk(phase5)
 
     assert result.decision is RiskDecision.APPROVED
     assert result.setup is not None
@@ -370,7 +370,7 @@ def test_phase6_uses_only_selected_phase5_candidate() -> None:
 
 
 def test_approved_setup_rejects_inconsistent_entry_flags() -> None:
-    result = analyze_phase6(_phase5(_candidate()))
+    result = analyze_risk(_phase5(_candidate()))
     assert result.setup is not None
 
     with pytest.raises(ValueError, match="inside-zone flag"):
@@ -381,7 +381,7 @@ def test_approved_setup_rejects_inconsistent_entry_flags() -> None:
 
 
 def test_approved_setup_rejects_directionally_invalid_chase_price() -> None:
-    result = analyze_phase6(_phase5(_candidate()))
+    result = analyze_risk(_phase5(_candidate()))
     assert result.setup is not None
 
     with pytest.raises(ValueError, match="long chase price"):
@@ -395,7 +395,7 @@ def test_approved_setup_rejects_directionally_invalid_chase_price() -> None:
 
 
 def test_risk_contracts_are_frozen() -> None:
-    result = analyze_phase6(_phase5(_candidate()))
+    result = analyze_risk(_phase5(_candidate()))
     assert result.setup is not None
 
     with pytest.raises(FrozenInstanceError):

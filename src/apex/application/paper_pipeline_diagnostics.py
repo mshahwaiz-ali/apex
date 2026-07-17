@@ -12,9 +12,9 @@ from apex.application.candidate_selection_diagnostics import (
     build_candidate_selection_diagnostic_summary,
     candidate_selection_payload,
 )
-from apex.application.phase6_pipeline_diagnostics import (
-    build_phase6_diagnostic_summary,
-    phase6_analysis_payload,
+from apex.application.risk_analysis_diagnostics import (
+    build_risk_analysis_diagnostic_summary,
+    risk_analysis_payload,
 )
 
 
@@ -148,7 +148,7 @@ def build_phase4_diagnostic_summary(
 
 
 def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
-    """Return detailed and run-level Phase 4 through Phase 6 diagnostics."""
+    """Return detailed and run-level Phase 4 through risk analysis diagnostics."""
 
     phase4_analyses = {
         _analysis_key(analysis): _analysis_diagnostics(analysis)
@@ -162,7 +162,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         analysis for analysis in scan.analyses if hasattr(analysis, "assessment")
     )
     phase6_analyses = {
-        _analysis_key(analysis): phase6_analysis_payload(analysis)
+        _analysis_key(analysis): risk_analysis_payload(analysis)
         for analysis in phase6_source
     }
     return {
@@ -173,7 +173,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         "phase4_analyses": phase4_analyses,
         "phase5_summary": build_candidate_selection_diagnostic_summary(scan.analyses).to_payload(),
         "phase5_analyses": phase5_analyses,
-        "phase6_summary": build_phase6_diagnostic_summary(phase6_source).to_payload(),
+        "phase6_summary": build_risk_analysis_diagnostic_summary(phase6_source).to_payload(),
         "phase6_analyses": phase6_analyses,
     }
 

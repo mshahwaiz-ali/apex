@@ -1,4 +1,4 @@
-"""Public Phase 6 risk-engine API."""
+"""Public risk analysis risk-engine API."""
 
 from apex.risk.config import (
     DEFAULT_RISK_CONFIG,
@@ -22,7 +22,7 @@ from apex.risk.contracts import (
     StopQualityBand,
     TakeProfit,
 )
-from apex.risk.engine import analyze_phase6
+from apex.risk.engine import analyze_risk
 
 __all__ = [
     "DEFAULT_RISK_CONFIG",
@@ -41,7 +41,7 @@ __all__ = [
     "StopLoss",
     "StopQualityBand",
     "TakeProfit",
-    "analyze_phase6",
+    "analyze_risk",
     "load_risk_config",
     "resolve_risk_config_for_mode",
 ]
