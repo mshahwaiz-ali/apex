@@ -4,6 +4,7 @@ from apex.strategies.analysis import (
     Phase4AnalysisResult,
     StrategyApplicability,
     StrategyApplicabilityState,
+    SuppressedStrategyCandidate,
     analyze_phase4,
     build_strategy_applicability,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "StrategyApplicability",
     "StrategyApplicabilityState",
     "StrategyContext",
+    "SuppressedStrategyCandidate",
     "StrategyEvidence",
     "StrategyGenerator",
     "StrategyType",

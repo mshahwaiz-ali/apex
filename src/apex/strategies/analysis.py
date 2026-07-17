@@ -71,6 +71,25 @@ class StrategyApplicability:
 
 
 @dataclass(frozen=True, slots=True)
+class SuppressedStrategyCandidate:
+    """Generated candidate retained for audit but excluded downstream."""
+
+    candidate: TradeCandidate
+    reason_codes: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.reason_codes:
+            raise ValueError(
+                "suppressed candidate reason codes cannot be empty"
+            )
+        if not self.reasons:
+            raise ValueError(
+                "suppressed candidate reasons cannot be empty"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class Phase4AnalysisResult:
     """Immutable collection of raw candidates produced in registry order."""
 
@@ -86,6 +105,9 @@ class Phase4AnalysisResult:
     strategy_applicability: Mapping[
         StrategyType, StrategyApplicability
     ] | None = None
+    suppressed_candidates: tuple[
+        SuppressedStrategyCandidate, ...
+    ] = ()
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -122,6 +144,22 @@ class Phase4AnalysisResult:
             raise ValueError(
                 "strategy applicability must cover every evaluated strategy"
             )
+
+        for suppressed in self.suppressed_candidates:
+            candidate = suppressed.candidate
+            if candidate.symbol != self.symbol:
+                raise ValueError(
+                    "suppressed candidate symbol must match the analysis symbol"
+                )
+            if candidate.decision_time != self.decision_time:
+                raise ValueError(
+                    "suppressed candidate decision time must match the analysis "
+                    "decision time"
+                )
+            if candidate.strategy not in self.evaluated_strategies:
+                raise ValueError(
+                    "suppressed candidate strategy must be evaluated"
+                )
 
         for candidate in self.candidates:
             if candidate.symbol != self.symbol:

@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from apex.config import DEFAULT_STRATEGY_ROUTING
 from apex.risk import RiskAssessment
-from apex.strategies import Phase4AnalysisResult, StrategyType, TradeCandidate
+from apex.strategies import (
+    Phase4AnalysisResult,
+    StrategyType,
+    SuppressedStrategyCandidate,
+    TradeCandidate,
+)
 
 
 def apply_strategy_routing(
@@ -29,7 +34,24 @@ def apply_strategy_routing(
                 f"{strategy.value} is disabled by configured strategy routing",
             )
     candidates = tuple(
-        candidate for candidate in phase4.candidates if candidate.strategy in eligible
+        candidate
+        for candidate in phase4.candidates
+        if candidate.strategy in eligible
+    )
+    newly_suppressed = tuple(
+        SuppressedStrategyCandidate(
+            candidate=candidate,
+            reason_codes=("STRATEGY_DISABLED_BY_CONFIG",),
+            reasons=(
+                f"{candidate.strategy.value} is disabled by configured "
+                "strategy routing",
+            ),
+        )
+        for candidate in phase4.candidates
+        if candidate.strategy not in configured
+    )
+    suppressed_candidates = (
+        phase4.suppressed_candidates + newly_suppressed
     )
     return Phase4AnalysisResult(
         symbol=phase4.symbol,
@@ -42,6 +64,7 @@ def apply_strategy_routing(
         decision_regime=phase4.decision_regime,
         higher_timeframe_breakout=phase4.higher_timeframe_breakout,
         strategy_applicability=phase4.strategy_applicability,
+        suppressed_candidates=suppressed_candidates,
     )
 
 
@@ -107,6 +130,7 @@ def build_strategy_routing_payload(
         ),
         "phase4_strategy_diagnostics": diagnostics,
         "strategy_applicability": _strategy_applicability_payload(phase4),
+        "suppressed_candidates": _suppressed_candidate_payload(phase4),
         "candidate_diagnostics": _candidate_diagnostics(phase4),
         "near_miss_state_counts": near_miss_counts,
         "eligible": setup is not None,
@@ -139,6 +163,22 @@ def _strategy_applicability_payload(
             }
         )
     return records
+
+
+def _suppressed_candidate_payload(
+    phase4: Phase4AnalysisResult | None,
+) -> list[dict[str, object]]:
+    if phase4 is None:
+        return []
+    return [
+        {
+            **_generated_candidate_payload(item.candidate),
+            "routing_status": "suppressed",
+            "reason_codes": list(item.reason_codes),
+            "reasons": list(item.reasons),
+        }
+        for item in phase4.suppressed_candidates
+    ]
 
 def _candidate_diagnostics(phase4: Phase4AnalysisResult | None) -> list[dict[str, object]]:
     if phase4 is None:
