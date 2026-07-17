@@ -79,7 +79,7 @@ def test_partial_exit_and_completed_trade_actions() -> None:
     assert "No further execution action is required" in completed
 
 
-def test_verbose_trade_adds_lifecycle_and_fill_details() -> None:
+def test_trade_includes_lifecycle_and_fill_details() -> None:
     rendered = render_paper_trade(
         {
             "trade": {
@@ -88,8 +88,7 @@ def test_verbose_trade_adds_lifecycle_and_fill_details() -> None:
                 "events": [{"event_type": "entry_filled", "price": 1.0}],
                 "fills": [{"type": "partial_target", "price": 0.9}],
             }
-        },
-        mode="verbose",
+        }
     )
 
     assert "Lifecycle events" in rendered
@@ -180,7 +179,7 @@ def test_status_presentation_reports_scheduler_health() -> None:
     assert "Investigate the latest pipeline failure" in rendered
 
 
-def test_report_presentation_covers_guidance_and_debug() -> None:
+def test_report_presentation_covers_guidance_and_trade_details() -> None:
     payload = {
         "performance": {
             "total_trades": 2,
@@ -203,10 +202,9 @@ def test_report_presentation_covers_guidance_and_debug() -> None:
     }
 
     text = render_paper_report(payload)
-    debug = render_paper_report(payload, mode="debug")
 
     assert "Paper Trading Report" in text
     assert "Monitor active risk." in text
     assert "50.0%" in text
-    assert "Trade details" in debug
-    assert "Deterministic payload summary" in debug
+    assert "Trade details" in text
+    assert "Deterministic payload summary" not in text

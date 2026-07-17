@@ -27,7 +27,7 @@ def render_paper_cycle(
 ) -> str:
     """Render one paper lifecycle cycle from its canonical payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     cycle = _mapping(payload.get("cycle"))
     failures = _sequence(payload.get("provider_failures"))
     sections = [
@@ -49,20 +49,17 @@ def render_paper_cycle(
     ]
     if failures:
         sections.append(render_section("Blocked symbols", render_bullets(_failure_lines(failures))))
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Persistence",
-                render_fields(
-                    (
-                        ("Cycle report", payload.get("cycle_report_path") or UNAVAILABLE),
-                        ("Daily report", payload.get("daily_report_path") or UNAVAILABLE),
-                    )
-                ),
-            )
+    sections.append(
+        render_section(
+            "Persistence",
+            render_fields(
+                (
+                    ("Cycle report", payload.get("cycle_report_path") or UNAVAILABLE),
+                    ("Daily report", payload.get("daily_report_path") or UNAVAILABLE),
+                )
+            ),
         )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _debug_fields(payload)))
+    )
     return "\n\n".join(sections)
 
 
@@ -73,7 +70,7 @@ def render_paper_pipeline(
 ) -> str:
     """Render one combined intake and lifecycle pipeline payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     intake = _mapping(payload.get("intake"))
     cycle = _mapping(payload.get("cycle"))
     runtime = _mapping(cycle.get("runtime"))
@@ -119,26 +116,23 @@ def render_paper_pipeline(
         ),
         render_section("Next action", _pipeline_next_action(intake, runtime_cycle, failures)),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Pipeline diagnostics",
-                render_fields(
-                    (
-                        ("Scan analyses", diagnostics.get("scan_analysis_count", UNAVAILABLE)),
-                        ("Scanner failures", diagnostics.get("scanner_failure_count", UNAVAILABLE)),
-                        ("Run identifier", payload.get("run_id") or UNAVAILABLE),
-                        ("Log path", payload.get("log_path") or UNAVAILABLE),
-                    )
-                ),
-            )
+    sections.append(
+        render_section(
+            "Pipeline diagnostics",
+            render_fields(
+                (
+                    ("Scan analyses", diagnostics.get("scan_analysis_count", UNAVAILABLE)),
+                    ("Scanner failures", diagnostics.get("scanner_failure_count", UNAVAILABLE)),
+                    ("Run identifier", payload.get("run_id") or UNAVAILABLE),
+                    ("Log path", payload.get("log_path") or UNAVAILABLE),
+                )
+            ),
         )
-        if failures:
-            sections.append(
-                render_section("Provider failures", render_bullets(_failure_lines(failures)))
-            )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Deterministic payload summary", _debug_fields(payload)))
+    )
+    if failures:
+        sections.append(
+            render_section("Provider failures", render_bullets(_failure_lines(failures)))
+        )
     return "\n\n".join(sections)
 
 
@@ -149,7 +143,7 @@ def render_paper_status(
 ) -> str:
     """Render paper scheduler and operations readiness."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     markets = _sequence(payload.get("markets"))
     sections = [
         render_title("Paper Trading Operations Status"),
@@ -171,15 +165,12 @@ def render_paper_status(
         ),
         render_section("Next action", _status_next_action(payload, markets)),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Operational diagnostics",
-                render_bullets(_market_diagnostic_lines(markets) or (UNAVAILABLE,)),
-            )
+    sections.append(
+        render_section(
+            "Operational diagnostics",
+            render_bullets(_market_diagnostic_lines(markets) or (UNAVAILABLE,)),
         )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Deterministic payload summary", _debug_fields(payload)))
+    )
     return "\n\n".join(sections)
 
 
@@ -191,7 +182,7 @@ def render_paper_report(
 ) -> str:
     """Render paper performance, guidance, and replay reports."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     performance = _mapping(payload.get("performance"))
     guidance = _mapping(payload.get("guidance"))
     trades = _sequence(guidance.get("trades"))
@@ -219,15 +210,12 @@ def render_paper_report(
             render_bullets(_guidance_lines(trades) or ("No paper trades require action.",)),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Trade details",
-                render_bullets(_trade_detail_lines(trades) or (UNAVAILABLE,)),
-            )
+    sections.append(
+        render_section(
+            "Trade details",
+            render_bullets(_trade_detail_lines(trades) or (UNAVAILABLE,)),
         )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Deterministic payload summary", _debug_fields(payload)))
+    )
     return "\n\n".join(sections)
 
 
@@ -238,7 +226,7 @@ def render_paper_trade(
 ) -> str:
     """Render one opened, rejected, updated, partial, or completed paper trade."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     trade = _mapping(payload.get("trade"))
     signal = _mapping(trade.get("signal"))
     plan = _mapping(trade.get("futures_plan")) or _mapping(payload.get("futures_plan"))
@@ -304,23 +292,20 @@ def render_paper_trade(
     ]
     if reasons:
         sections.append(render_section("Blocked or rejected", render_bullets(reasons)))
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        events = _sequence(trade.get("events"))
-        fills = _sequence(trade.get("fills"))
-        sections.append(
-            render_section(
-                "Lifecycle events",
-                render_bullets(_event_lines(events) or (UNAVAILABLE,)),
-            )
+    events = _sequence(trade.get("events"))
+    fills = _sequence(trade.get("fills"))
+    sections.append(
+        render_section(
+            "Lifecycle events",
+            render_bullets(_event_lines(events) or (UNAVAILABLE,)),
         )
-        sections.append(
-            render_section(
-                "Fills and exits",
-                render_bullets(_event_lines(fills) or (UNAVAILABLE,)),
-            )
+    )
+    sections.append(
+        render_section(
+            "Fills and exits",
+            render_bullets(_event_lines(fills) or (UNAVAILABLE,)),
         )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Deterministic payload summary", _debug_fields(payload)))
+    )
     return "\n\n".join(sections)
 
 
