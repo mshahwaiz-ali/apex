@@ -159,6 +159,14 @@ def evaluate_near_current_entry(
         chase_risk=chase_risk,
         has_warnings=bool(warnings),
     )
+    if actionability is EntryActionability.AGGRESSIVE and state in {
+        "WAIT_FOR_RETEST",
+        "WAIT_FOR_RECLAIM",
+    }:
+        warning_codes.append("EARLY_ENTRY_BEFORE_CONFIRMATION")
+        warnings.append(
+            "Current price is close enough for a controlled early entry before full confirmation"
+        )
     actionable = actionability in {
         EntryActionability.READY,
         EntryActionability.AGGRESSIVE,
@@ -240,7 +248,13 @@ def _entry_actionability(
             return EntryActionability.AGGRESSIVE
         return EntryActionability.READY
     if state in {"WAIT_FOR_RETEST", "WAIT_FOR_RECLAIM"}:
+        if chase_risk in {ChaseRisk.LOW, ChaseRisk.MODERATE} and score >= 65.0:
+            return EntryActionability.AGGRESSIVE
         return EntryActionability.PULLBACK_PREFERRED
+    if state == "APPROACHING_ENTRY":
+        if chase_risk is ChaseRisk.LOW and score >= 70.0:
+            return EntryActionability.AGGRESSIVE
+        return EntryActionability.WATCH
     return EntryActionability.WATCH
 
 
