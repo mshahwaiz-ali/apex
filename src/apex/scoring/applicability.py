@@ -1,4 +1,4 @@
-"""Apply strategy applicability as a transparent Phase 5 score overlay."""
+"""Apply strategy applicability as a transparent candidate-score overlay."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def apply_strategy_applicability(
             continue
         if record.state is StrategyApplicabilityState.NOT_APPLICABLE:
             raise ValueError(
-                "not-applicable strategy candidate reached Phase 5 scoring: "
+                "not-applicable strategy candidate reached candidate scoring: "
                 f"{item.candidate.strategy.value}"
             )
         if record.state is StrategyApplicabilityState.APPLICABLE:

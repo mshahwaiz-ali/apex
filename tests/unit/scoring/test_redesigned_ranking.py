@@ -1,10 +1,10 @@
-"""Tests for redesigned Phase 5 ranking order."""
+"""Tests for redesigned candidate ranking order."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from apex.scoring import analyze_phase5
+from apex.scoring import analyze_candidate_selection
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -106,7 +106,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
         ),
     )
 
-    result = analyze_phase5(phase4)
+    result = analyze_candidate_selection(phase4)
 
     assert result.all_scored_candidates[0].final_score == 51.9
     assert result.all_scored_candidates[1].final_score == 46.4
@@ -137,7 +137,7 @@ def test_redesigned_ranking_does_not_change_legacy_threshold_outcomes() -> None:
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
 
-    result = analyze_phase5(phase4)
+    result = analyze_candidate_selection(phase4)
 
     assert result.ranked_candidates[0].final_score == 51.9
     assert result.ranked_candidates[0].outcome.value == "rejected_below_score_threshold"

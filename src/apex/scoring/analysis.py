@@ -1,4 +1,4 @@
-"""Phase 5 scoring, conflict resolution, and final selection orchestration."""
+"""Candidate scoring, conflict resolution, and final selection orchestration."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from apex.scoring.applicability import apply_strategy_applicability
 from apex.scoring.approval_overlay import apply_strategy_quality_gate
 from apex.scoring.config import DEFAULT_SCORING_CONFIG, ScoringConfig
 from apex.scoring.conflicts import resolve_conflicts
-from apex.scoring.contracts import CandidateOutcome, Phase5AnalysisResult
+from apex.scoring.contracts import CandidateOutcome, CandidateSelectionResult
 from apex.scoring.environment_route import EnvironmentRoute, apply_environment_route_alignment
 from apex.scoring.ranking import rank_candidates
 from apex.scoring.scorer import score_candidates
@@ -23,7 +23,7 @@ from apex.strategies.analysis import Phase4AnalysisResult
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
 
-def analyze_phase5(
+def analyze_candidate_selection(
     phase4: Phase4AnalysisResult,
     *,
     config: ScoringConfig = DEFAULT_SCORING_CONFIG,
@@ -31,12 +31,12 @@ def analyze_phase5(
     strategy_approval_config: StrategyApprovalConfig | None = None,
     apply_strategy_quality: bool = False,
     environment_route: EnvironmentRoute | None = None,
-) -> Phase5AnalysisResult:
-    """Consume immutable Phase 4 candidates and produce one deterministic decision.
+) -> CandidateSelectionResult:
+    """Consume immutable strategy candidates and produce one deterministic decision.
 
-    Raw Phase 5 scoring remains backward-compatible and does not apply N3 quality
-    gating unless ``apply_strategy_quality=True``. Futures orchestration enables the
-    gate explicitly through ``analyze_futures_phase5()``.
+    Raw candidate scoring does not apply the strategy-quality
+    gate unless ``apply_strategy_quality=True``. Futures orchestration enables the
+    gate explicitly through its futures candidate-selection wrapper.
     """
 
     approval_config = strategy_approval_config
@@ -66,7 +66,7 @@ def analyze_phase5(
         )
     selected = select_candidate(ranked, config=config)
     rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
-    return Phase5AnalysisResult(
+    return CandidateSelectionResult(
         symbol=phase4.symbol,
         decision_time=phase4.decision_time,
         all_scored_candidates=scored,

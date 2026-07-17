@@ -1,6 +1,6 @@
-"""Deterministic Phase 5 scoring, ranking, conflict, and selection API."""
+"""Deterministic candidate scoring, ranking, conflict, and selection API."""
 
-from apex.scoring.analysis import analyze_phase5
+from apex.scoring.analysis import analyze_candidate_selection
 from apex.scoring.approval import (
     ApprovalReason,
     ApprovalReasonCode,
@@ -20,7 +20,7 @@ from apex.scoring.contracts import (
     CandidateOutcome,
     ConflictSummary,
     DirectionalConsensus,
-    Phase5AnalysisResult,
+    CandidateSelectionResult,
     RankedCandidate,
     ScoreBreakdown,
     ScoredCandidate,
@@ -81,7 +81,7 @@ __all__ = [
     "HistoricalEdgeValidationView",
     "HistoricalEvidenceAttachment",
     "PenaltyWeights",
-    "Phase5AnalysisResult",
+    "CandidateSelectionResult",
     "QualityGateReason",
     "QualityGateReasonCode",
     "RANK_SCORE_WEIGHTS",
@@ -95,7 +95,7 @@ __all__ = [
     "SetupSegmentIdentity",
     "StrategyApprovalDecision",
     "StrategyProfile",
-    "analyze_phase5",
+    "analyze_candidate_selection",
     "apply_strategy_quality_gate",
     "evaluate_candidate_quality_gate",
     "final_rank_score",

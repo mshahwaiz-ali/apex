@@ -20,11 +20,11 @@ from apex.scoring import (
     CandidateOutcome,
     ConflictSummary,
     DirectionalConsensus,
-    Phase5AnalysisResult,
+    CandidateSelectionResult,
     RankedCandidate,
     ScoreBreakdown,
     ScoredCandidate,
-    analyze_phase5,
+    analyze_candidate_selection,
 )
 from apex.strategies import (
     EntryMode,
@@ -108,14 +108,14 @@ def _candidate(
     )
 
 
-def _phase5(candidate: TradeCandidate | None = None) -> Phase5AnalysisResult:
+def _phase5(candidate: TradeCandidate | None = None) -> CandidateSelectionResult:
     phase4 = Phase4AnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=() if candidate is None else (candidate,),
         evaluated_strategies=ORDER,
     )
-    return analyze_phase5(phase4)
+    return analyze_candidate_selection(phase4)
 
 
 def _scored(candidate_id: str, candidate: TradeCandidate) -> ScoredCandidate:
@@ -219,7 +219,7 @@ def test_no_selected_candidate_remains_no_trade() -> None:
     result = analyze_phase6(_phase5())
     assert result.decision is RiskDecision.REJECTED
     assert result.rejection_codes == (RiskRejectionCode.NO_SELECTED_CANDIDATE,)
-    assert result.reasons == ("Phase 5 selected no trade candidate",)
+    assert result.reasons == ("candidate selection produced no trade candidate",)
 
 
 def test_extended_entry_is_rejected() -> None:
@@ -341,7 +341,7 @@ def test_exposure_rejects_correlated_risk_above_total_risk() -> None:
 def test_phase6_uses_only_selected_phase5_candidate() -> None:
     selected = _ranked("selected", _candidate(), 1)
     unselected_extended = _ranked("unselected", _candidate(extended=True), 2)
-    phase5 = Phase5AnalysisResult(
+    phase5 = CandidateSelectionResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         all_scored_candidates=(selected.scored, unselected_extended.scored),

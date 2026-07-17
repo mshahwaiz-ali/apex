@@ -1,4 +1,4 @@
-"""Explicit conflict resolution for ranked Phase 5 candidates."""
+"""Explicit conflict resolution for ranked strategy candidates."""
 
 from __future__ import annotations
 

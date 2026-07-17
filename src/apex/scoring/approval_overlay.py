@@ -1,4 +1,4 @@
-"""Overlay N3 candidate-quality decisions onto deterministic Phase 5 ranking."""
+"""Overlay strategy-quality decisions onto deterministic candidate ranking."""
 
 from __future__ import annotations
 

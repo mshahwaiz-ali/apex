@@ -1,4 +1,4 @@
-"""Immutable contracts for Phase 5 scoring, ranking, and selection."""
+"""Immutable contracts for candidate scoring, ranking, and selection."""
 
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ class ConflictSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class Phase5AnalysisResult:
+class CandidateSelectionResult:
     symbol: str
     decision_time: datetime
     all_scored_candidates: tuple[ScoredCandidate, ...]

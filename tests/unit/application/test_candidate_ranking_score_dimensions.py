@@ -8,7 +8,7 @@ from apex.application.candidate_ranking import (
     build_candidate_ranking_snapshot,
     candidate_ranking_payload,
 )
-from apex.scoring import analyze_phase5
+from apex.scoring import analyze_candidate_selection
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -83,7 +83,7 @@ def _snapshot():
         candidates=(_candidate(),),
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
-    return build_candidate_ranking_snapshot(analyze_phase5(phase4))
+    return build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
 
 
 def test_ranking_record_exposes_four_score_dimensions() -> None:

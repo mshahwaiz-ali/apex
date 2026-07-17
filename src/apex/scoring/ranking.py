@@ -1,4 +1,4 @@
-"""Deterministic ranking for Phase 5 candidates."""
+"""Deterministic ranking for scored strategy candidates."""
 
 from __future__ import annotations
 

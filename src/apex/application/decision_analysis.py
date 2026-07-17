@@ -224,7 +224,7 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
     lines.extend(
         (
             f"Raw candidates: {analysis.candidate_count}",
-            f"Phase 5 accepted selection: {'yes' if phase5.get('selected') else 'no'}",
+            f"Candidate selection accepted: {'yes' if phase5.get('selected') else 'no'}",
             f"Decision reason: {_decision_reason_code(analysis, near_entry)}",
         )
     )

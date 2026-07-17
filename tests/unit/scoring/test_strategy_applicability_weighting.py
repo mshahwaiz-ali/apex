@@ -151,7 +151,7 @@ def test_not_applicable_candidate_is_rejected_before_ranking() -> None:
 
     with pytest.raises(
         ValueError,
-        match="not-applicable strategy candidate reached Phase 5",
+        match="not-applicable strategy candidate reached candidate scoring",
     ):
         apply_strategy_applicability(
             scored,

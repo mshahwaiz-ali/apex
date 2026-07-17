@@ -7,7 +7,7 @@ from apex.application.candidate_ranking import (
     build_candidate_ranking_snapshot,
     candidate_ranking_payload,
 )
-from apex.scoring import analyze_phase5
+from apex.scoring import analyze_candidate_selection
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -105,7 +105,7 @@ def test_snapshot_preserves_primary_and_viable_alternative() -> None:
             StrategyType.BREAKOUT_CONTINUATION,
         ),
     )
-    phase5 = analyze_phase5(phase4)
+    phase5 = analyze_candidate_selection(phase4)
     snapshot = build_candidate_ranking_snapshot(phase5)
 
     assert snapshot.primary is not None
@@ -139,7 +139,7 @@ def test_payload_keeps_deterministic_rank_order() -> None:
         ),
     )
     payload = candidate_ranking_payload(
-        build_candidate_ranking_snapshot(analyze_phase5(phase4))
+        build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
     )
 
     assert payload["primary"]["rank"] == 1  # type: ignore[index]

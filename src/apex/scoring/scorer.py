@@ -8,7 +8,7 @@ from apex.strategies.contracts import TradeCandidate
 
 
 def candidate_identity(candidate: TradeCandidate, occurrence: int) -> str:
-    """Return a stable identity within one Phase 5 analysis result."""
+    """Return a stable identity within one candidate-selection result."""
 
     return f"{candidate.strategy.value}:{candidate.direction.value}:{occurrence}"
 
@@ -37,7 +37,7 @@ def score_candidate(
     occurrence: int,
     config: ScoringConfig,
 ) -> ScoredCandidate:
-    """Score one raw Phase 4 candidate without mutating it."""
+    """Score one raw strategy candidate without mutating it."""
 
     metrics = _normalized_metrics(candidate, config)
     quality_points = {

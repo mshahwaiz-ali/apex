@@ -1,4 +1,4 @@
-"""Apply market-environment route context as a soft Phase 5 preference."""
+"""Apply market-environment route context as a soft ranking preference."""
 
 from __future__ import annotations
 

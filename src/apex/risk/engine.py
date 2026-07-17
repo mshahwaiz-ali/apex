@@ -17,12 +17,12 @@ from apex.risk.contracts import (
     StopQualityBand,
     TakeProfit,
 )
-from apex.scoring.contracts import Phase5AnalysisResult, RankedCandidate
+from apex.scoring.contracts import CandidateSelectionResult, RankedCandidate
 from apex.strategies.contracts import TradeCandidate, TradeDirection
 
 
 def _reject(
-    phase5: Phase5AnalysisResult,
+    phase5: CandidateSelectionResult,
     config: RiskConfig,
     *items: tuple[RiskRejectionCode, str],
 ) -> RiskAssessment:
@@ -321,12 +321,12 @@ def _candidate_from(selected: RankedCandidate) -> TradeCandidate:
 
 
 def analyze_phase6(
-    phase5: Phase5AnalysisResult,
+    phase5: CandidateSelectionResult,
     *,
     config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
 ) -> RiskAssessment:
-    """Apply deterministic risk controls to the selected Phase 5 candidate."""
+    """Apply deterministic risk controls to the selected trade candidate."""
 
     if exposure is None:
         exposure = ExposureState()
@@ -338,7 +338,7 @@ def analyze_phase6(
             config,
             (
                 RiskRejectionCode.NO_SELECTED_CANDIDATE,
-                "Phase 5 selected no trade candidate",
+                "candidate selection produced no trade candidate",
             ),
         )
 

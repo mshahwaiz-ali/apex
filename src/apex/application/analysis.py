@@ -241,7 +241,7 @@ def _build_risk_rejection_diagnostics(
     context: StrategyContext,
     config: RiskConfig,
 ) -> tuple[Mapping[str, object], ...]:
-    """Describe a Phase 5 selection rejected by Phase 6."""
+    """Describe a candidate selection rejected by risk analysis."""
 
     selected = phase5.selected_candidate
     if selected is None or assessment.decision is RiskDecision.APPROVED:

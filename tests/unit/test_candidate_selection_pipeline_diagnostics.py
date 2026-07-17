@@ -5,9 +5,9 @@ from typing import cast
 
 from apex.application.analysis import ScanResult, SymbolAnalysis
 from apex.application.paper_pipeline_diagnostics import build_futures_pipeline_diagnostics
-from apex.application.phase5_pipeline_diagnostics import (
-    build_phase5_diagnostic_summary,
-    phase5_analysis_payload,
+from apex.application.candidate_selection_diagnostics import (
+    build_candidate_selection_diagnostic_summary,
+    candidate_selection_payload,
 )
 
 
@@ -84,7 +84,7 @@ def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> No
         ),
     )
 
-    payload = build_phase5_diagnostic_summary(analyses).to_payload()
+    payload = build_candidate_selection_diagnostic_summary(analyses).to_payload()
 
     assert payload["analysis_funnel"] == {
         "observed": 2,
@@ -121,7 +121,7 @@ def test_phase5_summary_aggregates_funnels_outcomes_scores_and_selection() -> No
 
 
 def test_phase5_summary_does_not_infer_missing_selection_identity() -> None:
-    payload = build_phase5_diagnostic_summary(
+    payload = build_candidate_selection_diagnostic_summary(
         (
             _analysis(
                 selected=True,
@@ -144,11 +144,11 @@ def test_phase5_summary_does_not_infer_missing_selection_identity() -> None:
     assert payload["selected_counts_by_direction"] == {}
 
 
-def test_phase5_analysis_payload_handles_absent_diagnostics() -> None:
+def test_candidate_selection_payload_handles_absent_diagnostics() -> None:
     analysis = _analysis(symbol="ETH/USDT", selected=False)
     analysis.phase5_diagnostics.clear()  # type: ignore[union-attr]
 
-    payload = phase5_analysis_payload(analysis)
+    payload = candidate_selection_payload(analysis)
 
     assert payload["candidate_count"] == 0
     assert payload["ranked_count"] == 0

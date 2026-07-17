@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from apex.domain.models import Candle
 from apex.features import ActiveCandlePolicy, average_true_range
 from apex.liquidity import analyze_liquidity
-from apex.scoring import Phase5AnalysisResult, analyze_phase5
+from apex.scoring import CandidateSelectionResult, analyze_candidate_selection
 from apex.strategies import (
     FeatureSnapshot,
     StrategyContext,
@@ -77,10 +77,10 @@ def _context(candles: tuple[Candle, ...]) -> StrategyContext:
     )
 
 
-def _phase5(candles: tuple[Candle, ...]) -> Phase5AnalysisResult:
+def _phase5(candles: tuple[Candle, ...]) -> CandidateSelectionResult:
     decision_time = candles[-1].close_time
     phase4 = analyze_phase4(_context(candles), decision_time=decision_time)
-    return analyze_phase5(phase4)
+    return analyze_candidate_selection(phase4)
 
 
 def test_phase5_historical_prefix_is_invariant_after_future_candles() -> None:

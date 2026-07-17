@@ -1,4 +1,4 @@
-"""Stable Phase 5 scoring and selection diagnostics for futures scan runs."""
+"""Stable candidate-scoring and selection diagnostics for futures scan runs."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _REJECTED_PREFIX = "rejected"
 
 
 @dataclass(frozen=True, slots=True)
-class Phase5DiagnosticSummary:
+class CandidateSelectionDiagnosticSummary:
     """Deterministic run-level scoring and selection funnel statistics."""
 
     analyses_observed: int
@@ -37,7 +37,7 @@ class Phase5DiagnosticSummary:
     score_observations_by_strategy: Mapping[str, int]
 
     def to_payload(self) -> dict[str, Any]:
-        """Serialize Phase 5 analytics with deterministic ordering."""
+        """Serialize candidate-selection analytics with deterministic ordering."""
 
         average_scores = {
             strategy: round(
@@ -81,10 +81,10 @@ class Phase5DiagnosticSummary:
         }
 
 
-def build_phase5_diagnostic_summary(
+def build_candidate_selection_diagnostic_summary(
     analyses: Sequence[SymbolAnalysis],
-) -> Phase5DiagnosticSummary:
-    """Aggregate stable Phase 5 fields without interpreting free-form rejection text."""
+) -> CandidateSelectionDiagnosticSummary:
+    """Aggregate stable candidate-selection fields without interpreting free-form rejection text."""
 
     outcome_counts: Counter[str] = Counter()
     outcomes_by_strategy: dict[str, Counter[str]] = defaultdict(Counter)
@@ -150,7 +150,7 @@ def build_phase5_diagnostic_summary(
                 if direction is not None:
                     selected_by_direction[direction] += 1
 
-    return Phase5DiagnosticSummary(
+    return CandidateSelectionDiagnosticSummary(
         analyses_observed=len(analyses),
         analyses_with_candidates=analyses_with_candidates,
         analyses_selected=analyses_selected,
@@ -172,8 +172,8 @@ def build_phase5_diagnostic_summary(
     )
 
 
-def phase5_analysis_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
-    """Return stable per-analysis Phase 5 diagnostics for audit records."""
+def candidate_selection_payload(analysis: SymbolAnalysis) -> dict[str, Any]:
+    """Return stable per-analysis candidate-selection diagnostics for audit records."""
 
     diagnostics = _mapping(getattr(analysis, "phase5_diagnostics", None))
     return {

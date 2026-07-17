@@ -52,4 +52,4 @@ def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
         return "opposing candidates remain unresolved inside the conflict margin"
     if CandidateOutcome.REJECTED_CONTRADICTION in outcomes:
         return "all leading candidates were invalidated by major contradiction"
-    return "all candidates were rejected by deterministic Phase 5 rules"
+    return "all candidates were rejected by deterministic candidate-selection rules"

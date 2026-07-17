@@ -7,7 +7,7 @@ def _base_payload() -> dict[str, object]:
     return {
         "symbol": "TRX/USDT",
         "decision": "NO_TRADE",
-        "reasons": ["Phase 5 selected no trade candidate"],
+        "reasons": ["candidate selection produced no trade candidate"],
         "candidate_count": 0,
         "decision_reason_code": "NO_CANDIDATE_GENERATED",
         "market_environment": {
@@ -55,7 +55,7 @@ def test_default_no_trade_output_is_trader_facing() -> None:
     assert "Preferred side" in text
     assert "Short" in text
     assert "No valid setup formed near the current price" in text
-    assert "Phase 5" not in text
+    assert "candidate selection" not in text.lower()
     assert "Raw candidates" not in text
     assert "NO_CANDIDATE_GENERATED" not in text
 

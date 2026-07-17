@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from apex.application.analysis import ScanResult, SymbolAnalysis
-from apex.application.phase5_pipeline_diagnostics import (
-    build_phase5_diagnostic_summary,
-    phase5_analysis_payload,
+from apex.application.candidate_selection_diagnostics import (
+    build_candidate_selection_diagnostic_summary,
+    candidate_selection_payload,
 )
 from apex.application.phase6_pipeline_diagnostics import (
     build_phase6_diagnostic_summary,
@@ -155,7 +155,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         for analysis in scan.analyses
     }
     phase5_analyses = {
-        _analysis_key(analysis): phase5_analysis_payload(analysis)
+        _analysis_key(analysis): candidate_selection_payload(analysis)
         for analysis in scan.analyses
     }
     phase6_source = tuple(
@@ -171,7 +171,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         "scanner_failures": dict(sorted(scan.failures.items())),
         "phase4_summary": build_phase4_diagnostic_summary(scan.analyses).to_payload(),
         "phase4_analyses": phase4_analyses,
-        "phase5_summary": build_phase5_diagnostic_summary(scan.analyses).to_payload(),
+        "phase5_summary": build_candidate_selection_diagnostic_summary(scan.analyses).to_payload(),
         "phase5_analyses": phase5_analyses,
         "phase6_summary": build_phase6_diagnostic_summary(phase6_source).to_payload(),
         "phase6_analyses": phase6_analyses,

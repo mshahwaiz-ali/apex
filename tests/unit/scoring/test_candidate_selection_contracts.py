@@ -7,7 +7,7 @@ from apex.scoring import (
     CandidateOutcome,
     ConflictSummary,
     DirectionalConsensus,
-    Phase5AnalysisResult,
+    CandidateSelectionResult,
     RankedCandidate,
     ScoreBreakdown,
     ScoredCandidate,
@@ -167,7 +167,7 @@ def test_rejected_candidate_requires_reason() -> None:
 
 def test_result_requires_aware_decision_time() -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
-        Phase5AnalysisResult(
+        CandidateSelectionResult(
             symbol="BTC/USDT",
             decision_time=datetime(2026, 7, 13),
             all_scored_candidates=(),
@@ -193,7 +193,7 @@ def test_result_rejects_duplicate_candidate_identities() -> None:
     first = _scored()
     second = _scored()
     with pytest.raises(ValueError, match="identities must be unique"):
-        Phase5AnalysisResult(
+        CandidateSelectionResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             all_scored_candidates=(first, second),
@@ -213,7 +213,7 @@ def test_selected_candidate_must_belong_to_ranked_candidates() -> None:
     selected = _ranked(candidate_id="trend_pullback:long:0")
     other = _ranked(candidate_id="trend_pullback:long:1")
     with pytest.raises(ValueError, match="selected candidate must belong"):
-        Phase5AnalysisResult(
+        CandidateSelectionResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             all_scored_candidates=(selected.scored, other.scored),
@@ -232,7 +232,7 @@ def test_selected_candidate_must_belong_to_ranked_candidates() -> None:
 def test_selected_trade_cannot_also_have_no_trade_reason() -> None:
     selected = _ranked()
     with pytest.raises(ValueError, match="cannot also have"):
-        Phase5AnalysisResult(
+        CandidateSelectionResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             all_scored_candidates=(selected.scored,),

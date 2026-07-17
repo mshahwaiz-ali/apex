@@ -9,7 +9,7 @@ from apex.scoring import (
     PenaltyWeights,
     ScoringConfig,
     ScoringWeights,
-    analyze_phase5,
+    analyze_candidate_selection,
 )
 from apex.scoring.ranking import rank_candidates
 from apex.scoring.scorer import score_candidates
@@ -197,7 +197,7 @@ def test_registry_order_and_direction_break_ties() -> None:
 
 
 def test_clear_long_winner_is_selected() -> None:
-    result = analyze_phase5(
+    result = analyze_candidate_selection(
         _phase4(
             _candidate(quality=0.9),
             _candidate(
@@ -212,12 +212,12 @@ def test_clear_long_winner_is_selected() -> None:
 
 
 def test_clear_short_winner_is_selected() -> None:
-    result = analyze_phase5(_phase4(_candidate(direction=TradeDirection.SHORT, quality=0.9)))
+    result = analyze_candidate_selection(_phase4(_candidate(direction=TradeDirection.SHORT, quality=0.9)))
     assert result.selected_direction is TradeDirection.SHORT
 
 
 def test_equal_opposing_strength_returns_no_trade() -> None:
-    result = analyze_phase5(
+    result = analyze_candidate_selection(
         _phase4(
             _candidate(quality=0.85),
             _candidate(
@@ -233,13 +233,13 @@ def test_equal_opposing_strength_returns_no_trade() -> None:
 
 
 def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:
-    result = analyze_phase5(_phase4(_candidate(quality=0.75, provisional=True)))
+    result = analyze_candidate_selection(_phase4(_candidate(quality=0.75, provisional=True)))
     assert result.selected_candidate is not None
     assert result.selected_candidate.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
 
 
 def test_duplicate_thesis_is_grouped_not_double_selected() -> None:
-    result = analyze_phase5(
+    result = analyze_candidate_selection(
         _phase4(
             _candidate(strategy=StrategyType.TREND_PULLBACK, quality=0.85),
             _candidate(strategy=StrategyType.MOMENTUM_CONTINUATION, quality=0.82),
@@ -254,13 +254,13 @@ def test_duplicate_thesis_is_grouped_not_double_selected() -> None:
 
 
 def test_all_candidates_below_threshold_returns_no_trade() -> None:
-    result = analyze_phase5(_phase4(_candidate(quality=0.3)))
+    result = analyze_candidate_selection(_phase4(_candidate(quality=0.3)))
     assert result.selected_candidate is None
     assert result.rejected_candidates[0].outcome is CandidateOutcome.REJECTED_BELOW_THRESHOLD
 
 
 def test_major_higher_timeframe_contradiction_is_rejected() -> None:
-    result = analyze_phase5(
+    result = analyze_candidate_selection(
         _phase4(
             _candidate(
                 quality=0.95,
@@ -273,6 +273,6 @@ def test_major_higher_timeframe_contradiction_is_rejected() -> None:
 
 
 def test_empty_phase4_result_is_explicit_no_trade() -> None:
-    result = analyze_phase5(_phase4())
+    result = analyze_candidate_selection(_phase4())
     assert result.selected_candidate is None
     assert result.no_trade_reason == "no Phase 4 candidates were generated"

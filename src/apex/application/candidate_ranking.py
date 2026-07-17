@@ -7,7 +7,7 @@ from enum import StrEnum
 
 from apex.scoring import (
     CandidateOutcome,
-    Phase5AnalysisResult,
+    CandidateSelectionResult,
     RankedCandidate,
     score_band_for,
 )
@@ -23,7 +23,7 @@ from apex.scoring.rank_score import (
 
 
 class CandidateRankingRole(StrEnum):
-    """Role assigned after deterministic Phase 5 ranking."""
+    """Role assigned after deterministic candidate ranking."""
 
     PRIMARY = "primary"
     ALTERNATIVE = "alternative"
@@ -117,9 +117,9 @@ _VIABLE_OUTCOMES = {
 
 
 def build_candidate_ranking_snapshot(
-    phase5: Phase5AnalysisResult,
+    phase5: CandidateSelectionResult,
 ) -> CandidateRankingSnapshot:
-    """Preserve deterministic Phase 5 order without changing selection."""
+    """Preserve deterministic candidate rank order without changing selection."""
 
     selected_id = (
         phase5.selected_candidate.scored.candidate_id

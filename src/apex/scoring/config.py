@@ -1,4 +1,4 @@
-"""Immutable configuration for deterministic Phase 5 scoring and selection."""
+"""Immutable configuration for deterministic candidate scoring and selection."""
 
 from __future__ import annotations
 
@@ -110,7 +110,7 @@ _DEFAULT_PROFILES: Mapping[StrategyType, StrategyProfile] = MappingProxyType(
 
 @dataclass(frozen=True, slots=True)
 class ScoringConfig:
-    """Complete immutable Phase 5 configuration snapshot."""
+    """Complete immutable candidate-scoring configuration snapshot."""
 
     identifier: str = "phase5-default-v1"
     weights: ScoringWeights = field(default_factory=ScoringWeights)
