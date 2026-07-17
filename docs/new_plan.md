@@ -1,1667 +1,1936 @@
-# Apex Trading Agent — Final Simplification and Redesign Plan
+# Apex Trading Agent — Stage 3
+
+## Trade Discovery Core Simplification and Complete Redesign
 
 ## 1. Final Product Definition
 
-Apex Trading Agent ka primary kaam hai:
+Apex ka abhi sirf ek primary purpose hoga:
 
-> Binance market ko scan karke current price ke qareeb available long aur short opportunities identify karna, unhein score karna, rank karna, aur user ke wallet ke mutabiq executable trade plan banana.
+> Binance USDT perpetual-futures market ko scan karna, current ya near-current price par available long aur short trade setups identify karna, unhein transparent scoring ke through rank karna, aur har selected setup ke liye complete entry, invalidation, stop-loss, targets, continuation guidance aur exit plan dena.
 
-System ka focus hoga:
+Apex abhi:
 
-* market-wide opportunity discovery;
-* fast intraday and short swing trades;
-* high potential reward with controlled and visible risk;
-* near-current-price entries;
-* long and short futures opportunities;
-* future spot support without a separate duplicated product;
-* transparent scoring;
-* clear warnings without unnecessarily cancelling trades;
-* wallet-aware position planning;
-* deterministic and explainable results.
+* wallet-management system nahi hoga;
+* funded-account manager nahi hoga;
+* leverage calculator nahi hoga;
+* exchange execution system nahi hoga;
+* paper-trading platform nahi hoga;
+* autonomous optimization system nahi hoga;
+* historical research command suite nahi hoga;
+* reporting or operational-review platform nahi hoga.
 
-Apex ka purpose institutional reporting platform, compliance workflow, autonomous self-learning system, ya presentation framework banana nahi hai.
-
----
-
-# 2. Final Operating Principle
-
-Apex ke core workflow ko is order mein operate karna hai:
+Current active product surface ka focus sirf hoga:
 
 ```text
-Discover the market opportunity
-→ evaluate possible strategies
-→ score and rank every usable candidate
-→ describe entry conditions and cautions
-→ calculate wallet-aware execution plan
-→ log the complete result
+Find trade opportunities
+→ evaluate them deeply
+→ rank them
+→ explain them
+→ construct usable trade plans
 ```
-
-Risk planning trade discovery ko suppress nahi karegi.
-
-Market caution trade ko automatically cancel nahi karegi.
-
-A candidate sirf tab completely invalid hoga jab:
-
-* market data invalid ho;
-* contract inactive ho;
-* liquidity execution ke liye unusable ho;
-* trade direction structurally impossible ho;
-* entry thesis already invalidated ho;
-* stop and entry geometry logically inconsistent ho;
-* required order exchange rules ke mutabiq place hi na ho sake.
 
 ---
 
-# 3. Mandatory Product Decisions
+# 2. Core Product Principle
 
-## 3.1 Gainer mode completely remove karna hai
+Trade pehle market structure aur measurable evidence se discover hogi.
 
-Current concepts remove honge:
+Wallet, risk allowance, leverage, margin allocation ya account size trade ko discover, reject, score ya rank nahi karega.
 
-* gainer scanner mode;
-* gainer market category;
-* gainer state machine;
-* gainer-specific thresholds;
-* gainer-specific strategy routing;
-* gainer-specific evidence;
-* normal-versus-gainer duplicate analysis;
-* CLI values such as `gainers` and `all` where `all` ka meaning normal plus gainer duplication ho;
-* serialized fields related specifically to gainer classification;
-* tests and documentation built only around gainer mode.
-
-Apex top movers aur accelerating markets ko naturally universe scoring mein identify karega.
-
-Top mover hona ek market feature hoga, separate scanner identity nahi.
-
-Examples:
+Required workflow:
 
 ```text
-24h return
-1h acceleration
-15m acceleration
-relative volume
-range expansion
-volume acceleration
-breakout proximity
+Discover futures universe
+→ screen every eligible market
+→ shortlist approximately 30 symbols
+→ run detailed analysis
+→ evaluate all applicable strategies
+→ construct long and short candidates
+→ score and rank candidates
+→ display the best 15–20 available setups
+→ log every calculation and decision
 ```
 
-These features opportunity score ko influence karenge, lekin coin ko artificial “gainer mode” mein route nahi karenge.
+The scanner must answer:
+
+1. Abhi kaunsa symbol tradeable movement dikha raha hai?
+2. Direction long hai ya short?
+3. Direction ka measurable reason kya hai?
+4. Entry current price ke qareeb kahan hai?
+5. Better retracement entry available hai ya nahi?
+6. Setup kis price par invalid hoga?
+7. Structural stop-loss kahan hai?
+8. TP1, TP2 aur TP3 kahan hain?
+9. TP1 ke baad hold karna ho to kya condition observe karni hai?
+10. Momentum continue ho raha hai ya exit karna better hai?
+11. Setup kitna strong, aggressive, late ya uncertain hai?
+12. Is setup ke fail hone ke primary risks kya hain?
 
 ---
 
-## 3.2 Futures primary product rahega
+# 3. Decisions Locked for Stage 3
 
-Active development ka primary target:
+## 3.1 Futures only
+
+Active market:
 
 ```text
 Binance USDT perpetual futures
 ```
 
-Futures system must support:
+Only contracts satisfying all of these are eligible:
 
-* long and short opportunities;
-* isolated-margin planning;
-* mark-price-aware risk;
-* fees and slippage;
-* stop placement;
-* leverage calculation;
-* liquidation estimate;
-* funded-account constraints;
-* wallet-based quantity and margin.
+* quote asset is USDT;
+* contract type is perpetual;
+* exchange status is actively trading;
+* valid price and quantity filters exist;
+* recent ticker and candle data are available;
+* spread and liquidity are measurable;
+* sufficient recent history exists.
+
+Delivery contracts, inactive contracts, spot pairs and non-USDT products are excluded.
 
 ---
 
-## 3.3 Spot temporarily freeze aur hide karna hai
+## 3.2 Only two scanning modes
 
-Spot code immediately delete nahi karna.
+### Broad Market Scan
 
-Spot ke liye:
-
-* CLI commands hidden or unregistered;
-* main README capability tables se remove;
-* default help output se remove;
-* paper workflows se disable;
-* UI navigation mein future mein hidden;
-* active tests sirf preserved behavior ke liye reh sakte hain;
-* no new spot feature development;
-* no separate spot architecture expansion.
-
-Spot ko later same shared engine ke through enable kiya jayega:
-
-```text
-shared universe discovery
-shared market features
-shared strategy engine
-shared scoring
-shared entry engine
-spot-specific execution planner
+```bash
+apex scan
 ```
 
-Spot ek separate product ya parallel architecture nahi hoga.
+Behavior:
 
----
+* dynamically discover all active Binance USDT perpetual contracts;
+* run lightweight screening over the complete eligible universe;
+* shortlist the best approximately 30 symbols;
+* run full detailed analysis on the shortlist;
+* display the best 15–20 trade candidates.
 
-## 3.4 Autonomous self-learning remove karna hai
+### Manual Symbol Analysis
 
-Apex automatically apne thresholds ya strategies modify nahi karega.
-
-Remove or archive:
-
-* automatic optimization workflows;
-* automatic threshold mutation;
-* automated candidate-versus-baseline promotion machinery not required for manual analysis;
-* self-learning claims;
-* autonomous adaptation language;
-* unnecessary optimization orchestration.
-
-Keep:
-
-* complete structured logs;
-* historical scan records;
-* rejection reasons;
-* outcomes where paper tracking is used;
-* manual review reports;
-* reproducible backtesting utilities.
-
-Later issue aaye to logs aur historical records manually inspect karke targeted improvements ki jayengi.
-
----
-
-# 4. Current Design Problems to Correct
-
-## 4.1 Static symbol universe
-
-Current configured universe limited symbols tak restricted hai.
-
-Required behavior:
-
-* Binance se current active contracts load karo;
-* static YAML list ko primary universe na banao;
-* exchange status and contract metadata validate karo;
-* USDT perpetual futures dynamically discover karo;
-* blacklist and optional allowlist support rakho;
-* delisted, inactive, suspended, or unsuitable contracts reject karo.
-
-Static symbols file sirf optional override hoga.
-
----
-
-## 4.2 Fake gainer routing
-
-Same configured symbols ko different category labels ke saath analyze karna band karna hai.
-
-Har symbol exactly once primary discovery and analysis pipeline se guzrega.
-
-Strategy selection measurable market state par based hogi, category label par nahi.
-
----
-
-## 4.3 Full expensive analysis too early
-
-Current design detailed multi-timeframe work shortlist se pehle kar sakta hai.
-
-Required two-level model:
-
-### Market-wide lightweight screening
-
-All active contracts par cheap metrics calculate karo.
-
-### Detailed trade analysis
-
-Only top shortlisted contracts par deeper candle, structure, strategy, entry, and risk analysis chalao.
-
-This will:
-
-* increase market coverage;
-* reduce requests;
-* reduce scan time;
-* focus computation on moving markets;
-* create more realistic opportunity flow.
-
----
-
-## 4.4 Too many hard blockers
-
-Current environment, routing, candidate, entry, and risk decisions ko one strict approval chain mein combine nahi karna.
-
-Required separation:
-
-```text
-Opportunity quality
-Setup quality
-Timing quality
-Risk feasibility
-Warnings
+```bash
+apex analyze SYMBOL
 ```
 
-A weak risk plan does not erase a real market opportunity.
+Behavior:
 
-A sweep risk does not erase a breakout opportunity.
+* analyze one requested futures symbol deeply;
+* evaluate every applicable long and short strategy;
+* display the primary setup and useful alternatives;
+* show complete calculations, evidence, targets and exit guidance.
 
-Higher-timeframe disagreement does not automatically erase a valid fast trade.
-
----
-
-## 4.5 Binary trade visibility
-
-Final scanner must not only display fully approved setups.
-
-It must display:
-
-* ready setups;
-* aggressive setups;
-* pullback-preferred setups;
-* watch setups;
-* late/chase-risk setups;
-* low-confidence setups;
-* invalidated setups only when useful for diagnostics.
-
-Default scan should show the best 10–15 ranked opportunities.
-
-A scan may show fewer only when:
-
-* exchange data failed materially;
-* insufficient active contracts were available;
-* safety filters removed genuinely untradeable markets.
-
-The system must not fabricate trade quality merely to reach a numeric quota.
+No separate normal mode, gainer mode, fast-gainer mode, funded mode, paper mode or spot scan mode.
 
 ---
 
-## 4.6 Higher-timeframe over-control
+## 3.3 Risk profile completely removed from trade discovery
 
-The target product is primarily fast intraday opportunity discovery.
+Remove from active scanner and analyzer:
 
-Default active analysis hierarchy:
+* wallet balance;
+* risk profile;
+* Standard mode;
+* Funded mode;
+* Aggressive mode;
+* Extreme mode;
+* maximum planned loss;
+* risk-per-trade percentage;
+* account drawdown;
+* daily loss limit;
+* margin allocation;
+* isolated/cross selection;
+* leverage mode;
+* position quantity;
+* position notional;
+* liquidation planning;
+* risk feasibility score;
+* rejection caused by insufficient wallet risk.
 
-| Timeframe | Role                                    |
-| --------- | --------------------------------------- |
-| `1m`      | execution timing and immediate momentum |
-| `3m`      | trigger quality and microstructure      |
-| `5m`      | primary entry structure                 |
-| `15m`     | setup and local regime                  |
-| `30m`     | intraday context                        |
-| `1h`      | broader trend and danger context        |
-| `4h`      | optional macro warning only             |
-
-The `4h` timeframe must not normally veto a valid fast trade.
-
-Examples:
+Remove output blocks such as:
 
 ```text
-4h overextended → caution
-4h opposing trend → lower score
-4h major resistance nearby → target limitation
+Risk Profile
+Wallet
+Risk mode
+Maximum planned loss
+Margin mode
+Leverage mode
 ```
 
-Not:
+A message such as:
 
 ```text
-4h conflict → automatic no trade
+A setup formed but did not meet the required quality or risk standards
 ```
 
-Longer resampled timeframes such as weekly or multi-day views are outside the default scanning workflow.
+must disappear.
+
+A setup can be weak because of its **market evidence, structure, timing, liquidity or target geometry**, but not because the configured wallet only permits a `0.25 USDT` loss.
+
+Structural stop-loss remains mandatory because it belongs to the trade thesis—not the wallet profile.
 
 ---
 
-# 5. Target System Architecture
+## 3.4 Leverage postponed
+
+Leverage does not belong in Stage 3.
+
+Stage 3 returns:
+
+* entry;
+* invalidation;
+* stop;
+* targets;
+* percentage distance to stop;
+* reward-to-risk geometry.
+
+It does not decide:
+
+* position size;
+* leverage;
+* margin;
+* wallet exposure;
+* liquidation price.
+
+A separate optional execution-sizing module may be designed later after trade discovery quality is proven.
+
+---
+
+## 3.5 Spot frozen
+
+Spot code must not be expanded during Stage 3.
+
+For now:
+
+* unregister spot commands;
+* remove spot from active README and help;
+* exclude spot tests from the active redesign surface where safe;
+* preserve reusable indicator, feature and strategy logic;
+* do not build a separate spot architecture.
+
+Later, spot should reuse the same discovery and strategy engine with a spot-specific trade-plan adapter.
+
+---
+
+## 3.6 Paper trading and execution removed from active product
+
+Unregister from the default CLI:
+
+* paper commands;
+* paper scheduler;
+* paper pipeline;
+* paper daily reports;
+* paper intake;
+* paper status;
+* testnet execution;
+* kill-switch commands;
+* readiness commands;
+* funded-history commands;
+* operational validation commands.
+
+Reusable storage or historical simulation primitives may remain internally until dependency tracing is complete.
+
+They must not control or complicate live scanning.
+
+---
+
+## 3.7 Historical research reduced to internal tooling
+
+Stage 3 is not primarily a backtesting or dataset-management product.
+
+Keep only components that directly help:
+
+* replay a strategy;
+* compare later market outcome with scan output;
+* measure candidate accuracy;
+* inspect false positives and false negatives;
+* calibrate manually.
+
+Large campaign orchestration, milestone reviews, research overlays, evidence ceremonies and duplicated historical commands should be archived or removed after dependency verification.
+
+---
+
+# 4. Realistic Accuracy Objective
+
+The system may aim to produce:
 
 ```text
-Binance Contract Universe
+15–20 visible candidates per broad scan
+```
+
+However, these must not all be presented as equally strong trades.
+
+The final results should be ranked and labelled, for example:
+
+* top-quality actionable;
+* strong but aggressive;
+* pullback preferred;
+* speculative;
+* watch-only;
+* late or chasing.
+
+The goal of `90% correct trades` cannot be treated as a guaranteed acceptance criterion.
+
+A useful engineering objective is:
+
+> Continuously reduce avoidable false positives and improve the precision of the highest-ranked candidates through logged evidence and historical comparison.
+
+Accuracy must be evaluated separately for:
+
+* direction correctness;
+* entry reached;
+* TP1 reached before stop;
+* TP2 reached before stop;
+* maximum favorable excursion;
+* maximum adverse excursion;
+* strategy type;
+* score band;
+* market regime;
+* holding horizon.
+
+The highest-ranked five setups should eventually demonstrate better measured performance than lower-ranked candidates. That ranking quality is more valuable than artificially claiming that 90% of all displayed trades are winners.
+
+---
+
+# 5. Target Architecture
+
+```text
+Binance Futures Metadata
         ↓
-Contract and Liquidity Eligibility
+Eligible USDT Perpetual Universe
         ↓
-Market-Wide Opportunity Screener
+Batch Ticker and Lightweight Candle Collection
         ↓
-Shortlisted Symbols
+Market-Wide Opportunity Features
         ↓
-Detailed Multi-Timeframe Feature Analysis
+Opportunity Scoring
+        ↓
+Top 30 Symbol Shortlist
+        ↓
+Detailed Multi-Timeframe Features
         ↓
 Market-State Classification
         ↓
-Applicable Strategy Evaluation
+Applicable Long and Short Strategies
         ↓
-Candidate Scoring and Ranking
+Candidate Construction
         ↓
-Entry and Trade Construction
+Setup and Timing Scoring
         ↓
-Warnings and Cautions
+Entry, Stop, Targets and Exit Guidance
         ↓
-Wallet / Funded Risk Planning
+Cross-Symbol Ranking
         ↓
-Top Opportunities + Full Diagnostics
+Top 15–20 Results
+        ↓
+Structured Diagnostic Log
 ```
 
+The architecture must keep these modules separate:
+
+```text
+providers
+universe
+screening
+features
+market_state
+strategies
+candidates
+entries
+targets
+scoring
+ranking
+presentation
+logging
+```
+
+No module should combine the entire pipeline in one large function.
+
 ---
 
-# 6. Binance Universe Discovery
+# 6. Dynamic Binance Futures Universe
 
-## 6.1 Futures universe source
+## 6.1 Contract metadata
 
-Load from Binance exchange metadata:
+Use Binance futures exchange metadata to collect:
 
-* active USDT perpetual contracts;
-* contract trading status;
+* symbol;
 * base asset;
 * quote asset;
+* contract type;
+* trading status;
 * tick size;
-* step size;
+* quantity step size;
 * minimum quantity;
-* minimum notional;
-* leverage brackets where accessible;
-* relevant precision filters.
+* minimum notional where applicable;
+* price precision;
+* quantity precision.
 
-## 6.2 Initial exclusions
+## 6.2 Dynamic selection
 
-Exclude:
+Static `symbols.yaml` must no longer be the primary source for broad scans.
 
-* inactive contracts;
-* contracts not settled in the configured quote asset;
-* contracts with broken market data;
-* contracts below minimum liquidity;
-* contracts with extreme spread;
-* contracts with insufficient candle history;
-* manually blacklisted symbols;
-* products outside selected crypto scope.
+It may remain only for:
 
-## 6.3 Do not use fixed top-volume-only selection
+* manual allowlists;
+* temporary testing;
+* explicit symbol overrides;
+* blacklists.
 
-Low-volume assets can move sharply but may be unsafe to execute.
+## 6.3 Early eligibility checks
 
-Volume must therefore be scored, not used as the only selection criterion.
+Exclude only markets that are genuinely unsuitable:
 
-Universe screening should balance:
+* inactive contract;
+* invalid metadata;
+* no usable ticker;
+* no usable candles;
+* excessive spread;
+* severely inadequate liquidity;
+* broken or stale market data;
+* newly listed market without enough required history;
+* manually blacklisted symbol.
 
-* liquidity;
-* movement;
-* volume acceleration;
-* volatility;
-* spread;
-* tradeability;
-* entry freshness.
+Do not reject a symbol merely because:
+
+* 24-hour volume is not among the highest;
+* higher timeframe opposes the immediate move;
+* the market is volatile;
+* it is not already a top gainer.
 
 ---
 
-# 7. Market-Wide Opportunity Screener
+# 7. Broad Market Opportunity Screening
 
-The screener ka purpose trade approve karna nahi.
+The broad screener does not generate the final trade.
 
-Its purpose:
+It answers:
 
-> Which markets deserve detailed strategy analysis right now?
+> Which symbols deserve expensive detailed analysis right now?
 
-## 7.1 Required screener inputs
+## 7.1 Screening universe
 
-Prefer lightweight ticker and limited candle data:
+The screener runs once per eligible contract.
 
-* current price;
-* bid and ask;
-* spread percentage;
-* 24h quote volume;
-* 24h trade count where available;
-* 24h percentage move;
-* recent `5m`, `15m`, `30m`, and `1h` returns;
-* recent volume versus baseline;
-* volume acceleration;
-* ATR percentage;
-* recent candle-range expansion;
-* trend slope;
-* breakout distance;
-* VWAP or short EMA distance;
-* recent high/low proximity;
-* wick intensity;
+No symbol is duplicated into separate normal and gainer categories.
+
+## 7.2 Lightweight inputs
+
+Prefer batch ticker endpoints and a small recent candle sample.
+
+Calculate:
+
+### Liquidity
+
+* 24-hour quote volume;
+* recent quote volume;
+* trade count where available;
+* bid-ask spread percentage;
+* recent candle participation;
+* volume consistency.
+
+### Movement
+
+* 5-minute return;
+* 15-minute return;
+* 30-minute return;
+* 1-hour return;
+* 4-hour contextual return;
+* 24-hour return;
+* absolute and directional movement.
+
+### Acceleration
+
+* change in return velocity;
+* change in volume;
+* expanding candle ranges;
 * directional persistence;
-* current candle participation.
+* recent impulse versus prior baseline.
 
-## 7.2 Opportunity score
+### Volatility
 
-Each symbol receives a `0–100` opportunity score.
+* ATR percentage;
+* realized range;
+* current range versus baseline;
+* compression ratio;
+* expansion ratio;
+* noise and wick ratio.
 
-Suggested components:
+### Structure proximity
 
-| Component            | Purpose                                                |
-| -------------------- | ------------------------------------------------------ |
-| Liquidity            | Can the trade enter and exit cleanly?                  |
-| Movement             | Is the coin moving enough to provide profit potential? |
-| Acceleration         | Is movement increasing rather than fading?             |
-| Relative volume      | Is real participation supporting the move?             |
-| Volatility usability | Is volatility profitable but not chaotic?              |
-| Entry freshness      | Is the opportunity early enough?                       |
-| Structure proximity  | Is price near a useful level?                          |
-| Directional clarity  | Is movement one-sided enough to trade?                 |
-| Spread penalty       | Will execution cost damage the setup?                  |
-| Exhaustion penalty   | Is the move already too stretched?                     |
-| Noise penalty        | Is price too erratic for a meaningful stop?            |
+* distance from recent high;
+* distance from recent low;
+* distance from local breakout boundary;
+* distance from VWAP;
+* distance from selected EMAs;
+* distance from recent support or resistance.
 
-## 7.3 Shortlist size
+### Freshness
+
+* bars since expansion began;
+* bars since breakout;
+* bars since volume spike;
+* move extension from origin;
+* remaining nearby target space.
+
+## 7.3 Opportunity score
+
+Every eligible symbol receives a `0–100` opportunity score.
+
+Suggested composition:
+
+```text
+movement potential
++ acceleration
++ relative volume
++ directional persistence
++ structure proximity
++ volatility usability
++ entry freshness
++ liquidity
+- spread penalty
+- exhaustion penalty
+- chaotic-noise penalty
+- stale-move penalty
+```
+
+All components and raw values must be logged.
+
+## 7.4 Shortlist construction
 
 Default:
 
 ```text
-Market-wide universe: all eligible contracts
-Detailed shortlist: top 30
-Final displayed opportunities: top 15
+Eligible universe: all active USDT perpetual contracts
+Detailed shortlist: 30 symbols
+Final visible candidates: 15–20
 ```
 
-All values configurable.
+The shortlist should not consist only of the largest 24-hour gainers.
 
-The detailed shortlist should preserve directional diversity where possible:
+It should preserve high-ranking opportunities across:
 
-* strong long candidates;
-* strong short candidates;
-* breakout candidates;
-* reversal candidates;
-* compression candidates;
-* pullback candidates.
+* emerging longs;
+* emerging shorts;
+* breakouts;
+* failed breakouts;
+* controlled pullbacks;
+* reversals;
+* compression releases;
+* high-momentum scalps.
 
 ---
 
-# 8. Market-State Classification
+# 8. Capturing a Coin Before It Becomes a Top Gainer
 
-The system should classify measurable conditions instead of routing through artificial product modes.
+A future gainer is usually visible through a combination of early changes—not a single indicator.
 
-Possible states:
+The screener must calculate a dedicated **early-expansion feature group**:
 
-* directional trend;
-* early momentum expansion;
-* mature momentum expansion;
-* controlled pullback;
+* rising short-timeframe return velocity;
+* 5-minute and 15-minute relative-volume increase;
+* volume acceleration before large 24-hour displacement;
+* candle-range expansion after compression;
+* repeated closes near candle highs for longs;
+* repeated closes near candle lows for shorts;
+* increasing directional efficiency;
+* breakout proximity;
+* declining pullback depth;
+* VWAP or EMA reclaim;
+* open-interest change where reliable data is available;
+* taker-buy or taker-sell imbalance where reliable data is available;
+* funding and basis as context, not standalone signals;
+* low initial extension from the movement origin.
+
+Potential early-gainer pattern:
+
+```text
+low or moderate 24h move
++ strong 5m/15m acceleration
++ rising relative volume
++ compression release
++ clean target space
++ price not yet terminally extended
+```
+
+Potential early-loser/short pattern:
+
+```text
+low or moderate 24h decline
++ breakdown acceleration
++ increasing sell participation
++ repeated failed reclaims
++ clean downside target space
+```
+
+The system must not create a separate gainer state machine. These are normal measurable market features used in opportunity scoring and strategy evaluation.
+
+---
+
+# 9. Detailed Multi-Timeframe Analysis
+
+Run only on shortlisted symbols.
+
+## 9.1 Default timeframes
+
+| Timeframe | Primary role                            |
+| --------- | --------------------------------------- |
+| `1m`      | current impulse and precise execution   |
+| `3m`      | microstructure and trigger confirmation |
+| `5m`      | primary entry and stop structure        |
+| `15m`     | setup structure and local trend         |
+| `30m`     | intraday context and target space       |
+| `1h`      | broader trend and major levels          |
+| `4h`      | macro caution and major structure only  |
+
+## 9.2 Timeframe rules
+
+* `5m` and `15m` drive most normal intraday setups.
+* `1m` and `3m` refine entry and immediate momentum.
+* `30m` and `1h` refine confidence and targets.
+* `4h` normally applies a warning or score adjustment.
+* `4h` must not automatically veto a valid fast setup.
+* No weekly or multi-day resampling is required in the default live scanner.
+
+---
+
+# 10. Feature Engine
+
+The detailed feature engine should expose raw values rather than only boolean conclusions.
+
+## 10.1 Trend and structure
+
+* swing highs and swing lows;
+* higher-high/higher-low sequences;
+* lower-high/lower-low sequences;
+* break of structure;
+* change of character;
+* local support and resistance;
+* range boundaries;
+* previous session or rolling highs/lows;
+* distance to structural levels;
+* trend slope;
+* directional efficiency.
+
+## 10.2 Momentum
+
+* RSI level;
+* RSI slope;
+* RSI divergence where deterministic;
+* MACD line, signal and histogram;
+* MACD histogram acceleration;
+* rate of change;
+* candle-body direction persistence;
+* close-location value;
+* impulse strength;
+* momentum decay.
+
+RSI overbought does not automatically mean short.
+
+RSI oversold does not automatically mean long.
+
+Their interpretation depends on trend, structure, volume and momentum behavior.
+
+## 10.3 Volume and participation
+
+* raw volume;
+* relative volume;
+* volume moving average;
+* volume acceleration;
+* breakout volume;
+* pullback volume contraction;
+* directional volume approximation;
+* taker imbalance where available;
+* participation consistency.
+
+## 10.4 Volatility
+
+* ATR;
+* ATR percentage;
+* candle-range percentile;
+* compression;
+* expansion;
+* wick-to-body ratio;
+* noise ratio;
+* stop feasibility;
+* expected movement range.
+
+## 10.5 Price location
+
+* EMA distance;
+* EMA ordering;
+* VWAP distance;
+* VWAP reclaim or rejection;
+* range position;
+* breakout distance;
+* pullback depth;
+* extension from impulse origin;
+* target-space distance.
+
+## 10.6 Futures context where reliably available
+
+Potential contextual features:
+
+* open interest;
+* open-interest change;
+* funding rate;
+* long/short ratio;
+* taker-buy/sell volume;
+* liquidation activity;
+* basis.
+
+Missing futures-context data must never be fabricated.
+
+Strategies must remain usable when optional data is unavailable.
+
+---
+
+# 11. Market-State Classification
+
+Classification should be multi-label.
+
+Possible active states:
+
+* directional uptrend;
+* directional downtrend;
+* early bullish expansion;
+* early bearish expansion;
+* mature bullish expansion;
+* mature bearish expansion;
+* bullish pullback;
+* bearish pullback;
 * breakout attempt;
 * confirmed breakout;
+* breakdown attempt;
+* confirmed breakdown;
 * breakout retest;
-* compression;
+* breakdown retest;
+* volatility compression;
 * stable range;
 * range-edge rejection;
-* failed breakout;
-* liquidity rejection;
-* exhaustion;
+* failed bullish breakout;
+* failed bearish breakdown;
+* upside liquidity rejection;
+* downside liquidity rejection;
+* bullish exhaustion;
+* bearish exhaustion;
 * chaotic volatility;
 * low-participation drift.
-
-Multiple states may be active simultaneously.
 
 Example:
 
 ```text
-early momentum expansion
+early bullish expansion
 + breakout attempt
-+ high relative volume
-+ moderate sweep risk
++ rising relative volume
++ moderate extension
 ```
 
-Market-state classification guides strategy applicability but does not automatically approve or reject a trade.
+Classification guides strategy applicability.
+
+It does not issue a final trade decision by itself.
 
 ---
 
-# 9. Strategy System
+# 12. Strategy Engine
 
-No single strategy works for every coin and every condition.
+Every shortlisted symbol must be tested against every strategy applicable to its measured state.
 
-Each shortlisted symbol will be evaluated against all relevant strategies.
-
-Strategies not applicable to the current market state should return:
+A strategy returns one of:
 
 ```text
 not_applicable
+candidate
+invalidated
 ```
 
-They should not produce false negative trade rejections.
+`not_applicable` must not count as a rejection.
 
-## 9.1 Core strategy set
+## 12.1 Core strategies
 
-### Momentum breakout
+### 1. Momentum Breakout
 
-Use when:
+Long:
 
-* price approaches or breaks a meaningful recent level;
-* volume expands;
-* directional candles persist;
-* spread remains acceptable;
+* price approaches or breaks meaningful resistance;
+* recent directional momentum strengthens;
+* relative volume expands;
+* closes remain strong;
+* target space remains available;
 * move is not terminally extended.
 
-Volume-supported breakouts have stronger continuation evidence, while immediate reversal back inside the prior range is a fakeout warning.
+Short uses inverse logic.
 
-### Breakout continuation
+### 2. Breakout Continuation
 
-Use after the initial break when:
-
-* price sustains outside the level;
+* initial break already occurred;
+* price remains accepted outside the old structure;
+* pullbacks stay shallow;
 * momentum remains active;
-* pullback remains shallow;
-* target space still exists.
+* continuation space remains.
 
-### Breakout retest
+### 3. Breakout Retest
 
-Use when:
+* meaningful level breaks;
+* price retests the level;
+* old resistance becomes support for long;
+* old support becomes resistance for short;
+* invalidation is structurally clear.
 
-* a broken level is retested;
-* price accepts the new side of the level;
-* stop can be placed logically beyond the retest failure point.
+### 4. First Pullback Continuation
 
-### First pullback continuation
+* clear initial expansion;
+* first controlled retracement;
+* pullback volume contracts;
+* core structure remains intact;
+* participation returns in the original direction.
 
-Use when:
+### 5. Trend Pullback
 
-* strong expansion already occurred;
-* first controlled pullback develops;
-* volume contracts during pullback;
-* direction resumes with renewed participation.
+* established directional structure;
+* retracement into EMA, VWAP, prior breakout or local structure;
+* momentum cools without trend failure;
+* sufficient continuation space remains.
 
-### Trend pullback
+### 6. Compression Expansion
 
-Use when:
+* recent volatility contracts;
+* boundaries become identifiable;
+* participation starts increasing;
+* directional release begins or becomes imminent.
 
-* `15m` or `5m` structure is directional;
-* price retraces into EMA, VWAP, prior breakout, or local structure;
-* momentum cools without structural failure.
+### 7. Range-Edge Reversal
 
-### Compression expansion
-
-Use when:
-
-* ATR and candle ranges compress;
-* range boundaries are identifiable;
-* participation begins increasing;
-* price approaches directional release.
-
-### Range-edge reversal
-
-Use when:
-
-* market is genuinely ranging;
-* price reaches a validated boundary;
-* rejection appears;
-* sufficient space exists toward midpoint or opposite boundary.
-
-### Failed breakout reversal
-
-Use when:
-
-* price breaks a meaningful level;
-* continuation fails;
-* price re-enters prior structure;
-* opposite momentum begins.
-
-### Liquidity-rejection reversal
-
-Use when:
-
-* price trades beyond an obvious high or low;
+* genuine range exists;
+* price reaches a validated edge;
 * rejection is measurable;
-* close location and follow-through support reversal;
-* nearby target space exists.
+* enough space exists toward range midpoint or opposite edge.
 
-### VWAP reclaim or rejection
+### 8. Failed Breakout Reversal
 
-Use when:
+* level is broken;
+* continuation fails;
+* price re-enters old structure;
+* opposite-side momentum develops.
 
-* intraday price location around VWAP is meaningful;
+### 9. Liquidity-Rejection Reversal
+
+* obvious high or low is swept;
+* rejection closes back inside structure;
+* follow-through supports reversal;
+* stop can sit beyond the sweep extreme.
+
+### 10. VWAP Reclaim or Rejection
+
+* meaningful intraday VWAP interaction;
 * participation confirms reclaim or rejection;
-* local structure supports the direction.
+* local structure supports direction.
 
-### Momentum scalp
+### 11. Momentum Scalp
 
-Use when:
+* strong `1m–5m` acceleration;
+* low spread;
+* sufficient liquidity;
+* immediate target space;
+* short expected holding period.
 
-* `1m–5m` acceleration is strong;
-* liquidity is sufficient;
-* spread is low;
-* immediate target space exists;
-* holding period is expected to be short.
+### 12. Exhaustion Reversal
 
-### Exhaustion reversal
+* extreme extension;
+* momentum deterioration;
+* rejection or failed continuation;
+* structural failure begins.
 
-Use cautiously when:
-
-* extension is extreme;
-* momentum weakens;
-* volume or wick behavior shows rejection;
-* structure begins failing.
-
-This strategy must receive a higher uncertainty label than continuation setups.
+This strategy must carry a larger uncertainty penalty.
 
 ---
 
-# 10. Strategy Applicability Matrix
+# 13. Candidate Construction
 
-| Market condition               | Preferred strategies              |
-| ------------------------------ | --------------------------------- |
-| Early high-volume expansion    | Momentum breakout, momentum scalp |
-| Sustained breakout             | Breakout continuation             |
-| Clean level retest             | Breakout retest                   |
-| First controlled retracement   | First pullback continuation       |
-| Established directional market | Trend pullback                    |
-| Tight volatility compression   | Compression expansion             |
-| Stable range boundary          | Range-edge reversal               |
-| Break and rapid re-entry       | Failed breakout reversal          |
-| Sweep and rejection            | Liquidity-rejection reversal      |
-| VWAP interaction               | VWAP reclaim or rejection         |
-| Extreme extension and failure  | Exhaustion reversal               |
-
-Strategy router should prioritize strategies, not restrict the complete analysis to only one strategy.
-
-Each symbol may produce multiple candidates.
+A symbol can produce multiple candidates.
 
 Example:
 
 ```text
 SOLUSDT
-1. first_pullback_continuation — 86
-2. momentum_scalp — 81
-3. breakout_retest — 74
+
+1. LONG — first pullback continuation — 84
+2. LONG — breakout retest — 78
+3. SHORT — exhaustion reversal — 56
 ```
 
-The best candidate becomes primary, while alternatives remain visible in verbose diagnostics or JSON.
+The scanner should:
+
+* retain all candidates internally;
+* select the highest-quality candidate as the primary symbol candidate;
+* keep useful alternatives in JSON and verbose diagnostics;
+* avoid displaying contradictory low-quality alternatives by default.
+
+Each candidate must contain:
+
+* symbol;
+* direction;
+* strategy;
+* active market states;
+* supporting evidence;
+* contradicting evidence;
+* entry geometry;
+* invalidation;
+* stop;
+* target geometry;
+* expected horizon;
+* raw scores;
+* final score;
+* status;
+* warnings.
 
 ---
 
-# 11. Candidate Scoring
+# 14. Scoring Model
 
-Every strategy candidate receives a transparent `0–100` setup score.
+Remove `risk_feasibility_score`.
 
-## 11.1 Setup-score components
-
-* strategy-condition quality;
-* directional structure;
-* momentum;
-* volume confirmation;
-* entry location;
-* target space;
-* stop quality;
-* market liquidity;
-* timeframe agreement;
-* current-price actionability;
-* spread and fee impact;
-* extension penalty;
-* contradiction penalty;
-* instability penalty.
-
-## 11.2 Separate score categories
-
-Final scanner must expose:
+Required scores:
 
 ```text
 opportunity_score
 setup_score
 timing_score
-risk_feasibility_score
+trade_quality_score
 final_rank_score
 ```
 
-Suggested final ranking formula:
+## 14.1 Opportunity score
+
+Market-wide movement and tradeability.
+
+## 14.2 Setup score
+
+How strongly the current structure matches the selected strategy.
+
+Components:
+
+* structure;
+* momentum;
+* volume;
+* volatility suitability;
+* target space;
+* directional consistency;
+* strategy-specific evidence;
+* contradiction penalties.
+
+## 14.3 Timing score
+
+How usable the entry is now.
+
+Components:
+
+* distance from preferred entry;
+* freshness;
+* extension;
+* recent trigger;
+* chase risk;
+* pullback availability;
+* immediate continuation evidence.
+
+## 14.4 Trade-quality score
+
+Quality of the constructed plan itself.
+
+Components:
+
+* logical invalidation;
+* structural stop quality;
+* target clarity;
+* stop distance versus expected movement;
+* reward-to-risk geometry;
+* spread and likely execution friction;
+* expected horizon.
+
+This is not wallet risk.
+
+## 14.5 Final rank score
+
+Suggested model:
 
 ```text
 final_rank_score =
     opportunity_score × opportunity_weight
   + setup_score × setup_weight
   + timing_score × timing_weight
-  + risk_feasibility_score × risk_weight
-  - severe_warning_penalties
+  + trade_quality_score × trade_quality_weight
+  - warning_penalties
 ```
 
-Opportunity and setup should carry greater weight than wallet sizing.
+Suggested initial weights:
 
-## 11.3 Score interpretation
+```yaml
+opportunity: 0.25
+setup: 0.40
+timing: 0.20
+trade_quality: 0.15
+```
 
-|    Score | Meaning                          |
-| -------: | -------------------------------- |
-| `85–100` | exceptional current opportunity  |
-|  `75–84` | strong opportunity               |
-|  `65–74` | valid but aggressive             |
-|  `55–64` | speculative or developing        |
-|    `<55` | weak, late, or structurally poor |
-
-A candidate below the preferred threshold may still appear in results when it ranks among the best available opportunities, but its status and weaknesses must be explicit.
+All weights configurable.
 
 ---
 
-# 12. Final Trade Statuses
+# 15. Entry Engine
 
-Replace overly complicated entry-state behavior with a smaller action-oriented model.
+The entry engine constructs a usable plan.
 
-## Required statuses
+It is not another conservative rejection layer.
+
+## 15.1 Required entry outputs
+
+* current price;
+* immediate entry zone;
+* preferred entry zone;
+* maximum chase price;
+* trigger or maintenance condition;
+* structural invalidation;
+* stop-loss;
+* stop distance percentage;
+* TP1;
+* TP2;
+* TP3;
+* reward-to-risk for each target;
+* expected trade horizon;
+* reasoning;
+* caution.
+
+## 15.2 Immediate and preferred entries
+
+Where both are valid:
+
+```text
+Immediate entry:
+Trade can be taken near current price with stated caution.
+
+Preferred entry:
+A nearby pullback or retest offers improved geometry.
+```
+
+The immediate entry must not be fabricated when price is clearly late.
+
+## 15.3 Structural stop
+
+Stop must derive from the strategy thesis:
+
+* below pullback swing for long;
+* above pullback swing for short;
+* beyond breakout failure;
+* beyond retest failure;
+* beyond sweep extreme;
+* beyond range invalidation;
+* with volatility and execution buffer.
+
+Stop must not be moved merely to produce an attractive reward-to-risk ratio.
+
+---
+
+# 16. Target and Trade-Management Engine
+
+Every valid trade plan should return three target levels where structure permits.
+
+## 16.1 TP1 — Initial realization
+
+Purpose:
+
+* capture the nearest realistic movement;
+* reduce exposure if the setup starts working;
+* often based on nearest liquidity or local structure.
+
+## 16.2 TP2 — Primary objective
+
+Purpose:
+
+* represent the main expected move;
+* use significant swing, range projection, ATR projection or opposing structure.
+
+## 16.3 TP3 — Extended continuation
+
+Purpose:
+
+* capture exceptional continuation;
+* only include when remaining structure and momentum support it.
+
+## 16.4 TP follow-up guidance
+
+Every plan should explain what to do if TP1 is reached.
+
+Example continuation conditions:
+
+```text
+Hold toward TP2 while:
+- price remains above the breakout level;
+- 5m structure remains bullish;
+- pullbacks remain shallow;
+- volume does not collapse;
+- no strong bearish rejection forms.
+```
+
+Example partial-exit conditions:
+
+```text
+Reduce or exit after TP1 if:
+- price rejects the next resistance strongly;
+- 1m and 3m momentum reverse together;
+- 5m closes back below the reclaimed level;
+- volume expands against the trade;
+- a failed-breakout pattern develops.
+```
+
+## 16.5 Exit guidance
+
+Every setup must include:
+
+### Normal exit
+
+* target-based exit;
+* structural trailing condition;
+* expected final objective.
+
+### Early exit
+
+* thesis weakening;
+* failed continuation;
+* opposite momentum;
+* volume contradiction;
+* reclaim/retest failure.
+
+### Hard exit
+
+* stop-loss;
+* structural invalidation;
+* decisive close beyond invalidation where strategy requires it.
+
+### Time-based exit
+
+For scalp and fast-intraday setups:
+
+* define expected activation period;
+* if price remains stagnant beyond the expected window, downgrade or exit;
+* avoid holding a failed fast setup for several days.
+
+---
+
+# 17. Action Statuses
+
+Use a small action-oriented set:
 
 ### `READY_NOW`
 
-Current price is inside or very near the preferred entry area.
+Price is inside or sufficiently close to the intended entry.
 
 ### `AGGRESSIVE_NOW`
 
-Trade can be entered now, but entry has meaningful caution such as:
-
-* elevated extension;
-* sweep risk;
-* weaker confirmation;
-* wider volatility;
-* reduced target space.
+Current entry is available but includes a meaningful caution.
 
 ### `PULLBACK_PREFERRED`
 
-Current move remains tradeable, but a better entry exists nearby.
-
-The system still shows:
-
-* current market entry plan;
-* preferred pullback zone;
-* difference in risk and reward.
+Immediate participation is possible, but a nearby pullback gives better geometry.
 
 ### `WATCH_NEAR_ENTRY`
 
-Price is close enough that the setup may become actionable soon.
+Setup is valid and close, but the trigger or zone has not been reached.
 
 ### `LATE_OR_CHASING`
 
-Direction may be correct but current entry quality has deteriorated.
+Direction may still be correct but current entry quality is poor.
 
 ### `INVALIDATED`
 
-The strategy thesis is no longer valid.
+The strategy thesis has structurally failed.
 
-Remove unnecessary states whose only effect is repeatedly telling the user to wait without producing a usable plan.
+Do not restore complicated reclaim/retest states as top-level statuses.
+
+Reclaim and retest belong in:
+
+* strategy;
+* trigger;
+* evidence;
+* entry instructions.
 
 ---
 
-# 13. Entry Engine Redesign
+# 18. Hard Rejection Rules
 
-The entry engine must create a practical plan instead of acting as another rejection firewall.
+A candidate may be fully rejected only when:
 
-## 13.1 Required outputs
+* required market data is invalid;
+* symbol is not an active eligible contract;
+* liquidity or spread makes the market practically unusable;
+* strategy conditions are absent;
+* entry and invalidation are logically inconsistent;
+* price has already crossed structural invalidation;
+* no defensible stop can be constructed;
+* no meaningful target space exists;
+* setup is so late that positive trade geometry no longer exists.
 
-Every usable candidate should include:
+Do not hard-reject solely because:
 
-* current price;
-* preferred entry zone;
-* executable market-near entry;
-* better pullback entry where applicable;
-* maximum chase boundary;
-* structural invalidation;
-* stop-loss;
-* targets;
-* expected holding style;
-* warnings;
-* reason for the entry.
+* one timeframe disagrees;
+* RSI is overbought or oversold;
+* a sweep may occur;
+* entry is not perfect;
+* wallet size is small;
+* permitted loss is low;
+* leverage would be high;
+* the setup is aggressive;
+* the candidate is lower confidence.
 
-## 13.2 Two entry alternatives
+These should affect score, status or warnings where appropriate.
 
-Where appropriate, return:
+---
 
-### Immediate entry
+# 19. Scanner Result Policy
 
-For the user who wants current action.
+Broad scan should normally show `15–20` ranked candidates when enough usable markets exist.
 
-### Preferred entry
+However, result generation must not lower analytical standards merely to fill the count.
 
-For improved risk-to-reward if price retraces.
+Recommended output grouping:
+
+```text
+Top actionable setups
+Additional aggressive setups
+Pullback or watch setups
+```
 
 Example:
 
 ```text
-Immediate entry:
-  1.245–1.252
-  Setup remains valid but extension is moderate.
-
-Preferred entry:
-  1.226–1.235
-  Better stop geometry and improved reward-to-risk.
+5 READY_NOW
+4 AGGRESSIVE_NOW
+5 PULLBACK_PREFERRED
+3 WATCH_NEAR_ENTRY
 ```
 
-This avoids converting every non-perfect current price into `NO_TRADE`.
+Weak and invalidated candidates should not occupy the primary list merely to reach 20.
 
-## 13.3 Stop placement
+The scan summary should state:
 
-Stop must be derived from:
-
-* structural failure;
-* swing invalidation;
-* breakout failure;
-* retest failure;
-* rejection extreme;
-* volatility buffer;
-* spread and execution allowance.
-
-Stop should not be selected merely to fit a desired leverage.
-
-## 13.4 Targets
-
-Return at least:
-
-* conservative target;
-* primary target;
-* extended target where structure supports it.
-
-Targets may use:
-
-* nearby liquidity;
-* previous swing;
-* range boundary;
-* measured move;
-* ATR projection;
-* risk multiple;
-* opposing structure.
+```text
+Eligible contracts
+Screened contracts
+Detailed symbols
+Constructed candidates
+Displayed candidates
+Long candidates
+Short candidates
+Status counts
+```
 
 ---
 
-# 14. Liquidity Sweeps and Warnings
+# 20. Default Trade Card
 
-Liquidity sweeps must remain detectable.
-
-However, sweep information is normally:
-
-```text
-evidence
-warning
-score adjustment
-entry refinement
-stop refinement
-```
-
-It is not normally:
-
-```text
-automatic trade cancellation
-```
-
-## 14.1 Examples
-
-### Breakout with sweep risk
-
-```text
-Trade remains valid.
-Caution: recent high may attract a liquidity sweep before continuation.
-Preferred entry is below the breakout candle midpoint.
-```
-
-### Long after downside sweep
-
-```text
-Bullish evidence strengthened by rejection below prior low.
-Stop should remain beyond the sweep extreme.
-```
-
-### Short after upside sweep
-
-```text
-Bearish reversal evidence strengthened.
-Current entry is acceptable only if price remains below the reclaimed level.
-```
-
-## 14.2 Hard invalidation
-
-Sweep behavior becomes a hard blocker only when:
-
-* the planned direction has already structurally failed;
-* the candidate is based on false assumptions;
-* price has crossed the defined invalidation;
-* resulting stop geometry becomes impossible.
-
----
-
-# 15. Risk Planning
-
-Trade discovery and risk planning must remain separate.
-
-## 15.1 Required risk profiles
-
-Only two user-facing profiles remain:
-
-```text
-STANDARD
-FUNDED
-```
-
-Remove:
-
-* aggressive;
-* extreme;
-* any duplicate or experimental risk-mode names;
-* strategy eligibility differences based only on these deleted modes.
-
----
-
-## 15.2 Standard profile
-
-Purpose:
-
-Normal personal trading wallet.
-
-Default configurable rules:
-
-* default account risk per trade: `1%`;
-* configurable reasonable range: `0.25%–2%`;
-* isolated margin for futures;
-* position size based on stop distance;
-* fees and slippage included;
-* no fixed profit-oriented leverage target;
-* leverage chosen only to fit required margin and liquidation safety;
-* maximum wallet allocation configurable;
-* concurrent exposure limit;
-* optional daily loss limit.
-
-Suggested defaults:
-
-```yaml
-standard:
-  risk_per_trade_pct: 1.0
-  max_wallet_margin_pct: 25.0
-  max_total_open_risk_pct: 3.0
-  max_daily_loss_pct: 5.0
-  isolated_margin_only: true
-```
-
-The widely used position-sizing principle is to define stop distance first and size the position so a stop hit loses only a small portion of the account. Binance’s current educational guidance uses the 1% rule as a common example.
-
----
-
-## 15.3 Funded profile
-
-Purpose:
-
-Accounts with firm-style daily and overall loss constraints.
-
-Default rules requested:
-
-```yaml
-funded:
-  risk_per_trade_pct: 0.5
-  max_daily_loss_pct: 5.0
-  max_total_drawdown_pct: 10.0
-  max_wallet_margin_pct: 20.0
-  max_total_open_risk_pct: 2.0
-  isolated_margin_only: true
-```
-
-All limits configurable because actual funded-account rules may differ.
-
-Funded planner must track:
-
-* starting balance;
-* current equity;
-* daily starting equity;
-* realized daily loss;
-* open risk;
-* remaining daily loss allowance;
-* remaining total drawdown allowance;
-* number of active trades;
-* correlated directional exposure.
-
-The planner should reduce or reject position size when funded limits would be exceeded.
-
----
-
-## 15.4 Leverage policy
-
-Leverage is an output of position planning.
-
-It is not a setup score and not a reason to prefer one directional thesis.
-
-Required order:
-
-```text
-Choose structural stop
-→ calculate permitted wallet loss
-→ calculate position quantity
-→ calculate notional
-→ calculate required margin
-→ select sufficient leverage
-→ verify liquidation remains beyond stop
-```
-
-Futures leverage amplifies losses as well as gains, and liquidation depends on margin and maintenance requirements.
-
-## 15.5 Risk outputs
-
-Every planned trade should include:
-
-* wallet balance;
-* profile;
-* account risk percentage;
-* maximum loss amount;
-* entry;
-* stop;
-* stop distance;
-* quantity;
-* notional;
-* leverage;
-* required margin;
-* wallet margin percentage;
-* estimated entry and exit costs;
-* liquidation estimate;
-* stop-to-liquidation buffer;
-* target rewards;
-* expected reward-to-risk;
-* funded-limit impact where applicable.
-
----
-
-# 16. Scanner Output
-
-Default output should be concise and practical.
-
-## 16.1 Scan summary
-
-```text
-Eligible contracts: 312
-Detailed analyses: 30
-Ranked opportunities shown: 15
-Long candidates: 9
-Short candidates: 6
-Ready now: 4
-Aggressive now: 5
-Pullback preferred: 4
-Watch near entry: 2
-```
-
-## 16.2 Ranked opportunity card
-
-Each result:
+Each result should show:
 
 ```text
 Rank
 Symbol
 Direction
 Strategy
-Final rank score
+Status
+Final score
 Opportunity score
 Setup score
 Timing score
-Status
+Trade-quality score
+
 Current price
 Immediate entry
 Preferred entry
+Maximum chase
+Invalidation
 Stop-loss
+Stop distance
+
 TP1
 TP2
 TP3
-Expected reward-to-risk
-Estimated trade horizon
-Key evidence
-Main cautions
-Risk-plan availability
+Reward-to-risk values
+Expected horizon
+
+Why long or short
+Primary supporting evidence
+Contradicting evidence
+Main caution
+
+TP1 follow-up
+Continuation conditions
+Early-exit conditions
+Hard-exit condition
 ```
 
-## 16.3 Do not hide imperfect candidates
+No wallet or leverage panel.
 
-The top list should include the best currently available opportunities even when they contain cautions.
+---
 
-Examples:
+# 21. CLI Redesign
+
+## 21.1 Active commands
+
+Keep the public CLI intentionally small:
+
+```bash
+apex scan
+apex analyze SYMBOL
+apex config-check
+apex backtest
+apex version
+```
+
+`backtest` may remain only as a focused strategy-evaluation utility.
+
+## 21.2 Broad scan
+
+```bash
+apex scan
+```
+
+Suggested options:
 
 ```text
-Strong setup, moderate chase risk
-Valid setup, low liquidity quality
-Good direction, pullback preferred
-High movement potential, speculative reversal
+--results 20
+--shortlist 30
+--direction long|short|both
+--candles
+--output text|json
+--record
+--config-dir
 ```
 
----
-
-# 17. Expected Trade Horizon
-
-Every candidate should classify its expected duration:
-
-* scalp: approximately minutes;
-* fast intraday: approximately under a few hours;
-* intraday: current trading session;
-* short swing: potentially beyond current session.
-
-The default scanner should prioritize:
+Remove:
 
 ```text
-scalp
-fast intraday
-intraday
+--wallet-balance
+--risk-mode
+--risk-per-trade
+--leverage
+--margin-mode
+--profile
+--paper
+--gainer-mode
+--scan-mode normal|gainers|all
 ```
 
-Longer short-swing trades can appear but should not dominate rankings unless their opportunity quality is materially stronger.
+## 21.3 Manual analysis
+
+```bash
+apex analyze BTCUSDT
+```
+
+Suggested options:
+
+```text
+--output text|json
+--candles
+--record
+--config-dir
+```
+
+## 21.4 Command cleanup
+
+Unregister or remove active command groups for:
+
+* paper operations;
+* funded history;
+* validation review;
+* readiness;
+* intelligence placeholders;
+* execution;
+* kill switches;
+* dataset campaigns;
+* forward-edge campaigns;
+* milestone reviews;
+* historical orchestration;
+* automatic optimization.
+
+Any retained internal developer command must not appear in standard user help.
 
 ---
 
-# 18. Logging and Manual Review
+# 22. Configuration Redesign
 
-Keep detailed logging, but simplify operations.
-
-## 18.1 Log each scan
-
-Store:
-
-* timestamp;
-* discovered universe;
-* excluded symbols and reasons;
-* screener features;
-* shortlist;
-* all strategy candidates;
-* scores;
-* selected candidate;
-* entry plan;
-* warnings;
-* risk plan;
-* failures;
-* active configuration hash or version.
-
-## 18.2 Optional paper outcome logging
-
-Paper mode may record:
-
-* whether entry was reached;
-* maximum favorable movement;
-* maximum adverse movement;
-* target hits;
-* stop hit;
-* expiration;
-* actual holding time.
-
-No automatic learning or automatic configuration changes.
-
-Manual diagnosis should remain possible.
-
----
-
-# 19. Configuration Simplification
-
-Create one canonical configuration hierarchy.
-
-Suggested files:
+Use four focused configuration files:
 
 ```text
 config/
 ├── market.yaml
 ├── strategies.yaml
 ├── scoring.yaml
-├── risk.yaml
 └── runtime.yaml
 ```
 
-## 19.1 `market.yaml`
+## 22.1 `market.yaml`
 
 Contains:
 
-* provider;
-* futures universe rules;
+* Binance futures provider;
 * quote asset;
-* liquidity limits;
-* spread limits;
+* perpetual-only rule;
+* spread eligibility;
+* minimum liquidity;
+* history requirements;
+* timeframes;
+* screener candle sample;
 * shortlist size;
-* final result count;
-* timeframe selection;
-* blacklists and optional allowlists.
+* displayed-result count;
+* blacklist;
+* optional allowlist.
 
-## 19.2 `strategies.yaml`
+## 22.2 `strategies.yaml`
 
 Contains:
 
 * enabled strategies;
 * applicability thresholds;
-* strategy-specific settings;
-* no empty or legacy duplicate strategy lists.
+* strategy-specific parameters;
+* stop buffers;
+* target construction settings;
+* expected horizons.
 
-## 19.3 `scoring.yaml`
+## 22.3 `scoring.yaml`
 
 Contains:
 
 * opportunity weights;
 * setup weights;
 * timing weights;
-* penalties;
-* display thresholds;
-* ranking weights.
+* trade-quality weights;
+* warning penalties;
+* status boundaries;
+* final ranking weights.
 
-## 19.4 `risk.yaml`
-
-Contains only:
-
-* standard profile;
-* funded profile;
-* execution costs;
-* leverage safety;
-* margin constraints.
-
-## 19.5 `runtime.yaml`
+## 22.4 `runtime.yaml`
 
 Contains:
 
-* directories;
-* logging;
-* caching;
-* request limits;
+* request timeouts;
+* retries;
 * concurrency;
-* output defaults.
+* Binance rate-limit handling;
+* cache duration;
+* output defaults;
+* logging paths;
+* data directories.
 
-Remove duplicate settings spread across unrelated files.
+Remove active `risk.yaml` from Stage 3.
+
+Preserve it only in an archive if older code temporarily needs migration support.
 
 ---
 
-# 20. Remove or Archive Unnecessary Systems
+# 23. Logging and Manual Improvement Loop
 
-Before deletion, imports and tests must be traced. No blind mass deletion.
+Every broad scan must write enough information to reconstruct its decision.
 
-## 20.1 Remove
+## 23.1 Scan record
 
-* gainer mode and all dedicated gainer models;
-* aggressive and extreme risk profiles;
-* autonomous learning claims and unused automatic optimization flow;
-* testnet execution from active CLI and documentation;
-* unused advanced-intelligence placeholders;
-* duplicate strategy configuration;
-* duplicated output-selection compatibility layers;
-* verbose and debug presentation modes where they provide no analytical value;
-* presentation-only modules built around unused paper operational reports;
-* duplicate spot versus futures formatting architecture;
-* unnecessary long-timeframe resampling in default workflow;
-* dead exports and compatibility facades;
-* obsolete commands that only support removed workflows.
+Store:
 
-## 20.2 Archive or unregister
-
-* spot commands;
-* spot paper intake;
-* spot reports;
-* execution commands;
-* old optimization utilities that may still help manual research;
-* legacy migration or compatibility code required only for old artifacts.
-
-## 20.3 Keep
-
-* provider adapters;
-* candle normalization;
-* ticker and order-book support;
-* feature engine;
-* structure calculations;
-* liquidity detection;
-* strategy logic that remains useful;
-* scoring primitives;
+* timestamp;
+* eligible universe;
+* excluded symbols and exact reasons;
+* ticker snapshot;
+* lightweight screening features;
+* opportunity scores;
+* shortlist;
+* detailed timeframe features;
+* market states;
+* every applicable strategy result;
+* all generated candidates;
+* evidence and contradictions;
 * entry geometry;
-* stop and target calculations;
-* position sizing;
-* liquidation calculations;
-* deterministic backtesting core;
-* paper trade storage where simple;
-* JSON output;
-* tests for retained behavior.
+* targets;
+* status;
+* every score component;
+* final ranking;
+* configuration hash.
+
+## 23.2 Later outcome comparison
+
+A separate evaluator may later append:
+
+* whether immediate entry was reached;
+* whether preferred entry was reached;
+* maximum favorable excursion;
+* maximum adverse excursion;
+* TP1/TP2/TP3 hits;
+* stop hit;
+* time to target;
+* time to invalidation;
+* best achieved reward multiple;
+* outcome by strategy;
+* outcome by score band;
+* outcome by market state.
+
+## 23.3 No autonomous mutation
+
+The program must not automatically:
+
+* change thresholds;
+* promote strategies;
+* rewrite YAML;
+* replace baseline parameters;
+* learn from a single trade;
+* optimize live behavior without explicit review.
+
+Logs are inspected manually and changes are implemented deliberately in code or configuration.
 
 ---
 
-# 21. Remove Development-Era Terminology
+# 24. Repository Cleanup Strategy
 
-The user-facing and internal repository should not contain roadmap-era labels.
+Bulk cleanup must be aggressive but dependency-aware.
 
-Remove from:
+Do not blindly delete files first.
 
-* source-code names;
-* classes;
-* functions;
-* variables;
-* payload fields;
-* schema fields where safe;
-* CLI commands;
-* comments;
-* docstrings;
-* tests;
-* fixtures;
-* README;
-* docs;
-* output text;
-* report headings;
-* filenames.
+## 24.1 Inventory before deletion
 
-Patterns to eliminate include:
+Build exact repository-wide reference inventories for:
 
-* numbered phase labels;
-* numbered stage labels inherited from development;
-* abbreviated milestone labels;
-* internal roadmap codenames;
-* review names tied to old implementation milestones.
+* risk profiles;
+* wallet inputs;
+* leverage planning;
+* funded account code;
+* gainer concepts;
+* spot CLI;
+* paper trading;
+* paper schedulers;
+* execution and kill switches;
+* optimization;
+* readiness and validation;
+* dataset campaigns;
+* milestone terminology;
+* output overlays;
+* old serialized schemas;
+* tests importing removed modules.
 
-Replace with descriptive functional names.
+## 24.2 Preserve trade-finding foundations
 
-Examples:
+Do not delete useful components for:
 
-```text
-candidate_selection_diagnostics
-risk_rejection_diagnostics
-paper_validation_review
-historical_evidence
-trade_entry_diagnostics
-```
+* Binance market-data providers;
+* candle normalization;
+* ticker handling;
+* exchange metadata;
+* feature calculations;
+* indicators;
+* swing and structure detection;
+* liquidity sweeps;
+* volatility;
+* strategy calculations;
+* entry geometry;
+* structural stops;
+* targets;
+* scoring primitives;
+* deterministic serialization;
+* chronological simulation;
+* scan logging.
 
-Names should describe behavior, not the order in which the feature was originally developed.
+## 24.3 Remove from active source
 
-## 21.1 Compatibility handling
+After reference migration:
 
-Where old persisted JSON or SQLite records contain legacy keys:
-
-* support a temporary read-only migration adapter if needed;
-* write only new descriptive keys;
-* remove compatibility after old records are migrated or declared disposable.
-
----
-
-# 22. CLI Simplification
-
-Primary commands should be limited.
-
-Suggested active CLI:
-
-```bash
-apex scan
-apex analyze SYMBOL
-apex paper-run
-apex paper-status
-apex backtest
-apex config-check
-```
-
-## 22.1 `apex scan`
-
-Default behavior:
-
-* discover active futures universe;
-* screen all eligible contracts;
-* analyze top shortlist;
-* display top 15 opportunities;
-* use standard risk profile unless selected otherwise.
-
-Options:
-
-```text
---profile standard|funded
---wallet-balance
---risk-per-trade
---results
---shortlist
---direction long|short|both
---output text|json
---paper-log
-```
-
-## 22.2 `apex analyze SYMBOL`
-
-Detailed analysis for one symbol.
-
-Shows:
-
-* all applicable strategies;
-* scores;
-* immediate and preferred entries;
-* warnings;
-* wallet plan.
-
-## 22.3 Hidden systems
-
-Until re-enabled:
-
-* spot commands;
+* wallet-aware analysis coupling;
+* risk profiles;
+* leverage selectors;
+* margin-mode models;
+* funded-account planners;
+* gainer models and routing;
+* duplicated spot/futures presentation;
+* paper operational workflows;
 * testnet execution;
-* autonomous optimization;
-* elaborate operational review commands.
+* autonomous optimization orchestration;
+* readiness and review ceremony;
+* obsolete CLI overlays;
+* campaign-specific commands;
+* dead compatibility facades;
+* roadmap-era classes and fields.
+
+## 24.4 Temporary archive rule
+
+Archive only when code may still help near-term manual research.
+
+Anything archived must:
+
+* not be imported by production scanning;
+* not register CLI commands;
+* not appear in README;
+* not affect configuration loading;
+* not be required by normal tests.
+
+Permanent dead code should be deleted rather than indefinitely archived.
 
 ---
 
-# 23. Execution Sequence
+# 25. Implementation Sequence
 
-Changes must be implemented in this order.
+This is one redesign program, but it should be implemented in controlled batches so failures can be isolated.
 
-## Step 1 — Repository inventory
+## Batch 1 — Lock and inventory
 
-Create exact inventories of:
+* capture current Git commit;
+* capture complete CLI help;
+* list active configs;
+* list public contracts and serialized fields;
+* record test count;
+* map imports and dependencies;
+* locate every risk, wallet, funded, leverage, paper, gainer, spot, execution and campaign reference;
+* identify core trade-finding modules to retain.
 
-* gainer references;
-* risk-mode references;
-* spot registrations;
-* development-era terminology;
-* presentation modules;
-* optimization and execution commands;
-* strategy configuration consumers;
-* persisted schema dependencies.
+No deletion yet.
 
-No behavior changes yet.
+## Batch 2 — Define new contracts
 
-## Step 2 — Lock baseline behavior
+Create clean contracts for:
 
-Record:
+* eligible contract;
+* screener feature snapshot;
+* opportunity score;
+* market states;
+* strategy evaluation;
+* trade candidate;
+* entry plan;
+* target plan;
+* exit guidance;
+* trade status;
+* ranked opportunity;
+* scan result.
 
-* current CLI command list;
-* current scan payload schema;
-* current futures scan result;
-* existing test count;
-* existing configuration files;
-* retained core module list.
+No wallet or risk-profile fields.
 
-This is for comparison only.
+Add contract tests before migrating behavior.
 
-## Step 3 — Remove gainer system
+## Batch 3 — Replace CLI surface
 
-* remove enum values;
-* remove category duplication;
-* remove gainer thresholds;
-* remove gainer routing;
-* simplify scanner to analyze each symbol once;
-* update serialization;
-* remove dedicated tests and docs;
-* ensure no orphan imports remain.
+* rebuild CLI registration;
+* expose only intended active commands;
+* remove command overlays;
+* remove paper sub-app registration;
+* remove campaign and validation registrations;
+* simplify help;
+* keep text and JSON outputs.
 
-## Step 4 — Simplify risk profiles
+At this point old internal modules may still exist but must be unreachable from the public CLI.
 
-* retain `STANDARD`;
-* add or retain `FUNDED`;
-* remove other profiles;
-* separate candidate discovery from wallet approval;
-* ensure risk failure remains visible without erasing opportunity analysis;
-* update CLI and config.
+## Batch 4 — Remove risk coupling
 
-## Step 5 — Freeze spot
+* stop loading risk configuration in `scan` and `analyze`;
+* remove risk arguments from application services;
+* remove risk-based candidate rejection;
+* remove risk feasibility from scoring;
+* remove wallet/leverage output;
+* update serializers, formatters and tests.
 
-* unregister spot CLI;
-* hide spot documentation;
-* prevent spot workflows from appearing in default interface;
-* preserve source temporarily;
-* mark modules as frozen internally without user-facing roadmap language.
+## Batch 5 — Dynamic universe
 
-## Step 6 — Add dynamic futures universe discovery
-
-* load current Binance contracts;
-* filter eligible USDT perpetuals;
+* implement Binance USDT perpetual discovery;
 * cache exchange metadata;
-* respect rate limits;
-* add blacklist;
-* validate precision and status.
+* normalize symbols;
+* apply eligibility and blacklist rules;
+* test inactive and malformed contracts;
+* retain manual symbol override for `analyze`.
 
-## Step 7 — Build lightweight market screener
+## Batch 6 — Lightweight broad screener
 
-* batch ticker collection;
-* limited candle calculations;
-* opportunity-score model;
-* top-shortlist selection;
-* explain shortlist reason.
+* batch ticker retrieval;
+* fetch limited recent candles;
+* calculate lightweight features;
+* calculate opportunity score;
+* shortlist top 30;
+* log component scores;
+* verify each symbol appears once.
 
-## Step 8 — Refactor detailed strategy analysis
+## Batch 7 — Detailed feature pipeline
 
-* market-state classification;
-* strategy applicability matrix;
-* multiple candidate generation;
-* no artificial mode-based routing;
-* keep alternatives;
-* normalize candidate evidence.
+* unify multi-timeframe feature extraction;
+* establish timeframe roles;
+* expose raw indicator values;
+* add market-state classifier;
+* prevent 4h context from becoming an automatic veto.
 
-## Step 9 — Redesign entry behavior
+## Batch 8 — Strategy engine
 
-* immediate and preferred entries;
-* simplified statuses;
-* warnings instead of unnecessary cancellation;
-* sweep detection as evidence and caution;
-* reduce wait-only outputs.
+* migrate useful existing strategies;
+* remove mode-based routing;
+* add applicability evaluation;
+* evaluate relevant long and short strategies;
+* retain alternative candidates;
+* log positive and negative evidence.
 
-## Step 10 — Redesign scoring and ranking
+## Batch 9 — Entry and trade management
 
-* separate opportunity, setup, timing, and risk scores;
-* display top 15 by default;
-* retain lower-quality candidates with explicit labels;
-* avoid selecting only final-approved setups.
+* simplify statuses;
+* generate immediate and preferred entries;
+* add chase boundary;
+* derive structural invalidation and stop;
+* build three targets;
+* add reward-to-risk geometry;
+* add TP follow-up and early-exit logic;
+* add time-based invalidation.
 
-## Step 11 — Simplify presentation
+## Batch 10 — Ranking and scanner output
 
-Keep:
+* calculate the four new score groups;
+* rank across all candidate symbols;
+* display top 15–20;
+* group actionable and developing setups;
+* add concise text cards;
+* provide complete JSON diagnostics.
 
-```text
-text
-json
-```
+## Batch 11 — Logging and evaluator
 
-Remove duplicate legacy selectors and presentation-only abstractions that do not affect analysis.
+* create structured scan records;
+* preserve configuration version;
+* create optional manual outcome-evaluation utilities;
+* remove automatic threshold mutation and promotion.
 
-## Step 12 — Remove development-era terminology
+## Batch 12 — Delete obsolete systems
 
-* rename code;
-* rename payload fields;
-* rename files where needed;
-* clean comments and documentation;
-* migrate disposable persisted records;
-* run repository-wide verification.
+After imports are clean:
 
-## Step 13 — Simplify logging and paper tracking
+* delete dead risk modules;
+* delete funded modules;
+* delete gainer modules;
+* delete paper operational modules;
+* delete execution modules;
+* delete unused CLI command modules;
+* delete dead configs;
+* delete obsolete tests;
+* delete compatibility layers no longer needed.
 
-* retain scan logs;
-* retain paper outcome records;
-* remove automatic learning;
-* remove unnecessary evidence ceremony;
-* keep manual diagnostic visibility.
+## Batch 13 — Documentation and terminology
 
-## Step 14 — Delete confirmed dead code
+* rewrite README for trade discovery only;
+* create Stage 3 architecture documentation;
+* remove development-stage and milestone terminology;
+* document scoring and limitations;
+* document Binance data dependencies;
+* document scan and analyze commands;
+* remove wallet, funded, paper and execution claims.
 
-Only after all references are removed:
+## Batch 14 — Full validation
 
-* delete orphan modules;
-* delete orphan tests;
-* delete unused configs;
-* delete dead exports;
-* delete old CLI registration;
-* delete stale docs.
-
-## Step 15 — Update project documentation
-
-README should explain only:
-
-* what Apex does;
-* how scanning works;
-* strategies;
-* scoring;
-* entry statuses;
-* standard and funded risk;
-* commands;
-* limitations;
-* futures-first status.
-
-No development history or old roadmap language.
-
----
-
-# 24. Acceptance Criteria
-
-The redesign is complete only when all conditions below are met.
-
-## 24.1 Scanner behavior
-
-* dynamically discovers active Binance futures contracts;
-* does not depend on a 16-symbol static list;
-* analyzes every selected symbol only once;
-* no gainer mode exists;
-* lightweight screening runs before full analysis;
-* top 15 opportunities display by default;
-* results include long and short candidates;
-* imperfect candidates remain visible with cautions.
-
-## 24.2 Strategy behavior
-
-* strategy selection is market-state based;
-* multiple candidates can exist per coin;
-* sweeps influence evidence and warnings;
-* sweeps do not automatically cancel unrelated valid trades;
-* higher-timeframe disagreement usually reduces score rather than vetoing;
-* current-price and preferred-pullback plans are both supported.
-
-## 24.3 Risk behavior
-
-* only standard and funded profiles exist;
-* wallet plan is calculated after opportunity discovery;
-* structural stop comes before leverage;
-* leverage does not increase setup score;
-* liquidation remains beyond intended stop with configured buffer;
-* funded daily and total loss limits are enforced.
-
-## 24.4 Spot behavior
-
-* spot implementation remains preserved;
-* spot is absent from default CLI and documentation;
-* no new separate spot architecture is added.
-
-## 24.5 Simplification
-
-* no gainer-specific code remains;
-* no old development milestone terminology remains;
-* no unnecessary active execution commands remain;
-* no autonomous learning claims remain;
-* duplicate configs are removed;
-* active output modes are text and JSON;
-* dead modules are deleted after reference verification.
-
-## 24.6 Quality
-
-Required before accepting each implementation batch:
+Run repository-wide:
 
 ```bash
 cd ~/data_drive/apex
 git pull --rebase origin main
 source .venv/bin/activate
 
-.venv/bin/ruff format <changed-files>
-.venv/bin/ruff check <changed-files> --fix
-.venv/bin/ruff check <changed-files>
-.venv/bin/mypy <changed-scope>
-.venv/bin/pytest <relevant-tests>
+.venv/bin/ruff format src tests
+.venv/bin/ruff check src tests --fix
+.venv/bin/ruff check src tests
+.venv/bin/mypy src
+.venv/bin/pytest
+git diff --check
 ```
 
-Full repository validation is required after all redesign work.
-
-No validation result should be claimed until actual terminal output is available.
+No test result may be claimed until actual terminal output is provided.
 
 ---
 
-# 25. Final User Experience
+# 26. Required Test Coverage
 
-The intended final command:
+## Universe tests
+
+* only active USDT perpetual contracts selected;
+* inactive contracts excluded;
+* duplicate symbols eliminated;
+* blacklists respected;
+* malformed metadata handled.
+
+## Screener tests
+
+* opportunity score deterministic;
+* acceleration recognized;
+* early expansion ranks above stale expansion;
+* excessive spread penalized;
+* chaotic noise penalized;
+* shortlist count enforced;
+* long and short opportunities remain eligible.
+
+## Strategy tests
+
+For every strategy:
+
+* long positive example;
+* short positive example;
+* not-applicable example;
+* invalidated example;
+* missing optional data example;
+* contradictory evidence example.
+
+## Entry tests
+
+* current price inside entry;
+* immediate versus preferred entry;
+* long and short stop geometry;
+* chase boundary;
+* invalidated setup;
+* pullback preferred;
+* target ordering;
+* reward-to-risk calculations;
+* TP follow-up guidance.
+
+## Ranking tests
+
+* higher setup quality outranks wallet-independent weak candidates;
+* stale high-volume move does not automatically beat fresh expansion;
+* risk profile has no influence because none exists;
+* lower-timeframe valid setup survives 4h disagreement with penalty;
+* deterministic ordering for equal scores.
+
+## CLI tests
+
+* only intended commands visible;
+* `scan` requires no wallet;
+* `analyze` requires no wallet;
+* removed paper and execution commands unavailable;
+* text output excludes risk profile;
+* JSON output excludes wallet and leverage fields.
+
+---
+
+# 27. Acceptance Criteria
+
+Stage 3 is complete only when:
+
+## Product surface
+
+* public CLI contains only the simplified active commands;
+* broad scan and manual analysis are the two active discovery modes;
+* no active spot workflow exists;
+* no active paper or execution workflow exists.
+
+## Discovery
+
+* scanner dynamically discovers active Binance USDT perpetual futures;
+* all eligible contracts are screened;
+* each symbol is screened once;
+* approximately 30 symbols receive detailed analysis by default;
+* top 15–20 candidates are displayed when enough valid candidates exist.
+
+## Analysis
+
+* long and short strategies are evaluated;
+* multiple strategy candidates can exist per symbol;
+* market states are measurable and multi-label;
+* early expansion can be detected before a coin becomes an obvious top gainer;
+* 4h context normally adjusts score rather than vetoing a fast setup.
+
+## Trade plans
+
+Every usable primary candidate includes:
+
+* direction;
+* strategy;
+* reasons;
+* current price;
+* immediate entry;
+* preferred entry where available;
+* maximum chase;
+* invalidation;
+* structural stop;
+* TP1, TP2 and TP3;
+* reward-to-risk;
+* expected horizon;
+* TP follow-up;
+* continuation conditions;
+* early-exit conditions;
+* hard-exit condition;
+* cautions.
+
+## Removal
+
+No active scan or analysis contains:
+
+* wallet balance;
+* risk profile;
+* maximum planned loss;
+* margin mode;
+* leverage mode;
+* funded rules;
+* position sizing;
+* liquidation calculations;
+* gainer mode;
+* paper approval;
+* execution readiness.
+
+## Transparency
+
+* every score is decomposable;
+* every candidate includes positive and contradictory evidence;
+* every exclusion has a reason;
+* every scan is reproducible from its logged configuration and inputs;
+* no unavailable market data is invented.
+
+## Quality
+
+* Ruff passes;
+* strict mypy passes;
+* relevant and full pytest suites pass;
+* `git diff --check` passes;
+* actual outputs are supplied before validation is declared successful.
+
+---
+
+# 28. Intended Final Experience
+
+## Broad scan
 
 ```bash
-apex scan --wallet-balance 100 --profile standard
+apex scan
 ```
 
-Expected behavior:
+Expected workflow:
 
 ```text
-Apex scans the complete eligible Binance futures universe.
+Apex loads all active Binance USDT perpetual contracts.
 
-It identifies markets with current movement, liquidity, volume,
-structure, and entry potential.
+It removes only genuinely unusable markets.
 
-It performs detailed analysis on the strongest shortlist.
+It screens the complete market for liquidity, movement,
+acceleration, volume, volatility, freshness and structure.
 
-It displays approximately 10–15 best available opportunities,
-including aggressive and pullback-preferred candidates.
+It performs detailed analysis on approximately 30 shortlisted symbols.
 
-Each opportunity includes:
-- direction;
-- strategy;
-- scores;
-- current and preferred entries;
-- stop;
-- targets;
-- warnings;
-- wallet-aware quantity, margin, leverage, and maximum loss.
+It evaluates applicable long and short strategies.
+
+It ranks and displays approximately 15–20 best available candidates.
 ```
 
-The system should help the user find trades faster than manual chart-by-chart scanning.
+## Manual analysis
 
-It must not hide almost every usable idea behind conservative confirmation gates.
+```bash
+apex analyze SOLUSDT
+```
 
-It must also not pretend that every displayed opportunity is guaranteed to succeed.
+Expected result:
 
-The final Apex product is:
+```text
+Primary direction and strategy
+Alternative strategy candidates
+Why long or short
+Current and preferred entries
+Maximum chase
+Structural invalidation
+Stop-loss
+TP1, TP2 and TP3
+Expected trade horizon
+TP1 hold or exit guidance
+Momentum-failure exit conditions
+Supporting and contradicting evidence
+Transparent component scores
+```
 
-> A practical, aggressive but controlled Binance opportunity scanner and trade planner—not a reporting platform, not a roadmap archive, and not a trade-rejection machine.
+The final Stage 3 Apex product is:
+
+> A focused Binance futures trade-discovery and trade-planning engine. It finds, explains and ranks actionable opportunities. It does not manage the wallet, choose leverage, operate a funded account, execute orders or hide market setups behind unrelated risk-profile gates.
