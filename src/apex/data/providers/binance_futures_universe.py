@@ -25,10 +25,18 @@ class BinanceFuturesUniverseProvider:
         client: httpx.Client | None = None,
         retry_policy: RetryPolicy | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        metadata_cache_ttl_seconds: float = 3_600.0,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
+        if metadata_cache_ttl_seconds < 0:
+            raise ValueError("metadata cache TTL cannot be negative")
         self._owns_client = client is None
         self._retry_policy = retry_policy or RetryPolicy()
         self._sleep = sleep
+        self._monotonic = monotonic
+        self._metadata_cache_ttl_seconds = metadata_cache_ttl_seconds
+        self._cached_contracts: tuple[FuturesContractMetadata, ...] | None = None
+        self._cache_expires_at = 0.0
         self._client = client or httpx.Client(
             base_url=self.BASE_URL,
             timeout=timeout,
@@ -52,7 +60,11 @@ class BinanceFuturesUniverseProvider:
         self.close()
 
     def fetch_futures_contracts(self) -> tuple[FuturesContractMetadata, ...]:
-        """Fetch and normalize Binance futures exchange metadata."""
+        """Fetch, normalize, and temporarily cache Binance futures metadata."""
+
+        now = self._monotonic()
+        if self._cached_contracts is not None and now < self._cache_expires_at:
+            return self._cached_contracts
 
         payload = request_json(
             self._client,
@@ -79,8 +91,30 @@ class BinanceFuturesUniverseProvider:
                 operation="fetch futures exchange metadata",
             )
 
-        contracts = tuple(self._parse_contract(item) for item in symbols)
-        return tuple(sorted(contracts, key=lambda item: item.exchange_symbol))
+        contracts: list[FuturesContractMetadata] = []
+        for item in symbols:
+            try:
+                contracts.append(self._parse_contract(item))
+            except ProviderResponseError:
+                continue
+
+        if symbols and not contracts:
+            raise ProviderResponseError(
+                "Binance futures exchange info contained no valid contracts",
+                provider=self.name,
+                operation="parse futures exchange metadata",
+            )
+
+        normalized = tuple(sorted(contracts, key=lambda item: item.exchange_symbol))
+        self._cached_contracts = normalized
+        self._cache_expires_at = now + self._metadata_cache_ttl_seconds
+        return normalized
+
+    def clear_metadata_cache(self) -> None:
+        """Invalidate cached exchange metadata."""
+
+        self._cached_contracts = None
+        self._cache_expires_at = 0.0
 
     def _parse_contract(self, value: Any) -> FuturesContractMetadata:
         if not isinstance(value, dict):
@@ -105,9 +139,9 @@ class BinanceFuturesUniverseProvider:
             lot_filter = filters["LOT_SIZE"]
             notional_filter = filters.get("MIN_NOTIONAL") or filters["NOTIONAL"]
 
-            base_asset = str(value["baseAsset"]).upper()
-            quote_asset = str(value["quoteAsset"]).upper()
-            exchange_symbol = str(value["symbol"]).upper()
+            base_asset = self._required_identifier(value["baseAsset"], "baseAsset")
+            quote_asset = self._required_identifier(value["quoteAsset"], "quoteAsset")
+            exchange_symbol = self._required_identifier(value["symbol"], "symbol")
 
             notional_value = notional_filter.get(
                 "notional",
@@ -121,8 +155,11 @@ class BinanceFuturesUniverseProvider:
                 exchange_symbol=exchange_symbol,
                 base_asset=base_asset,
                 quote_asset=quote_asset,
-                status=str(value["status"]).upper(),
-                contract_type=str(value["contractType"]).upper(),
+                status=self._required_identifier(value["status"], "status"),
+                contract_type=self._required_identifier(
+                    value["contractType"],
+                    "contractType",
+                ),
                 tick_size=float(price_filter["tickSize"]),
                 step_size=float(lot_filter["stepSize"]),
                 minimum_quantity=float(lot_filter["minQty"]),
@@ -134,3 +171,10 @@ class BinanceFuturesUniverseProvider:
                 provider=self.name,
                 operation="parse futures exchange metadata",
             ) from exc
+
+    @staticmethod
+    def _required_identifier(value: Any, field: str) -> str:
+        normalized = str(value).strip().upper()
+        if not normalized:
+            raise ValueError(f"{field} cannot be empty")
+        return normalized
