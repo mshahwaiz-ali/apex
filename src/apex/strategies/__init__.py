@@ -1,5 +1,9 @@
 """Deterministic Stage 3 strategy candidate generation."""
 
+from apex.strategies.actionability import (
+    best_entry_status,
+    classify_candidate_actionability,
+)
 from apex.strategies.analysis import (
     StrategyAnalysisResult,
     StrategyApplicability,
@@ -36,6 +40,7 @@ from apex.strategies.contracts import (
     TradeDirection,
 )
 from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.entry_status import ENTRY_STATUS_PRECEDENCE, EntryStatus
 from apex.strategies.evidence import (
     NormalizedStrategyEvidence,
     StrategyEvidenceKind,
@@ -64,12 +69,14 @@ from apex.strategies.vwap_reclaim_rejection import (
 )
 
 __all__ = [
+    "ENTRY_STATUS_PRECEDENCE",
     "STRATEGY_REGISTRY",
     "CandidateLifecycle",
     "CandidateLifecycleStatus",
     "EntryMode",
     "EntryReference",
     "EntrySelectionConfig",
+    "EntryStatus",
     "EntryZone",
     "FeatureSnapshot",
     "InvalidationConcept",
@@ -93,7 +100,9 @@ __all__ = [
     "TradeCandidate",
     "TradeDirection",
     "analyze_strategies",
+    "best_entry_status",
     "build_strategy_applicability",
+    "classify_candidate_actionability",
     "generate_breakout_continuation_candidates",
     "generate_breakout_retest_candidates",
     "generate_compression_expansion_candidates",
