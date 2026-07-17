@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from types import MappingProxyType
 
@@ -12,13 +12,14 @@ from apex.strategies.applicability import (
     build_strategy_applicability,
 )
 from apex.strategies.context import StrategyContext
-from apex.strategies.contracts import StrategyType, TradeCandidate
+from apex.strategies.contracts import TradeCandidate
 from apex.strategies.diagnostics import (
     StrategyDiagnostic,
     build_strategy_diagnostics,
     has_higher_timeframe_breakout,
 )
 from apex.strategies.registry import STRATEGY_REGISTRY, run_strategy_generator
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.regime import MarketRegime, classify_market_regime
 
 
@@ -80,16 +81,20 @@ class StrategyAnalysisResult:
         if applicability and set(applicability) != set(self.evaluated_strategies):
             raise ValueError("strategy applicability must cover every strategy")
 
-        for item in (*self.candidates, *(entry.candidate for entry in self.suppressed_candidates)):
+        all_candidates = (
+            *self.candidates,
+            *(entry.candidate for entry in self.suppressed_candidates),
+        )
+        for item in all_candidates:
             if item.symbol != self.symbol:
                 raise ValueError("candidate symbol must match analysis symbol")
             if item.decision_time != self.decision_time:
                 raise ValueError("candidate decision time must match analysis decision time")
-            if item.strategy not in self.evaluated_strategies:
+            if StrategyType(item.strategy.value) not in self.evaluated_strategies:
                 raise ValueError("candidate strategy must be evaluated")
 
         order = self.evaluated_strategies.index
-        strategies = tuple(candidate.strategy for candidate in self.candidates)
+        strategies = tuple(StrategyType(item.strategy.value) for item in self.candidates)
         if strategies != tuple(sorted(strategies, key=order)):
             raise ValueError("candidates must preserve stable registry ordering")
 
@@ -110,7 +115,7 @@ def analyze_strategies(
     decision_regime = classify_market_regime(context.decision_frame.structure)
     higher_breakout = has_higher_timeframe_breakout(context)
     candidates = tuple(
-        candidate
+        _normalize_candidate(candidate)
         for _strategy, generator in STRATEGY_REGISTRY
         for candidate in run_strategy_generator(
             generator,
@@ -143,3 +148,10 @@ def analyze_strategies(
         higher_timeframe_breakout=higher_breakout,
         strategy_applicability=applicability,
     )
+
+
+def _normalize_candidate(candidate: TradeCandidate) -> TradeCandidate:
+    strategy = StrategyType(candidate.strategy.value)
+    if candidate.strategy == strategy:
+        return replace(candidate, strategy=strategy)
+    return replace(candidate, strategy=strategy)
