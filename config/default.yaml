@@ -39,11 +39,18 @@ intelligence_open_interest_enabled: false
 intelligence_correlation_enabled: false
 strategy_routing:
   enabled:
-    - trend_pullback
+    - momentum_breakout
     - breakout_continuation
-    - liquidity_reversal
+    - breakout_retest
+    - first_pullback_continuation
+    - trend_pullback
+    - compression_expansion
     - range_reversal
-    - momentum_continuation
+    - failed_breakout_reversal
+    - liquidity_rejection_reversal
+    - vwap_reclaim_rejection
+    - momentum_scalp
+    - exhaustion_reversal
 analysis_timeframes:
   - 1m
   - 3m
