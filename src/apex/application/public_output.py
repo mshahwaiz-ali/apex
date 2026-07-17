@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from apex.application import decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult
 
+_LEGACY_PUBLIC_KEYS = frozenset({"near_current_entry", "precision_entry", "near_miss_state"})
+
 
 def serialize_symbol_analysis(analysis: _decision.SymbolAnalysis) -> dict[str, Any]:
     """Return one discovery result without legacy entry-state overlays."""
 
-    payload = _decision.serialize_symbol_analysis(analysis)
-    payload.pop("near_current_entry", None)
-    payload.pop("precision_entry", None)
-
+    payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
     setup = payload.get("setup")
     if not isinstance(setup, dict):
         payload["entry_status"] = None
@@ -58,6 +58,18 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
         "status_counts": dict(sorted(status_counts.items())),
         "failures": dict(result.failures),
     }
+
+
+def _without_legacy_keys(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _without_legacy_keys(item)
+            for key, item in value.items()
+            if str(key) not in _LEGACY_PUBLIC_KEYS
+        }
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        return [_without_legacy_keys(item) for item in value]
+    return value
 
 
 __all__ = ["serialize_scan_result", "serialize_symbol_analysis"]
