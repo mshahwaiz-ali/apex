@@ -12,4 +12,14 @@ def install_professional_navigation(app: typer.Typer) -> None:
         "Discover and evaluate Binance USDT perpetual-futures trade opportunities. "
         "Start with `apex scan`."
     )
-    app.info.epilog
+    app.info.epilog = (
+        "Quick start:\n"
+        "  apex scan --help\n"
+        "  apex analyze BTCUSDT --help\n"
+        "  apex backtest --help\n"
+        "  apex config-check --help\n\n"
+        "Apex finds and explains trade setups; it does not place orders or manage accounts."
+    )
+
+
+__all__ = ["install_professional_navigation"]
