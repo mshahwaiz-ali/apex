@@ -1,7 +1,7 @@
 """Deterministic historical futures backtest campaign orchestration.
 
 This module consumes verified N4.7 historical signal artifacts and replays accepted
-signals through the existing Phase 8 futures backtester. It deliberately preserves
+signals through the existing futures backtester. It deliberately preserves
 rejected and failed analysis observations and keeps train, validation, and final-test
 results isolated.
 """

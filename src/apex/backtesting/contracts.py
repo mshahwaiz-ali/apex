@@ -1,4 +1,4 @@
-"""Immutable contracts for deterministic Phase 8 backtesting."""
+"""Immutable contracts for deterministic historical backtesting."""
 
 from __future__ import annotations
 

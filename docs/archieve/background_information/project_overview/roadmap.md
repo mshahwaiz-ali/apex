@@ -61,7 +61,7 @@ This roadmap summarizes the staged delivery model for Apex. Detailed completion 
 
 ## Evidence and lifecycle
 
-### Phase 8 — Historical backtesting
+### Historical backtesting
 
 - Chronological replay without future leakage
 - Fees, slippage, partial exits, lifecycle rules, and conservative intrabar handling

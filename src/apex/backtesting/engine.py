@@ -1,4 +1,4 @@
-"""Deterministic Phase 8 backtesting engine."""
+"""Deterministic historical backtesting engine."""
 
 from __future__ import annotations
 

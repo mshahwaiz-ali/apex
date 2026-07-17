@@ -1,4 +1,4 @@
-"""Public Phase 8 backtesting API."""
+"""Public historical backtesting API."""
 
 from apex.backtesting.contracts import (
     BacktestConfig,

@@ -39,7 +39,7 @@ Validated locally on 2026-07-15:
 - no fabricated numeric scanner score is introduced;
 - no leverage, margin, liquidation, borrowing, short-selling, order placement, or paper-position mutation is added.
 
-## S8 — Live spot eligibility and pre-filtering
+## Live spot eligibility and pre-filtering
 
 Validated locally on 2026-07-15:
 
@@ -53,7 +53,7 @@ Validated locally on 2026-07-15:
 - rejected symbols retain decision metadata and measurable inputs;
 - provider failures remain distinct from eligibility rejection;
 - eligibility, reviewable, and hard-rejection ordering is deterministic;
-- Ruff checks passed for the focused S8 files;
+- Ruff checks passed for the focused spot eligibility files;
 - strict mypy clean across 257 source files;
 - 26 focused tests passed;
 - live Binance scans succeeded for BTCUSDT, ETHUSDT, and SOLUSDT in `eligible`, `watchlist`, and `all` modes;
