@@ -16,7 +16,7 @@ def install_professional_navigation(app: typer.Typer) -> None:
         "Quick start:\n"
         "  apex scan --help\n"
         "  apex analyze BTCUSDT --help\n"
-        "  apex backtest --help\n"
+        "  apex backtest BTCUSDT --help\n"
         "  apex config-check --help\n\n"
         "Apex finds and explains trade setups; it does not place orders or manage accounts."
     )
