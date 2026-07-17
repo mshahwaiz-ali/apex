@@ -56,6 +56,7 @@ def render_discovery_analysis(
             "Selected Setup",
             render_fields(
                 (
+                    ("Group", humanize_code(payload.get("result_group"))),
                     ("Status", humanize_code(setup.get("entry_status"))),
                     ("Direction", direction),
                     ("Strategy", humanize_code(setup.get("strategy"))),
@@ -99,9 +100,12 @@ def render_discovery_analysis(
 
 
 def render_discovery_scan(payload: Mapping[str, object]) -> str:
-    """Render ranked canonical scan output."""
+    """Render ranked canonical scan output grouped by actionability."""
 
-    results = _mappings(payload.get("results"))
+    actionable = _mappings(payload.get("actionable_setups"))
+    developing = _mappings(payload.get("developing_setups"))
+    unavailable = _mappings(payload.get("unavailable_setups"))
+    no_trade = _mappings(payload.get("no_trade_results"))
     sections = [render_title("Apex Futures Scan")]
     sections.append(
         render_section(
@@ -110,7 +114,11 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
                 (
                     ("Markets analyzed", payload.get("total_analysis_count")),
                     ("Displayed candidates", payload.get("displayed_analysis_count")),
-                    ("Actionable setups", payload.get("actionable_count")),
+                    ("Selected setups", payload.get("selected_setup_count")),
+                    ("Actionable now", payload.get("actionable_count")),
+                    ("Developing", payload.get("developing_count")),
+                    ("Unavailable", payload.get("unavailable_count")),
+                    ("No trade", payload.get("no_trade_count")),
                     ("Long candidates", payload.get("long_candidate_count")),
                     ("Short candidates", payload.get("short_candidate_count")),
                     ("Status counts", payload.get("status_counts")),
@@ -118,14 +126,25 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ),
         )
     )
-    if not results:
-        sections.append(render_section("Results", "  No market results were returned."))
-        return "\n\n".join(sections)
+    sections.extend(
+        section
+        for section in (
+            _render_group("Actionable Setups", actionable),
+            _render_group("Developing Setups", developing),
+            _render_group("Late or Invalidated", unavailable),
+            _render_group("No Trade", no_trade),
+        )
+        if section
+    )
+    return "\n\n".join(sections)
 
+
+def _render_group(title: str, results: Sequence[Mapping[str, object]]) -> str:
+    if not results:
+        return ""
     cards = [render_discovery_analysis(item) for item in results]
     separator = "\n\n" + "═" * 56 + "\n\n"
-    sections.append(render_section("Ranked Markets", separator.join(cards)))
-    return "\n\n".join(sections)
+    return render_section(title, separator.join(cards))
 
 
 def _mapping(value: object) -> Mapping[str, object]:
