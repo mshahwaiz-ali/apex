@@ -6,12 +6,14 @@ from apex.strategies.applicability import (
     build_strategy_applicability,
 )
 from apex.strategies.orchestration import (
+    CandidateActionability,
     StrategyAnalysisResult,
     SuppressedStrategyCandidate,
     analyze_strategies,
 )
 
 __all__ = [
+    "CandidateActionability",
     "StrategyAnalysisResult",
     "StrategyApplicability",
     "StrategyApplicabilityState",
