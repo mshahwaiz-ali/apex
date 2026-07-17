@@ -11,6 +11,7 @@ from apex.application import (
     analyze_selected_symbol,
     bootstrap,
     build_analysis_record,
+    configuration_metadata,
     create_market_data_services,
     write_analysis_record,
     write_analysis_record_sqlite,
@@ -66,6 +67,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
             raise typer.Exit(code=1) from exc
 
         payload = serialize_symbol_analysis(result)
+        payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         if record is not None or record_db is not None:
             analysis_record = build_analysis_record(payload)
             if record is not None:
