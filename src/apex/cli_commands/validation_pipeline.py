@@ -38,7 +38,7 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
             Path("data/validation/daily.json"),
             "--history",
             dir_okay=False,
-            help="Persistent date-keyed P1 validation history.",
+            help="Persistent date-keyed forward-validation history.",
         ),
         trading_date: str | None = typer.Option(
             None,
