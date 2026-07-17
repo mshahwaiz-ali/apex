@@ -220,6 +220,7 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
             )
         )
     phase5 = analysis.phase5_diagnostics or {}
+    lines.extend(_opportunity_summary_lines(analysis))
     lines.extend(
         (
             f"Raw candidates: {analysis.candidate_count}",
@@ -277,6 +278,31 @@ def _selected_candidate_diagnostics(
             and candidate.get("candidate_id") == selected_id
         ),
         None,
+    )
+
+
+def _opportunity_summary_lines(
+    analysis: _analysis.SymbolAnalysis,
+) -> tuple[str, ...]:
+    """Return compact operator-facing diagnostics for the best ranked candidate."""
+
+    record = _best_rank_record(analysis)
+    if record is None:
+        return ("Best opportunity: none",)
+    dimensions = record.score_dimensions
+    return (
+        (
+            f"Best opportunity: {record.quality_label.value.upper()} | "
+            f"{record.strategy} {record.direction.upper()} | "
+            f"rank score {record.final_rank_score:.1f}"
+        ),
+        (
+            f"Score profile: opportunity {dimensions.opportunity_score:.1f} | "
+            f"setup {dimensions.setup_score:.1f} | "
+            f"timing {dimensions.timing_score:.1f} | "
+            f"risk {dimensions.risk_feasibility_score:.1f} | "
+            f"penalties {record.rank_penalty_score:.1f}"
+        ),
     )
 
 
