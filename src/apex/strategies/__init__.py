@@ -1,4 +1,4 @@
-"""Deterministic strategy candidate generation."""
+"""Deterministic Stage 3 strategy candidate generation."""
 
 from apex.strategies.analysis import (
     StrategyAnalysisResult,
@@ -9,6 +9,7 @@ from apex.strategies.analysis import (
     build_strategy_applicability,
 )
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
+from apex.strategies.breakout_retest import generate_breakout_retest_candidates
 from apex.strategies.context import (
     FeatureSnapshot,
     StrategyContext,
@@ -25,7 +26,6 @@ from apex.strategies.contracts import (
     InvalidationType,
     RawQualityMetrics,
     StrategyEvidence,
-    StrategyType,
     TargetConcept,
     TargetLevel,
     TargetType,
@@ -44,6 +44,7 @@ from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candi
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGenerator
+from apex.strategies.strategy_types import StrategyType
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 __all__ = [
@@ -58,16 +59,16 @@ __all__ = [
     "InvalidationConcept",
     "InvalidationType",
     "NormalizedStrategyEvidence",
-    "StrategyAnalysisResult",
     "RawQualityMetrics",
+    "StrategyAnalysisResult",
     "StrategyApplicability",
     "StrategyApplicabilityState",
     "StrategyContext",
-    "SuppressedStrategyCandidate",
     "StrategyEvidence",
     "StrategyEvidenceKind",
     "StrategyGenerator",
     "StrategyType",
+    "SuppressedStrategyCandidate",
     "TargetConcept",
     "TargetLevel",
     "TargetType",
@@ -78,6 +79,7 @@ __all__ = [
     "analyze_strategies",
     "build_strategy_applicability",
     "generate_breakout_continuation_candidates",
+    "generate_breakout_retest_candidates",
     "generate_liquidity_reversal_candidates",
     "generate_momentum_continuation_candidates",
     "generate_range_reversal_candidates",
