@@ -10,6 +10,7 @@ import typer
 from apex.application import (
     bootstrap,
     build_analysis_record,
+    configuration_metadata,
     create_market_data_services,
     scan_symbols,
     select_futures_scan_symbols,
@@ -81,6 +82,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
         payload = serialize_scan_result(result)
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
+        payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         if report is not None:
             write_json_report(payload, report)
         if record is not None or record_db is not None:
