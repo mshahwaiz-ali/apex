@@ -19,6 +19,7 @@ from apex.scoring.rank_score import (
     score_dimensions,
     unpenalized_rank_score,
 )
+from apex.strategies import EntryStatus, classify_candidate_actionability
 
 
 class CandidateRankingRole(StrEnum):
@@ -47,6 +48,7 @@ class CandidateRankingRecord:
     role: CandidateRankingRole
     strategy: str
     direction: str
+    entry_status: EntryStatus
     final_score: float
     unpenalized_rank_score: float
     rank_penalty_score: float
@@ -173,6 +175,7 @@ def _record(
         role=role,
         strategy=item.candidate.strategy.value,
         direction=item.candidate.direction.value,
+        entry_status=classify_candidate_actionability(item.candidate),
         final_score=item.final_score,
         unpenalized_rank_score=unpenalized_rank_score(item.scored),
         rank_penalty_score=rank_penalty_score(item.scored),
@@ -213,6 +216,7 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "role": item.role.value,
         "strategy": item.strategy,
         "direction": item.direction,
+        "entry_status": item.entry_status.value,
         "final_score": item.final_score,
         "unpenalized_rank_score": item.unpenalized_rank_score,
         "rank_penalty_score": item.rank_penalty_score,
