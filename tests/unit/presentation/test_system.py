@@ -49,7 +49,7 @@ def test_ticker_preserves_precision_for_tiny_spread_percentage() -> None:
     assert "0.0%" not in rendered
 
 
-def test_candles_default_to_summary_and_verbose_adds_rows() -> None:
+def test_candles_include_detailed_rows() -> None:
     candles = [
         {
             "symbol": "ETHUSDT",
@@ -80,16 +80,14 @@ def test_candles_default_to_summary_and_verbose_adds_rows() -> None:
     ]
 
     text = render_candles(candles)
-    verbose = render_candles(candles, mode="verbose")
 
     assert "Market Candles — ETHUSDT" in text
     assert "Latest Candle" in text
     assert "Period change" in text
-    assert "| O " not in text
-    assert "| O " in verbose
+    assert "| O " in text
 
 
-def test_config_default_is_summary_and_verbose_shows_resolved_settings() -> None:
+def test_config_includes_resolved_settings() -> None:
     payload = {
         "environment": "development",
         "analysis_timeframes": ["5m", "15m", "1h"],
@@ -98,15 +96,13 @@ def test_config_default_is_summary_and_verbose_shows_resolved_settings() -> None
     }
 
     text = render_config(payload)
-    verbose = render_config(payload, mode="verbose")
 
     assert "Status" in text
     assert "Valid" in text
     assert "Provider" in text
     assert "Binance" in text
     assert "5m, 15m, 1h" in text
-    assert "Resolved Settings" not in text
-    assert "Resolved Settings" in verbose
+    assert "Resolved Settings" in text
 
 
 def test_smoke_and_version_are_professional() -> None:

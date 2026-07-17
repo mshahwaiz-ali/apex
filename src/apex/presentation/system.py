@@ -22,7 +22,7 @@ from apex.presentation import (
 def render_ticker(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one normalized ticker snapshot."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     bid = _number(payload.get("bid_price"))
     ask = _number(payload.get("ask_price"))
     spread = ask - bid if bid is not None and ask is not None else None
@@ -53,8 +53,6 @@ def render_ticker(payload: Mapping[str, object], *, mode: str | OutputMode = "te
             ),
         ),
     ]
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
@@ -65,7 +63,7 @@ def render_candles(
 ) -> str:
     """Render a concise OHLCV candle summary with optional detailed rows."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     if not payload:
         return "\n\n".join(
             (
@@ -109,14 +107,13 @@ def render_candles(
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        rows = [
-            f"{item.get('close_time', UNAVAILABLE)} | O {format_price(item.get('open'))} | "
-            f"H {format_price(item.get('high'))} | L {format_price(item.get('low'))} | "
-            f"C {format_price(item.get('close'))} | V {format_amount(item.get('volume'))}"
-            for item in payload
-        ]
-        sections.append(render_section("Candles", render_bullets(rows)))
+    rows = [
+        f"{item.get('close_time', UNAVAILABLE)} | O {format_price(item.get('open'))} | "
+        f"H {format_price(item.get('high'))} | L {format_price(item.get('low'))} | "
+        f"C {format_price(item.get('close'))} | V {format_amount(item.get('volume'))}"
+        for item in payload
+    ]
+    sections.append(render_section("Candles", render_bullets(rows)))
     return "\n\n".join(sections)
 
 
@@ -128,7 +125,7 @@ def render_config(
 ) -> str:
     """Render resolved configuration without exposing machine-style JSON by default."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     sections = [
         render_title("Apex Configuration"),
         render_section(
@@ -144,8 +141,7 @@ def render_config(
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Resolved Settings", _mapping_fields(payload)))
+    sections.append(render_section("Resolved Settings", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
