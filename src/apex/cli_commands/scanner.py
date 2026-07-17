@@ -14,11 +14,11 @@ from apex.application import (
     scan_symbols,
     select_futures_scan_symbols,
     serialize_futures_screening,
-    serialize_scan_result,
     write_analysis_record,
     write_analysis_record_sqlite,
     write_json_report,
 )
+from apex.application.public_output import serialize_scan_result
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.scanner import render_futures_scan
 
