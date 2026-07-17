@@ -2,11 +2,11 @@
 
 # ⚡ Apex Trading Agent
 
-### Deterministic Binance futures opportunity discovery and trade planning
+### Deterministic Binance futures opportunity discovery and wallet-aware trade planning
 
-Apex scans active Binance USDT perpetual markets, identifies near-current-price long and short opportunities, ranks them with transparent scoring, and builds wallet-aware execution plans.
+Apex scans active Binance USDT perpetual markets, finds actionable long and short opportunities near the current price, ranks them transparently, and builds executable risk plans.
 
-**Dynamic futures universe · Market-wide screening · Multi-timeframe analysis · Strategy ranking · Structured entries · Risk planning · Backtesting · Paper tracking**
+**Dynamic universe · Market-wide screening · Multi-timeframe analysis · Strategy ranking · Immediate and preferred entries · Standard and funded risk · Backtesting · Paper tracking**
 
 </div>
 
@@ -14,93 +14,112 @@ Apex scans active Binance USDT perpetual markets, identifies near-current-price 
 
 ## What Apex Does
 
-Apex answers one practical question:
+Apex answers one question:
 
 > Which Binance futures opportunities are most actionable near the current market price?
 
-The system:
+The primary workflow is:
 
-1. discovers eligible active futures contracts;
-2. applies lightweight market-wide screening;
-3. shortlists the strongest current opportunities;
-4. performs detailed multi-timeframe analysis;
-5. evaluates applicable strategies;
-6. scores and ranks usable candidates;
-7. builds immediate and preferred entry plans;
-8. calculates wallet-aware risk, size, margin, and leverage;
-9. reports evidence, cautions, and failures in text or JSON;
-10. optionally records paper outcomes for later manual review.
+```text
+Discover active futures contracts
+→ filter unusable markets
+→ screen the full eligible universe
+→ shortlist the strongest opportunities
+→ run detailed multi-timeframe analysis
+→ evaluate applicable strategies
+→ score and rank candidates
+→ build immediate and preferred entries
+→ calculate wallet-aware position plans
+→ report results in text or JSON
+```
 
-Apex is deterministic Python software. It does not depend on an LLM for core trading decisions and does not claim guaranteed profitability.
+Apex is deterministic Python software. Its core trading decisions do not depend on an LLM, and it does not claim guaranteed profitability.
 
 ---
 
 ## Product Scope
 
-### Primary market
+### Active market
 
 ```text
 Binance USDT perpetual futures
 ```
 
-Apex is designed for:
+Apex supports:
 
 - long and short opportunities;
 - scalp, fast-intraday, intraday, and selective short-swing setups;
-- entries near the current price;
+- entries near the current market price;
 - isolated-margin planning;
-- structural stops and targets;
-- fees, slippage, margin, and liquidation-aware risk;
-- standard personal-wallet and funded-account constraints.
+- structural stops and multiple targets;
+- fees, slippage, margin, and liquidation-aware sizing;
+- standard-wallet and funded-account constraints;
+- chronological backtesting;
+- deterministic paper tracking and outcome review.
 
-### Inactive surfaces
+### Intentionally inactive
 
-The default interface does not expose:
+The default product surface does not expose:
 
-- spot trading workflows;
-- autonomous threshold mutation;
+- spot workflows;
+- autonomous optimization or threshold mutation;
 - automatic strategy promotion;
 - exchange order execution;
 - testnet execution;
-- hidden research compatibility commands.
+- old evidence-artifact ceremony;
+- development milestone commands.
 
-Preserved internal modules may remain available for controlled research or later removal, but they are not part of the active product surface.
+Spot implementation may remain internally preserved, but Apex is currently futures-first.
 
 ---
 
-## Core Workflow
+## How Scanning Works
+
+### 1. Dynamic futures universe
+
+Apex loads current exchange metadata and selects eligible active USDT perpetual contracts.
+
+Eligibility can consider:
+
+- trading status;
+- quote and contract type;
+- liquidity;
+- spread;
+- candle availability;
+- exchange precision and order filters;
+- blacklist and optional allowlist rules.
+
+A static symbol list is only an optional override.
+
+### 2. Lightweight market-wide screening
+
+All eligible contracts receive inexpensive screening before deep analysis.
+
+Typical inputs include:
+
+- price, bid, ask, and spread;
+- quote volume and trade participation;
+- recent returns and acceleration;
+- relative volume and volume acceleration;
+- ATR percentage and range expansion;
+- directional persistence;
+- breakout and structure proximity;
+- wick intensity;
+- VWAP or EMA distance;
+- exhaustion and noise penalties.
+
+Default operating targets are configurable:
 
 ```text
-Active Binance futures contracts
-        ↓
-Contract and liquidity eligibility
-        ↓
-Lightweight market-wide screening
-        ↓
-Detailed shortlist
-        ↓
-Multi-timeframe feature and structure analysis
-        ↓
-Market-state classification
-        ↓
-Applicable strategy evaluation
-        ↓
-Candidate scoring and ranking
-        ↓
-Immediate and preferred entry construction
-        ↓
-Warnings and cautions
-        ↓
-Wallet-aware risk planning
-        ↓
-Ranked text or JSON output
+Detailed shortlist: 30
+Displayed opportunities: 15
 ```
 
-Each symbol is analyzed once through the primary discovery pipeline. Market movement, acceleration, relative volume, volatility, liquidity, spread, structure proximity, and entry freshness influence ranking without routing symbols through a separate gainer product mode.
+Apex may show fewer when market data is unavailable or markets are genuinely untradeable. It does not manufacture quality to fill a quota.
 
----
+### 3. Detailed analysis
 
-## Analysis Timeframes
+Shortlisted symbols receive deeper analysis across:
 
 | Timeframe | Role |
 |---|---|
@@ -112,63 +131,15 @@ Each symbol is analyzed once through the primary discovery pipeline. Market move
 | `1h` | Broader trend and danger context |
 | `4h` | Optional macro warning and target context |
 
-Higher-timeframe disagreement can reduce confidence or limit targets, but it does not automatically erase a valid fast trade.
+Higher-timeframe disagreement normally reduces confidence or target space. It does not automatically erase a valid fast trade.
 
 ---
 
-## Opportunity Screening
+## Strategies
 
-The market-wide screener uses inexpensive public market data to determine which contracts deserve detailed analysis.
+Apex classifies measurable market conditions and evaluates every relevant strategy.
 
-Typical screening inputs include:
-
-- current price, bid, ask, and spread;
-- quote volume and trade participation;
-- recent returns and acceleration;
-- relative volume and volume acceleration;
-- ATR percentage and range expansion;
-- directional persistence;
-- breakout and structure proximity;
-- wick intensity;
-- short EMA or VWAP distance;
-- liquidity and execution quality;
-- extension, exhaustion, and noise penalties.
-
-The screener produces a transparent opportunity score and selects a configurable shortlist for deeper analysis.
-
-Default operating targets:
-
-```text
-Eligible universe: all suitable active contracts
-Detailed shortlist: 30
-Displayed opportunities: 15
-```
-
-The scanner may show fewer results when market data fails or contracts are genuinely unsuitable. It does not fabricate trade quality to fill a quota.
-
----
-
-## Market States and Strategies
-
-Apex classifies measurable market conditions rather than forcing each symbol into a single product category.
-
-Possible conditions include:
-
-- directional trend;
-- momentum expansion;
-- controlled pullback;
-- breakout attempt or confirmation;
-- breakout retest;
-- compression;
-- stable range;
-- range-edge rejection;
-- failed breakout;
-- liquidity rejection;
-- exhaustion;
-- chaotic volatility;
-- low-participation drift.
-
-Applicable strategies may include:
+The active strategy set can include:
 
 - momentum breakout;
 - breakout continuation;
@@ -183,15 +154,13 @@ Applicable strategies may include:
 - momentum scalp;
 - exhaustion reversal.
 
-A symbol may produce multiple candidates. The best candidate becomes primary while alternatives remain available in structured diagnostics and JSON.
+A symbol may produce multiple candidates. The strongest candidate becomes primary while alternatives remain available in structured output.
 
 ---
 
-## Scoring
+## Scoring and Ranking
 
-Apex separates different qualities instead of collapsing the entire decision into one approval flag.
-
-Each ranked candidate can expose:
+Apex separates distinct decision qualities:
 
 ```text
 opportunity_score
@@ -201,9 +170,9 @@ risk_feasibility_score
 final_rank_score
 ```
 
-The final rank emphasizes market opportunity and setup quality. Risk feasibility affects planning and warnings, but a wallet constraint does not erase a real market opportunity.
+Opportunity and setup quality drive ranking. Wallet constraints affect position feasibility and warnings without hiding a genuine market opportunity.
 
-General interpretation:
+General score interpretation:
 
 | Score | Meaning |
 |---:|---|
@@ -213,17 +182,15 @@ General interpretation:
 | `55–64` | Speculative or developing |
 | `<55` | Weak, late, or structurally poor |
 
-Lower-scoring candidates may still appear when they are among the best currently available opportunities. Their weaknesses remain explicit.
+Imperfect candidates may remain visible when they are among the best currently available opportunities. Their weaknesses are explicit.
 
 ---
 
 ## Entry Statuses
 
-Usable candidates are described with action-oriented statuses:
-
 | Status | Meaning |
 |---|---|
-| `READY_NOW` | Current price is inside or very near the preferred entry |
+| `READY_NOW` | Price is inside or very near the preferred entry |
 | `AGGRESSIVE_NOW` | Entry is available now with meaningful caution |
 | `PULLBACK_PREFERRED` | Immediate entry is possible, but a nearby retracement improves geometry |
 | `WATCH_NEAR_ENTRY` | Price is close to becoming actionable |
@@ -233,22 +200,11 @@ Usable candidates are described with action-oriented statuses:
 Where appropriate, Apex returns both:
 
 - an executable market-near entry;
-- a preferred pullback entry with improved risk-to-reward.
+- a preferred pullback entry with better risk-to-reward.
 
-Every usable plan can include:
+A usable plan may include current price, entry zones, maximum chase boundary, invalidation, stop, three targets, trade horizon, evidence, and cautions.
 
-- current price;
-- immediate entry;
-- preferred entry zone;
-- maximum chase boundary;
-- structural invalidation;
-- stop-loss;
-- conservative, primary, and extended targets;
-- expected trade horizon;
-- key evidence;
-- cautions and warnings.
-
-Liquidity sweeps normally refine evidence, warnings, entries, stops, and scores. They become hard blockers only when the underlying trade thesis has already failed.
+Liquidity sweeps normally refine evidence, entries, stops, warnings, and scores. They become hard blockers only when the trade thesis has structurally failed.
 
 ---
 
@@ -256,24 +212,22 @@ Liquidity sweeps normally refine evidence, warnings, entries, stops, and scores.
 
 Trade discovery and wallet planning are separate stages.
 
-Apex first determines:
-
 ```text
-structural entry
+Structural entry
 → structural stop
-→ permitted wallet loss
+→ permitted account loss
 → quantity
 → notional
 → required margin
 → sufficient leverage
-→ liquidation safety
+→ liquidation-safety check
 ```
 
-Leverage is an output of position planning. It does not improve a setup score.
+Leverage is an output of position planning. It does not improve setup quality.
 
 ### Standard profile
 
-Designed for a personal trading wallet.
+For personal trading wallets.
 
 Typical configurable defaults:
 
@@ -287,7 +241,7 @@ isolated_margin_only: true
 
 ### Funded profile
 
-Designed for accounts with firm-style daily and total drawdown limits.
+For accounts with daily and total drawdown constraints.
 
 Typical configurable defaults:
 
@@ -300,112 +254,140 @@ max_total_open_risk_pct: 2.0
 isolated_margin_only: true
 ```
 
-Risk output may include:
+A risk plan can report:
 
-- wallet balance and profile;
-- account risk percentage;
 - maximum modeled loss;
-- stop distance;
 - quantity and notional;
 - leverage and required margin;
 - wallet margin percentage;
-- fee and slippage allowance;
+- fees and slippage;
 - liquidation estimate;
 - stop-to-liquidation buffer;
-- target rewards and reward-to-risk;
+- target reward and reward-to-risk;
 - funded-limit impact.
 
-Actual funded-provider rules must be verified before relying on a funded plan.
+Actual exchange and funded-provider rules must always be verified.
 
 ---
 
-## CLI
+## Installation
 
-Install the project in the active virtual environment, then inspect the top-level workflows:
+Requirements:
+
+```text
+Python 3.11+
+```
+
+```bash
+git clone https://github.com/mshahwaiz-ali/apex.git
+cd apex
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+Inspect the installed command surface:
 
 ```bash
 apex --help
 ```
 
-### Scan futures markets
+---
+
+## Commands
+
+Apex uses grouped commands. Run `--help` at any level for the exact current options.
+
+### Futures scanning
 
 ```bash
 apex futures scan --help
 ```
 
-This is the primary workflow for market-wide discovery, screening, detailed analysis, and ranked opportunity output.
+Primary market-wide workflow:
 
-### Analyze one futures market
+```bash
+apex futures scan
+```
+
+Use command help to configure wallet balance, risk profile, shortlist size, result count, direction, provider settings, and text or JSON output.
+
+### Single-symbol analysis
 
 ```bash
 apex futures analyze BTCUSDT --help
+apex futures analyze BTCUSDT
 ```
 
-This shows applicable strategies, candidate scores, entries, stops, targets, warnings, and risk planning for one symbol.
+Returns applicable strategies, scores, entries, stops, targets, warnings, and wallet planning for one futures symbol.
 
-### Simulate the current setup
+### Setup simulation
 
 ```bash
 apex futures simulate --help
 ```
 
-This paper-simulates a currently approved setup without placing an exchange order.
+Runs deterministic paper simulation for a current setup. It does not place exchange orders.
 
-### Paper tracking
+### Paper workflows
 
 ```bash
 apex paper --help
 ```
 
-Paper workflows record opportunities and advance deterministic trade lifecycle state.
+Use paper commands to intake opportunities, run or schedule lifecycle updates, inspect status, and review recorded outcomes.
 
-### Backtesting and research
+### Research and backtesting
 
 ```bash
 apex research --help
 ```
 
-The research group provides chronological backtesting, reproducible campaigns, comparison, historical edge analysis, validation, and dataset export.
+Research commands cover chronological backtesting, reproducible campaigns, historical comparisons, dataset work, and manual edge analysis.
 
-### Validation
+### Validation and funded readiness
 
 ```bash
 apex validation --help
 ```
 
-Validation workflows review completed paper evidence, historical stability, and funded-account constraints. Validation artifacts do not authorize exchange execution.
+Validation commands assess retained paper history, historical stability, and funded-account readiness. They do not authorize live execution.
 
-### Configuration and system checks
+### Configuration and provider checks
 
 ```bash
+apex system --help
 apex system config --help
 apex system check --help
 apex system ticker --help
 apex system candles --help
 ```
 
+These commands inspect resolved configuration and verify market-data access.
+
 ---
 
 ## Output Modes
 
-Active command output modes are:
+Active analytical output modes are:
 
 ```text
 text
 json
 ```
 
-Text output is designed for direct terminal use and includes useful diagnostics by default.
+Text output is optimized for terminal use.
 
-JSON output preserves structured payloads for automation, storage, testing, and manual analysis.
+JSON output preserves structured candidates, diagnostics, warnings, entry geometry, and risk plans for storage or automation.
 
 ---
 
 ## Configuration
 
-Apex uses validated YAML and environment-based configuration.
-
-Current configuration areas include:
+Current configuration lives under:
 
 ```text
 config/
@@ -415,21 +397,19 @@ config/
 └── symbols.yaml
 ```
 
-The configured symbol file is an optional override. Dynamic futures-universe discovery is the primary live-scanning source when enabled.
-
 Configuration controls include:
 
 - provider and quote asset;
-- universe eligibility and exclusions;
-- liquidity and spread limits;
+- dynamic-universe rules;
+- liquidity and spread thresholds;
 - shortlist and result counts;
 - analysis timeframes;
-- enabled strategies and thresholds;
+- strategy settings;
 - scoring weights and penalties;
 - Standard and Funded risk limits;
-- caching, persistence, and runtime behavior.
+- storage, caching, concurrency, and runtime behavior.
 
-Validate resolved settings with:
+Inspect resolved configuration with:
 
 ```bash
 apex system config
@@ -437,24 +417,60 @@ apex system config
 
 ---
 
-## Development Setup
+## Logging, Paper Tracking, and Manual Review
 
-Requirements:
+Apex retains practical diagnostic visibility:
+
+- scan and analysis records;
+- discovered and excluded symbols;
+- screener features and shortlist reasons;
+- strategy candidates and scores;
+- entry and risk plans;
+- paper trades and outcomes;
+- lifecycle and health diagnostics;
+- historical and forward-edge evaluation;
+- funded plan generation, reporting, and schema inspection.
+
+Apex does not automatically mutate configuration or promote strategies from these records. Logs and outcomes are intended for manual diagnosis and targeted improvements.
+
+---
+
+## Architecture
 
 ```text
-Python 3.11+
+src/apex/
+├── application/         # Screening, analysis, ranking, and orchestration
+├── backtesting/         # Chronological simulation and historical analysis
+├── cli_commands/        # Active Typer command groups
+├── config/              # Validated configuration models and loaders
+├── data/                # Provider interfaces and normalized market data
+├── features/            # Reusable indicators and market features
+├── funded/              # Funded constraints and retained plan tooling
+├── liquidity/           # Liquidity zones, sweeps, and rejection evidence
+├── market_environment/  # Market-state and regime classification
+├── paper_trading/       # Persistent paper lifecycle and outcomes
+├── presentation/        # Text and JSON presentation
+├── risk/                # Position sizing, margin, leverage, liquidation
+├── strategies/          # Strategy applicability and candidate generation
+└── validation/          # Historical and forward validation logic
 ```
 
-Create and activate the virtual environment, then install the project:
+The system favors typed contracts, deterministic behavior, explicit failure reasons, reproducible tests, and modular boundaries.
+
+---
+
+## Development and Validation
+
+Before a local batch:
 
 ```bash
-python3 -m venv .venv
+cd ~/data_drive/apex
+git status --short
+git pull --rebase origin main
 source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
 ```
 
-Run the quality suite:
+Run the full quality suite:
 
 ```bash
 .venv/bin/ruff format src tests
@@ -466,81 +482,29 @@ git diff --check
 git status --short
 ```
 
-Validation results should be reported only from actual command output.
+Only report validation results from actual terminal output.
 
 ---
 
-## Architecture
+## Limitations
 
-Apex uses a modular `src` layout.
-
-```text
-src/apex/
-├── application/       # Analysis, screening, ranking, and orchestration
-├── backtesting/       # Chronological simulation and historical analysis
-├── data/              # Provider abstractions and normalized market data
-├── features/          # Reusable indicators and market features
-├── liquidity/         # Liquidity zones, sweeps, and rejection evidence
-├── market_environment/# Market condition and regime classification
-├── paper_trading/     # Persistent paper lifecycle and outcome tracking
-├── presentation/      # Text presentation for canonical payloads
-├── risk/              # Stops, sizing, leverage, margin, and account controls
-├── scoring/           # Candidate scoring, conflicts, and ranking
-├── strategies/        # Independent long and short candidate generators
-└── structure/         # Swings, ranges, trends, and structural events
-```
-
-Important boundaries:
-
-- providers collect and normalize data;
-- feature and structure modules interpret markets;
-- strategies generate candidates;
-- scoring ranks candidates;
-- entry logic builds actionable plans;
-- risk logic sizes and validates wallet feasibility;
-- presentation renders existing payloads without recomputing decisions;
-- paper and backtesting workflows consume the same deterministic analysis contracts.
+- Apex provides analysis and planning, not guaranteed outcomes.
+- Public exchange data can be delayed, incomplete, or temporarily unavailable.
+- Thin markets can produce slippage beyond modeled assumptions.
+- Stops and liquidation estimates depend on exchange rules and current account state.
+- Backtests and paper results do not guarantee future profitability.
+- Funded-account rules differ by provider and must be configured accurately.
+- Apex does not place live orders.
 
 ---
 
-## Logging and Review
+## Documentation
 
-Apex can preserve:
-
-- discovered and excluded contracts;
-- screener features;
-- shortlisted symbols;
-- strategy candidates;
-- scores and selected candidates;
-- entry and risk plans;
-- provider failures;
-- warnings;
-- configuration identity;
-- paper outcomes and lifecycle transitions.
-
-These records support reproducible backtesting and manual diagnosis. Apex does not automatically rewrite production configuration from historical outcomes.
+- `docs/new_plan.md` — authoritative final simplification and redesign specification.
+- `docs/final_redesign_report.md` — completed redesign summary and retained product inventory.
 
 ---
 
-## Safety and Limitations
+## Disclaimer
 
-Apex is analytical software, not a guarantee of profit.
-
-Important limitations:
-
-- market data may be delayed, incomplete, or unavailable;
-- simulated fills differ from live exchange execution;
-- fees, slippage, funding, and liquidation estimates are models;
-- high leverage can produce rapid losses;
-- low-liquidity markets can gap through expected prices;
-- historical and paper performance may not continue;
-- funded-provider rules can change;
-- no active Apex command authorizes unrestricted real-money execution.
-
-Use isolated risk, independently verify exchange rules, and never risk capital that cannot be lost.
-
----
-
-## License
-
-Proprietary. All rights reserved.
+Apex is research and decision-support software. Cryptocurrency derivatives involve substantial risk, including rapid losses and liquidation. Verify all data, exchange rules, account constraints, and order parameters before taking any trade.
