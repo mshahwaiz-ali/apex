@@ -20,7 +20,7 @@ from apex.application import (
 )
 from apex.application.public_output import serialize_scan_result
 from apex.data.providers.errors import MarketDataProviderError
-from apex.presentation.scanner import render_futures_scan
+from apex.presentation.discovery_output import render_discovery_scan
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
@@ -93,7 +93,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
         if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_futures_scan(payload))
+        typer.echo(render_discovery_scan(payload))
 
 
 def _normalize_scanner_output(value: str) -> str:
