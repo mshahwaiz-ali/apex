@@ -73,8 +73,9 @@ def _candidate_for_direction(
     maximum_extension_atr: float,
 ) -> TradeCandidate | None:
     bullish = direction is TradeDirection.LONG
-    if context.higher_timeframe_contradiction(bullish=bullish):
-        return None
+    higher_timeframe_conflict = context.higher_timeframe_contradiction(
+        bullish=bullish
+    )
 
     frame = context.decision_frame
     break_event = _latest_confirmed_break(frame.structure.breaks, bullish=bullish)
@@ -98,7 +99,9 @@ def _candidate_for_direction(
         return None
 
     invalidation_price = (
-        break_event.broken_level - atr * 0.15 if bullish else break_event.broken_level + atr * 0.15
+        break_event.broken_level - atr * 0.15
+        if bullish
+        else break_event.broken_level + atr * 0.15
     )
     target_price = _target_price(context, bullish=bullish)
     if not _valid_geometry(
@@ -119,14 +122,24 @@ def _candidate_for_direction(
             EntryReference(
                 price=break_event.broken_level,
                 mode=EntryMode.RETEST,
-                rationale=("nearby broken-level retest improves breakout entry quality",),
+                rationale=(
+                    "nearby broken-level retest improves breakout entry quality",
+                ),
             ),
         ),
         config=entry_config,
     )
-    warnings = ("active-candle evidence is provisional",) if context.provisional else ()
+    warnings: list[str] = []
+    if context.provisional:
+        warnings.append("active-candle evidence is provisional")
+    if higher_timeframe_conflict:
+        warnings.append(
+            "higher-timeframe trend conflicts with the decision-frame breakout thesis"
+        )
     volume_quality = (
-        0.5 if features.relative_volume is None else min(1.0, features.relative_volume / 2.0)
+        0.5
+        if features.relative_volume is None
+        else min(1.0, features.relative_volume / 2.0)
     )
     breakout_quality = 1.0 if break_event.quality is BreakQuality.STRONG else 0.8
     return TradeCandidate(
@@ -146,7 +159,9 @@ def _candidate_for_direction(
                     kind=TargetType.LIQUIDITY,
                     price=target_price,
                     label="primary",
-                    rationale=("nearest opposing liquidity or structural objective",),
+                    rationale=(
+                        "nearest opposing liquidity or structural objective",
+                    ),
                 ),
             )
         ),
@@ -163,7 +178,7 @@ def _candidate_for_direction(
                 target=target_price,
             ),
             extension_penalty=min(1.0, extension_atr / maximum_extension_atr),
-            conflict_penalty=0.0,
+            conflict_penalty=0.25 if higher_timeframe_conflict else 0.0,
         ),
         evidence=StrategyEvidence(
             supporting=(
@@ -171,7 +186,7 @@ def _candidate_for_direction(
                 "breakout close remains within the anti-chase extension limit",
                 "entry uses immediate continuation or a nearby broken-level retest",
             ),
-            warnings=warnings,
+            warnings=tuple(warnings),
             feature_references=tuple(
                 name
                 for name, value in (
@@ -188,6 +203,7 @@ def _candidate_for_direction(
             "break_candle_index": break_event.candle_index,
             "break_quality": break_event.quality.value,
             "extension_atr": extension_atr,
+            "higher_timeframe_conflict": higher_timeframe_conflict,
         },
         provisional=context.provisional,
     )
@@ -213,19 +229,31 @@ def _momentum_supports_breakout(context: StrategyContext, *, bullish: bool) -> b
     features = context.decision_frame.features
     signals = tuple(
         value
-        for value in (features.macd_histogram, features.rate_of_change, features.rsi_slope)
+        for value in (
+            features.macd_histogram,
+            features.rate_of_change,
+            features.rsi_slope,
+        )
         if value is not None
     )
     if not signals:
         return True
-    return any(value >= 0 for value in signals) if bullish else any(value <= 0 for value in signals)
+    return (
+        any(value >= 0 for value in signals)
+        if bullish
+        else any(value <= 0 for value in signals)
+    )
 
 
 def _momentum_quality(context: StrategyContext, *, bullish: bool) -> float:
     features = context.decision_frame.features
     signals = tuple(
         value
-        for value in (features.macd_histogram, features.rate_of_change, features.rsi_slope)
+        for value in (
+            features.macd_histogram,
+            features.rate_of_change,
+            features.rsi_slope,
+        )
         if value is not None
     )
     if not signals:
