@@ -12,7 +12,7 @@ from apex.presentation import (
     format_price,
     format_ratio,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -27,7 +27,7 @@ def render_paper_cycle(
 ) -> str:
     """Render one paper lifecycle cycle from its canonical payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     cycle = _mapping(payload.get("cycle"))
     failures = _sequence(payload.get("provider_failures"))
     sections = [
@@ -70,7 +70,7 @@ def render_paper_pipeline(
 ) -> str:
     """Render one combined intake and lifecycle pipeline payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     intake = _mapping(payload.get("intake"))
     cycle = _mapping(payload.get("cycle"))
     runtime = _mapping(cycle.get("runtime"))
@@ -143,7 +143,7 @@ def render_paper_status(
 ) -> str:
     """Render paper scheduler and operations readiness."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     markets = _sequence(payload.get("markets"))
     sections = [
         render_title("Paper Trading Operations Status"),
@@ -182,7 +182,7 @@ def render_paper_report(
 ) -> str:
     """Render paper performance, guidance, and replay reports."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     performance = _mapping(payload.get("performance"))
     guidance = _mapping(payload.get("guidance"))
     trades = _sequence(guidance.get("trades"))
@@ -226,7 +226,7 @@ def render_paper_trade(
 ) -> str:
     """Render one opened, rejected, updated, partial, or completed paper trade."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     trade = _mapping(payload.get("trade"))
     signal = _mapping(trade.get("signal"))
     plan = _mapping(trade.get("futures_plan")) or _mapping(payload.get("futures_plan"))

@@ -10,7 +10,7 @@ from apex.presentation import (
     format_percentage,
     format_ratio,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -25,7 +25,7 @@ def render_paper_intake(
 ) -> str:
     """Render one paper opportunity-intake summary."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     accepted = _integer(payload.get("accepted"))
     rejected = _integer(payload.get("rejected"))
     duplicates = _integer(payload.get("duplicates_skipped"))
@@ -95,7 +95,7 @@ def render_evidence_progress(
 ) -> str:
     """Render accumulated paper evidence and collection readiness."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     segments = tuple(
         item for value in _sequence(payload.get("segments")) if (item := _mapping(value))
     )
@@ -160,7 +160,7 @@ def render_operational_review(
 ) -> str:
     """Render the persisted forward-paper operational review."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     review_state = payload.get("review_state")
     production_eligible = payload.get("production_eligible") is True
     blockers = _review_blockers(payload, anomaly_count=anomaly_count)

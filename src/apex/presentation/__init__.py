@@ -15,34 +15,19 @@ class OutputMode(StrEnum):
 
     TEXT = "text"
     JSON = "json"
-    VERBOSE = "verbose"
-    DEBUG = "debug"
-
-
-def normalize_output_mode(value: str | OutputMode) -> OutputMode:
-    """Normalize one CLI output-mode value or raise a stable error."""
-
-    if isinstance(value, OutputMode):
-        return value
-    normalized = value.strip().lower()
-    try:
-        return OutputMode(normalized)
-    except ValueError as exc:
-        allowed = ", ".join(mode.value for mode in OutputMode)
-        raise ValueError(f"output mode must be one of: {allowed}") from exc
-
 
 
 def normalize_cli_output_mode(value: str | OutputMode) -> OutputMode:
     """Normalize the active user-facing CLI output surface."""
 
+    if isinstance(value, OutputMode):
+        return value
+
+    normalized = value.strip().lower()
     try:
-        mode = normalize_output_mode(value)
+        return OutputMode(normalized)
     except ValueError as exc:
         raise ValueError("CLI output mode must be one of: text, json") from exc
-    if mode not in {OutputMode.TEXT, OutputMode.JSON}:
-        raise ValueError("CLI output mode must be one of: text, json")
-    return mode
 
 
 _LABELS: dict[str, str] = {
@@ -243,7 +228,6 @@ __all__ = [
     "humanize_warning",
     "humanize_warnings",
     "normalize_cli_output_mode",
-    "normalize_output_mode",
     "render_bullets",
     "render_fields",
     "render_section",

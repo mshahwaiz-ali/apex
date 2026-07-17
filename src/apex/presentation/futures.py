@@ -12,7 +12,7 @@ from apex.presentation import (
     format_score,
     humanize_code,
     humanize_warnings,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -27,7 +27,7 @@ def render_futures_analysis(
 ) -> str:
     """Render one serialized futures analysis without recomputing trading logic."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     symbol = str(payload.get("symbol") or "Unknown symbol")
     approved = str(payload.get("decision") or "NO_TRADE").upper() != "NO_TRADE"
     decision = f"{humanize_code(payload.get('decision'))} Setup" if approved else "No Trade"

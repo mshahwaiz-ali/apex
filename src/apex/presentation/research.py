@@ -11,7 +11,7 @@ from apex.presentation import (
     format_percentage,
     format_ratio,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -22,7 +22,7 @@ from apex.presentation import (
 def render_backtest(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one chronological backtest report."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     metrics = _mapping(payload.get("metrics")) or {}
     metadata = _mapping(payload.get("metadata")) or {}
     failures = _mapping(payload.get("failures")) or {}
@@ -59,7 +59,7 @@ def render_backtest(payload: Mapping[str, object], *, mode: str | OutputMode = "
 def render_campaign(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one chronological campaign payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     variants = _variant_items(payload)
     sections = [
         render_title("Historical Backtest Campaign"),
@@ -86,7 +86,7 @@ def render_campaign(payload: Mapping[str, object], *, mode: str | OutputMode = "
 def render_comparison(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render comparison data from two saved backtest reports."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     sections = [
         render_title("Backtest Comparison"),
         render_section("Comparison", _mapping_fields(payload)),
@@ -102,7 +102,7 @@ def render_edge_report(
 ) -> str:
     """Render one historical futures edge report summary."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     sections = [
         render_title("Historical Futures Edge Report"),
         render_section(
@@ -130,7 +130,7 @@ def render_edge_validation(
 ) -> str:
     """Render one out-of-sample historical edge validation summary."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     sections = [
         render_title("Historical Edge Validation"),
         render_section(
@@ -161,7 +161,7 @@ def render_dataset_export(
 ) -> str:
     """Render historical dataset export completion."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     candles = _sequence(payload.get("candles"))
     sections = [
         render_title("Historical Dataset Export"),

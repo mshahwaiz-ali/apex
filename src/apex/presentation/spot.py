@@ -11,7 +11,7 @@ from apex.presentation import (
     format_percentage,
     format_price,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -27,7 +27,7 @@ def render_spot_analysis(
 ) -> str:
     """Render one canonical spot analysis or orchestration payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     selected = _mapping(payload.get("selected_strategy"))
     planning = _mapping(payload.get("planning"))
     candidates = _mapping_sequence(payload.get("candidates"))
@@ -74,7 +74,7 @@ def render_spot_plan(
 ) -> str:
     """Render one standalone bounded spot plan payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     sections = [render_title("Spot Position Plan"), *_planning_sections(payload)]
     warnings = _strings(payload.get("warnings"))
     if warnings:
@@ -87,7 +87,7 @@ def render_spot_scan(
 ) -> str:
     """Render ranked live spot scan results and eligibility outcomes."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     ranked = _mapping_sequence(payload.get("ranked"))
     ineligible = _mapping_sequence(payload.get("ineligible"))
     failures = _mapping_sequence(payload.get("failures"))

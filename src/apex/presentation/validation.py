@@ -10,7 +10,7 @@ from apex.presentation import (
     format_percentage,
     format_ratio,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -26,7 +26,7 @@ def render_validation(
 ) -> str:
     """Render one validation, evidence, or readiness payload."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     report = _mapping(payload.get("report")) or payload
     daily = _mapping(payload.get("daily_history"))
     record = _mapping(payload.get("record"))
@@ -67,7 +67,7 @@ def render_evidence_bundle(
 ) -> str:
     """Render one setup-specific evidence bundle."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     dimensions = _mapping(payload.get("dimensions")) or {}
     sections = [
         render_title("Evidence Bundle"),

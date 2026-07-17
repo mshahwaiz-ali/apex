@@ -13,7 +13,7 @@ from apex.presentation import (
     format_ratio,
     format_score,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -28,7 +28,7 @@ def render_futures_simulation(
 ) -> str:
     """Explain one current-setup simulation payload without changing its schema."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     symbol = str(payload.get("symbol") or _nested(payload, "trade", "signal", "symbol") or UNAVAILABLE)
     title = render_title(f"Futures Setup Simulation — {symbol}")
 

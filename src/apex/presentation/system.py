@@ -11,7 +11,7 @@ from apex.presentation import (
     format_percentage,
     format_price,
     humanize_code,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_bullets,
     render_fields,
     render_section,
@@ -22,7 +22,7 @@ from apex.presentation import (
 def render_ticker(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one normalized ticker snapshot."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     bid = _number(payload.get("bid_price"))
     ask = _number(payload.get("ask_price"))
     spread = ask - bid if bid is not None and ask is not None else None
@@ -63,7 +63,7 @@ def render_candles(
 ) -> str:
     """Render a concise OHLCV candle summary with optional detailed rows."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     if not payload:
         return "\n\n".join(
             (
@@ -125,7 +125,7 @@ def render_config(
 ) -> str:
     """Render resolved configuration without exposing machine-style JSON by default."""
 
-    normalize_output_mode(mode)
+    normalize_cli_output_mode(mode)
     sections = [
         render_title("Apex Configuration"),
         render_section(
