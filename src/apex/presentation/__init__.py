@@ -31,36 +31,28 @@ def normalize_cli_output_mode(value: str | OutputMode) -> OutputMode:
 
 
 _LABELS: dict[str, str] = {
-    "AGGRESSIVE": "Aggressive",
-    "APPROACHING_ENTRY": "Approaching entry",
-    "AUTOMATIC": "Automatic",
+    "AGGRESSIVE_NOW": "Aggressive now",
     "BEARISH": "Bearish",
     "BULLISH": "Bullish",
     "CANDIDATE_REJECTED": "Setup did not meet quality requirements",
     "ENVIRONMENT_BLOCKED": "Market conditions blocked trading",
-    "EXTREME": "Extreme",
     "FAILED_BREAKOUT_DOWN": "Failed downside breakout",
     "FAILED_BREAKOUT_UP": "Failed upside breakout",
     "INVALIDATED": "Setup invalidated",
-    "ISOLATED": "Isolated",
+    "LATE_OR_CHASING": "Late or chasing",
     "LONG": "Long",
-    "MANUAL": "Manual",
-    "MISSED_ENTRY": "Entry already missed",
     "NEUTRAL": "Neutral",
     "NO_CANDIDATE_GENERATED": "No valid setup formed",
     "NO_ROUTED_STRATEGY": "No suitable strategy matched current conditions",
     "NO_TRADE": "No trade",
-    "NORMAL": "Normal",
+    "PULLBACK_PREFERRED": "Pullback preferred",
     "RANGE": "Range",
     "READY_NOW": "Ready now",
     "SHORT": "Short",
-    "STANDARD": "Standard",
     "STRONGLY_BEARISH": "Strongly bearish",
     "STRONGLY_BULLISH": "Strongly bullish",
     "UNSTABLE": "Unstable",
-    "WAIT_FOR_RECLAIM": "Wait for reclaim",
-    "WAIT_FOR_RETEST": "Wait for retest",
-    "WATCH": "Watch",
+    "WATCH_NEAR_ENTRY": "Watch near entry",
     "WEAKLY_BEARISH": "Weakly bearish",
     "WEAKLY_BULLISH": "Weakly bullish",
 }
@@ -198,7 +190,10 @@ def render_fields(
 ) -> str:
     """Render aligned label/value fields with stable indentation."""
 
-    normalized = [(str(label).strip(), unavailable if value is None else str(value)) for label, value in fields]
+    normalized = [
+        (str(label).strip(), unavailable if value is None else str(value))
+        for label, value in fields
+    ]
     if not normalized:
         return ""
     label_width = max(len(label) for label, _ in normalized)
