@@ -23,6 +23,7 @@ from apex.optimization.engine import (
 )
 
 S10_EMPIRICAL_REPORT_SCHEMA_VERSION = 2
+S10_SUPPORTED_EMPIRICAL_REPORT_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,8 +159,19 @@ def load_and_verify_empirical_calibration_report(path: Path) -> EmpiricalCalibra
         raise ValueError("empirical calibration report hash is missing")
     if _hash_payload(payload) != report_hash:
         raise ValueError("empirical calibration report hash does not match its payload")
+    _validate_report_schema_version(payload)
     payload["report_sha256"] = report_hash
     return EmpiricalCalibrationReport(payload=payload, report_sha256=report_hash)
+
+
+def _validate_report_schema_version(payload: dict[str, Any]) -> None:
+    schema_version = payload.get("schema_version")
+    if (
+        not isinstance(schema_version, int)
+        or isinstance(schema_version, bool)
+        or schema_version not in S10_SUPPORTED_EMPIRICAL_REPORT_SCHEMA_VERSIONS
+    ):
+        raise ValueError("empirical calibration report schema version is unsupported")
 
 
 def _stability_payload(
