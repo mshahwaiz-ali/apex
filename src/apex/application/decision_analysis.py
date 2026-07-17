@@ -67,7 +67,6 @@ def analyze_symbol(
         regime_by_timeframe=base.regime_by_timeframe,
         data_quality_by_timeframe=base.data_quality_by_timeframe,
         strategy_routing=base.strategy_routing,
-        precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
         candidate_ranking=base.candidate_ranking,
         market_environment=environment,
