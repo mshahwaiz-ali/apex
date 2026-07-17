@@ -142,7 +142,6 @@ def analyze_symbol(
         precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
         candidate_ranking=base.candidate_ranking,
-        risk_rejection_diagnostics=(),
         market_environment=environment,
         market_state=market_state,
     )
