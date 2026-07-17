@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from apex.scoring import CandidateOutcome, Phase5AnalysisResult, RankedCandidate
+from apex.scoring import (
+    CandidateOutcome,
+    Phase5AnalysisResult,
+    RankedCandidate,
+    score_band_for,
+)
 from apex.scoring.rank_score import (
     RANK_SCORE_WEIGHTS,
     CandidateScoreDimensions,
@@ -25,6 +30,15 @@ class CandidateRankingRole(StrEnum):
     REJECTED = "rejected"
 
 
+class CandidateQualityLabel(StrEnum):
+    """Simple operator-facing opportunity quality label."""
+
+    STRONG = "strong"
+    USABLE = "usable"
+    SPECULATIVE = "speculative"
+    REJECTED = "rejected"
+
+
 @dataclass(frozen=True, slots=True)
 class CandidateRankingRecord:
     """One ranked strategy candidate preserved for analysis output."""
@@ -38,6 +52,8 @@ class CandidateRankingRecord:
     unpenalized_rank_score: float
     rank_penalty_score: float
     final_rank_score: float
+    score_band: str
+    quality_label: CandidateQualityLabel
     score_dimensions: CandidateScoreDimensions
     outcome: str
     reason_codes: tuple[str, ...]
@@ -56,6 +72,8 @@ class CandidateRankingRecord:
             raise ValueError("candidate rank penalty score cannot be negative")
         if not 0.0 <= self.final_rank_score <= 100.0:
             raise ValueError("candidate final rank score must be between zero and 100")
+        if not self.score_band.strip():
+            raise ValueError("candidate score band cannot be empty")
         if not self.strategy.strip() or not self.direction.strip():
             raise ValueError("candidate ranking strategy and direction cannot be empty")
 
@@ -160,11 +178,33 @@ def _record(
         unpenalized_rank_score=unpenalized_rank_score(item.scored),
         rank_penalty_score=rank_penalty_score(item.scored),
         final_rank_score=final_rank_score(item.scored),
+        score_band=score_band_for(final_rank_score(item.scored)),
+        quality_label=candidate_quality_label(
+            final_rank_score=final_rank_score(item.scored),
+            role=role,
+        ),
         score_dimensions=score_dimensions(item.scored),
         outcome=item.outcome.value,
         reason_codes=tuple(dict.fromkeys((*alignment_codes,))),
         reasons=item.reasons,
     )
+
+
+def candidate_quality_label(
+    *,
+    final_rank_score: float,
+    role: CandidateRankingRole,
+) -> CandidateQualityLabel:
+    """Map canonical score bands and outcome role to a simple quality label."""
+
+    if role is CandidateRankingRole.REJECTED:
+        return CandidateQualityLabel.REJECTED
+    band = score_band_for(final_rank_score)
+    if band in {"75_84", "85_89", "90_94", "95_100"}:
+        return CandidateQualityLabel.STRONG
+    if band == "65_74":
+        return CandidateQualityLabel.USABLE
+    return CandidateQualityLabel.SPECULATIVE
 
 
 def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
@@ -178,6 +218,8 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "unpenalized_rank_score": item.unpenalized_rank_score,
         "rank_penalty_score": item.rank_penalty_score,
         "final_rank_score": item.final_rank_score,
+        "score_band": item.score_band,
+        "quality_label": item.quality_label.value,
         "score_dimensions": {
             "opportunity_score": item.score_dimensions.opportunity_score,
             "setup_score": item.score_dimensions.setup_score,
