@@ -21,7 +21,6 @@ from apex.scoring.rank_score import (
 )
 
 
-
 class CandidateRankingRole(StrEnum):
     """Role assigned after deterministic candidate ranking."""
 
@@ -224,7 +223,7 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
             "opportunity_score": item.score_dimensions.opportunity_score,
             "setup_score": item.score_dimensions.setup_score,
             "timing_score": item.score_dimensions.timing_score,
-            "risk_feasibility_score": item.score_dimensions.risk_feasibility_score,
+            "trade_quality_score": item.score_dimensions.trade_quality_score,
         },
         "outcome": item.outcome,
         "reason_codes": list(item.reason_codes),
