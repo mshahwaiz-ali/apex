@@ -294,7 +294,7 @@ def _opportunity_summary_lines(
             f"Score profile: opportunity {dimensions.opportunity_score:.1f} | "
             f"setup {dimensions.setup_score:.1f} | "
             f"timing {dimensions.timing_score:.1f} | "
-            f"feasibility {dimensions.risk_feasibility_score:.1f} | "
+            f"trade quality {dimensions.trade_quality_score:.1f} | "
             f"penalties {record.rank_penalty_score:.1f}"
         ),
     )
