@@ -84,7 +84,7 @@ def test_non_approved_candidate_cannot_be_sized() -> None:
     except ValueError as error:
         assert "approved strategy" in str(error)
     else:
-        raise AssertionError("WATCH candidate should not receive an S4 plan")
+        raise AssertionError("WATCH candidate should not receive a spot plan")
 
 
 def test_spot_lifecycle_replay_is_deterministic() -> None:

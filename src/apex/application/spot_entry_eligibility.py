@@ -1,4 +1,4 @@
-"""Deterministic entry gate for S2 spot analysis."""
+"""Deterministic entry gate for spot structure analysis."""
 
 from __future__ import annotations
 

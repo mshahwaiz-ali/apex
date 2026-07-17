@@ -1,4 +1,4 @@
-"""Deterministic S4 spot entry, allocation, exit, and lifecycle planning."""
+"""Deterministic spot entry, allocation, exit, and lifecycle planning."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def build_spot_plan(
     *,
     config: SpotProductConfig,
 ) -> SpotPlanningResult:
-    """Build a bounded cash-funded spot plan from an approved S3 candidate."""
+    """Build a bounded cash-funded spot plan from an approved strategy candidate."""
 
     if request.candidate.decision is not SpotStrategyDecision.APPROVE:
         raise ValueError("spot planning requires an approved strategy candidate")

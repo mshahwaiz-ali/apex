@@ -1,4 +1,4 @@
-"""Provider-independent contracts for S3 spot strategy evaluation."""
+"""Provider-independent contracts for spot strategy evaluation."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class SpotStrategyEligibility(StrEnum):
 
 
 class SpotStrategyInput(BaseModel):
-    """Normalized S2 outputs and measurable S3 setup features."""
+    """Normalized structure outputs and measurable strategy setup features."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

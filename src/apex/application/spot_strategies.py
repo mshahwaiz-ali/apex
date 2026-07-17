@@ -1,4 +1,4 @@
-"""Deterministic S3 spot strategy evaluators and routing."""
+"""Deterministic spot strategy evaluators and routing."""
 
 from __future__ import annotations
 

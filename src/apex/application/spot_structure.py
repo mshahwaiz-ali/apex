@@ -1,4 +1,4 @@
-"""Deterministic S2 spot structure and regime classifiers."""
+"""Deterministic spot structure and regime classifiers."""
 
 from __future__ import annotations
 

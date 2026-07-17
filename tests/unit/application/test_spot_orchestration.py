@@ -1,4 +1,4 @@
-"""Tests for the provider-independent S2-to-S4 spot bridge."""
+"""Tests for the provider-independent spot analysis and planning bridge."""
 
 from __future__ import annotations
 

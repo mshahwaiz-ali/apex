@@ -56,7 +56,7 @@ def analyze_live_spot(
     timeframes: tuple[str, ...] = DEFAULT_SPOT_LIVE_TIMEFRAMES,
     now: datetime | None = None,
 ) -> SpotAnalysisResult:
-    """Fetch public data, build canonical inputs, and reuse S5 orchestration."""
+    """Fetch public data, build canonical inputs, and reuse spot orchestration."""
 
     if candle_limit < 60:
         raise ValueError("spot live analysis requires at least 60 candles per timeframe")

@@ -1,4 +1,4 @@
-"""Validated thresholds for S3 spot strategies."""
+"""Validated thresholds for spot strategies."""
 
 from pathlib import Path
 from typing import Any, Self

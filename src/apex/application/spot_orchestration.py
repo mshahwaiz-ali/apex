@@ -1,4 +1,4 @@
-"""Deterministic provider-independent S2-to-S4 spot orchestration bridge."""
+"""Deterministic provider-independent spot analysis and planning bridge."""
 
 from __future__ import annotations
 

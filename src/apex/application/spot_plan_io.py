@@ -21,7 +21,7 @@ SPOT_PLAN_SCHEMA_VERSION = 1
 
 
 class SpotPlanningInput(BaseModel):
-    """Validated JSON input for one canonical S4 spot plan."""
+    """Validated JSON input for one canonical spot plan."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
