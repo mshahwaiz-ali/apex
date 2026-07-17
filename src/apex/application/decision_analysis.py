@@ -90,7 +90,6 @@ def analyze_symbol(
         precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
         candidate_ranking=base.candidate_ranking,
-        risk_rejection_diagnostics=(),
         market_environment=environment,
         market_state=base.market_state,
         market_strategy_route=route,
@@ -145,7 +144,6 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Serialize analysis with route and near-current entry overlays."""
 
     payload = _integrated.serialize_symbol_analysis(analysis)
-    payload.pop("risk_rejection_diagnostics", None)
     route = getattr(analysis, "market_strategy_route", None)
     near_entry = getattr(analysis, "near_current_entry", None)
     payload["market_strategy_route"] = (
