@@ -17,6 +17,27 @@ class CandidateRankingRole(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateScoreDimensions:
+    """Transparent diagnostic dimensions derived from existing quality metrics."""
+
+    opportunity_score: float
+    setup_score: float
+    timing_score: float
+    risk_score: float
+
+    def __post_init__(self) -> None:
+        for name in (
+            "opportunity_score",
+            "setup_score",
+            "timing_score",
+            "risk_score",
+        ):
+            value = getattr(self, name)
+            if not 0.0 <= value <= 100.0:
+                raise ValueError(f"{name.replace('_', ' ')} must be between zero and 100")
+
+
+@dataclass(frozen=True, slots=True)
 class CandidateRankingRecord:
     """One ranked strategy candidate preserved for analysis output."""
 
@@ -26,6 +47,7 @@ class CandidateRankingRecord:
     strategy: str
     direction: str
     final_score: float
+    score_dimensions: CandidateScoreDimensions
     outcome: str
     reason_codes: tuple[str, ...]
     reasons: tuple[str, ...]
@@ -137,10 +159,32 @@ def _record(
         strategy=item.candidate.strategy.value,
         direction=item.candidate.direction.value,
         final_score=item.final_score,
+        score_dimensions=_score_dimensions(item),
         outcome=item.outcome.value,
         reason_codes=tuple(dict.fromkeys((*alignment_codes,))),
         reasons=item.reasons,
     )
+
+
+def _score_dimensions(item: RankedCandidate) -> CandidateScoreDimensions:
+    metrics = item.scored.normalized_metrics
+    return CandidateScoreDimensions(
+        opportunity_score=_percentage_mean(
+            metrics["momentum_quality"],
+            metrics["volume_quality"],
+            metrics["liquidity_quality"],
+        ),
+        setup_score=_percentage_mean(
+            metrics["trend_alignment"],
+            metrics["structure_quality"],
+        ),
+        timing_score=round(metrics["entry_quality"] * 100.0, 6),
+        risk_score=round(metrics["target_space_quality"] * 100.0, 6),
+    )
+
+
+def _percentage_mean(*values: float) -> float:
+    return round(sum(values) / len(values) * 100.0, 6)
 
 
 def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
@@ -151,6 +195,12 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "strategy": item.strategy,
         "direction": item.direction,
         "final_score": item.final_score,
+        "score_dimensions": {
+            "opportunity_score": item.score_dimensions.opportunity_score,
+            "setup_score": item.score_dimensions.setup_score,
+            "timing_score": item.score_dimensions.timing_score,
+            "risk_score": item.score_dimensions.risk_score,
+        },
         "outcome": item.outcome,
         "reason_codes": list(item.reason_codes),
         "reasons": list(item.reasons),
