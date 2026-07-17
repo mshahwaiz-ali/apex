@@ -31,18 +31,27 @@ class StabilityPolicy:
     minimum_symbols: int = 2
     minimum_regimes: int = 1
     minimum_score_bands: int = 1
+    require_entry_actionability_distribution: bool = False
+    minimum_entry_actionabilities: int = 1
     maximum_symbol_trade_share: float = 0.70
     maximum_regime_trade_share: float = 0.90
     maximum_score_band_trade_share: float = 0.90
+    maximum_entry_actionability_trade_share: float = 0.90
 
     def __post_init__(self) -> None:
-        for name in ("minimum_symbols", "minimum_regimes", "minimum_score_bands"):
+        for name in (
+            "minimum_symbols",
+            "minimum_regimes",
+            "minimum_score_bands",
+            "minimum_entry_actionabilities",
+        ):
             if getattr(self, name) < 1:
                 raise ValueError(f"{name.replace('_', ' ')} must be positive")
         for name in (
             "maximum_symbol_trade_share",
             "maximum_regime_trade_share",
             "maximum_score_band_trade_share",
+            "maximum_entry_actionability_trade_share",
         ):
             value = getattr(self, name)
             if not 0.0 < value <= 1.0:
@@ -156,7 +165,7 @@ def _stability_payload(
     policy: StabilityPolicy,
 ) -> dict[str, Any]:
     reasons: list[str] = []
-    checks = (
+    checks = [
         ("symbols", summary.by_symbol, policy.minimum_symbols, policy.maximum_symbol_trade_share),
         ("regimes", summary.by_regime, policy.minimum_regimes, policy.maximum_regime_trade_share),
         (
@@ -165,7 +174,16 @@ def _stability_payload(
             policy.minimum_score_bands,
             policy.maximum_score_band_trade_share,
         ),
-    )
+    ]
+    if summary.by_entry_actionability or policy.require_entry_actionability_distribution:
+        checks.append(
+            (
+                "entry_actionabilities",
+                summary.by_entry_actionability,
+                policy.minimum_entry_actionabilities,
+                policy.maximum_entry_actionability_trade_share,
+            )
+        )
     distributions: dict[str, dict[str, float | int]] = {}
     for label, counts, minimum_groups, maximum_share in checks:
         positive = {key: count for key, count in counts.items() if count > 0}
@@ -185,9 +203,16 @@ def _stability_payload(
             "minimum_symbols": policy.minimum_symbols,
             "minimum_regimes": policy.minimum_regimes,
             "minimum_score_bands": policy.minimum_score_bands,
+            "require_entry_actionability_distribution": (
+                policy.require_entry_actionability_distribution
+            ),
+            "minimum_entry_actionabilities": policy.minimum_entry_actionabilities,
             "maximum_symbol_trade_share": policy.maximum_symbol_trade_share,
             "maximum_regime_trade_share": policy.maximum_regime_trade_share,
             "maximum_score_band_trade_share": policy.maximum_score_band_trade_share,
+            "maximum_entry_actionability_trade_share": (
+                policy.maximum_entry_actionability_trade_share
+            ),
         },
         "distributions": distributions,
     }
