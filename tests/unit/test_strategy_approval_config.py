@@ -38,7 +38,7 @@ def test_default_strategy_approval_configuration_loads() -> None:
             StrategyType.BREAKOUT_CONTINUATION,
             RiskMode.STANDARD,
         )
-        == 84.0
+        == 60.0
     )
 
 
@@ -83,4 +83,4 @@ def test_threshold_lookup_is_deterministic() -> None:
     first = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.STANDARD)
     second = config.minimum_score_for(StrategyType.LIQUIDITY_REVERSAL, RiskMode.STANDARD)
 
-    assert first == second == 78.0
+    assert first == second == 58.0

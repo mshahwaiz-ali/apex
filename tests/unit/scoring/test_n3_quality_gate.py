@@ -145,7 +145,7 @@ def test_strategy_score_below_mode_threshold_is_rejected() -> None:
     decision = evaluate_strategy_approval(
         strategy=StrategyType.BREAKOUT_CONTINUATION,
         risk_mode=RiskMode.STANDARD,
-        score=83.0,
+        score=59.0,
         entry_state=EntryState.READY_NOW,
         config=_config(),
     )
@@ -153,15 +153,15 @@ def test_strategy_score_below_mode_threshold_is_rejected() -> None:
     assert decision.approved is False
     assert decision.eligibility is SetupEligibility.REJECTED
     assert decision.reasons[0].code is ApprovalReasonCode.STRATEGY_SCORE_BELOW_MODE_THRESHOLD
-    assert "83.00" in decision.reasons[0].message
-    assert "84.00" in decision.reasons[0].message
+    assert "59.00" in decision.reasons[0].message
+    assert "60.00" in decision.reasons[0].message
 
 
 def test_breakout_retest_uses_controlled_threshold_adjustment() -> None:
     decision = evaluate_candidate_quality_gate(
         _scored_candidate(
             strategy=StrategyType.BREAKOUT_CONTINUATION,
-            score=77.0,
+            score=53.0,
             entry_mode=EntryMode.RETEST,
         ),
         risk_mode=RiskMode.STANDARD,
@@ -169,7 +169,7 @@ def test_breakout_retest_uses_controlled_threshold_adjustment() -> None:
     )
 
     assert decision.approved is True
-    assert decision.required_score == 76.0
+    assert decision.required_score == 52.0
     assert QualityGateReasonCode.BREAKOUT_RETEST_PREFERRED in {
         reason.code for reason in decision.reasons
     }
@@ -189,8 +189,26 @@ def test_direct_breakout_requires_volume_and_target_space() -> None:
     )
 
     assert decision.approved is False
-    codes = {reason.code for reason in decision.reasons if reason.blocking}
-    assert QualityGateReasonCode.DIRECT_BREAKOUT_VOLUME_TOO_WEAK in codes
-    assert QualityGateReasonCode.DIRECT_BREAKOUT_TARGET_SPACE_INSUFFICIENT in codes
+    blocking_codes = {reason.code for reason in decision.reasons if reason.blocking}
+    warning_codes = {reason.code for reason in decision.reasons if not reason.blocking}
+    assert QualityGateReasonCode.DIRECT_BREAKOUT_VOLUME_TOO_WEAK in warning_codes
+    assert QualityGateReasonCode.DIRECT_BREAKOUT_TARGET_SPACE_INSUFFICIENT in blocking_codes
 
+def test_momentum_confirmation_shortfalls_are_warnings_above_floor() -> None:
+    decision = evaluate_candidate_quality_gate(
+        _scored_candidate(
+            strategy=StrategyType.MOMENTUM_CONTINUATION,
+            score=54.0,
+            entry_mode=EntryMode.MOMENTUM_CONTINUATION,
+            volume_quality=0.5,
+            momentum_quality=0.5,
+        ),
+        risk_mode=RiskMode.STANDARD,
+        config=_config(),
+    )
+
+    assert decision.approved is True
+    warning_codes = {reason.code for reason in decision.reasons if not reason.blocking}
+    assert QualityGateReasonCode.MOMENTUM_VOLUME_CONFIRMATION_MISSING in warning_codes
+    assert QualityGateReasonCode.MOMENTUM_QUALITY_INSUFFICIENT in warning_codes
 

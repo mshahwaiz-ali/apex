@@ -116,8 +116,8 @@ def evaluate_candidate_quality_gate(
             reasons.append(
                 QualityGateReason(
                     code=QualityGateReasonCode.DIRECT_BREAKOUT_VOLUME_TOO_WEAK,
-                    message="Direct breakout lacks the required volume quality.",
-                    blocking=True,
+                    message="Direct breakout has weak volume confirmation.",
+                    blocking=False,
                 )
             )
         if quality.target_space_quality < 0.60:
@@ -142,16 +142,16 @@ def evaluate_candidate_quality_gate(
             reasons.append(
                 QualityGateReason(
                     code=QualityGateReasonCode.MOMENTUM_VOLUME_CONFIRMATION_MISSING,
-                    message="Momentum setup lacks required volume confirmation.",
-                    blocking=True,
+                    message="Momentum setup has weak volume confirmation.",
+                    blocking=False,
                 )
             )
         if quality.momentum_quality < 0.70:
             reasons.append(
                 QualityGateReason(
                     code=QualityGateReasonCode.MOMENTUM_QUALITY_INSUFFICIENT,
-                    message="Momentum quality is below the controlled minimum.",
-                    blocking=True,
+                    message="Momentum quality is below the preferred level.",
+                    blocking=False,
                 )
             )
     blocking = any(reason.blocking for reason in reasons)

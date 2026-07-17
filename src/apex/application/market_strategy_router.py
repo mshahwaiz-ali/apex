@@ -74,18 +74,22 @@ _REGIME_STRATEGIES: dict[MarketRegime, tuple[StrategyType, ...]] = {
     MarketRegime.FAILED_BREAKOUT_UP: (
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,
+        StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.FAILED_BREAKOUT_DOWN: (
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,
+        StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.EXHAUSTION_UP: (
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,
+        StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.EXHAUSTION_DOWN: (
         StrategyType.LIQUIDITY_REVERSAL,
         StrategyType.RANGE_REVERSAL,
+        StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.REVERSAL_UP: (
         StrategyType.LIQUIDITY_REVERSAL,

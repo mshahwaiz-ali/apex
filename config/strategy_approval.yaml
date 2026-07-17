@@ -2,20 +2,20 @@ strategies:
   trend_pullback:
     quality_class: PREFERRED
     minimum_scores:
-      STANDARD: 74.0
+      STANDARD: 56.0
   breakout_continuation:
     quality_class: RESTRICTED
     minimum_scores:
-      STANDARD: 84.0
+      STANDARD: 60.0
   liquidity_reversal:
     quality_class: PREFERRED
     minimum_scores:
-      STANDARD: 78.0
+      STANDARD: 58.0
   range_reversal:
     quality_class: CONTROLLED
     minimum_scores:
-      STANDARD: 80.0
+      STANDARD: 58.0
   momentum_continuation:
     quality_class: RESTRICTED
     minimum_scores:
-      STANDARD: 86.0
+      STANDARD: 52.0
