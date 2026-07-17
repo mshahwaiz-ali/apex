@@ -199,6 +199,7 @@ class SymbolAnalysis:
     precision_entry: Mapping[str, Any] | None = None
     phase5_diagnostics: Mapping[str, Any] | None = None
     candidate_ranking: CandidateRankingSnapshot | None = None
+    risk_rejection_diagnostics: tuple[Mapping[str, object], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
