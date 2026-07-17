@@ -43,6 +43,7 @@ from apex.strategies.evidence import (
     strategy_evidence_payload,
     strategy_evidence_summary,
 )
+from apex.strategies.exhaustion_reversal import generate_exhaustion_reversal_candidates
 from apex.strategies.failed_breakout_reversal import (
     generate_failed_breakout_reversal_candidates,
 )
@@ -55,10 +56,14 @@ from apex.strategies.liquidity_rejection_reversal import (
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_breakout import generate_momentum_breakout_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
+from apex.strategies.momentum_scalp import generate_momentum_scalp_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGenerator
 from apex.strategies.strategy_types import StrategyType
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
+from apex.strategies.vwap_reclaim_rejection import (
+    generate_vwap_reclaim_rejection_candidates,
+)
 
 __all__ = [
     "STRATEGY_REGISTRY",
@@ -94,14 +99,17 @@ __all__ = [
     "generate_breakout_continuation_candidates",
     "generate_breakout_retest_candidates",
     "generate_compression_expansion_candidates",
+    "generate_exhaustion_reversal_candidates",
     "generate_failed_breakout_reversal_candidates",
     "generate_first_pullback_continuation_candidates",
     "generate_liquidity_rejection_reversal_candidates",
     "generate_liquidity_reversal_candidates",
     "generate_momentum_breakout_candidates",
     "generate_momentum_continuation_candidates",
+    "generate_momentum_scalp_candidates",
     "generate_range_reversal_candidates",
     "generate_trend_pullback_candidates",
+    "generate_vwap_reclaim_rejection_candidates",
     "normalize_strategy_evidence",
     "select_entry_zone",
     "strategy_evidence_payload",
