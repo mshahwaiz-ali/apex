@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "apex-trading-agent"
 version = "0.1.0"
-description = "Deterministic Binance futures trade-discovery and trade-planning engine."
+description = "Deterministic Binance futures opportunity-discovery and analysis engine."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
