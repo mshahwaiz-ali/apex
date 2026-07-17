@@ -45,6 +45,6 @@ class LiquidityRegistry:
 
 
 def create_default_liquidity_registry() -> LiquidityRegistry:
-    """Return the stable public Phase 3 liquidity registry."""
+    """Return the stable public liquidity-analysis registry."""
 
     return LiquidityRegistry((("market_liquidity", analyze_liquidity),))

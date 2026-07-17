@@ -40,6 +40,6 @@ class StructureRegistry:
 
 
 def create_default_structure_registry() -> StructureRegistry:
-    """Return the stable public Phase 3 structure registry."""
+    """Return the stable public structure-analysis registry."""
 
     return StructureRegistry((("market_structure", analyze_structure),))

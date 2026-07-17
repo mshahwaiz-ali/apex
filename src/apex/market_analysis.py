@@ -1,4 +1,4 @@
-"""Combined deterministic Phase 3 structure and liquidity analysis."""
+"""Combined deterministic structure and liquidity market analysis."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from apex.structure.regime import MarketRegime, classify_market_regime
 
 
 @dataclass(frozen=True, slots=True)
-class Phase3AnalysisResult:
-    """Composable output from the Phase 3 structure and liquidity pipeline."""
+class MarketAnalysisResult:
+    """Composable structure, liquidity, and regime analysis output."""
 
     structure: StructureAnalysisResult
     liquidity: LiquidityAnalysisResult
@@ -27,7 +27,7 @@ class Phase3AnalysisResult:
         return classify_market_regime(self.structure)
 
 
-def analyze_phase3(
+def analyze_structure_and_liquidity(
     candles: Sequence[Candle],
     *,
     left_window: int = 2,
@@ -35,7 +35,7 @@ def analyze_phase3(
     relative_volume: Sequence[float | None] | None = None,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
     zone_tolerance: float = 0.002,
-) -> Phase3AnalysisResult:
+) -> MarketAnalysisResult:
     """Run structure first, then liquidity, with no strategy assumptions."""
 
     if relative_volume is not None and len(relative_volume) != len(candles):
@@ -54,4 +54,4 @@ def analyze_phase3(
         active_candle_policy=active_candle_policy,
         zone_tolerance=zone_tolerance,
     )
-    return Phase3AnalysisResult(structure=structure, liquidity=liquidity)
+    return MarketAnalysisResult(structure=structure, liquidity=liquidity)

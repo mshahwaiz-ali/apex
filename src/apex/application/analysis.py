@@ -42,7 +42,7 @@ from apex.domain.models import (
     TickerSnapshot,
 )
 from apex.features.registry import create_default_feature_registry
-from apex.phase3 import analyze_phase3
+from apex.market_analysis import analyze_structure_and_liquidity
 from apex.risk import (
     DEFAULT_RISK_CONFIG,
     ExposureState,
@@ -598,7 +598,7 @@ def _frame_from_candles(
     features_by_name = create_default_feature_registry().calculate_all(candles)
     relative_volume = features_by_name["relative_volume_20"][0].values
     relative_volume_for_phase3 = relative_volume if len(relative_volume) == len(candles) else None
-    phase3 = analyze_phase3(candles, relative_volume=relative_volume_for_phase3)
+    phase3 = analyze_structure_and_liquidity(candles, relative_volume=relative_volume_for_phase3)
     latest_closed = candles[-2] if not candles[-1].is_closed and len(candles) > 1 else candles[-1]
     active_candle_price = candles[-1].close if not candles[-1].is_closed else None
     live_price, live_price_source = _select_current_price(

@@ -22,7 +22,7 @@ def analyze_structure(
     relative_volume: Sequence[float | None] | None = None,
     active_candle_policy: ActiveCandlePolicy = ActiveCandlePolicy.DROP_FINAL,
 ) -> StructureAnalysisResult:
-    """Run the Phase 3 structure pipeline in a fixed execution order."""
+    """Run structure analysis in a fixed execution order."""
 
     if relative_volume is not None and len(relative_volume) != len(candles):
         raise ValueError("relative_volume length must match candle count")

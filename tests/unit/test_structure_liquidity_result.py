@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from apex.domain import Candle
-from apex.phase3 import analyze_phase3
+from apex.market_analysis import analyze_structure_and_liquidity
 from apex.structure import MarketRegime
 
 
@@ -29,8 +29,8 @@ def _candles() -> tuple[Candle, ...]:
 
 
 def test_combined_result_exposes_deterministic_market_regime() -> None:
-    first = analyze_phase3(_candles())
-    second = analyze_phase3(_candles())
+    first = analyze_structure_and_liquidity(_candles())
+    second = analyze_structure_and_liquidity(_candles())
 
     assert isinstance(first.regime, MarketRegime)
     assert first.regime is second.regime
