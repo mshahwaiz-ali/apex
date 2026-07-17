@@ -1,4 +1,4 @@
-"""Immutable contracts for optional Phase 11 market intelligence."""
+"""Immutable contracts for optional market intelligence."""
 
 from __future__ import annotations
 

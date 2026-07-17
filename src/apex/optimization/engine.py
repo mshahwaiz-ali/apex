@@ -1,4 +1,4 @@
-"""Framework-first Phase 10 optimization evaluation."""
+"""Framework-first optimization evaluation."""
 
 from __future__ import annotations
 

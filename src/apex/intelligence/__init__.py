@@ -1,4 +1,4 @@
-"""Public Phase 11 market-intelligence API."""
+"""Public market-intelligence API."""
 
 from apex.intelligence.analysis import (
     calculate_symbol_correlation,

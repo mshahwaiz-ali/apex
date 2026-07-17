@@ -1,4 +1,4 @@
-"""Public Phase 10 optimization API."""
+"""Public optimization API."""
 
 from apex.optimization.adapters import (
     performance_from_futures_historical_payload,

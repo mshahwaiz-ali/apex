@@ -1,4 +1,4 @@
-"""Local JSON storage for Phase 9 paper trading."""
+"""Local JSON storage for paper trading."""
 
 from __future__ import annotations
 

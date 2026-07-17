@@ -1,4 +1,4 @@
-"""Optional deterministic Phase 11 market-intelligence calculations."""
+"""Optional deterministic market-intelligence calculations."""
 
 from __future__ import annotations
 

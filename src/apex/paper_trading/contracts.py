@@ -1,4 +1,4 @@
-"""Immutable contracts for Phase 9 paper trading."""
+"""Immutable contracts for paper trading."""
 
 from __future__ import annotations
 

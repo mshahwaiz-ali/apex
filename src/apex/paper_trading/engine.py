@@ -1,4 +1,4 @@
-"""Deterministic Phase 9 paper-trading lifecycle engine."""
+"""Deterministic paper-trading lifecycle engine."""
 
 from __future__ import annotations
 

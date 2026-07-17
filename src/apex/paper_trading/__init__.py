@@ -1,4 +1,4 @@
-"""Public Phase 9 and P1 paper-trading API."""
+"""Public paper-trading and forward-validation API."""
 
 from apex.paper_trading.contracts import (
     TERMINAL_STATES,
