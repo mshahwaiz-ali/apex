@@ -1,4 +1,4 @@
-"""Soft market-state applicability for strategy evaluation."""
+"""Soft market-state applicability for Stage 3 strategy evaluation."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
-from apex.strategies.contracts import StrategyType
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.regime import MarketRegime
 
 
@@ -34,20 +34,20 @@ class StrategyApplicability:
             raise ValueError("strategy applicability reasons cannot be empty")
 
 
-_TREND_REGIMES = {
+_TREND = {
     MarketRegime.STRONG_UPTREND,
     MarketRegime.WEAK_UPTREND,
     MarketRegime.STRONG_DOWNTREND,
     MarketRegime.WEAK_DOWNTREND,
 }
-_RANGE_REGIMES = {
+_RANGE = {
     MarketRegime.STABLE_RANGE,
     MarketRegime.VOLATILE_RANGE,
     MarketRegime.COMPRESSION,
 }
-_TRANSITION_REGIMES = {MarketRegime.REVERSAL_TRANSITION}
-_BREAKOUT_REGIMES = {MarketRegime.BREAKOUT_EXPANSION}
-_UNSTABLE_REGIMES = {
+_TRANSITION = {MarketRegime.REVERSAL_TRANSITION}
+_BREAKOUT = {MarketRegime.BREAKOUT_EXPANSION}
+_UNSTABLE = {
     MarketRegime.HIGH_VOLATILITY_CHAOS,
     MarketRegime.LOW_VOLATILITY_STAGNATION,
     MarketRegime.LOW_LIQUIDITY,
@@ -55,11 +55,19 @@ _UNSTABLE_REGIMES = {
 }
 
 _STRATEGY_REGIME_PREFERENCES: Mapping[StrategyType, frozenset[MarketRegime]] = {
-    StrategyType.TREND_PULLBACK: frozenset(_TREND_REGIMES | _TRANSITION_REGIMES),
-    StrategyType.BREAKOUT_CONTINUATION: frozenset(_TREND_REGIMES | _BREAKOUT_REGIMES),
-    StrategyType.LIQUIDITY_REVERSAL: frozenset(_RANGE_REGIMES | _TRANSITION_REGIMES),
-    StrategyType.RANGE_REVERSAL: frozenset(_RANGE_REGIMES | _TRANSITION_REGIMES),
-    StrategyType.MOMENTUM_CONTINUATION: frozenset(_TREND_REGIMES | _BREAKOUT_REGIMES),
+    StrategyType.MOMENTUM_BREAKOUT: frozenset(_TREND | _BREAKOUT),
+    StrategyType.BREAKOUT_CONTINUATION: frozenset(_TREND | _BREAKOUT),
+    StrategyType.BREAKOUT_RETEST: frozenset(_TREND | _BREAKOUT | _TRANSITION),
+    StrategyType.FIRST_PULLBACK_CONTINUATION: frozenset(_TREND | _BREAKOUT),
+    StrategyType.TREND_PULLBACK: frozenset(_TREND | _TRANSITION),
+    StrategyType.COMPRESSION_EXPANSION: frozenset({MarketRegime.COMPRESSION} | _BREAKOUT),
+    StrategyType.RANGE_REVERSAL: frozenset(_RANGE | _TRANSITION),
+    StrategyType.FAILED_BREAKOUT_REVERSAL: frozenset(_RANGE | _TRANSITION),
+    StrategyType.LIQUIDITY_REVERSAL: frozenset(_RANGE | _TRANSITION),
+    StrategyType.VWAP_RECLAIM_REJECTION: frozenset(_TREND | _RANGE | _TRANSITION),
+    StrategyType.MOMENTUM_SCALP: frozenset(_TREND | _BREAKOUT | _TRANSITION),
+    StrategyType.EXHAUSTION_REVERSAL: frozenset(_TRANSITION | _BREAKOUT),
+    StrategyType.MOMENTUM_CONTINUATION: frozenset(_TREND | _BREAKOUT),
 }
 
 
@@ -75,9 +83,13 @@ def build_strategy_applicability(
     del eligible
     records: dict[StrategyType, StrategyApplicability] = {}
     for strategy in evaluated:
-        preferred = regime in _STRATEGY_REGIME_PREFERENCES[strategy]
+        preferred = regime in _STRATEGY_REGIME_PREFERENCES.get(strategy, frozenset())
         breakout_support = higher_timeframe_breakout and strategy in {
+            StrategyType.MOMENTUM_BREAKOUT,
             StrategyType.BREAKOUT_CONTINUATION,
+            StrategyType.BREAKOUT_RETEST,
+            StrategyType.FIRST_PULLBACK_CONTINUATION,
+            StrategyType.MOMENTUM_SCALP,
             StrategyType.MOMENTUM_CONTINUATION,
         }
         if preferred:
@@ -93,7 +105,7 @@ def build_strategy_applicability(
                 "higher-timeframe breakout evidence supports conditional "
                 f"{strategy.value} evaluation"
             )
-        elif regime in _UNSTABLE_REGIMES:
+        elif regime in _UNSTABLE:
             state = StrategyApplicabilityState.CONDITIONAL
             score = 35.0
             code = "UNSTABLE_REGIME_PENALTY"
