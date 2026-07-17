@@ -1,7 +1,11 @@
 """Tests for environment-aware near-current entry decisions."""
 
 from apex.application.market_strategy_router import route_market_strategies
-from apex.application.near_current_entry import ChaseRisk, evaluate_near_current_entry
+from apex.application.near_current_entry import (
+    ChaseRisk,
+    EntryActionability,
+    evaluate_near_current_entry,
+)
 from apex.market_environment import (
     ConflictState,
     ExtensionState,
@@ -69,7 +73,7 @@ def test_ready_now_entry_remains_actionable_near_ideal() -> None:
     assert decision.entry_quality_score > 75.0
 
 
-def test_high_chase_risk_downgrades_ready_now_to_retest() -> None:
+def test_high_chase_risk_prefers_pullback_without_rewriting_state() -> None:
     environment = _environment()
     route = route_market_strategies(environment)
 
@@ -79,9 +83,11 @@ def test_high_chase_risk_downgrades_ready_now_to_retest() -> None:
         route,
     )
 
-    assert decision.entry_state == "WAIT_FOR_RETEST"
+    assert decision.entry_state == "READY_NOW"
+    assert decision.actionability is EntryActionability.PULLBACK_PREFERRED
     assert decision.actionable_now is False
     assert decision.chase_risk is ChaseRisk.HIGH
+    assert "READY_NOW_HIGH_CHASE_RISK" in decision.warning_codes
 
 
 def test_extreme_extension_marks_entry_missed() -> None:
@@ -95,7 +101,7 @@ def test_extreme_extension_marks_entry_missed() -> None:
     assert decision.actionable_now is False
 
 
-def test_selected_setup_conflicting_with_route_is_blocked() -> None:
+def test_selected_setup_conflicting_with_route_is_warned() -> None:
     environment = _environment()
     route = route_market_strategies(environment)
 
@@ -107,9 +113,10 @@ def test_selected_setup_conflicting_with_route_is_blocked() -> None:
         selected_direction=TradeDirection.SHORT,
     )
 
-    assert decision.entry_state == "NO_TRADE"
-    assert decision.actionable_now is False
-    assert "SELECTED_SETUP_BLOCKED_BY_ROUTE" in decision.reason_codes
+    assert decision.entry_state == "READY_NOW"
+    assert decision.actionability is EntryActionability.AGGRESSIVE
+    assert decision.actionable_now is True
+    assert "SELECTED_SETUP_ROUTE_CONFLICT" in decision.warning_codes
 
 
 def test_missing_precision_plan_returns_no_trade() -> None:

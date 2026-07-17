@@ -23,12 +23,26 @@ class ChaseRisk(StrEnum):
     EXTREME = "EXTREME"
 
 
+class EntryActionability(StrEnum):
+    """Simplified user-facing entry status."""
+
+    READY = "READY"
+    AGGRESSIVE = "AGGRESSIVE"
+    PULLBACK_PREFERRED = "PULLBACK_PREFERRED"
+    WATCH = "WATCH"
+    LATE = "LATE"
+    INVALID = "INVALID"
+
+
 @dataclass(frozen=True, slots=True)
 class NearCurrentEntryDecision:
     """Actionability overlay for an existing precision-entry plan."""
 
     entry_state: str
+    actionability: EntryActionability
     actionable_now: bool
+    immediate_entry_price: float | None
+    preferred_entry_price: float | None
     preferred_direction: PreferredDirection
     entry_zone_low: float | None
     entry_zone_high: float | None
@@ -41,6 +55,8 @@ class NearCurrentEntryDecision:
     structural_invalidation: float | None
     entry_quality_score: float | None
     chase_risk: ChaseRisk | None
+    warning_codes: tuple[str, ...]
+    warnings: tuple[str, ...]
     reason_codes: tuple[str, ...]
     reasons: tuple[str, ...]
 
@@ -58,7 +74,10 @@ def evaluate_near_current_entry(
     if precision_entry is None:
         return NearCurrentEntryDecision(
             entry_state="NO_TRADE",
+            actionability=EntryActionability.INVALID,
             actionable_now=False,
+            immediate_entry_price=None,
+            preferred_entry_price=None,
             preferred_direction=route.preferred_direction,
             entry_zone_low=None,
             entry_zone_high=None,
@@ -71,6 +90,8 @@ def evaluate_near_current_entry(
             structural_invalidation=None,
             entry_quality_score=None,
             chase_risk=None,
+            warning_codes=(),
+            warnings=(),
             reason_codes=("PRECISION_ENTRY_UNAVAILABLE",),
             reasons=("No approved precision-entry geometry is available",),
         )
@@ -80,6 +101,8 @@ def evaluate_near_current_entry(
     distance_pct = _number(precision_entry.get("current_distance_from_ideal_pct"))
     codes: list[str] = []
     reasons: list[str] = []
+    warning_codes: list[str] = []
+    warnings: list[str] = []
     score = base_score
 
     route_allows_setup = (
@@ -87,20 +110,25 @@ def evaluate_near_current_entry(
         or selected_direction is None
         or strategy_allowed_for_direction(route, selected_strategy, selected_direction)
     )
-    if not route_allows_setup:
-        state = "NO_TRADE"
-        score = 0.0
-        codes.append("SELECTED_SETUP_BLOCKED_BY_ROUTE")
-        reasons.append("Selected strategy or direction conflicts with the fused market route")
-    elif not environment.tradeable or route.preferred_direction is PreferredDirection.NONE:
+    if not environment.tradeable:
         state = "NO_TRADE"
         score = 0.0
         codes.append("ENVIRONMENT_BLOCKED_ENTRY")
-        reasons.append("Fused market environment blocks a new entry")
+        reasons.append("Fused market environment is not tradeable for a new entry")
     else:
         score = score * 0.65 + route.routing_score * 0.35
         codes.append("ENVIRONMENT_ENTRY_SCORE_APPLIED")
         reasons.append("Precision quality was blended with environment routing confidence")
+        if not route_allows_setup:
+            score -= 20.0
+            warning_codes.append("SELECTED_SETUP_ROUTE_CONFLICT")
+            warnings.append(
+                "Selected strategy or direction conflicts with the preferred market route"
+            )
+        if route.preferred_direction is PreferredDirection.NONE:
+            score -= 15.0
+            warning_codes.append("NO_PREFERRED_ROUTE_DIRECTION")
+            warnings.append("Market route has no preferred direction")
 
     chase_risk = _chase_risk(distance_pct, environment)
     if state != "NO_TRADE":
@@ -110,31 +138,43 @@ def evaluate_near_current_entry(
             codes.append("MAXIMUM_CHASE_RISK")
             reasons.append("Current price is too extended for a controlled near-current entry")
         elif chase_risk is ChaseRisk.HIGH and state == "READY_NOW":
-            state = "WAIT_FOR_RETEST"
             score = min(score, 60.0)
-            codes.append("READY_NOW_DOWNGRADED_FOR_CHASE")
-            reasons.append("Entry is geometrically valid but chase risk requires a retest")
+            warning_codes.append("READY_NOW_HIGH_CHASE_RISK")
+            warnings.append(
+                "Entry is geometrically valid, but a pullback offers better execution"
+            )
 
     if environment.extension_state in {ExtensionState.OVEREXTENDED, ExtensionState.EXTREME}:
         score -= 15.0
-        codes.append("ENVIRONMENT_EXTENSION_PENALTY")
-        reasons.append("Environment extension reduced near-current entry quality")
+        warning_codes.append("ENVIRONMENT_EXTENSION_WARNING")
+        warnings.append("Environment extension reduced near-current entry quality")
     if environment.volatility_state is VolatilityState.EXTREME:
         score -= 10.0
-        codes.append("ENVIRONMENT_VOLATILITY_PENALTY")
-        reasons.append("Extreme volatility reduced entry quality")
+        warning_codes.append("ENVIRONMENT_VOLATILITY_WARNING")
+        warnings.append("Extreme volatility reduced entry quality")
 
-    actionable = state == "READY_NOW" and score >= 55.0 and chase_risk in {
-        ChaseRisk.LOW,
-        ChaseRisk.MODERATE,
+    actionability = _entry_actionability(
+        state=state,
+        score=score,
+        chase_risk=chase_risk,
+        has_warnings=bool(warnings),
+    )
+    actionable = actionability in {
+        EntryActionability.READY,
+        EntryActionability.AGGRESSIVE,
     }
     if actionable:
         codes.append("ENTRY_ACTIONABLE_NOW")
-        reasons.append("Entry is near current price with acceptable route and chase risk")
+        reasons.append("Entry is available near current price")
+    current_price = _number(precision_entry.get("current_price"))
+    ideal_entry = _number(precision_entry.get("ideal_entry"))
 
     return NearCurrentEntryDecision(
         entry_state=state,
+        actionability=actionability,
         actionable_now=actionable,
+        immediate_entry_price=current_price if actionable else None,
+        preferred_entry_price=ideal_entry,
         preferred_direction=route.preferred_direction,
         entry_zone_low=_number(precision_entry.get("entry_zone_low")),
         entry_zone_high=_number(precision_entry.get("entry_zone_high")),
@@ -147,6 +187,8 @@ def evaluate_near_current_entry(
         structural_invalidation=_number(precision_entry.get("structural_invalidation")),
         entry_quality_score=round(max(0.0, min(100.0, score)), 6),
         chase_risk=chase_risk,
+        warning_codes=tuple(dict.fromkeys(warning_codes)),
+        warnings=tuple(dict.fromkeys(warnings)),
         reason_codes=tuple(dict.fromkeys(codes)),
         reasons=tuple(dict.fromkeys(reasons)),
     )
@@ -157,7 +199,10 @@ def near_current_entry_payload(decision: NearCurrentEntryDecision) -> dict[str, 
 
     return {
         "entry_state": decision.entry_state,
+        "actionability": decision.actionability.value,
         "actionable_now": decision.actionable_now,
+        "immediate_entry_price": decision.immediate_entry_price,
+        "preferred_entry_price": decision.preferred_entry_price,
         "preferred_direction": decision.preferred_direction.value,
         "entry_zone_low": decision.entry_zone_low,
         "entry_zone_high": decision.entry_zone_high,
@@ -170,9 +215,33 @@ def near_current_entry_payload(decision: NearCurrentEntryDecision) -> dict[str, 
         "structural_invalidation": decision.structural_invalidation,
         "entry_quality_score": decision.entry_quality_score,
         "chase_risk": decision.chase_risk.value if decision.chase_risk is not None else None,
+        "warning_codes": list(decision.warning_codes),
+        "warnings": list(decision.warnings),
         "reason_codes": list(decision.reason_codes),
         "reasons": list(decision.reasons),
     }
+
+
+def _entry_actionability(
+    *,
+    state: str,
+    score: float,
+    chase_risk: ChaseRisk,
+    has_warnings: bool,
+) -> EntryActionability:
+    if state in {"NO_TRADE", "INVALIDATED"}:
+        return EntryActionability.INVALID
+    if state == "MISSED_ENTRY" or chase_risk is ChaseRisk.EXTREME:
+        return EntryActionability.LATE
+    if state == "READY_NOW":
+        if chase_risk is ChaseRisk.HIGH or score < 55.0:
+            return EntryActionability.PULLBACK_PREFERRED
+        if has_warnings or score < 70.0:
+            return EntryActionability.AGGRESSIVE
+        return EntryActionability.READY
+    if state in {"WAIT_FOR_RETEST", "WAIT_FOR_RECLAIM"}:
+        return EntryActionability.PULLBACK_PREFERRED
+    return EntryActionability.WATCH
 
 
 def _chase_risk(distance_pct: float | None, environment: MarketEnvironment) -> ChaseRisk:

@@ -95,6 +95,7 @@ def analyze_symbol(
         candidate_ranking=base.candidate_ranking,
         risk_rejection_diagnostics=base.risk_rejection_diagnostics,
         market_environment=environment,
+        market_state=base.market_state,
         market_strategy_route=route,
         near_current_entry=near_entry,
     )
@@ -228,6 +229,7 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
         lines.extend(
             (
                 f"Entry state: {near_entry.entry_state}",
+                f"Entry actionability: {near_entry.actionability.value}",
                 f"Entry quality / chase: {quality} / {chase}",
                 f"Actionable now: {'yes' if near_entry.actionable_now else 'no'}",
             )
