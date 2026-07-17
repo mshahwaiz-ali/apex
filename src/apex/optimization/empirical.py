@@ -136,6 +136,7 @@ def write_empirical_calibration_report(
 ) -> None:
     """Persist one deterministic report without silent overwrite."""
 
+    _validate_report_integrity(report)
     if path.exists() and not force:
         raise FileExistsError(f"refusing to overwrite empirical calibration report: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +146,18 @@ def write_empirical_calibration_report(
         encoding="utf-8",
     )
     temporary.replace(path)
+
+
+def _validate_report_integrity(report: EmpiricalCalibrationReport) -> None:
+    payload = dict(report.payload)
+    embedded_hash = payload.pop("report_sha256", None)
+    if not isinstance(embedded_hash, str) or not embedded_hash:
+        raise ValueError("empirical calibration report embedded hash is missing")
+    if embedded_hash != report.report_sha256:
+        raise ValueError("empirical calibration report hash attribute does not match payload")
+    if _hash_payload(payload) != embedded_hash:
+        raise ValueError("empirical calibration report hash does not match its payload")
+    _validate_report_schema_version(payload)
 
 
 def load_and_verify_empirical_calibration_report(path: Path) -> EmpiricalCalibrationReport:
