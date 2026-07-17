@@ -125,7 +125,7 @@ class FeatureRegistry:
 
 
 def create_default_feature_registry() -> FeatureRegistry:
-    """Return the complete Phase 2 deterministic feature composition."""
+    """Return the complete deterministic feature composition."""
 
     registry = FeatureRegistry()
     registry.register("sma_20", lambda candles: (simple_moving_average(candles, 20),))
