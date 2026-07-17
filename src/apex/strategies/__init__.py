@@ -5,6 +5,7 @@ from apex.strategies.actionability import (
     classify_candidate_actionability,
 )
 from apex.strategies.analysis import (
+    CandidateActionability,
     StrategyAnalysisResult,
     StrategyApplicability,
     StrategyApplicabilityState,
@@ -71,6 +72,7 @@ from apex.strategies.vwap_reclaim_rejection import (
 __all__ = [
     "ENTRY_STATUS_PRECEDENCE",
     "STRATEGY_REGISTRY",
+    "CandidateActionability",
     "CandidateLifecycle",
     "CandidateLifecycleStatus",
     "EntryMode",
