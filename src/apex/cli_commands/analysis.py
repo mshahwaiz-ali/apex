@@ -11,10 +11,7 @@ from apex.application import (
     analyze_selected_symbol,
     bootstrap,
     build_analysis_record,
-    build_futures_account_input,
-    build_futures_plan_result,
     create_market_data_services,
-    load_default_risk_config,
     serialize_symbol_analysis,
     write_analysis_record,
     write_analysis_record_sqlite,
@@ -23,119 +20,5 @@ from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.futures import render_futures_analysis
 
-
-def register_analysis_commands(app: typer.Typer) -> None:
-    @app.command("analyze")
-    def analyze(
-        symbol: str = typer.Argument(..., help="Any provider-supported futures market symbol."),
-        output: str = typer.Option(
-            "text",
-            "--output",
-            "-o",
-            help="text or json",
-        ),
-        candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
-        wallet_balance: float = typer.Option(
-            100.0,
-            "--wallet-balance",
-            min=0.01,
-            help="Futures wallet balance used for account-aware planning.",
-        ),
-        risk_mode: str | None = typer.Option(
-            None,
-            "--risk-mode",
-            help="STANDARD. Defaults to product configuration.",
-        ),
-        leverage_mode: str | None = typer.Option(
-            None,
-            "--leverage-mode",
-            help="AUTOMATIC or MANUAL. Defaults to product configuration.",
-        ),
-        manual_leverage: float | None = typer.Option(
-            None,
-            "--manual-leverage",
-            min=1.0,
-            help="Required only when leverage mode is MANUAL.",
-        ),
-        max_account_loss_pct: float | None = typer.Option(
-            None,
-            "--max-account-loss-pct",
-            min=0.01,
-            max=100.0,
-            help="Optional override for maximum planned account loss percentage.",
-        ),
-        record: Path | None = typer.Option(
-            None,
-            "--record",
-            help="Optional append-only JSONL analysis record path.",
-        ),
-        record_db: Path | None = typer.Option(
-            None,
-            "--record-db",
-            help="Optional SQLite analysis record database path.",
-        ),
-    ) -> None:
-        try:
-            output_mode = normalize_cli_output_mode(output)
-            account = build_futures_account_input(
-                wallet_balance=wallet_balance,
-                risk_mode=risk_mode,
-                leverage_mode=leverage_mode,
-                manual_leverage=manual_leverage,
-                maximum_account_loss_percentage=max_account_loss_pct,
-            )
-            context = bootstrap()
-            with create_market_data_services(context.settings) as services:
-                result = analyze_selected_symbol(
-                    symbol,
-                    services.candles,
-                    timeframes=context.settings.analysis_timeframes,
-                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                    timeframe_max_staleness_seconds=getattr(
-                        context.settings, "timeframe_max_staleness_seconds", None
-                    ),
-                    candle_limit=candle_limit,
-                    risk_config=load_default_risk_config(),
-                    risk_mode=account.risk_mode,
-                    strategy_routing=getattr(context.settings, "strategy_routing", None),
-                )
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-        except MarketDataProviderError as exc:
-            typer.echo(f"Analysis market-data request failed: {exc}", err=True)
-            raise typer.Exit(code=1) from exc
-
-        payload = serialize_symbol_analysis(result)
-        payload["futures_account"] = account.model_dump(mode="json") | {
-            "maximum_account_loss_amount": account.maximum_account_loss_amount
-        }
-        assessment = getattr(result, "assessment", None)
-        setup = getattr(assessment, "setup", None)
-        payload["opportunity_status"] = (
-            "SETUP_AVAILABLE" if setup is not None else "NO_SETUP"
-        )
-        if setup is not None:
-            payload["futures_plan"] = build_futures_plan_result(setup, account)
-        else:
-            payload["execution_approval"] = {
-                "status": "NOT_APPLICABLE",
-                "approved": False,
-                "eligibility": "NO_SETUP",
-                "reasons": list(payload.get("reasons") or ()),
-            }
-        futures_plan = payload.get("futures_plan")
-        if isinstance(futures_plan, dict):
-            payload["execution_approval"] = futures_plan.get("execution_approval")
-
-        if record is not None or record_db is not None:
-            analysis_record = build_analysis_record(payload)
-            if record is not None:
-                write_analysis_record(record, analysis_record)
-            if record_db is not None:
-                write_analysis_record_sqlite(record_db, analysis_record)
-
-        if output_mode.value == "json":
-            typer.echo(json.dumps(payload, indent=2, default=str))
-            return
-
-        typer.echo(render_futures_analysis(payload, mode=output_mode))
+_REMOVED_PUBLIC_FIELDS = {
+    "execution
