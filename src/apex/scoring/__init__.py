@@ -41,6 +41,12 @@ from apex.scoring.historical_approval import (
     HistoricalEvidenceAttachment,
     evaluate_strategy_approval_with_historical_evidence,
 )
+from apex.scoring.rank_score import (
+    RANK_SCORE_WEIGHTS,
+    CandidateScoreDimensions,
+    final_rank_score,
+    score_dimensions,
+)
 from apex.scoring.quality_gate import (
     CandidateQualityGateDecision,
     QualityGateReason,
@@ -59,6 +65,7 @@ __all__ = [
     "ApprovalReasonCode",
     "CandidateOutcome",
     "CandidateQualityGateDecision",
+    "CandidateScoreDimensions",
     "ConflictSummary",
     "DirectionalConsensus",
     "EvidenceAwareStrategyApprovalDecision",
@@ -75,6 +82,7 @@ __all__ = [
     "Phase5AnalysisResult",
     "QualityGateReason",
     "QualityGateReasonCode",
+    "RANK_SCORE_WEIGHTS",
     "RankedCandidate",
     "ScoreBreakdown",
     "ScoredCandidate",
@@ -88,8 +96,10 @@ __all__ = [
     "analyze_phase5",
     "apply_strategy_quality_gate",
     "evaluate_candidate_quality_gate",
+    "final_rank_score",
     "evaluate_strategy_approval",
     "evaluate_strategy_approval_with_forward_paper_evidence",
     "evaluate_strategy_approval_with_historical_evidence",
     "score_band_for",
+    "score_dimensions",
 ]

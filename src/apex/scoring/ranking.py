@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from apex.scoring.contracts import CandidateOutcome, RankedCandidate, ScoredCandidate
+from apex.scoring.rank_score import final_rank_score
 from apex.strategies.contracts import StrategyType, TradeDirection
 
 _DIRECTION_ORDER: dict[TradeDirection, int] = {
@@ -17,7 +18,7 @@ def _sort_key(
 ) -> tuple[float, float, float, float, float, int, int, str]:
     quality = item.candidate.quality
     return (
-        -item.final_score,
+        -final_rank_score(item),
         -quality.target_space_quality,
         -quality.entry_quality,
         quality.conflict_penalty,
@@ -46,7 +47,8 @@ def rank_candidates(
                 outcome=CandidateOutcome.DOWNGRADED,
                 reasons=(),
                 tie_break=(
-                    f"final_score={item.final_score:.6f}",
+                    f"final_rank_score={final_rank_score(item):.6f}",
+                    f"legacy_final_score={item.final_score:.6f}",
                     f"target_space_quality={quality.target_space_quality:.6f}",
                     f"entry_quality={quality.entry_quality:.6f}",
                     f"conflict_penalty={quality.conflict_penalty:.6f}",
