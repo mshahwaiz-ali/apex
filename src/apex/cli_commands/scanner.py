@@ -22,13 +22,6 @@ from apex.application import (
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.scanner import render_futures_scan
 
-_REMOVED_PUBLIC_FIELDS = {
-    "execution_approval",
-    "futures_account",
-    "futures_plan",
-    "risk_mode",
-}
-
 
 def register_scanner_commands(app: typer.Typer) -> None:
     """Register broad futures opportunity discovery."""
@@ -85,7 +78,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
             typer.echo(f"Scanner market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = _without_account_fields(serialize_scan_result(result))
+        payload = serialize_scan_result(result)
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
         if report is not None:
@@ -101,23 +94,6 @@ def register_scanner_commands(app: typer.Typer) -> None:
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
         typer.echo(render_futures_scan(payload))
-
-
-def _without_account_fields(payload: dict[str, object]) -> dict[str, object]:
-    """Remove legacy account-planning fields from scanner output."""
-
-    cleaned = {key: value for key, value in payload.items() if key not in _REMOVED_PUBLIC_FIELDS}
-    for key in ("best_overall",):
-        value = cleaned.get(key)
-        if isinstance(value, dict):
-            cleaned[key] = _without_account_fields(value)
-    for key in ("results", "top_long_setups", "top_short_setups"):
-        value = cleaned.get(key)
-        if isinstance(value, list):
-            cleaned[key] = [
-                _without_account_fields(item) if isinstance(item, dict) else item for item in value
-            ]
-    return cleaned
 
 
 def _normalize_scanner_output(value: str) -> str:
