@@ -25,7 +25,7 @@ def render_paper_intake(
 ) -> str:
     """Render one paper opportunity-intake summary."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     accepted = _integer(payload.get("accepted"))
     rejected = _integer(payload.get("rejected"))
     duplicates = _integer(payload.get("duplicates_skipped"))
@@ -78,27 +78,12 @@ def render_paper_intake(
             )
         )
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Created paper trades",
-                render_bullets(created_trade_ids or (UNAVAILABLE,)),
-            )
+    sections.append(
+        render_section(
+            "Created paper trades",
+            render_bullets(created_trade_ids or (UNAVAILABLE,)),
         )
-
-    if output_mode is OutputMode.DEBUG:
-        sections.append(
-            render_section(
-                "Diagnostics",
-                render_fields(
-                    (
-                        ("Payload fields", len(payload)),
-                        ("Reason categories", len(reasons)),
-                        ("Created identifiers", len(created_trade_ids)),
-                    )
-                ),
-            )
-        )
+    )
 
     return "\n\n".join(sections)
 
@@ -110,7 +95,7 @@ def render_evidence_progress(
 ) -> str:
     """Render accumulated paper evidence and collection readiness."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     segments = tuple(
         item for value in _sequence(payload.get("segments")) if (item := _mapping(value))
     )
@@ -156,27 +141,12 @@ def render_evidence_progress(
         ),
     ]
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Segment evidence",
-                render_bullets(_segment_detail_lines(segments) or (UNAVAILABLE,)),
-            )
+    sections.append(
+        render_section(
+            "Segment evidence",
+            render_bullets(_segment_detail_lines(segments) or (UNAVAILABLE,)),
         )
-
-    if output_mode is OutputMode.DEBUG:
-        sections.append(
-            render_section(
-                "Diagnostics",
-                render_fields(
-                    (
-                        ("Payload fields", len(payload)),
-                        ("Segment records", len(segments)),
-                        ("Ready segment records", ready_count),
-                    )
-                ),
-            )
-        )
+    )
 
     return "\n\n".join(sections)
 
@@ -190,7 +160,7 @@ def render_operational_review(
 ) -> str:
     """Render the persisted forward-paper operational review."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     review_state = payload.get("review_state")
     production_eligible = payload.get("production_eligible") is True
     blockers = _review_blockers(payload, anomaly_count=anomaly_count)
@@ -238,27 +208,12 @@ def render_operational_review(
         ),
     ]
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Evidence quality",
-                render_fields(_review_evidence_fields(payload)),
-            )
+    sections.append(
+        render_section(
+            "Evidence quality",
+            render_fields(_review_evidence_fields(payload)),
         )
-
-    if output_mode is OutputMode.DEBUG:
-        sections.append(
-            render_section(
-                "Diagnostics",
-                render_fields(
-                    (
-                        ("Payload fields", len(payload)),
-                        ("Blocking conditions", len(blockers)),
-                        ("Lifecycle anomalies", anomaly_count),
-                    )
-                ),
-            )
-        )
+    )
 
     return "\n\n".join(sections)
 

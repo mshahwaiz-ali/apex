@@ -43,15 +43,14 @@ def test_intake_text_is_operator_facing() -> None:
     assert "PAPER_INTAKE" not in rendered
 
 
-def test_intake_verbose_includes_created_identifiers() -> None:
+def test_intake_includes_created_identifiers() -> None:
     rendered = render_paper_intake(
         {
             "market_type": "spot",
             "candidates_observed": 1,
             "accepted": 1,
             "created_trade_ids": ["paper-spot-1"],
-        },
-        mode="verbose",
+        }
     )
 
     assert "Created paper trades" in rendered
@@ -150,6 +149,7 @@ def test_evidence_progress_reports_readiness_and_largest_gap() -> None:
     assert "Not ready" in rendered
     assert "15 additional closed trades required" in rendered
     assert "Prioritize" in rendered
+    assert "Segment evidence" in rendered
     assert "PAPER_EVIDENCE_PROGRESS" not in rendered
 
 
@@ -186,7 +186,7 @@ def test_review_hides_internal_milestone_labels() -> None:
     assert "phase" not in rendered.lower()
 
 
-def test_review_debug_adds_diagnostics() -> None:
+def test_review_includes_evidence_quality_without_debug_diagnostics() -> None:
     rendered = render_operational_review(
         {
             "review_state": "approved",
@@ -196,11 +196,10 @@ def test_review_debug_adds_diagnostics() -> None:
         },
         output_path="data/review.json",
         anomaly_count=0,
-        mode="debug",
     )
 
     assert "Evidence quality" in rendered
-    assert "Diagnostics" in rendered
+    assert "Diagnostics" not in rendered
 
 
 def test_typer_bad_parameter_remains_available() -> None:
