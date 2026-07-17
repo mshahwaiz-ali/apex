@@ -18,13 +18,13 @@ from apex.strategies.contracts import (
     InvalidationType,
     RawQualityMetrics,
     StrategyEvidence,
-    StrategyType,
     TargetConcept,
     TargetLevel,
     TargetType,
     TradeCandidate,
     TradeDirection,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
@@ -119,7 +119,7 @@ def _candidate_for_direction(
     )
     return TradeCandidate(
         symbol=context.symbol,
-        strategy=StrategyType.LIQUIDITY_REVERSAL,
+        strategy=StrategyType.LIQUIDITY_REJECTION_REVERSAL,
         direction=direction,
         decision_time=decision_time,
         entry=entry,

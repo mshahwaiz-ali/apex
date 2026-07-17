@@ -154,38 +154,6 @@ class ExchangeFilterSnapshot(BaseModel):
     source: str
 
 
-class LiquidationClusterSide(StrEnum):
-    LONG = "long"
-    SHORT = "short"
-
-
-class LiquidationCluster(BaseModel):
-    """One provider-normalized liquidation cluster level."""
-
-    model_config = ConfigDict(frozen=True)
-
-    side: LiquidationClusterSide
-    price: float = Field(gt=0)
-    notional: float = Field(ge=0)
-
-
-class LiquidationClusterSnapshot(BaseModel):
-    """Provider-independent liquidation-cluster snapshot."""
-
-    model_config = ConfigDict(frozen=True)
-
-    symbol: str
-    clusters: tuple[LiquidationCluster, ...]
-    captured_at: datetime
-    source: str
-
-    @model_validator(mode="after")
-    def validate_clusters(self) -> LiquidationClusterSnapshot:
-        if not self.clusters:
-            raise ValueError("liquidation cluster snapshot requires at least one cluster")
-        return self
-
-
 class EntryZone(BaseModel):
     model_config = ConfigDict(frozen=True)
     low: float = Field(gt=0)

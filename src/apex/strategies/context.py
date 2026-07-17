@@ -117,8 +117,6 @@ class TimeframeContext:
     exchange_tick_size: float | None = None
     exchange_step_size: float | None = None
     exchange_min_notional: float | None = None
-    nearest_long_cluster_distance_pct: float | None = None
-    nearest_short_cluster_distance_pct: float | None = None
     mark_price: float | None = None
     index_price: float | None = None
     analysis_price: float | None = None
@@ -156,8 +154,6 @@ class TimeframeContext:
             "exchange_tick_size",
             "exchange_step_size",
             "exchange_min_notional",
-            "nearest_long_cluster_distance_pct",
-            "nearest_short_cluster_distance_pct",
         ):
             value = getattr(self, name)
             if value is not None and (not math.isfinite(value) or value < 0):

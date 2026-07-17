@@ -7,8 +7,6 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from apex.domain.futures import TradeLifecycleState
-
 
 class TradeLifecycleEventType(StrEnum):
     SETUP_GENERATED = "SETUP_GENERATED"
@@ -26,6 +24,18 @@ class TradeLifecycleEventType(StrEnum):
     STOPPED_OUT = "STOPPED_OUT"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
+
+
+class TradeLifecycleState(StrEnum):
+    GENERATED = "GENERATED"
+    WAITING_FOR_ENTRY = "WAITING_FOR_ENTRY"
+    ENTERED = "ENTERED"
+    PARTIALLY_CLOSED = "PARTIALLY_CLOSED"
+    STOPPED = "STOPPED"
+    TARGET_HIT = "TARGET_HIT"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+    INVALIDATED = "INVALIDATED"
 
 
 TERMINAL_LIFECYCLE_STATES = frozenset(

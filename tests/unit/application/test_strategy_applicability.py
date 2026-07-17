@@ -15,7 +15,7 @@ def test_trend_regime_marks_continuation_strategies_applicable() -> None:
     eligible = (
         StrategyType.TREND_PULLBACK,
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
     )
 
     matrix = build_strategy_applicability(
@@ -32,14 +32,14 @@ def test_trend_regime_marks_continuation_strategies_applicable() -> None:
     )
     assert (
         matrix[StrategyType.RANGE_REVERSAL].state
-        is StrategyApplicabilityState.NOT_APPLICABLE
+        is StrategyApplicabilityState.CONDITIONAL
     )
 
 
 def test_higher_timeframe_breakout_creates_conditional_applicability() -> None:
     eligible = (
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
     )
 
     matrix = build_strategy_applicability(
@@ -54,12 +54,12 @@ def test_higher_timeframe_breakout_creates_conditional_applicability() -> None:
         is StrategyApplicabilityState.CONDITIONAL
     )
     assert (
-        matrix[StrategyType.MOMENTUM_CONTINUATION].state
+        matrix[StrategyType.MOMENTUM_BREAKOUT].state
         is StrategyApplicabilityState.CONDITIONAL
     )
     assert (
         matrix[StrategyType.TREND_PULLBACK].state
-        is StrategyApplicabilityState.NOT_APPLICABLE
+        is StrategyApplicabilityState.CONDITIONAL
     )
 
 
@@ -68,7 +68,7 @@ def test_applicability_scores_are_normalized() -> None:
         regime=MarketRegime.STABLE_RANGE,
         evaluated=ALL_STRATEGIES,
         eligible=(
-            StrategyType.LIQUIDITY_REVERSAL,
+            StrategyType.LIQUIDITY_REJECTION_REVERSAL,
             StrategyType.RANGE_REVERSAL,
         ),
         higher_timeframe_breakout=False,
@@ -76,4 +76,4 @@ def test_applicability_scores_are_normalized() -> None:
 
     assert all(0.0 <= record.score <= 100.0 for record in matrix.values())
     assert matrix[StrategyType.RANGE_REVERSAL].score == 100.0
-    assert matrix[StrategyType.TREND_PULLBACK].score == 0.0
+    assert matrix[StrategyType.TREND_PULLBACK].score == 55.0

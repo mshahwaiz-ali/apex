@@ -40,12 +40,19 @@ def register_analysis_commands(app: typer.Typer) -> None:
             "--record-db",
             help="Optional SQLite analysis record database path.",
         ),
+        config_dir: Path = typer.Option(
+            Path("config"),
+            "--config-dir",
+            exists=True,
+            file_okay=False,
+            help="Configuration directory containing Apex YAML settings.",
+        ),
     ) -> None:
-        """Analyze one futures symbol without wallet or leverage planning."""
+        """Analyze one futures symbol and produce a trade-discovery plan."""
 
         try:
             output_mode = normalize_cli_output_mode(output)
-            context = bootstrap()
+            context = bootstrap(config_dir)
             with create_market_data_services(context.settings) as services:
                 result = analyze_selected_symbol(
                     symbol,

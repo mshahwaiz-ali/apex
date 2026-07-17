@@ -8,6 +8,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apex.application import discovery_analysis as _analysis
+from apex.application.discovery_analysis import (
+    format_symbol_text as format_discovery_symbol_text,
+    serialize_symbol_analysis as serialize_discovery_symbol_analysis,
+)
+from apex.application.discovery_context import build_strategy_context
+from apex.application.discovery_contracts import ScanResult, SymbolAnalysis as DiscoverySymbolAnalysis
 from apex.application.market_state import (
     MarketStateSnapshot,
     classify_market_state,
@@ -19,7 +25,6 @@ from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
-    LiquidationClusterSnapshot,
     OrderBookSnapshot,
     TickerSnapshot,
 )
@@ -33,14 +38,12 @@ from apex.market_environment import (
 
 
 @dataclass(frozen=True, slots=True)
-class SymbolAnalysis(_analysis.SymbolAnalysis):
+class SymbolAnalysis(DiscoverySymbolAnalysis):
     """Discovery analysis enriched with deterministic multi-timeframe fusion."""
 
     market_environment: MarketEnvironment | None = None
     market_state: MarketStateSnapshot | None = None
 
-
-ScanResult = _analysis.ScanResult
 load_symbols = load_symbol_file
 write_json_report = _analysis.write_json_report
 
@@ -52,7 +55,6 @@ class _CachingMarketDataProvider:
         self._ticker: dict[str, TickerSnapshot] = {}
         self._order_book: dict[tuple[str, int], OrderBookSnapshot] = {}
         self._exchange_filters: dict[str, ExchangeFilterSnapshot] = {}
-        self._liquidation_clusters: dict[str, LiquidationClusterSnapshot] = {}
 
     @property
     def name(self) -> str:
@@ -92,18 +94,6 @@ class _CachingMarketDataProvider:
             self._exchange_filters[symbol] = snapshot
         return self._exchange_filters[symbol]
 
-    def fetch_liquidation_clusters(self, symbol: str) -> LiquidationClusterSnapshot:
-        if symbol not in self._liquidation_clusters:
-            fetch_liquidation_clusters = getattr(self._provider, "fetch_liquidation_clusters", None)
-            if not callable(fetch_liquidation_clusters):
-                raise AttributeError("market-data provider does not support liquidation clusters")
-            snapshot = fetch_liquidation_clusters(symbol)
-            if not isinstance(snapshot, LiquidationClusterSnapshot):
-                raise TypeError("market-data provider returned invalid liquidation clusters")
-            self._liquidation_clusters[symbol] = snapshot
-        return self._liquidation_clusters[symbol]
-
-
 def analyze_symbol(
     symbol: str,
     provider: MarketDataProvider,
@@ -116,11 +106,11 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> SymbolAnalysis:
-    """Run wallet-independent discovery and attach fused market environment."""
+    """Run discovery and attach fused market environment."""
 
     decision_time = generated_at or datetime.now(UTC)
     cached = _CachingMarketDataProvider(provider)
-    context, _ = _analysis.build_strategy_context(
+    context, _ = build_strategy_context(
         symbol,
         cached,
         timeframes=timeframes,
@@ -180,8 +170,8 @@ def scan_symbols(
     return ScanResult(timestamp, tuple(sorted(analyses, key=_scan_sort_key)), failures)
 
 
-def serialize_symbol_analysis(analysis: _analysis.SymbolAnalysis) -> dict[str, Any]:
-    payload = _analysis.serialize_symbol_analysis(analysis)
+def serialize_symbol_analysis(analysis: DiscoverySymbolAnalysis) -> dict[str, Any]:
+    payload = serialize_discovery_symbol_analysis(analysis)
     environment = getattr(analysis, "market_environment", None)
     state = getattr(analysis, "market_state", None)
     payload["market_environment"] = (
@@ -217,8 +207,8 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     }
 
 
-def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
-    base = _analysis.format_symbol_text(analysis)
+def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
+    base = format_discovery_symbol_text(analysis)
     environment = getattr(analysis, "market_environment", None)
     if not isinstance(environment, MarketEnvironment):
         return base
@@ -243,7 +233,7 @@ def format_scan_text(result: ScanResult) -> str:
     return "\n".join(lines)
 
 
-def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str]:
+def _scan_sort_key(analysis: DiscoverySymbolAnalysis) -> tuple[int, float, float, str]:
     setup = analysis.assessment.setup
     if setup is None:
         return (1, 0.0, 0.0, analysis.symbol)

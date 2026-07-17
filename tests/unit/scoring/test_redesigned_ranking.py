@@ -109,10 +109,10 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
     result = analyze_candidate_selection(strategy_analysis)
 
     assert result.all_scored_candidates[0].final_score == 51.9
-    assert result.all_scored_candidates[1].final_score == 46.4
+    assert result.all_scored_candidates[1].final_score == 51.9
     assert result.ranked_candidates[0].candidate.strategy is StrategyType.BREAKOUT_CONTINUATION
-    assert result.ranked_candidates[0].tie_break[0] == "final_rank_score=51.000000"
-    assert result.ranked_candidates[1].tie_break[0] == "final_rank_score=47.250000"
+    assert result.ranked_candidates[0].tie_break[0] == "final_rank_score=56.500000"
+    assert result.ranked_candidates[1].tie_break[0] == "final_rank_score=45.666667"
 
 
 def test_redesigned_ranking_does_not_change_legacy_threshold_outcomes() -> None:

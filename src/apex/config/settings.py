@@ -107,10 +107,6 @@ class FileSettings(BaseModel):
     timeframe_max_staleness_seconds: dict[str, int] = Field(
         default_factory=lambda: dict(DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS)
     )
-    advanced_intelligence_enabled: bool = False
-    intelligence_funding_enabled: bool = False
-    intelligence_open_interest_enabled: bool = False
-    intelligence_correlation_enabled: bool = False
     strategy_routing: dict[str, list[str]] = Field(
         default_factory=lambda: {
             key: list(values) for key, values in DEFAULT_STRATEGY_ROUTING.items()

@@ -23,7 +23,7 @@ DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
 def build_discovery_assessment(
     candidate_selection: CandidateSelectionResult,
 ) -> DiscoveryAssessment:
-    """Convert Phase 5 selection into a wallet-independent discovery assessment."""
+    """Convert candidate selection into a discovery assessment."""
 
     selected = candidate_selection.selected_candidate
     if selected is None:

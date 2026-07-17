@@ -1,8 +1,6 @@
 """Focused public application API for Apex trade discovery.
 
-Only services required by the active CLI surface are re-exported here. Legacy
-account, execution, paper-trading, campaign, funded-readiness, and spot modules
-remain internal until they are removed or redesigned.
+Only services required by the active CLI surface are re-exported here.
 """
 
 from apex.application.analysis_records import (
@@ -12,8 +10,8 @@ from apex.application.analysis_records import (
 )
 from apex.application.bootstrap import bootstrap
 from apex.application.configuration_identity import configuration_metadata
+from apex.application.discovery_contracts import ScanResult
 from apex.application.decision_analysis import (
-    ScanResult,
     SymbolAnalysis,
     analyze_symbol,
     scan_symbols,

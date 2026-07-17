@@ -242,7 +242,7 @@ def test_duplicate_thesis_is_grouped_not_double_selected() -> None:
     result = analyze_candidate_selection(
         _phase4(
             _candidate(strategy=StrategyType.TREND_PULLBACK, quality=0.85),
-            _candidate(strategy=StrategyType.MOMENTUM_CONTINUATION, quality=0.82),
+            _candidate(strategy=StrategyType.FIRST_PULLBACK_CONTINUATION, quality=0.82),
         )
     )
     assert len(result.conflict_summary.duplicate_groups) == 1

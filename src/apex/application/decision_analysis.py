@@ -5,10 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from apex.application import integrated_analysis as _integrated
-from apex.application.discovery_contracts import ScanResult
+from apex.application.discovery_contracts import (
+    ScanResult as DiscoveryScanResult,
+    SymbolAnalysis as DiscoverySymbolAnalysis,
+)
 from apex.application.market_strategy_router import (
     MarketStrategyRoute,
     market_strategy_route_payload,
@@ -86,7 +89,7 @@ def scan_symbols(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
-) -> ScanResult:
+) -> DiscoveryScanResult:
     """Analyze each symbol once with canonical routing and ranking."""
 
     timestamp = generated_at or datetime.now(UTC)
@@ -109,14 +112,19 @@ def scan_symbols(
             )
         except Exception as exc:  # Scanner intentionally isolates per-symbol failures.
             failures[symbol] = str(exc)
-    return ScanResult(
+    return DiscoveryScanResult(
         generated_at=timestamp,
-        analyses=tuple(sorted(analyses, key=_scan_sort_key)),
+        analyses=tuple(
+            sorted(
+                analyses,
+                key=lambda item: _scan_sort_key(item),
+            )
+        ),
         failures=failures,
     )
 
 
-def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
+def serialize_symbol_analysis(analysis: DiscoverySymbolAnalysis) -> dict[str, Any]:
     """Serialize one analysis with canonical strategy routing."""
 
     payload = _integrated.serialize_symbol_analysis(analysis)
@@ -128,7 +136,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     return payload
 
 
-def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
+def serialize_scan_result(result: DiscoveryScanResult) -> dict[str, Any]:
     """Return scanner JSON with decision-aware nested analyses."""
 
     displayed = _display_analyses(result)
@@ -158,7 +166,7 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     }
 
 
-def format_symbol_text(analysis: SymbolAnalysis) -> str:
+def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
     """Format analysis with explicit routing, ranking, and canonical status."""
 
     base_text = _integrated.format_symbol_text(analysis)
@@ -197,7 +205,7 @@ def format_symbol_text(analysis: SymbolAnalysis) -> str:
     return "\n".join(lines)
 
 
-def format_scan_text(result: ScanResult) -> str:
+def format_scan_text(result: DiscoveryScanResult) -> str:
     """Return decision-aware human-readable scanner output."""
 
     displayed = _display_analyses(result)
@@ -210,7 +218,7 @@ def format_scan_text(result: ScanResult) -> str:
     return "\n".join(lines)
 
 
-def _opportunity_summary_lines(analysis: SymbolAnalysis) -> tuple[str, ...]:
+def _opportunity_summary_lines(analysis: DiscoverySymbolAnalysis) -> tuple[str, ...]:
     """Return compact operator-facing diagnostics for the best ranked candidate."""
 
     record = _best_rank_record(analysis)
@@ -233,7 +241,7 @@ def _opportunity_summary_lines(analysis: SymbolAnalysis) -> tuple[str, ...]:
     )
 
 
-def _decision_reason_code(analysis: SymbolAnalysis) -> str:
+def _decision_reason_code(analysis: DiscoverySymbolAnalysis) -> str:
     environment = getattr(analysis, "market_environment", None)
     route = getattr(analysis, "market_strategy_route", None)
     candidate_diagnostics = analysis.phase5_diagnostics or {}
@@ -250,7 +258,7 @@ def _decision_reason_code(analysis: SymbolAnalysis) -> str:
 
 
 def _display_analyses(
-    result: ScanResult,
+    result: DiscoveryScanResult,
     *,
     limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
 ) -> tuple[SymbolAnalysis, ...]:
@@ -258,10 +266,10 @@ def _display_analyses(
 
     if limit < 1:
         raise ValueError("scan display limit must be positive")
-    return result.analyses[:limit]
+    return cast(tuple[SymbolAnalysis, ...], result.analyses[:limit])
 
 
-def _scan_sort_key(analysis: SymbolAnalysis) -> tuple[float, int, str]:
+def _scan_sort_key(analysis: DiscoverySymbolAnalysis) -> tuple[float, int, str]:
     record = _best_rank_record(analysis)
     if record is None:
         return (0.0, 1, analysis.symbol)
@@ -272,7 +280,7 @@ def _scan_sort_key(analysis: SymbolAnalysis) -> tuple[float, int, str]:
     )
 
 
-def _best_rank_record(analysis: SymbolAnalysis) -> Any | None:
+def _best_rank_record(analysis: DiscoverySymbolAnalysis) -> Any | None:
     ranking = analysis.candidate_ranking
     if ranking is None:
         return None

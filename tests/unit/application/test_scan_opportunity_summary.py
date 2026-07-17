@@ -33,7 +33,7 @@ def test_opportunity_summary_exposes_label_rank_score_and_dimensions() -> None:
             opportunity_score=80.0,
             setup_score=74.0,
             timing_score=68.0,
-            risk_feasibility_score=61.0,
+            trade_quality_score=61.0,
         ),
     )
 
@@ -43,7 +43,7 @@ def test_opportunity_summary_exposes_label_rank_score_and_dimensions() -> None:
         "Best opportunity: USABLE | trend_pullback LONG | rank score 72.5",
         (
             "Score profile: opportunity 80.0 | setup 74.0 | timing 68.0 | "
-            "risk 61.0 | penalties 6.0"
+            "trade quality 61.0 | penalties 6.0"
         ),
     )
 

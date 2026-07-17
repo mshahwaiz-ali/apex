@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from apex.scoring.contracts import CandidateOutcome, RankedCandidate, ScoredCandidate
 from apex.scoring.rank_score import final_rank_score
-from apex.strategies.contracts import StrategyType, TradeDirection
+from apex.strategies.contracts import TradeDirection
+from apex.strategies.strategy_types import StrategyType
 
 _DIRECTION_ORDER: dict[TradeDirection, int] = {
     TradeDirection.LONG: 0,

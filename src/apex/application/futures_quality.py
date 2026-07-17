@@ -14,7 +14,7 @@ def analyze_futures_phase5(
     scoring_config: ScoringConfig = DEFAULT_SCORING_CONFIG,
     environment_route: EnvironmentRoute | None = None,
 ) -> CandidateSelectionResult:
-    """Run wallet-independent candidate scoring, ranking, and selection."""
+    """Run candidate scoring, ranking, and selection."""
 
     return analyze_candidate_selection(
         strategy_analysis,

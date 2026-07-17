@@ -101,11 +101,18 @@ def _context(*, actionable: bool) -> StrategyContext:
 
 def test_registry_has_fixed_expected_order() -> None:
     assert tuple(strategy for strategy, _generator in STRATEGY_REGISTRY) == (
-        StrategyType.TREND_PULLBACK,
+        StrategyType.MOMENTUM_BREAKOUT,
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.BREAKOUT_RETEST,
+        StrategyType.FIRST_PULLBACK_CONTINUATION,
+        StrategyType.TREND_PULLBACK,
+        StrategyType.COMPRESSION_EXPANSION,
         StrategyType.RANGE_REVERSAL,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.FAILED_BREAKOUT_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.VWAP_RECLAIM_REJECTION,
+        StrategyType.MOMENTUM_SCALP,
+        StrategyType.EXHAUSTION_REVERSAL,
     )
 
 
@@ -114,9 +121,9 @@ def test_empty_context_produces_no_candidates() -> None:
 
     assert result.candidates == ()
     assert result.decision_regime is MarketRegime.UNCERTAIN
-    assert result.eligible_strategies == ()
+    assert result.eligible_strategies == tuple(StrategyType)
     assert result.skipped_strategies is not None
-    assert set(result.skipped_strategies) == set(result.evaluated_strategies)
+    assert dict(result.skipped_strategies) == {}
 
 
 def test_competing_candidates_are_retained_in_registry_order() -> None:
@@ -124,20 +131,15 @@ def test_competing_candidates_are_retained_in_registry_order() -> None:
 
     strategies = tuple(candidate.strategy for candidate in result.candidates)
     assert StrategyType.TREND_PULLBACK in strategies
-    assert StrategyType.MOMENTUM_CONTINUATION in strategies
+    assert StrategyType.FIRST_PULLBACK_CONTINUATION in strategies
     assert result.decision_regime is MarketRegime.STRONG_UPTREND
-    assert result.eligible_strategies == (
-        StrategyType.TREND_PULLBACK,
-        StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
-    )
+    assert StrategyType.TREND_PULLBACK in result.eligible_strategies
+    assert StrategyType.BREAKOUT_CONTINUATION in result.eligible_strategies
+    assert StrategyType.MOMENTUM_BREAKOUT in result.eligible_strategies
     assert result.skipped_strategies is not None
-    assert set(result.skipped_strategies) == {
-        StrategyType.LIQUIDITY_REVERSAL,
-        StrategyType.RANGE_REVERSAL,
-    }
-    assert strategies.index(StrategyType.TREND_PULLBACK) < strategies.index(
-        StrategyType.MOMENTUM_CONTINUATION
+    assert dict(result.skipped_strategies) == {}
+    assert strategies.index(StrategyType.FIRST_PULLBACK_CONTINUATION) < strategies.index(
+        StrategyType.TREND_PULLBACK
     )
 
 

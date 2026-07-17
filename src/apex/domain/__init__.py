@@ -1,15 +1,13 @@
 """Focused domain public API for market discovery and analysis."""
 
 from apex.domain.futures_market import FuturesContractMetadata
+from apex.domain.entry import EntryClassificationInput, EntryState, FuturesDirection
 from apex.domain.models import (
     AnalysisResult,
     Candle,
     Decision,
     EntryZone,
     ExchangeFilterSnapshot,
-    LiquidationCluster,
-    LiquidationClusterSide,
-    LiquidationClusterSnapshot,
     OrderBookLevel,
     OrderBookSnapshot,
     TakeProfit,
@@ -19,12 +17,12 @@ __all__ = [
     "AnalysisResult",
     "Candle",
     "Decision",
+    "EntryClassificationInput",
+    "EntryState",
     "EntryZone",
     "ExchangeFilterSnapshot",
     "FuturesContractMetadata",
-    "LiquidationCluster",
-    "LiquidationClusterSide",
-    "LiquidationClusterSnapshot",
+    "FuturesDirection",
     "OrderBookLevel",
     "OrderBookSnapshot",
     "TakeProfit",

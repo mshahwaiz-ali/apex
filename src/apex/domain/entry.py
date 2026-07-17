@@ -3,16 +3,31 @@
 from __future__ import annotations
 
 import math
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from apex.domain.futures import EntryState, FuturesDirection
 
 BOUNDARY_POLICY = (
     "Entry-zone, reclaim, retest, chase, and invalidation boundaries are inclusive "
     "within the configured tolerance."
 )
+
+
+class FuturesDirection(StrEnum):
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
+class EntryState(StrEnum):
+    WATCH = "WATCH"
+    APPROACHING_ENTRY = "APPROACHING_ENTRY"
+    READY_NOW = "READY_NOW"
+    WAIT_FOR_RECLAIM = "WAIT_FOR_RECLAIM"
+    WAIT_FOR_RETEST = "WAIT_FOR_RETEST"
+    MISSED_ENTRY = "MISSED_ENTRY"
+    INVALIDATED = "INVALIDATED"
+    NO_TRADE = "NO_TRADE"
 
 
 class EntryClassificationInput(BaseModel):

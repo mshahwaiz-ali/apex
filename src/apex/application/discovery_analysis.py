@@ -44,7 +44,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_strategy_route: MarketStrategyRoute | None = None,
 ) -> SymbolAnalysis:
-    """Run candidate discovery without wallet, exposure, sizing, or leverage gates."""
+    """Run candidate discovery from market evidence and trade geometry."""
 
     if candle_limit < 40:
         raise ValueError("analysis requires at least 40 candles per timeframe")

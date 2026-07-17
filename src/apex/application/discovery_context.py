@@ -13,8 +13,6 @@ from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
-    LiquidationClusterSide,
-    LiquidationClusterSnapshot,
     OrderBookSnapshot,
     TickerSnapshot,
 )
@@ -53,7 +51,6 @@ def build_strategy_context(
     )
     order_book_snapshot = _fetch_order_book_snapshot(provider, symbol)
     exchange_filter_snapshot = _fetch_exchange_filter_snapshot(provider, symbol)
-    liquidation_cluster_snapshot = _fetch_liquidation_cluster_snapshot(provider, symbol)
     frames: list[TimeframeContext] = []
     regimes: dict[str, str] = {}
 
@@ -74,7 +71,6 @@ def build_strategy_context(
             spread_percentage=spread_percentage,
             order_book_snapshot=order_book_snapshot,
             exchange_filter_snapshot=exchange_filter_snapshot,
-            liquidation_cluster_snapshot=liquidation_cluster_snapshot,
         )
         frames.append(frame)
         regimes[timeframe] = regime
@@ -105,12 +101,6 @@ def frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
         "exchange_tick_size": frame.exchange_tick_size,
         "exchange_step_size": frame.exchange_step_size,
         "exchange_min_notional": frame.exchange_min_notional,
-        "nearest_long_liquidation_distance_pct": (
-            frame.nearest_long_cluster_distance_pct
-        ),
-        "nearest_short_liquidation_distance_pct": (
-            frame.nearest_short_cluster_distance_pct
-        ),
         "mark_price": frame.mark_price,
         "index_price": frame.index_price,
         "analysis_price": frame.analysis_price,
@@ -139,7 +129,6 @@ def _frame_from_candles(
     spread_percentage: float | None,
     order_book_snapshot: OrderBookSnapshot | None,
     exchange_filter_snapshot: ExchangeFilterSnapshot | None,
-    liquidation_cluster_snapshot: LiquidationClusterSnapshot | None,
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
@@ -218,16 +207,6 @@ def _frame_from_candles(
                 if exchange_filter_snapshot is not None
                 else None
             ),
-            nearest_long_cluster_distance_pct=_nearest_liquidation_distance_pct(
-                liquidation_cluster_snapshot,
-                side=LiquidationClusterSide.LONG,
-                reference_price=live_price,
-            ),
-            nearest_short_cluster_distance_pct=_nearest_liquidation_distance_pct(
-                liquidation_cluster_snapshot,
-                side=LiquidationClusterSide.SHORT,
-                reference_price=live_price,
-            ),
             analysis_price=latest_closed.close,
             last_closed_at=latest_closed.close_time,
             last_received_at=received_at,
@@ -302,36 +281,6 @@ def _fetch_exchange_filter_snapshot(
     except Exception:
         return None
     return snapshot if isinstance(snapshot, ExchangeFilterSnapshot) else None
-
-
-def _fetch_liquidation_cluster_snapshot(
-    provider: MarketDataProvider,
-    symbol: str,
-) -> LiquidationClusterSnapshot | None:
-    fetch_liquidation_clusters = getattr(provider, "fetch_liquidation_clusters", None)
-    if not callable(fetch_liquidation_clusters):
-        return None
-    try:
-        snapshot = fetch_liquidation_clusters(symbol)
-    except Exception:
-        return None
-    return snapshot if isinstance(snapshot, LiquidationClusterSnapshot) else None
-
-
-def _nearest_liquidation_distance_pct(
-    snapshot: LiquidationClusterSnapshot | None,
-    *,
-    side: LiquidationClusterSide,
-    reference_price: float,
-) -> float | None:
-    if snapshot is None:
-        return None
-    distances = tuple(
-        abs(cluster.price - reference_price) / reference_price * 100.0
-        for cluster in snapshot.clusters
-        if cluster.side is side
-    )
-    return min(distances) if distances else None
 
 
 def _select_current_price(

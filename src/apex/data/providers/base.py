@@ -10,11 +10,9 @@ from apex.domain.futures_screening import FuturesTickerSnapshot
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
-    LiquidationClusterSnapshot,
     OrderBookSnapshot,
     TickerSnapshot,
 )
-from apex.intelligence.contracts import FundingRateSnapshot, OpenInterestSnapshot
 
 
 class MarketDataProvider(Protocol):
@@ -54,20 +52,6 @@ class HistoricalRangeMarketDataProvider(Protocol):
         """Fetch closed candles whose open times fall in ``[start_time, end_time)``."""
 
 
-class DerivativesDataProvider(Protocol):
-    """Optional public derivatives data contract."""
-
-    @property
-    def name(self) -> str:
-        """Return the provider identifier."""
-
-    def fetch_funding_rate(self, symbol: str) -> FundingRateSnapshot:
-        """Fetch the latest public funding-rate snapshot."""
-
-    def fetch_open_interest(self, symbol: str) -> OpenInterestSnapshot:
-        """Fetch the latest public open-interest snapshot."""
-
-
 class FuturesUniverseProvider(Protocol):
     """Optional futures exchange-universe contract."""
 
@@ -102,6 +86,3 @@ class MarketMicrostructureProvider(Protocol):
 
     def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
         """Fetch normalized exchange precision and notional filters."""
-
-    def fetch_liquidation_clusters(self, symbol: str) -> LiquidationClusterSnapshot:
-        """Fetch normalized liquidation cluster levels."""

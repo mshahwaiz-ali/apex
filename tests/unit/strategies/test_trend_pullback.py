@@ -161,13 +161,15 @@ def test_generates_short_trend_pullback_near_current_price() -> None:
     assert candidate.targets.levels[0].price < candidate.entry.lower
 
 
-def test_rejects_strong_higher_timeframe_contradiction() -> None:
+def test_marks_strong_higher_timeframe_contradiction() -> None:
     candidates = generate_trend_pullback_candidates(
         _context(bullish=True, contradiction=True),
         decision_time=NOW,
     )
 
-    assert candidates == ()
+    assert len(candidates) == 1
+    assert candidates[0].metadata["higher_timeframe_conflict"] is True
+    assert candidates[0].quality.conflict_penalty > 0.0
 
 
 def test_allows_missing_optional_indicators() -> None:

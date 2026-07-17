@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 import apex.application.decision_analysis as _decision
-from apex.application.discovery_contracts import ScanResult
+from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _ACTIONABLE_STATUSES = frozenset({"READY_NOW", "AGGRESSIVE_NOW"})
@@ -15,7 +15,7 @@ _DEVELOPING_STATUSES = frozenset({"PULLBACK_PREFERRED", "WATCH_NEAR_ENTRY"})
 _UNAVAILABLE_STATUSES = frozenset({"LATE_OR_CHASING", "INVALIDATED"})
 
 
-def serialize_symbol_analysis(analysis: _decision.SymbolAnalysis) -> dict[str, Any]:
+def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Return one discovery result without legacy entry-state overlays."""
 
     payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
@@ -26,7 +26,7 @@ def serialize_symbol_analysis(analysis: _decision.SymbolAnalysis) -> dict[str, A
         payload["confidence_score"] = None
         payload["decision_reason_code"] = "NO_TRADE"
         payload["result_group"] = "no_trade"
-        return payload
+        return cast(dict[str, Any], payload)
 
     status = setup.get("entry_status")
     payload["entry_status"] = status
@@ -34,13 +34,34 @@ def serialize_symbol_analysis(analysis: _decision.SymbolAnalysis) -> dict[str, A
     payload["confidence_score"] = setup.get("confidence_score")
     payload["decision_reason_code"] = status
     payload["result_group"] = _result_group(status)
-    return payload
+    return cast(dict[str, Any], payload)
 
 
-def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
+def serialize_scan_result(
+    result: ScanResult,
+    *,
+    display_limit: int = _decision.DEFAULT_SCAN_DISPLAY_LIMIT,
+    direction: str = "both",
+) -> dict[str, Any]:
     """Return ranked scan output grouped by canonical actionability."""
 
-    displayed = tuple(result.analyses[: _decision.DEFAULT_SCAN_DISPLAY_LIMIT])
+    if display_limit < 1:
+        raise ValueError("display limit must be positive")
+    normalized_direction = direction.strip().lower()
+    if normalized_direction not in {"long", "short", "both"}:
+        raise ValueError("direction must be one of: long, short, both")
+
+    ranked = (
+        result.analyses
+        if normalized_direction == "both"
+        else tuple(
+            item
+            for item in result.analyses
+            if item.assessment.setup is not None
+            and item.assessment.setup.direction.value == normalized_direction
+        )
+    )
+    displayed = tuple(ranked[:display_limit])
     serialized = [serialize_symbol_analysis(item) for item in displayed]
     actionable = [item for item in serialized if item.get("result_group") == "actionable"]
     developing = [item for item in serialized if item.get("result_group") == "developing"]
@@ -64,7 +85,8 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
         "results": serialized,
         "total_analysis_count": len(result.analyses),
         "displayed_analysis_count": len(serialized),
-        "display_limit": _decision.DEFAULT_SCAN_DISPLAY_LIMIT,
+        "display_limit": display_limit,
+        "direction_filter": normalized_direction,
         "selected_setup_count": len(selected),
         "actionable_count": len(actionable),
         "developing_count": len(developing),

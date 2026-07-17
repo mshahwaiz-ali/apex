@@ -10,8 +10,9 @@ from enum import StrEnum
 from typing import Any
 
 from apex.application.candidate_ranking import CandidateRankingSnapshot
-from apex.strategies.contracts import StrategyType, TradeDirection
+from apex.strategies.contracts import TradeDirection
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.strategy_types import StrategyType
 
 
 class StopQualityBand(StrEnum):

@@ -9,8 +9,8 @@ from apex.scoring import (
     CandidateOutcome,
     CandidateSelectionResult,
     RankedCandidate,
-    score_band_for,
 )
+from apex.scoring.config import score_band_for
 from apex.scoring.rank_score import (
     RANK_SCORE_WEIGHTS,
     CandidateScoreDimensions,

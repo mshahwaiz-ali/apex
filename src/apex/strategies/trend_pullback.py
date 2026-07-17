@@ -11,13 +11,13 @@ from apex.strategies.contracts import (
     InvalidationType,
     RawQualityMetrics,
     StrategyEvidence,
-    StrategyType,
     TargetConcept,
     TargetLevel,
     TargetType,
     TradeCandidate,
     TradeDirection,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,

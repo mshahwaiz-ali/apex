@@ -183,15 +183,16 @@ apex version
 ```
 
 Text and JSON are the supported output modes.
+`scan` also supports `--results`, `--shortlist`, and `--direction long|short|both` so operators can keep the broad discovery workflow compact without switching to old modes.
 
 ## Configuration
 
-Active configuration lives under `config/`:
+Active configuration is loaded from `config/default.yaml` and organized around Stage 3 sections:
 
 ```text
 config/
 ├── default.yaml
-├── strategies.yaml
+├── market_environment.yaml
 └── symbols.yaml
 ```
 

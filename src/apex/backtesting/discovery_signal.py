@@ -10,8 +10,8 @@ def signal_from_discovery_setup(setup: DiscoverySetup) -> BacktestSignal:
     """Convert one discovery setup into a one-unit structural replay signal.
 
     Quantity is normalized to one market unit. Risk amount is the structural
-    entry-to-stop distance for that unit, so realized R remains independent of
-    wallet balance, leverage, margin, or position sizing.
+    entry-to-stop distance for that unit, so realized R is measured from the
+    trade geometry itself.
     """
 
     targets = setup.take_profits

@@ -94,7 +94,7 @@ def test_ranking_record_exposes_four_score_dimensions() -> None:
     assert dimensions.opportunity_score == 60.0
     assert dimensions.setup_score == 80.0
     assert dimensions.timing_score == 60.0
-    assert dimensions.risk_feasibility_score == 75.0
+    assert dimensions.trade_quality_score == 75.0
 
 
 def test_dimension_scores_do_not_replace_existing_final_score() -> None:
@@ -112,5 +112,5 @@ def test_payload_serializes_named_score_dimensions() -> None:
         "opportunity_score": 60.0,
         "setup_score": 80.0,
         "timing_score": 60.0,
-        "risk_feasibility_score": 75.0,
+        "trade_quality_score": 75.0,
     }

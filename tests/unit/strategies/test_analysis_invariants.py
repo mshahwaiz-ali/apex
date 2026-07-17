@@ -121,7 +121,7 @@ def test_rejects_candidate_from_unevaluated_strategy() -> None:
         StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
-            candidates=(_candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),),
+            candidates=(_candidate(strategy=StrategyType.MOMENTUM_BREAKOUT),),
             evaluated_strategies=(StrategyType.TREND_PULLBACK,),
         )
 
@@ -132,12 +132,12 @@ def test_rejects_candidate_order_that_differs_from_registry_order() -> None:
             symbol="BTC/USDT",
             decision_time=NOW,
             candidates=(
-                _candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),
                 _candidate(strategy=StrategyType.TREND_PULLBACK),
+                _candidate(strategy=StrategyType.MOMENTUM_BREAKOUT),
             ),
             evaluated_strategies=(
+                StrategyType.MOMENTUM_BREAKOUT,
                 StrategyType.TREND_PULLBACK,
-                StrategyType.MOMENTUM_CONTINUATION,
             ),
         )
 
@@ -147,13 +147,13 @@ def test_accepts_multiple_candidates_from_same_strategy_in_stable_position() -> 
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(
+            _candidate(strategy=StrategyType.MOMENTUM_BREAKOUT),
             _candidate(strategy=StrategyType.TREND_PULLBACK),
             _candidate(strategy=StrategyType.TREND_PULLBACK),
-            _candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),
         ),
         evaluated_strategies=(
+            StrategyType.MOMENTUM_BREAKOUT,
             StrategyType.TREND_PULLBACK,
-            StrategyType.MOMENTUM_CONTINUATION,
         ),
     )
 

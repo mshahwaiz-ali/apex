@@ -33,10 +33,6 @@ futures_screener:
   blacklist: []
   allowlist: null
   metadata_cache_ttl_seconds: 3600
-advanced_intelligence_enabled: false
-intelligence_funding_enabled: false
-intelligence_open_interest_enabled: false
-intelligence_correlation_enabled: false
 strategy_routing:
   enabled:
     - momentum_breakout

@@ -54,7 +54,8 @@ def test_overextension_blocks_momentum_chase_strategies() -> None:
         _environment(extension_state=ExtensionState.OVEREXTENDED)
     )
 
-    assert StrategyType.MOMENTUM_CONTINUATION not in route.allowed_strategies
+    assert StrategyType.MOMENTUM_BREAKOUT not in route.allowed_strategies
+    assert StrategyType.MOMENTUM_SCALP not in route.allowed_strategies
     assert "CHASE_STRATEGIES_BLOCKED" in route.reason_codes
 
 
@@ -73,8 +74,8 @@ def test_failed_breakout_keeps_trend_pullback_fallback() -> None:
     )
 
     assert route.strategy_priority[:2] == (
-        StrategyType.LIQUIDITY_REVERSAL,
-        StrategyType.RANGE_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.FAILED_BREAKOUT_REVERSAL,
     )
     assert StrategyType.TREND_PULLBACK in route.allowed_strategies
 
@@ -85,4 +86,3 @@ def test_exhaustion_keeps_trend_pullback_fallback() -> None:
     )
 
     assert StrategyType.TREND_PULLBACK in route.allowed_strategies
-

@@ -39,69 +39,82 @@ class MarketStrategyRoute:
 _REGIME_STRATEGIES: dict[MarketRegime, tuple[StrategyType, ...]] = {
     MarketRegime.TREND_UP: (
         StrategyType.TREND_PULLBACK,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.FIRST_PULLBACK_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
         StrategyType.BREAKOUT_CONTINUATION,
     ),
     MarketRegime.TREND_DOWN: (
         StrategyType.TREND_PULLBACK,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.FIRST_PULLBACK_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
         StrategyType.BREAKOUT_CONTINUATION,
     ),
     MarketRegime.BREAKOUT_EXPANSION_UP: (
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
+        StrategyType.MOMENTUM_SCALP,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.BREAKOUT_EXPANSION_DOWN: (
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
+        StrategyType.MOMENTUM_SCALP,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.BREAKOUT_RETEST_UP: (
         StrategyType.BREAKOUT_CONTINUATION,
         StrategyType.TREND_PULLBACK,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.BREAKOUT_RETEST,
+        StrategyType.FIRST_PULLBACK_CONTINUATION,
     ),
     MarketRegime.BREAKOUT_RETEST_DOWN: (
         StrategyType.BREAKOUT_CONTINUATION,
         StrategyType.TREND_PULLBACK,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.BREAKOUT_RETEST,
+        StrategyType.FIRST_PULLBACK_CONTINUATION,
     ),
     MarketRegime.RANGE: (
         StrategyType.RANGE_REVERSAL,
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
     ),
     MarketRegime.FAILED_BREAKOUT_UP: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.FAILED_BREAKOUT_REVERSAL,
         StrategyType.RANGE_REVERSAL,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.FAILED_BREAKOUT_DOWN: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.FAILED_BREAKOUT_REVERSAL,
         StrategyType.RANGE_REVERSAL,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.EXHAUSTION_UP: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.EXHAUSTION_REVERSAL,
         StrategyType.RANGE_REVERSAL,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.EXHAUSTION_DOWN: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.EXHAUSTION_REVERSAL,
         StrategyType.RANGE_REVERSAL,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.REVERSAL_UP: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.VWAP_RECLAIM_REJECTION,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.REVERSAL_DOWN: (
-        StrategyType.LIQUIDITY_REVERSAL,
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+        StrategyType.VWAP_RECLAIM_REJECTION,
         StrategyType.TREND_PULLBACK,
     ),
     MarketRegime.SQUEEZE: (
+        StrategyType.COMPRESSION_EXPANSION,
         StrategyType.BREAKOUT_CONTINUATION,
-        StrategyType.MOMENTUM_CONTINUATION,
+        StrategyType.MOMENTUM_BREAKOUT,
     ),
 }
 
@@ -140,7 +153,8 @@ def route_market_strategies(environment: MarketEnvironment) -> MarketStrategyRou
         reasons.append(f"{environment.conflict_state.value} reduced routing confidence")
 
     if environment.extension_state in {ExtensionState.OVEREXTENDED, ExtensionState.EXTREME}:
-        allowed.discard(StrategyType.MOMENTUM_CONTINUATION)
+        allowed.discard(StrategyType.MOMENTUM_BREAKOUT)
+        allowed.discard(StrategyType.MOMENTUM_SCALP)
         codes.append("CHASE_STRATEGIES_BLOCKED")
         reasons.append("Momentum chase strategies blocked because price is overextended")
 

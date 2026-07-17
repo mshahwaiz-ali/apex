@@ -6,8 +6,9 @@ from dataclasses import replace
 from datetime import datetime
 
 from apex.strategies.context import StrategyContext
-from apex.strategies.contracts import StrategyEvidence, StrategyType, TradeCandidate
+from apex.strategies.contracts import StrategyEvidence, TradeCandidate
 from apex.strategies.diagnostics import has_higher_timeframe_breakout
+from apex.strategies.strategy_types import StrategyType
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 

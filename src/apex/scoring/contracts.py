@@ -9,7 +9,8 @@ from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
 
-from apex.strategies.contracts import StrategyType, TradeCandidate, TradeDirection
+from apex.strategies.contracts import TradeCandidate, TradeDirection
+from apex.strategies.strategy_types import StrategyType
 
 
 class CandidateOutcome(StrEnum):

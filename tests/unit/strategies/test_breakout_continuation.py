@@ -177,13 +177,15 @@ def test_rejects_overextended_breakout() -> None:
     assert candidates == ()
 
 
-def test_rejects_higher_timeframe_contradiction() -> None:
+def test_marks_higher_timeframe_contradiction() -> None:
     candidates = generate_breakout_continuation_candidates(
         _context(bullish=True, higher_timeframe_contradiction=True),
         decision_time=_DECISION_TIME,
     )
 
-    assert candidates == ()
+    assert len(candidates) == 1
+    assert candidates[0].metadata["higher_timeframe_conflict"] is True
+    assert candidates[0].quality.conflict_penalty > 0.0
 
 
 def test_marks_active_candle_candidate_provisional() -> None:

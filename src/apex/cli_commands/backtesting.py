@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -51,13 +52,22 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             int,
             typer.Option("--replay-candles", min=1, max=100),
         ] = 24,
+        config_dir: Annotated[
+            Path,
+            typer.Option(
+                "--config-dir",
+                exists=True,
+                file_okay=False,
+                help="Configuration directory containing Apex YAML settings.",
+            ),
+        ] = Path("config"),
     ) -> None:
         """Analyze a historical prefix and replay its setup on withheld candles."""
 
         try:
             output_mode = normalize_cli_output_mode(output)
             normalized_symbol = normalize_market_symbol(symbol)
-            context = bootstrap()
+            context = bootstrap(config_dir)
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             requested_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
             source_limit = candle_limit + replay_candles

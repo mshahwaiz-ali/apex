@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from types import MappingProxyType
 
-from apex.strategies.contracts import StrategyType
+from apex.strategies.strategy_types import StrategyType
 
 QUALITY_COMPONENTS: tuple[str, ...] = (
     "trend_alignment",
@@ -37,6 +37,29 @@ def _validate_unit(name: str, value: float) -> None:
 def _validate_non_negative(name: str, value: float) -> None:
     if not math.isfinite(value) or value < 0.0:
         raise ValueError(f"{name} must be finite and non-negative")
+
+
+def score_band_for(score: float) -> str:
+    """Return the canonical deterministic score band for an opportunity score."""
+
+    if not math.isfinite(score):
+        raise ValueError("score must be finite")
+    if not 0.0 <= score <= 100.0:
+        raise ValueError("score must be between zero and 100")
+
+    if score < 55.0:
+        return "00_54"
+    if score < 65.0:
+        return "55_64"
+    if score < 75.0:
+        return "65_74"
+    if score < 85.0:
+        return "75_84"
+    if score < 90.0:
+        return "85_89"
+    if score < 95.0:
+        return "90_94"
+    return "95_100"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,15 +118,28 @@ class StrategyProfile:
 
 _DEFAULT_PROFILES: Mapping[StrategyType, StrategyProfile] = MappingProxyType(
     {
-        StrategyType.TREND_PULLBACK: StrategyProfile(),
-        StrategyType.BREAKOUT_CONTINUATION: StrategyProfile(),
-        StrategyType.LIQUIDITY_REVERSAL: StrategyProfile(
-            neutral_metrics=frozenset({"volume_quality"})
-        ),
-        StrategyType.RANGE_REVERSAL: StrategyProfile(neutral_metrics=frozenset({"volume_quality"})),
-        StrategyType.MOMENTUM_CONTINUATION: StrategyProfile(
+        StrategyType.MOMENTUM_BREAKOUT: StrategyProfile(
             neutral_metrics=frozenset({"liquidity_quality"})
         ),
+        StrategyType.BREAKOUT_CONTINUATION: StrategyProfile(
+            neutral_metrics=frozenset({"liquidity_quality"})
+        ),
+        StrategyType.BREAKOUT_RETEST: StrategyProfile(),
+        StrategyType.FIRST_PULLBACK_CONTINUATION: StrategyProfile(
+            neutral_metrics=frozenset({"liquidity_quality"})
+        ),
+        StrategyType.TREND_PULLBACK: StrategyProfile(),
+        StrategyType.COMPRESSION_EXPANSION: StrategyProfile(),
+        StrategyType.RANGE_REVERSAL: StrategyProfile(neutral_metrics=frozenset({"volume_quality"})),
+        StrategyType.FAILED_BREAKOUT_REVERSAL: StrategyProfile(),
+        StrategyType.LIQUIDITY_REJECTION_REVERSAL: StrategyProfile(
+            neutral_metrics=frozenset({"volume_quality"})
+        ),
+        StrategyType.VWAP_RECLAIM_REJECTION: StrategyProfile(),
+        StrategyType.MOMENTUM_SCALP: StrategyProfile(
+            neutral_metrics=frozenset({"liquidity_quality"})
+        ),
+        StrategyType.EXHAUSTION_REVERSAL: StrategyProfile(),
     }
 )
 

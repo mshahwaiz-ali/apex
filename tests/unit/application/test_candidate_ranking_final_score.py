@@ -91,14 +91,14 @@ def test_dimensions_use_redesign_contract_names() -> None:
     assert dimensions.opportunity_score == 60.0
     assert dimensions.setup_score == 80.0
     assert dimensions.timing_score == 60.0
-    assert dimensions.risk_feasibility_score == 75.0
+    assert dimensions.trade_quality_score == 75.0
 
 
 def test_weighted_final_rank_score_is_deterministic() -> None:
     snapshot = _snapshot()
 
     assert snapshot.primary is not None
-    assert snapshot.primary.final_rank_score == 69.25
+    assert snapshot.primary.final_rank_score == 70.25
     assert snapshot.primary.final_score == 69.65
     assert snapshot.primary.rank == 1
 
@@ -107,11 +107,11 @@ def test_payload_exposes_final_rank_score_and_weights() -> None:
     payload = candidate_ranking_payload(_snapshot())
     primary = payload["primary"]
 
-    assert primary["final_rank_score"] == 69.25  # type: ignore[index]
-    assert primary["score_dimensions"]["risk_feasibility_score"] == 75.0  # type: ignore[index]
+    assert primary["final_rank_score"] == 70.25  # type: ignore[index]
+    assert primary["score_dimensions"]["trade_quality_score"] == 75.0  # type: ignore[index]
     assert payload["rank_score_weights"] == {
-        "opportunity_score": 0.30,
-        "setup_score": 0.35,
+        "opportunity_score": 0.25,
+        "setup_score": 0.40,
         "timing_score": 0.20,
-        "risk_feasibility_score": 0.15,
+        "trade_quality_score": 0.15,
     }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import typer
 
@@ -22,6 +23,8 @@ from apex.application import (
 from apex.application.public_output import serialize_scan_result
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.discovery_output import render_discovery_scan
+
+ScanDirection = Literal["long", "short", "both"]
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
@@ -42,14 +45,50 @@ def register_scanner_commands(app: typer.Typer) -> None:
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=999),
+        results: int = typer.Option(
+            20,
+            "--results",
+            min=1,
+            max=50,
+            help="Maximum ranked results to display after detailed analysis.",
+        ),
+        shortlist: int = typer.Option(
+            30,
+            "--shortlist",
+            min=1,
+            max=100,
+            help="Number of screened symbols to analyze in detail.",
+        ),
+        direction: ScanDirection = typer.Option(
+            "both",
+            "--direction",
+            case_sensitive=False,
+            help="Display long, short, or both directions.",
+        ),
+        config_dir: Path = typer.Option(
+            Path("config"),
+            "--config-dir",
+            exists=True,
+            file_okay=False,
+            help="Configuration directory containing Apex YAML settings.",
+        ),
     ) -> None:
         """Discover, analyze, and rank the active futures symbol universe."""
 
         try:
             output_mode = _normalize_scanner_output(output)
-            context = bootstrap()
+            context = bootstrap(config_dir)
             with create_market_data_services(context.settings) as services:
-                screener_settings = context.settings.futures_screener
+                base_screener_settings = context.settings.futures_screener
+                screener_settings = base_screener_settings.model_copy(
+                    update={
+                        "shortlist_size": shortlist,
+                        "ticker_prefilter_size": max(
+                            base_screener_settings.ticker_prefilter_size,
+                            shortlist,
+                        ),
+                    }
+                )
                 selection = select_futures_scan_symbols(
                     services.futures_universe,
                     services.futures_screener,
@@ -79,7 +118,11 @@ def register_scanner_commands(app: typer.Typer) -> None:
             typer.echo(f"Scanner market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = serialize_scan_result(result)
+        payload = serialize_scan_result(
+            result,
+            display_limit=results,
+            direction=direction,
+        )
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))

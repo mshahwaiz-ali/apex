@@ -7,6 +7,7 @@ from apex.scoring.config import (
     ScoringConfig,
     ScoringWeights,
     StrategyProfile,
+    score_band_for,
 )
 from apex.scoring.contracts import (
     CandidateOutcome,
@@ -25,12 +26,6 @@ from apex.scoring.rank_score import (
     score_dimensions,
     unpenalized_rank_score,
 )
-from apex.scoring.setup_segment import (
-    SetupSegmentContext,
-    SetupSegmentIdentity,
-    score_band_for,
-)
-
 __all__ = [
     "DEFAULT_SCORING_CONFIG",
     "RANK_SCORE_WEIGHTS",
@@ -45,8 +40,6 @@ __all__ = [
     "ScoredCandidate",
     "ScoringConfig",
     "ScoringWeights",
-    "SetupSegmentContext",
-    "SetupSegmentIdentity",
     "StrategyProfile",
     "analyze_candidate_selection",
     "final_rank_score",

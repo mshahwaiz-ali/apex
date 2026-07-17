@@ -5,9 +5,6 @@ from pydantic import ValidationError
 
 from apex.domain.models import (
     ExchangeFilterSnapshot,
-    LiquidationCluster,
-    LiquidationClusterSide,
-    LiquidationClusterSnapshot,
     OrderBookLevel,
     OrderBookSnapshot,
     TickerSnapshot,
@@ -92,28 +89,3 @@ def test_exchange_filter_snapshot_validates_precision_filters() -> None:
     )
 
     assert filters.min_notional == 5.0
-
-
-def test_liquidation_cluster_snapshot_requires_clusters() -> None:
-    snapshot = LiquidationClusterSnapshot(
-        symbol="BTC/USDT",
-        clusters=(
-            LiquidationCluster(
-                side=LiquidationClusterSide.LONG,
-                price=63_800,
-                notional=2_000_000,
-            ),
-        ),
-        captured_at=datetime.now(UTC),
-        source="fixture",
-    )
-
-    assert snapshot.clusters[0].side is LiquidationClusterSide.LONG
-
-    with pytest.raises(ValidationError, match="at least one cluster"):
-        LiquidationClusterSnapshot(
-            symbol="BTC/USDT",
-            clusters=(),
-            captured_at=datetime.now(UTC),
-            source="fixture",
-        )
