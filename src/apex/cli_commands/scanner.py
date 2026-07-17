@@ -11,7 +11,6 @@ from apex.application import (
     bootstrap,
     build_analysis_record,
     create_market_data_services,
-    load_default_risk_config,
     scan_symbols,
     select_futures_scan_symbols,
     serialize_futures_screening,
@@ -20,13 +19,20 @@ from apex.application import (
     write_analysis_record_sqlite,
     write_json_report,
 )
-from apex.application.futures_risk_mode import futures_risk_mode_scope
 from apex.data.providers.errors import MarketDataProviderError
-from apex.domain import RiskMode
 from apex.presentation.scanner import render_futures_scan
+
+_REMOVED_PUBLIC_FIELDS = {
+    "execution_approval",
+    "futures_account",
+    "futures_plan",
+    "risk_mode",
+}
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
+    """Register broad futures opportunity discovery."""
+
     @app.command("scan")
     def scan(
         symbols_file: Path | None = typer.Option(
@@ -37,28 +43,18 @@ def register_scanner_commands(app: typer.Typer) -> None:
             readable=True,
             help="Optional static symbol override. Defaults to live Binance futures discovery.",
         ),
-        output: str = typer.Option(
-            "text",
-            "--output",
-            "-o",
-            help="text or json",
-        ),
+        output: str = typer.Option("text", "--output", "-o", help="text or json"),
         report: Path | None = typer.Option(None, "--report"),
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=999),
-        risk_mode: RiskMode = typer.Option(RiskMode.STANDARD, "--risk-mode"),
     ) -> None:
         """Discover, analyze, and rank the active futures symbol universe."""
 
         try:
             output_mode = _normalize_scanner_output(output)
             context = bootstrap()
-            risk_config = load_default_risk_config()
-            with (
-                futures_risk_mode_scope(risk_mode),
-                create_market_data_services(context.settings) as services,
-            ):
+            with create_market_data_services(context.settings) as services:
                 screener_settings = context.settings.futures_screener
                 selection = select_futures_scan_symbols(
                     services.futures_universe,
@@ -81,7 +77,6 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         None,
                     ),
                     candle_limit=candle_limit + 1,
-                    risk_config=risk_config,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                 )
         except ValueError as exc:
@@ -90,12 +85,9 @@ def register_scanner_commands(app: typer.Typer) -> None:
             typer.echo(f"Scanner market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = serialize_scan_result(result)
-        payload["risk_mode"] = risk_mode.value
+        payload = _without_account_fields(serialize_scan_result(result))
         if selection.screening is not None:
-            payload["screening"] = serialize_futures_screening(
-                selection.screening
-            )
+            payload["screening"] = serialize_futures_screening(selection.screening)
         if report is not None:
             write_json_report(payload, report)
         if record is not None or record_db is not None:
@@ -111,6 +103,23 @@ def register_scanner_commands(app: typer.Typer) -> None:
         typer.echo(render_futures_scan(payload))
 
 
+def _without_account_fields(payload: dict[str, object]) -> dict[str, object]:
+    """Remove legacy account-planning fields from scanner output."""
+
+    cleaned = {key: value for key, value in payload.items() if key not in _REMOVED_PUBLIC_FIELDS}
+    for key in ("best_overall",):
+        value = cleaned.get(key)
+        if isinstance(value, dict):
+            cleaned[key] = _without_account_fields(value)
+    for key in ("results", "top_long_setups", "top_short_setups"):
+        value = cleaned.get(key)
+        if isinstance(value, list):
+            cleaned[key] = [
+                _without_account_fields(item) if isinstance(item, dict) else item for item in value
+            ]
+    return cleaned
+
+
 def _normalize_scanner_output(value: str) -> str:
     """Normalize the scanner's intentionally small output surface."""
 
@@ -118,3 +127,6 @@ def _normalize_scanner_output(value: str) -> str:
     if normalized not in {"text", "json"}:
         raise ValueError("scanner output must be one of: text, json")
     return normalized
+
+
+__all__ = ["register_scanner_commands"]
