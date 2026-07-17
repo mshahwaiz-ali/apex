@@ -19,9 +19,10 @@ from apex.optimization.engine import (
     calibration_to_payload,
     compare_performance,
     evaluate_walk_forward_calibration,
+    result_to_payload,
 )
 
-S10_EMPIRICAL_REPORT_SCHEMA_VERSION = 1
+S10_EMPIRICAL_REPORT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,7 @@ def build_empirical_calibration_report(
             "decision": audit.decision.value,
             "reasons": list(audit.reasons),
             "used_for_selection": False,
+            "comparison": result_to_payload(audit),
         }
 
     payload: dict[str, Any] = {
