@@ -15,8 +15,6 @@ class StrategyType(StrEnum):
     RANGE_REVERSAL = "range_reversal"
     FAILED_BREAKOUT_REVERSAL = "failed_breakout_reversal"
     LIQUIDITY_REJECTION_REVERSAL = "liquidity_rejection_reversal"
-    LIQUIDITY_REVERSAL = "liquidity_reversal"
     VWAP_RECLAIM_REJECTION = "vwap_reclaim_rejection"
     MOMENTUM_SCALP = "momentum_scalp"
     EXHAUSTION_REVERSAL = "exhaustion_reversal"
-    MOMENTUM_CONTINUATION = "momentum_continuation"
