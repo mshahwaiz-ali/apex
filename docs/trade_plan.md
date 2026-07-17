@@ -4,155 +4,120 @@
 
 This document defines the methodology for improving Apex trade discovery and post-shortlist coin analysis.
 
-Apex is already an operational deterministic Binance USDT perpetual-futures analysis system. This work must not redesign the repository, replace the CLI, or create a separate analysis engine.
+Apex is already built. This work must not redesign the repository, replace the CLI, or create separate analysis engines.
 
-The objective is to improve the quality of results returned by:
+The objective is to improve the quality, availability, ranking, and explanation of opportunities returned by:
 
 ```text
 apex scan
 apex analyze SYMBOL
 ```
 
-Both commands must use the same shared trade-analysis core.
+Both commands must use the same shared trade-analysis core. The only difference is symbol selection:
 
-The only intended difference is:
+- `apex scan` discovers and shortlists symbols first.
+- `apex analyze SYMBOL` analyzes the requested symbol directly.
 
-* `apex scan` selects and shortlists symbols before analysis.
-* `apex analyze SYMBOL` analyzes the requested symbol directly.
-
-After symbol selection, both commands must apply identical:
-
-* market-state classification;
-* strategy routing;
-* setup detection;
-* entry construction;
-* stop-loss placement;
-* target projection;
-* setup expiry;
-* scoring;
-* rejection rules;
-* reasoning;
-* and output wording.
+After symbol selection, both commands must apply identical market-state classification, strategy routing, setup detection, entry construction, stop placement, target projection, expiry, scoring, confidence, rejection, ranking, and output wording.
 
 ---
 
-# 2. Core Objective
+# 2. Product Objective
 
-Apex should find the strongest currently available long and short opportunities without forcing trades.
+Apex should find the strongest currently available long and short opportunities without forcing trades and without hiding valid opportunities behind unnecessary universal rules.
 
-The engine must answer these questions in order:
+The engine must answer, in order:
 
-1. Is this coin currently tradable?
-2. What market state is it in?
-3. Which strategies are valid for this state?
-4. Is a real setup present?
-5. Has the setup completed or is it still developing?
-6. Is an entry available near current market price?
-7. Is a superior entry likely on a nearby retest or pullback?
-8. Is a farther future entry worth monitoring?
+1. Is this market usable?
+2. What is the current market state?
+3. Which strategy families fit that state?
+4. Is a measurable setup present?
+5. Is the setup developing, confirmed, actionable, late, missed, or invalidated?
+6. Is an entry valid near current market price?
+7. Is a better nearby pullback, retest, reclaim, or rejection entry available?
+8. Is a future trigger worth monitoring?
 9. Where is the structural invalidation?
-10. What movement can the structure reasonably support?
-11. What are the realistic target levels?
-12. How long may the setup and trade remain valid?
-13. Does the reward justify the risk and execution cost?
-14. Why was the trade selected, downgraded, deferred, or rejected?
+10. What stop follows from that invalidation?
+11. What movement is realistically supported?
+12. Which targets are reachable before major obstacles?
+13. How long may the setup and trade remain valid?
+14. What is the evidence-based confidence level?
+15. Why was this candidate selected, downgraded, deferred, or rejected?
 
-The engine must not start with:
+Apex must not start with:
 
-> “Which indicators are bullish?”
+> Which indicators are bullish?
 
 It must start with:
 
-> “What is this market currently doing?”
+> What is this market doing, where is price located, and which tested setup fits this condition?
 
 ---
 
-# 3. Methodology Sources
+# 3. Controlling Principles
 
-The methodology combines three distinct roles.
+## 3.1 Structure first
 
-## 3.1 John J. Murphy — Market Structure
+Market structure determines the setup. Indicators provide supporting, timing, or contradiction evidence.
 
-Murphy supplies the primary framework for:
+Primary structural inputs include:
 
-* trend classification;
-* swing structure;
-* support and resistance;
-* polarity changes;
-* breakouts;
-* failed breakouts;
-* trendlines;
-* channels;
-* pattern completion;
-* structural confirmation;
-* multi-timeframe context;
-* measured targets;
-* and structural invalidation.
+- swing highs and lows;
+- trend sequences;
+- support and resistance zones;
+- range boundaries;
+- breakouts and breakdowns;
+- retests and polarity changes;
+- trendlines and channels;
+- liquidity sweeps and rejection;
+- compression and expansion;
+- failed patterns;
+- location relative to higher-timeframe obstacles.
 
-Main implementation principle:
+## 3.2 Context before candle shape
 
-> Structure determines the setup. Indicators only provide supporting evidence.
+Candlestick evidence may strengthen, weaken, time, or warn about a setup. A candle pattern must not bypass regime compatibility, structural context, liquidity, stop validity, or target feasibility.
 
-Murphy also establishes that analysis and entry timing are separate decisions. A bullish market bias does not automatically mean that a long entry is currently available.
+## 3.3 Pattern detection is not trade approval
 
-## 3.2 Steve Nison — Candle Evidence and Timing
+A recognizable pattern may still be:
 
-Nison supplies:
+- incomplete;
+- badly located;
+- too late;
+- blocked by nearby structure;
+- incompatible with the market state;
+- missing a valid stop;
+- or unsupported by sufficient historical evidence.
 
-* candle anatomy;
-* rejection evidence;
-* reversal warnings;
-* candle completion rules;
-* contextual candle interpretation;
-* lower-timeframe trigger refinement;
-* and candle-based timing assistance.
+## 3.4 Reject less, classify better
 
-Candlesticks must not become the primary strategy router.
+Apex must not manufacture trades. It must also not convert every imperfection into `NO_TRADE`.
 
-A candle pattern may:
+Invalid conditions should block. Imperfect but usable conditions should normally:
 
-* strengthen an existing setup;
-* weaken it;
-* provide an entry trigger;
-* warn that momentum is failing;
-* or support an exit.
+- reduce component scores;
+- lower confidence;
+- change status;
+- prefer another entry;
+- shorten expiry;
+- reduce target ambition;
+- remove the runner;
+- or produce explicit cautions.
 
-It must not independently bypass:
+## 3.5 No certainty wording
 
-* regime compatibility;
-* structural context;
-* liquidity;
-* stop validity;
-* reward-to-risk;
-* or target feasibility.
+No single trade is guaranteed. Confidence describes evidence quality and historical calibration, not certainty about the next outcome.
 
-Candlestick patterns normally do not provide price targets. Targets must come from structure.
+## 3.6 No fixed universal target or holding period
 
-## 3.3 Mark Douglas — Process and Probabilistic Discipline
+Apex must not force every target toward 10% and must not force every setup into a quick execution window.
 
-Douglas supplies the operating rules around the methodology:
-
-* no individual trade is certain;
-* an edge exists over a sample, not one outcome;
-* pattern detection is different from trade approval;
-* risk must be defined before approval;
-* recent wins and losses must not alter deterministic decisions;
-* confidence must describe evidence quality rather than emotional certainty;
-* and output wording must never imply a guaranteed result.
-
-`READY_NOW` must mean:
-
-> All execution conditions are currently complete.
-
-It must not mean:
-
-> This trade is highly likely to win.
+A structurally supported 3% move may be superior to an unsupported 10% target. A 10% or larger move is valid only when structure, volatility, pattern dimensions, and higher-timeframe room support it.
 
 ---
 
-# 4. Required Analysis Architecture
-
-The upgraded analysis should use the following ordered pipeline:
+# 4. Shared Analysis Pipeline
 
 ```text
 Market usability
@@ -162,45 +127,46 @@ Market usability
 → Setup detection
 → Setup maturity
 → Entry opportunity search
-→ Structural invalidation
-→ Target projection
-→ Time and expiry estimation
-→ Trade-quality scoring
-→ Hard rejection rules
+→ Structural invalidation and stop
+→ Target and movement projection
+→ Duration and expiry estimation
+→ Evidence and contradiction analysis
+→ Confidence calibration
+→ Hard blockers and soft penalties
 → Candidate ranking
 → Reasoned output
 ```
 
-No later stage should compensate for failure in an earlier stage.
+No later score may repair a logically invalid earlier stage.
 
 Examples:
 
-* A strong candle cannot fix an invalid market regime.
-* High relative volume cannot fix a late entry.
-* A distant target cannot fix poor reward before the first obstacle.
-* A high momentum score cannot fix an invalid stop.
-* Ten confirming indicators cannot make a structurally incomplete setup executable.
+- strong volume cannot repair invalid structure;
+- a distant target cannot repair a chased entry;
+- multiple momentum indicators cannot repair a missing stop;
+- a candle pattern cannot repair the wrong regime;
+- a high discovery rank cannot guarantee a valid trade.
 
 ---
 
-# 5. Market Usability Gate
+# 5. Market Usability
 
-Before strategy analysis, Apex should determine whether the market can support reliable execution.
+Before strategy analysis, Apex must assess whether execution-quality analysis is possible.
 
-## Required checks
+## 5.1 Inputs
 
-* sufficient quote volume;
-* acceptable spread;
-* acceptable candle continuity;
-* sufficient price history;
-* usable volatility;
-* no extreme noise;
-* no abnormal stale data;
-* sufficient order-book or ticker quality where available;
-* contract precision compatibility;
-* no blacklist restriction.
+- quote volume and trade participation;
+- spread;
+- candle continuity;
+- sufficient history;
+- data freshness;
+- tick and quantity precision;
+- usable volatility;
+- noise and wick instability;
+- order-book or ticker quality where available;
+- abnormal data or exchange conditions.
 
-## Output
+## 5.2 States
 
 ```text
 USABLE
@@ -209,17 +175,15 @@ UNUSABLE
 DATA_INCOMPLETE
 ```
 
-A symbol that fails this layer may still be shown as rejected, but it must not continue to trade approval.
+`USABLE_WITH_CAUTION` is not automatically a rejection. It should carry measurable penalties and warnings.
 
 ---
 
 # 6. Market-State Classification
 
-Apex should classify the coin before selecting a strategy.
+Apex must classify the market before routing strategies.
 
-A coin may be in one primary state and several secondary conditions.
-
-## Primary states
+## 6.1 Primary states
 
 ```text
 TRENDING_UP
@@ -236,15 +200,13 @@ REVERSAL_ATTEMPT_UP
 REVERSAL_ATTEMPT_DOWN
 EXHAUSTED_UP
 EXHAUSTED_DOWN
-CHAOTIC
 TRANSITIONAL
+CHAOTIC
 ```
 
-## Secondary conditions
+## 6.2 Secondary conditions
 
 ```text
-LOW_LIQUIDITY
-HIGH_VOLATILITY
 VOLATILITY_EXPANSION
 VOLATILITY_CONTRACTION
 VOLUME_EXPANSION
@@ -255,144 +217,110 @@ NEAR_MAJOR_RESISTANCE
 LIQUIDITY_SWEEP
 FAILED_BREAKOUT
 FAILED_BREAKDOWN
-HTF_CONFLICT
+MILD_HTF_CONFLICT
+STRONG_HTF_CONFLICT
+DIRECT_STRUCTURAL_OPPOSITION
 ```
 
-## Classification inputs
+## 6.3 Evidence families
 
-The classifier should prioritize independent evidence families:
+Apex should use independent evidence families rather than indicator voting.
 
 ### Structure
 
-* higher highs and higher lows;
-* lower highs and lower lows;
-* structural breaks;
-* swing amplitude;
-* trend age;
-* range boundaries;
-* channel position;
-* support/resistance proximity.
+- higher-high/higher-low or lower-high/lower-low sequences;
+- swing quality and recency;
+- structural breaks;
+- range quality;
+- channel position;
+- support/resistance significance;
+- level tests and reactions.
 
 ### Volatility
 
-* ATR percentage;
-* range expansion;
-* range compression;
-* realized movement distribution;
-* volatility percentile.
+- ATR percentage;
+- realized movement distribution;
+- expansion and contraction;
+- volatility percentile;
+- impulse range versus normal range.
 
 ### Participation
 
-* relative volume;
-* impulse-versus-pullback volume;
-* volume acceleration;
-* breakout participation;
-* retest volume contraction;
-* open interest and taker flow when reliably available.
+- relative volume;
+- impulse versus pullback volume;
+- volume acceleration;
+- breakout participation;
+- retest contraction;
+- open interest, taker flow, and liquidation data only when genuinely available.
 
-### Price location
+### Location
 
-* location inside the current range;
-* distance from recent high or low;
-* distance from structural levels;
-* VWAP relationship;
-* extension from trend mean;
-* remaining room before the next obstacle.
+- position inside the active range;
+- distance from swing extremes;
+- proximity to structural levels;
+- distance from VWAP or trend mean;
+- remaining room before major obstacles.
 
-Indicators must not be counted as independent evidence when they measure substantially the same phenomenon.
+### Momentum
 
-For example:
+- return acceleration;
+- persistence;
+- momentum failure;
+- divergence where objectively defined.
 
-* RSI and stochastic largely represent momentum;
-* several EMAs largely represent trend;
-* ATR and candle range both describe volatility.
-
-They may refine analysis but must not create artificial confluence.
+Correlated indicators must not be counted repeatedly. RSI and stochastic are not two independent momentum votes. Multiple EMAs are not several independent trend votes.
 
 ---
 
 # 7. Strategy Routing
 
-Apex must not run every strategy equally on every symbol.
+Apex must not evaluate every strategy equally on every symbol.
 
-The market-state classifier should produce an eligible strategy set.
-
-## Example routing
-
-| Market state                   | Primary eligible strategies                                            |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| Established uptrend            | Trend pullback, first-pullback continuation, breakout continuation     |
-| Established downtrend          | Short trend pullback, first-rally continuation, breakdown continuation |
-| Clean range                    | Range reversal at boundaries                                           |
-| Compression                    | Compression expansion watch                                            |
-| Confirmed breakout             | Breakout continuation or breakout retest                               |
-| Failed breakout                | Failed-breakout reversal                                               |
-| Liquidity sweep at structure   | Liquidity-rejection reversal                                           |
-| Trend exhaustion               | Exhaustion warning; reversal only after confirmation                   |
-| Chaotic/noisy structure        | No trade                                                               |
-| Weak undefined sideways market | No trade                                                               |
+| Market state | Primary strategy families |
+|---|---|
+| Established uptrend | Trend pullback, first-pullback continuation, breakout continuation |
+| Established downtrend | Short trend pullback, first-rally continuation, breakdown continuation |
+| Clean range | Boundary reversal, failed boundary break |
+| Compression | Expansion watch, confirmed breakout, confirmed breakdown |
+| Confirmed breakout | Breakout continuation, breakout retest |
+| Confirmed breakdown | Breakdown continuation, breakdown retest |
+| Failed breakout | Failed-breakout reversal |
+| Failed breakdown | Failed-breakdown reversal |
+| Liquidity sweep at structure | Liquidity-rejection reversal |
+| Exhaustion | Exit warning first; reversal only after strategy-specific confirmation |
+| Chaotic structure | Normally no trade |
 
 Each strategy must declare:
-
-* compatible market states;
-* prohibited market states;
-* required prior structure;
-* setup timeframe;
-* trigger timeframe;
-* confirmation basis;
-* structural invalidation method;
-* target methods;
-* expiry policy;
-* required evidence;
-* optional evidence;
-* rejection conditions.
-
----
-
-# 8. Strategy Candidate Contract
-
-Every strategy candidate should return a common normalized contract.
 
 ```text
 strategy_id
 strategy_version
-direction
-market_state
-market_bias
+compatible_states
+prohibited_states
+required_prior_structure
 setup_timeframe
 trigger_timeframe
 risk_timeframe
 target_timeframe
-setup_detected
-setup_completed
-confirmation_basis
-confirmation_status
-entry_state
-entry_zones
-ideal_entry
-maximum_chase
-invalidation_level
-stop_price
-target_candidates
-selected_targets
-expected_hold
-setup_expiry
-evidence
-contradictions
-warnings
-rejection_reasons
-scores
+confirmation_policy
+mandatory_evidence
+optional_evidence
+hard_blockers
+soft_penalties
+entry_models
+invalidation_method
+target_methods
+expiry_policy
+historical_segment_key
 ```
 
-Strategies should generate candidates. They should not make the final global ranking decision themselves.
+Strategy strictness must be strategy-specific. Momentum scalp, breakout retest, range reversal, and exhaustion reversal must not share one universal confirmation or R:R profile.
 
 ---
 
-# 9. Setup Maturity
+# 8. Setup Maturity and Confirmation
 
-Pattern presence is not enough.
-
-Apex must distinguish:
+## 8.1 Setup states
 
 ```text
 PATTERN_DEVELOPING
@@ -400,85 +328,69 @@ TRIGGER_PROVISIONAL
 CONFIRMATION_PENDING_CLOSE
 SETUP_CONFIRMED
 RETEST_PENDING
+RECLAIM_PENDING
 ENTRY_AVAILABLE
+ENTRY_LATE
 ENTRY_MISSED
 PATTERN_FAILED
 INVALIDATED
 ```
 
-Active-candle information may be used for:
+## 8.2 Confirmation policies
 
-* monitoring;
-* early warning;
-* approaching-entry status;
-* provisional trigger detection.
-
-When the strategy requires a close, the active candle must not become final confirmation.
-
----
-
-# 10. Entry Opportunity Search
-
-Apex should search for more than one entry possibility.
-
-For every valid setup, it should evaluate three entry classes.
-
-## 10.1 Immediate entry
-
-A valid entry at or close to current market price.
-
-Requirements:
-
-* completed trigger;
-* acceptable current geometry;
-* price not beyond maximum chase;
-* valid stop;
-* sufficient room before the first obstacle;
-* acceptable expected reward after costs.
-
-## 10.2 Preferred nearby entry
-
-A nearby pullback, retest, reclaim, or rejection zone that improves geometry.
-
-This should include:
-
-* zone low and high;
-* ideal entry;
-* required confirmation;
-* estimated distance from current price;
-* invalidation;
-* maximum waiting distance or bars;
-* reason it is superior to immediate entry.
-
-A preferred entry must not automatically suppress a still-valid immediate entry. Apex may report both:
+Every strategy must use one explicit policy:
 
 ```text
-Immediate entry is valid.
-Preferred retracement offers better geometry.
+close_required
+intrabar_allowed
+lower_timeframe_confirmation_allowed
+retest_required
+reclaim_required
+mixed
 ```
 
-## 10.3 Developing future entry
-
-A setup that is not currently actionable but may become valid at a meaningful nearby level.
+Closed-candle confirmation must not be forced universally.
 
 Examples:
 
-* breakout level not yet reached;
-* retest expected after a confirmed breakout;
-* pullback toward structural support;
-* reclaim required after a sweep;
-* range-boundary test;
-* trendline reaction;
-* confirmation above or below a trigger level.
+- a major breakout may require a close beyond structure;
+- a momentum scalp may permit intrabar execution with strict chase limits;
+- a support rejection may use a completed lower-timeframe trigger;
+- a retest strategy may require a held retest rather than another breakout close;
+- a candle pattern whose geometry depends on the final close remains provisional until close.
 
-The engine should report it only when:
+`READY_NOW` means that the exact confirmation policy for that strategy is complete.
 
-* the setup has identifiable structure;
-* the entry condition is objective;
-* invalidation is already definable;
-* and the distance is not so large that the forecast becomes speculative.
+---
 
-## Entry zone fields
+# 9. Entry Opportunity Search
+
+For every valid setup, Apex must evaluate multiple entry possibilities independently.
+
+## 9.1 Entry classes
+
+```text
+immediate_entry
+aggressive_entry
+preferred_nearby_entry
+pullback_entry
+retest_entry
+reclaim_entry
+rejection_entry
+developing_future_entry
+```
+
+A preferred pullback must not hide a still-valid immediate entry.
+
+Apex should be able to report:
+
+```text
+Immediate entry is valid but aggressive.
+Preferred nearby entry offers better stop and reward geometry.
+A retest entry remains valid if price returns to the structural zone.
+```
+
+## 9.2 Entry-zone fields
 
 ```text
 zone_low
@@ -489,55 +401,81 @@ maximum_chase
 current_distance_percentage
 current_distance_atr
 entry_type
+entry_quality
 entry_reason
+expiry_bars
 ```
 
 Entry zones must be structural ranges, not arbitrary single prices.
 
+## 9.3 Current-price handling
+
+Apex should search near current market price first, but it must not force a current entry.
+
+Possible outcomes:
+
+- current price is inside a valid zone;
+- current price permits an aggressive entry;
+- current price is usable but a nearby entry is better;
+- current price is too late, but a retest remains possible;
+- current price has missed the setup;
+- only a future trigger is identifiable.
+
 ---
 
-# 11. Entry Status Model
-
-Recommended execution statuses:
+# 10. Entry Status Model
 
 ```text
 READY_NOW
 AGGRESSIVE_NOW
-PREFERRED_ENTRY_NEARBY
+VALID_WITH_CAUTION
+PULLBACK_PREFERRED
+RETEST_PREFERRED
+RECLAIM_REQUIRED
 APPROACHING_ENTRY
 WAIT_FOR_CLOSE
-WAIT_FOR_RETEST
-WAIT_FOR_RECLAIM
 DEVELOPING_SETUP
-LATE_OR_CHASING
+LATE_ENTRY
 MISSED_ENTRY
 INVALIDATED
 NO_TRADE
 ```
 
-## Meaning of `READY_NOW`
+## 10.1 `READY_NOW`
 
-`READY_NOW` requires:
+Requires:
 
-* valid market;
-* compatible regime;
-* completed setup;
-* completed trigger;
-* acceptable entry location;
-* valid stop;
-* acceptable target room;
-* no hard rejection;
-* current price inside or immediately adjacent to the permitted entry zone.
+- usable market;
+- compatible strategy and regime;
+- completed strategy-specific trigger;
+- current price inside permitted geometry;
+- valid structural invalidation and stop;
+- sufficient realistic target room;
+- no hard blocker.
 
-It does not communicate a guaranteed or high-probability outcome.
+It does not mean the trade is certain to win.
+
+## 10.2 `VALID_WITH_CAUTION`
+
+The trade remains executable but has meaningful soft penalties, such as mild higher-timeframe conflict, average participation, imperfect entry location, or reduced target room.
+
+## 10.3 `NO_TRADE`
+
+Use only when:
+
+- no valid setup is identifiable;
+- the strategy is logically incompatible with the market state;
+- market execution is unusable;
+- structural risk cannot be defined;
+- or a hard blocker is active.
 
 ---
 
-# 12. Stop-Loss Methodology
+# 11. Structural Invalidation and Stop-Loss
 
 Stops must come from the level that disproves the setup.
 
-## Stop hierarchy
+## 11.1 Hierarchy
 
 1. Pattern invalidation
 2. Swing invalidation
@@ -546,138 +484,116 @@ Stops must come from the level that disproves the setup.
 5. Tick-size and round-number adjustment
 6. Execution-cost allowance
 
-## Prohibited stop construction
+## 11.2 Prohibited methods
 
-* arbitrary fixed percentage;
-* stop selected merely to improve displayed R:R;
-* stop inside the entry zone;
-* stop on the wrong side of structure;
-* stop exactly at an obvious round number without justification;
-* stop based only on leverage or desired monetary loss;
-* widening a stop after entry without new confirmed structure.
+- arbitrary fixed stop percentage;
+- stop chosen only to manufacture desired R:R;
+- stop inside the entry zone;
+- stop on the wrong side of structure;
+- stop based only on leverage or desired monetary loss;
+- widening the stop after entry without new confirmed structure.
 
-## Required stop reasoning
+## 11.3 Required explanation
 
-Apex should explain:
+Every stop must explain:
 
-```text
-Stop is below the confirmed swing low and support zone.
-A volatility buffer of X ATR is applied.
-A close below this level invalidates the pullback-continuation thesis.
-```
-
-The signal-analysis layer should define price risk. Account position sizing, leverage and liquidation should remain separate unless Apex explicitly restores those product capabilities.
+- which structure invalidates the thesis;
+- whether invalidation uses touch, wick, or close;
+- why a volatility buffer is applied;
+- what exact event proves the setup wrong.
 
 ---
 
-# 13. Target Projection
+# 12. Target and Movement Projection
 
-Apex must not force every trade toward 10%.
+Apex must derive targets from structure, not from a fixed percentage goal.
 
-A 3% structurally supported move can be superior to a theoretical 10% move blocked by nearby resistance.
+## 12.1 Target sources
 
-Likewise, a 10% or larger objective is valid when the market structure, volatility, pattern dimensions and higher-timeframe room support it.
+1. Nearest structural obstacle
+2. Prior swing high or low
+3. Opposing range boundary
+4. Breakout or breakdown measured move
+5. Channel width
+6. Pattern minimum objective
+7. Higher-timeframe support or resistance
+8. Volatility-supported extension
+9. Conditional runner extension
 
-## Target sources
-
-Targets should be generated from:
-
-1. nearest structural obstacle;
-2. prior swing high or low;
-3. opposing range boundary;
-4. breakout or breakdown measured move;
-5. channel width;
-6. pattern objective;
-7. higher-timeframe support or resistance;
-8. volatility-supported extension;
-9. optional runner extension.
-
-## Target roles
+## 12.2 Target roles
 
 ```text
 TP1 = first realistic obstacle or risk-reduction level
 TP2 = primary structural objective
 TP3 = extended objective when continuation remains valid
-RUNNER = conditional target, not assumed
+RUNNER = conditional extension, never assumed
 ```
 
-## Target validation
-
-For each target calculate:
-
-* distance from expected fill;
-* gross percentage movement;
-* expected R multiple;
-* obstacle quality;
-* historical volatility feasibility;
-* timeframe compatibility;
-* estimated time requirement;
-* probability category only when empirically calibrated;
-* reason and source.
-
-## Target rejection
-
-Reject or downgrade a setup when:
-
-* the first obstacle produces unacceptable R:R;
-* the target is based only on a fixed percentage;
-* expected movement exceeds realistic volatility without a catalyst state;
-* the target requires passing several major structural barriers;
-* target projection comes from leverage return rather than price movement.
-
----
-
-# 14. Expected Movement Range
-
-Instead of predicting one exact target, Apex should estimate a movement envelope.
+## 12.3 Movement envelope
 
 ```text
-minimum_expected_move
+minimum_supported_move
 primary_expected_move
 extended_move
-historical_volatility_range
 structural_max_before_major_obstacle
+historical_volatility_range
 ```
 
 Example:
 
 ```text
-Minimum supported movement: 2.4%
-Primary structural objective: 4.8%
-Extended target: 8.1%
+Minimum supported move: 2.6%
+Primary structural objective: 5.1%
+Extended objective: 8.4%
 10%+ requires acceptance above the higher-timeframe resistance.
 ```
 
-This provides useful upside information without pretending the furthest target is equally achievable.
+## 12.4 Reward evaluation
+
+Do not impose one universal R:R threshold on every strategy.
+
+Reward requirements should depend on:
+
+- strategy family;
+- expected hit rate;
+- historical expectancy;
+- partial exits;
+- fees and slippage;
+- holding duration;
+- market state;
+- target structure;
+- entry quality.
+
+A scalp may accept lower R:R when historically supported. A reversal may require higher potential reward. A range trade may use the opposing boundary. A multi-target plan may use blended expectancy.
+
+No threshold should be presented as validated unless it was tested on relevant out-of-sample data.
 
 ---
 
-# 15. Trade Duration and Setup Expiry
+# 13. Duration and Expiry
 
-Holding duration must not be hardcoded as “quick trade.”
+Expected holding time must be derived from:
 
-Expected holding time should be derived from:
+- setup and trigger timeframes;
+- pattern width and age;
+- volatility;
+- distance to target;
+- trend state;
+- expected retest behavior;
+- historical time-to-target for comparable setups.
 
-* setup timeframe;
-* trigger timeframe;
-* pattern width and duration;
-* ATR and realized volatility;
-* distance to target;
-* trend state;
-* expected retest behavior;
-* historical time-to-target for comparable setups.
-
-## Output
+## 13.1 Output fields
 
 ```text
+hold_category
 expected_hold_min
 expected_hold_max
 expected_bars
-expiry_bars
+setup_expiry_bars
 expiry_reason
 ```
 
-Example categories:
+Possible categories:
 
 ```text
 MICRO_SCALP
@@ -687,25 +603,81 @@ MULTI_SESSION
 SWING
 ```
 
-The label must follow the structure. It must not determine the structure.
-
-## Expiry examples
-
-* breakout candidate expires after acceptance back inside the range;
-* retest candidate expires when price travels beyond maximum chase without retesting;
-* pullback candidate expires when the trend structure breaks;
-* reversal candidate expires when the original trend resumes;
-* setup expires when required confirmation does not occur within its empirically defined bar window.
+The category follows the setup. It does not determine it.
 
 ---
 
-# 16. Scoring Model
+# 14. Hard Blockers and Soft Penalties
+
+## 14.1 Hard blockers
+
+Hard blockers should be minimal and explicit:
+
+```text
+UNUSABLE_MARKET
+STALE_OR_INCOMPLETE_DATA
+STRUCTURALLY_INVALIDATED
+WRONG_STRATEGY_FOR_STATE
+NO_DEFINABLE_INVALIDATION
+CORRUPT_STOP_GEOMETRY
+CLEARLY_MISSED_ENTRY
+NO_REALISTIC_TARGET_ROOM
+PATTERN_FAILED
+DIRECT_STRUCTURAL_OPPOSITION
+```
+
+## 14.2 Soft penalties
+
+These normally reduce quality rather than block:
+
+- mild higher-timeframe conflict;
+- average volume;
+- incomplete optional confluence;
+- slightly extended but usable entry;
+- uncertain duration;
+- weaker candle evidence;
+- reduced but acceptable target room;
+- absence of a conservative retest;
+- higher volatility;
+- one contradictory optional signal.
+
+Several soft penalties may cross a configured quality floor, but the engine must show exactly how and why. There must be no hidden rejection inside an opaque overall score.
+
+---
+
+# 15. Higher-Timeframe Conflict
+
+Classify conflict as:
+
+```text
+ALIGNED
+MILD_CONFLICT
+STRONG_CONFLICT
+DIRECT_STRUCTURAL_OPPOSITION
+```
+
+Behavior:
+
+- `ALIGNED`: normal eligibility;
+- `MILD_CONFLICT`: soft penalty;
+- `STRONG_CONFLICT`: permit only an explicitly supported countertrend, reversal, range, or scalp strategy;
+- `DIRECT_STRUCTURAL_OPPOSITION`: hard blocker when no strategy-specific justification exists.
+
+Valid countertrend trades should normally have:
+
+- shorter target expectations;
+- shorter expiry;
+- lower confidence;
+- stronger confirmation requirements;
+- explicit countertrend warnings.
+
+---
+
+# 16. Scoring Framework
 
 A single blended confidence score is insufficient.
 
-Apex should expose separate dimensions.
-
-## Recommended scores
+## 16.1 Component scores
 
 ```text
 market_quality_score
@@ -714,125 +686,180 @@ structure_quality_score
 setup_completeness_score
 confirmation_quality_score
 entry_quality_score
-risk_quality_score
+risk_geometry_score
 target_quality_score
 timeframe_alignment_score
 participation_score
 data_quality_score
 historical_edge_score
+contradiction_penalty
 overall_trade_quality_score
 ```
 
-## Scoring rules
+## 16.2 Rules
 
-* Scores represent analytical quality, not certainty.
-* Missing mandatory evidence cannot be compensated by optional evidence.
-* Hard rejection conditions override scores.
-* Correlated evidence cannot be counted repeatedly.
-* Historical edge score requires relevant out-of-sample data.
-* No score should be presented as win probability unless calibrated.
-
-## Suggested ranking priority
-
-1. Hard eligibility
-2. Regime compatibility
-3. Setup completeness
-4. Entry freshness
-5. Structural stop validity
-6. Reward before first obstacle
-7. Target feasibility
-8. Multi-timeframe alignment
-9. Participation confirmation
-10. Historical calibration
-11. Data quality
+- Scores describe analytical quality, not certainty.
+- Hard blockers are explicit gates, not low scores.
+- Missing mandatory evidence cannot be repaired by optional evidence.
+- Optional evidence adjusts quality.
+- Correlated indicators cannot be counted repeatedly.
+- Ranking eligibility and execution eligibility remain separate.
+- A lower-ranked valid trade may still be displayed.
 
 ---
 
-# 17. Hard Rejection Rules
+# 17. Confidence Model
 
-A candidate must be rejected when any mandatory rule fails.
+Apex may display a confidence level, but it must be reasoned and calibrated.
 
-Examples:
+## 17.1 Confidence dimensions
 
 ```text
-UNUSABLE_MARKET
-INSUFFICIENT_DATA
-WRONG_REGIME
-NO_PRIOR_TREND
-SETUP_INCOMPLETE
-ACTIVE_CANDLE_UNCONFIRMED
-ENTRY_CHASED
-ENTRY_MISSED
-INVALID_STOP_GEOMETRY
-INSUFFICIENT_TARGET_ROOM
-POOR_REWARD_TO_RISK
-MAJOR_HTF_CONFLICT
-EXCESSIVE_NOISE
-PATTERN_FAILED
-STALE_DATA
+setup_confidence
+execution_confidence
+target_confidence
+data_confidence
+historical_confidence
+overall_confidence
 ```
 
-The reason must identify the failed rule and observed value.
+## 17.2 Confidence labels
 
-Weak candidates should not be returned merely to fill the requested result count.
+```text
+VERY_LOW
+LOW
+MODERATE
+HIGH
+VERY_HIGH
+```
+
+Numeric percentages must not be shown as win probability unless calibrated from relevant untouched historical data.
+
+When calibrated, output should separate:
+
+```text
+model_estimated_success_rate
+sample_size
+confidence_interval
+segment_definition
+out_of_sample_period
+calibration_version
+```
+
+## 17.3 Evidence hierarchy
+
+Confidence should be based mainly on:
+
+1. Regime and strategy fit
+2. Structural completeness
+3. Entry location and freshness
+4. Stop and invalidation quality
+5. Realistic room to targets
+6. Multi-timeframe relationship
+7. Participation confirmation
+8. Historical performance in the same strategy/regime/symbol-behavior segment
+9. Data quality
+10. Contradictions and uncertainty
+
+## 17.4 Confidence reasoning
+
+Every result must state:
+
+- top supporting reasons;
+- strongest contradiction;
+- missing evidence;
+- whether confidence is rule-based or historically calibrated;
+- what would raise confidence;
+- what would invalidate or lower confidence.
+
+Example:
+
+```text
+Overall confidence: HIGH, rule-based
+Primary reasons:
+- 1h trend and 15m setup are aligned.
+- Breakout closed beyond a repeatedly tested zone.
+- Retest held with contracting volume.
+- Entry remains near structural support.
+- TP1 offers acceptable reward before the next obstacle.
+
+Main contradiction:
+- 4h resistance limits the extended target.
+
+Historical calibration:
+- Not yet available for this exact strategy/regime segment.
+```
+
+A high rule-based confidence label must never be described as a verified win probability.
 
 ---
 
 # 18. Candidate Ranking
 
-The scanner should rank opportunities after complete analysis, not only by initial screening momentum.
-
-Two rankings are required.
+Apex requires two distinct ranks.
 
 ## 18.1 Discovery rank
 
-Used to decide which symbols receive expensive analysis.
+Used to choose which symbols receive expensive analysis.
 
 Inputs may include:
 
-* liquidity;
-* movement;
-* acceleration;
-* relative volume;
-* usable volatility;
-* spread;
-* structure proximity;
-* directional clarity;
-* freshness.
+- liquidity;
+- spread;
+- movement;
+- acceleration;
+- relative volume;
+- usable volatility;
+- structure proximity;
+- directional clarity;
+- freshness.
 
 ## 18.2 Trade rank
 
-Used after full strategy analysis.
+Used after complete analysis.
 
 Inputs should include:
 
-* valid strategy fit;
-* setup maturity;
-* entry quality;
-* structural risk;
-* target feasibility;
-* first-obstacle R:R;
-* timeframe alignment;
-* participation;
-* historical calibration;
-* data quality.
+- strategy and regime fit;
+- setup maturity;
+- entry quality;
+- structural risk;
+- target feasibility;
+- expected value after costs;
+- timeframe relationship;
+- participation;
+- historical calibration;
+- data quality;
+- contradiction penalties.
 
-A coin can have a high discovery rank but no valid trade.
+A high discovery rank can result in no valid trade. A quieter coin can produce superior trade geometry.
 
-A quieter coin can have a lower discovery rank but superior trade geometry.
+## 18.3 Candidate comparison
+
+Top candidates should be compared on the same dimensions rather than only by total score.
+
+Example comparison fields:
+
+```text
+best_current_entry
+best_reward_geometry
+strongest_structure
+highest_historical_edge
+lowest_execution_risk
+largest_supported_move
+fastest_expected_resolution
+```
 
 ---
 
-# 19. Coin-Specific Strategy Adaptation
+# 19. Coin-Specific Adaptation
 
-Apex should not create a manually customized strategy for every coin.
+Do not create manually customized strategies for every coin.
 
-Instead, it should create deterministic symbol-behavior profiles from historical data.
-
-Potential profile fields:
+Create versioned historical behavior profiles:
 
 ```text
-normal_atr_percentage_by_timeframe
+normal_atr_by_timeframe
 normal_spread
 normal_volume
 impulse_distribution
@@ -842,106 +869,161 @@ retest_frequency
 failed_breakout_rate
 average_favorable_excursion
 average_adverse_excursion
-median_time_to_tp
+median_time_to_target
 median_time_to_invalidation
 trend_persistence
 range_frequency
 wick_behavior
-gap_or_discontinuity_frequency
 ```
 
-These profiles can adapt thresholds without altering strategy definitions.
+Profiles may adapt thresholds while preserving strategy definitions.
 
 Examples:
 
-* A volatile altcoin may require wider ATR-normalized zones.
-* A liquid major may allow tighter confirmation thresholds.
-* A coin with frequent false breakouts may require retest confirmation.
-* A coin with strong continuation statistics may permit confirmed-close entry.
-* A mean-reverting coin may route more frequently toward range strategies.
+- volatile altcoins may need wider ATR-normalized zones;
+- liquid majors may support tighter triggers;
+- frequent false-breakout coins may require retests;
+- strong continuation coins may permit earlier entries;
+- mean-reverting coins may route more often to range strategies.
 
-All adaptations must be:
-
-* versioned;
-* reproducible;
-* learned only from past data;
-* protected against look-ahead leakage;
-* validated on unseen periods.
+All adaptations must be reproducible, time-safe, versioned, and validated on unseen data.
 
 ---
 
-# 20. Evidence and Reasoning Output
+# 20. Historical Edge and Success Probability
 
-Every selected setup should explain:
+The goal is not merely to create more signals. The goal is to find segments with repeatable positive expectancy.
+
+Historical evaluation must be segmented by:
+
+```text
+strategy
+market_state
+direction
+symbol_behavior_group
+volatility_bucket
+entry_type
+confirmation_policy
+timeframe_combination
+session_or_time_bucket_if_relevant
+```
+
+Required metrics:
+
+```text
+sample_size
+win_rate
+expectancy
+profit_factor
+maximum_drawdown
+average_R
+median_R
+MAE
+MFE
+entry_fill_rate
+missed_entry_rate
+expiry_rate
+time_to_entry
+time_to_target
+time_to_stop
+TP1_rate
+TP2_rate
+TP3_rate
+stop_rate
+```
+
+Success probability must never be inferred from the current indicator count. It may only come from the historical distribution of genuinely comparable, out-of-sample setups.
+
+Minimum requirements before displaying a calibrated probability:
+
+- sufficient sample size;
+- stable results across time splits;
+- acceptable confidence interval;
+- no single-symbol or single-period dependence;
+- no look-ahead leakage;
+- matching production rules;
+- versioned calibration data.
+
+When evidence is insufficient, output:
+
+```text
+Historical probability unavailable or insufficiently calibrated.
+```
+
+---
+
+# 21. Output Reasoning
+
+Every selected setup must explain:
 
 ## Why this coin
 
-* discovery reason;
-* liquidity;
-* movement;
-* volatility;
-* market-state opportunity.
+- discovery reason;
+- liquidity and spread;
+- movement and volatility;
+- market-state opportunity.
 
 ## Why this direction
 
-* higher-timeframe structure;
-* setup-timeframe structure;
-* directional evidence;
-* opposing evidence.
+- higher-timeframe structure;
+- setup-timeframe structure;
+- local trigger;
+- opposing evidence.
 
 ## Why this strategy
 
-* compatible regime;
-* exact setup conditions;
-* completed trigger;
-* reasons alternative strategies were not selected.
+- compatible state;
+- exact setup conditions;
+- confirmation policy;
+- why alternatives ranked lower.
 
 ## Why this entry
 
-* zone construction;
-* current-price relationship;
-* preferred entry;
-* maximum chase;
-* confirmation rule.
+- zone construction;
+- current-price relationship;
+- preferred alternative;
+- maximum chase;
+- entry expiry.
 
 ## Why this stop
 
-* structural invalidation;
-* buffer;
-* exact failure condition.
+- invalidating structure;
+- buffer;
+- exact failure event.
 
 ## Why these targets
 
-* structural source of every target;
-* expected percentage move;
-* R multiple;
-* obstacles;
-* extension conditions.
+- source of each target;
+- expected move percentage;
+- R multiple;
+- obstacles;
+- conditions for extended targets.
 
 ## Why this duration
 
-* setup timeframe;
-* target distance;
-* volatility;
-* comparable historical behavior.
+- setup timeframe;
+- target distance;
+- volatility;
+- comparable historical behavior.
 
-## Why this score
+## Why this confidence
 
-* component scores;
-* major strengths;
-* contradictions;
-* uncertainty;
-* missing data.
+- component scores;
+- historical segment if available;
+- supporting evidence;
+- contradictions;
+- uncertainty;
+- missing data.
 
 ---
 
-# 21. Example Result
+# 22. Example Result
 
 ```text
 Symbol: XYZUSDT
 Direction: LONG
 Strategy: Breakout Retest
-Status: PREFERRED_ENTRY_NEARBY
+Status: VALID_WITH_CAUTION
 
 Market state:
 Confirmed 15m range breakout inside a 1h uptrend.
@@ -951,7 +1033,7 @@ Current price:
 
 Immediate entry:
 1.238–1.247
-Valid but near the upper edge of acceptable geometry.
+Valid but aggressive near the upper edge of permitted geometry.
 
 Preferred entry:
 1.212–1.226
@@ -975,185 +1057,123 @@ TP2 1.315 — range measured objective, +7.9%
 TP3 1.354 — higher-timeframe extension, +11.1%
 
 Expected holding time:
-6–24 hours based on 15m setup width, ATR and target distance.
+6–24 hours based on setup width, ATR, and target distance.
+
+Overall confidence:
+HIGH, rule-based; not a calibrated win probability.
 
 Primary reasons:
-- 1h trend aligned upward.
-- 15m breakout closed beyond resistance.
+- 1h and 15m structures are aligned.
+- Breakout closed above a repeatedly tested zone.
+- Retest remains structurally valid.
 - Pullback volume is contracting.
-- Retest zone remains structurally valid.
-- First target provides acceptable reward before resistance.
+- TP1 provides acceptable reward before resistance.
 
-Main risks:
+Main contradiction:
 - Current price is above ideal entry.
 - TP3 requires acceptance above TP2 resistance.
-- Outcome remains uncertain despite valid setup.
+
+Historical calibration:
+Insufficient sample for this exact strategy/regime segment.
 ```
 
 ---
 
-# 22. Validation Requirements
+# 23. Validation and Trade-Suppression Testing
 
-No methodology change should be considered complete without chronological testing.
+No methodology change is complete without chronological testing.
 
-Required testing:
+Required tests:
 
-* closed-candle replay;
-* no future leakage;
-* realistic entry-touch rules;
-* same-candle stop/target ambiguity handled conservatively;
-* fees and slippage;
-* missed entries;
-* setup expiry;
-* partial targets;
-* strategy-specific results;
-* market-state-specific results;
-* long and short separation;
-* symbol-profile validation;
-* train/validation/test separation.
+- closed-candle replay without leakage;
+- intrabar policies using only data available at that moment;
+- realistic entry-touch behavior;
+- conservative same-candle stop/target ambiguity;
+- fees and slippage;
+- missed entries and expiry;
+- partial targets;
+- strategy and regime segmentation;
+- long and short separation;
+- symbol-profile validation;
+- train, validation, and untouched test splits.
 
-Required metrics:
+Measure whether strict rules suppress valid opportunities:
 
 ```text
-sample_size
-win_rate
-expectancy
-profit_factor
-maximum_drawdown
-average_R
-median_R
-MAE
-MFE
-time_to_entry
-time_to_target
-time_to_stop
+eligible_setup_count
+approved_trade_count
+hard_rejection_rate
+soft_penalty_rate
+no_trade_rate
+aggressive_entry_rate
+preferred_entry_rate
+entry_fill_rate
 missed_entry_rate
-expiry_rate
-strategy_distribution
-regime_distribution
-long_short_distribution
+provisional_to_confirmed_rate
+provisional_to_failed_rate
+valid_trade_suppression_rate
+opportunity_cost_of_waiting
 ```
 
-The main optimization objective should not be win rate alone.
+Compare controlled variants:
 
-Prefer:
+- universal close requirement versus strategy-specific confirmation;
+- immediate entry versus preferred pullback;
+- universal R:R versus strategy-calibrated expectancy;
+- hard HTF rejection versus graded conflict;
+- generic thresholds versus symbol-behavior adaptation.
 
-* positive expectancy;
-* stable profit factor;
-* controlled drawdown;
-* reasonable sample size;
-* performance stability across symbols and regimes;
-* realistic execution;
-* no dependence on one exceptional trade.
+Do not optimize only for more trades or higher win rate. Optimize for stable positive expectancy, realistic execution, controlled drawdown, sufficient sample size, and robustness across periods and symbols.
 
 ---
 
-# 23. Codex Implementation Sequence
+# 24. Codex Implementation Sequence
 
 ## Phase 1 — Current Pipeline Audit
 
-Map exact code paths for:
-
-```text
-scan
-analyze
-screening
-shortlisting
-feature calculation
-market environment
-strategy routing
-candidate generation
-entry geometry
-stop calculation
-target calculation
-scoring
-ranking
-presentation
-backtesting
-```
-
-Document duplicated logic and verify whether `scan` and `analyze` already converge on one analysis service.
+Map exact code paths for scan, analyze, screening, shortlisting, feature calculation, environment classification, strategy routing, candidate generation, entry geometry, stop calculation, target calculation, scoring, ranking, presentation, and backtesting.
 
 No behavior change in this phase.
 
-## Phase 2 — Shared Analysis Contract
+## Phase 2 — Shared Contracts
 
-Create or refine normalized contracts for:
-
-* market state;
-* strategy candidate;
-* entry opportunity;
-* structural invalidation;
-* target candidate;
-* evidence item;
-* contradiction;
-* rejection reason;
-* score components;
-* expected duration.
-
-Preserve existing external CLI compatibility where practical.
+Create or refine normalized contracts for market state, strategy candidate, entry opportunity, invalidation, target candidate, evidence, contradiction, confidence, rejection, and duration.
 
 ## Phase 3 — Market-State Classifier
 
-Implement deterministic primary and secondary market-state classification.
-
-Add tests using synthetic and historical candle fixtures.
+Implement deterministic primary and secondary state classification with synthetic and historical tests.
 
 ## Phase 4 — Strategy Eligibility Matrix
 
-Move strategies from globally competing candidates toward explicit state-based routing.
+Make every strategy declare compatible states, mandatory conditions, optional evidence, confirmation policy, hard blockers, and soft penalties.
 
-Every strategy must declare applicability and prohibition rules.
+## Phase 5 — Multi-Entry Search
 
-## Phase 5 — Entry Search Engine
-
-Support:
-
-* immediate entry;
-* preferred nearby entry;
-* developing future entry;
-* structural zones;
-* ideal price;
-* maximum chase;
-* close/retest/reclaim triggers;
-* missed-entry handling.
+Support immediate, aggressive, preferred pullback, retest, reclaim, rejection, and developing future entries.
 
 ## Phase 6 — Stop and Invalidation Engine
 
-Separate:
-
-* thesis invalidation;
-* stop price;
-* volatility buffer;
-* execution warning.
-
-Ensure stops cannot be altered merely to improve R:R.
+Separate thesis invalidation, stop price, buffer, and execution warning.
 
 ## Phase 7 — Structural Target Engine
 
-Generate and rank targets from structural sources.
-
-Add movement envelopes and conditional 10%+ extensions.
+Generate target candidates, movement envelopes, and conditional extensions without fixed percentage forcing.
 
 ## Phase 8 — Duration and Expiry
 
-Derive setup expiry and expected holding period from timeframe, volatility, structure and historical behavior.
+Derive expected holding time and setup expiry from timeframe, structure, volatility, target distance, and historical behavior.
 
-## Phase 9 — Multidimensional Scoring
+## Phase 9 — Scoring and Confidence
 
-Replace misleading blended confidence with component scores and hard gates.
+Implement component scores, explicit gates, evidence-based confidence labels, contradiction handling, and optional historical calibration.
 
-Avoid double-counting correlated indicators.
+## Phase 10 — Candidate Comparison and Reasons
 
-## Phase 10 — Reason Generation
-
-Every output field must carry machine-readable reason codes and concise human-readable reasoning.
+Provide comparable ranking dimensions, machine-readable reason codes, and concise human-readable explanations.
 
 ## Phase 11 — Backtest and Calibration
 
-Test the complete production pipeline chronologically.
-
-Calibrate thresholds per strategy, regime and symbol-behavior group.
+Run production-equivalent chronological testing, calibrate by strategy/regime/behavior segment, and measure trade suppression.
 
 ## Phase 12 — Output Upgrade
 
@@ -1161,25 +1181,26 @@ Update text and JSON output while preserving deterministic serialization and CLI
 
 ---
 
-# 24. Non-Goals
+# 25. Non-Goals
 
-This methodology upgrade must not:
+This upgrade must not:
 
-* guarantee winning trades;
-* force a minimum number of results;
-* force every target to 10%;
-* force every trade into a short holding window;
-* use leverage return as expected market movement;
-* combine indicators into an uncalibrated win probability;
-* create candle-only strategies without context;
-* add undocumented discretionary rules;
-* redesign the entire Apex repository;
-* create separate analysis logic for `scan` and `analyze`;
-* fabricate unavailable order-flow or open-interest data.
+- guarantee winning trades;
+- force a minimum number of results;
+- force every target to 10%;
+- force every trade into a short holding window;
+- use leverage return as expected market movement;
+- display uncalibrated percentages as win probability;
+- create candle-only strategies without context;
+- add undocumented discretionary rules;
+- redesign the repository;
+- create separate analysis logic for scan and analyze;
+- fabricate unavailable order-flow, open-interest, or liquidation data;
+- optimize only for win rate or trade count.
 
 ---
 
-# 25. Definition of Success
+# 26. Definition of Success
 
 The upgrade succeeds when Apex can consistently explain:
 
@@ -1189,24 +1210,17 @@ Why this direction?
 Why this strategy?
 Why now?
 Why this entry zone?
-Why is another nearby entry better?
-Why this invalidation?
-Why this stop?
+Is the current entry valid, aggressive, late, or missed?
+Is there a better nearby entry?
+Why this invalidation and stop?
 Why these targets?
-Why could the move reach 3%, 5%, 10%, or more?
+Why could movement reach 3%, 5%, 10%, or more?
 How long may the setup remain valid?
-What evidence contradicts the trade?
-Why was another candidate rejected?
+What is the confidence level?
+Is confidence rule-based or historically calibrated?
+Which evidence matters most?
+What contradicts the trade?
+Why was another candidate ranked lower or rejected?
 ```
 
-The final product should not claim to predict the next trade with certainty.
-
-It should identify objectively defined opportunities with:
-
-* compatible market conditions;
-* complete strategy rules;
-* fresh entry geometry;
-* controlled structural risk;
-* realistic target room;
-* explicit uncertainty;
-* and evidence that can be tested over a meaningful sample.
+The final product should identify objectively defined opportunities with compatible market conditions, strategy-specific rules, fresh entry geometry, controlled structural risk, realistic target room, explicit uncertainty, transparent confidence, and evidence that can be validated over meaningful samples.
