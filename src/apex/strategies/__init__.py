@@ -10,6 +10,9 @@ from apex.strategies.analysis import (
 )
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.breakout_retest import generate_breakout_retest_candidates
+from apex.strategies.compression_expansion import (
+    generate_compression_expansion_candidates,
+)
 from apex.strategies.context import (
     FeatureSnapshot,
     StrategyContext,
@@ -84,6 +87,7 @@ __all__ = [
     "build_strategy_applicability",
     "generate_breakout_continuation_candidates",
     "generate_breakout_retest_candidates",
+    "generate_compression_expansion_candidates",
     "generate_first_pullback_continuation_candidates",
     "generate_liquidity_reversal_candidates",
     "generate_momentum_breakout_candidates",
