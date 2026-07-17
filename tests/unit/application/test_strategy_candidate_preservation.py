@@ -131,7 +131,7 @@ def test_routing_payload_exposes_suppressed_alternatives() -> None:
 
     payload = build_strategy_routing_payload(
         assessment=_assessment(),
-        phase4=routed,
+        strategy_analysis=routed,
         routing_config={"enabled": ["trend_pullback"]},
     )
 

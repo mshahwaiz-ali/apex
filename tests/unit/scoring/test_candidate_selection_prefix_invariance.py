@@ -79,8 +79,8 @@ def _context(candles: tuple[Candle, ...]) -> StrategyContext:
 
 def _phase5(candles: tuple[Candle, ...]) -> CandidateSelectionResult:
     decision_time = candles[-1].close_time
-    phase4 = analyze_strategies(_context(candles), decision_time=decision_time)
-    return analyze_candidate_selection(phase4)
+    strategy_analysis = analyze_strategies(_context(candles), decision_time=decision_time)
+    return analyze_candidate_selection(strategy_analysis)
 
 
 def test_phase5_historical_prefix_is_invariant_after_future_candles() -> None:

@@ -10,7 +10,7 @@ from apex.strategies.analysis import _strategy_eligibility
 from apex.strategies.context import TimeframeRole
 from apex.strategies.contracts import StrategyType
 from apex.strategies.diagnostics import (
-    Phase4RejectionCode,
+    StrategyRejectionCode,
     build_strategy_diagnostics,
     has_higher_timeframe_breakout,
 )
@@ -92,7 +92,7 @@ def test_breakout_near_miss_reports_retest(monkeypatch: Any) -> None:
     assert diagnostic.candidate_count == 0
     assert diagnostic.higher_timeframe_breakout is True
     assert diagnostic.near_miss_state is EntryState.WAIT_FOR_RETEST
-    assert Phase4RejectionCode.MISSING_ENTRY_REFERENCES in diagnostic.rejection_codes
+    assert StrategyRejectionCode.MISSING_ENTRY_REFERENCES in diagnostic.rejection_codes
 
 
 def test_higher_breakout_detector_uses_context_regime(monkeypatch: Any) -> None:

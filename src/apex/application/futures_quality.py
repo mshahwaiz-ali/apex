@@ -16,7 +16,7 @@ DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
 
 def analyze_futures_phase5(
-    phase4: StrategyAnalysisResult,
+    strategy_analysis: StrategyAnalysisResult,
     *,
     risk_mode: RiskMode | None = None,
     scoring_config: ScoringConfig = DEFAULT_SCORING_CONFIG,
@@ -30,7 +30,7 @@ def analyze_futures_phase5(
         DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH
     )
     return analyze_candidate_selection(
-        phase4,
+        strategy_analysis,
         config=scoring_config,
         risk_mode=selected_risk_mode,
         strategy_approval_config=approval_config,

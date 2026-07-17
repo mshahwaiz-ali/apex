@@ -78,7 +78,7 @@ def _candidate(*, provisional: bool, contradiction: float) -> TradeCandidate:
 
 
 def _snapshot(*, provisional: bool, contradiction: float):
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(
@@ -89,7 +89,7 @@ def _snapshot(*, provisional: bool, contradiction: float):
         ),
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
-    return build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
+    return build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
 
 
 def test_rank_score_subtracts_existing_measured_penalties() -> None:

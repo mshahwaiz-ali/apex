@@ -19,7 +19,7 @@ from apex.strategies import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.diagnostics import Phase4RejectionCode, StrategyDiagnostic
+from apex.strategies.diagnostics import StrategyRejectionCode, StrategyDiagnostic
 from apex.structure.regime import MarketRegime
 
 
@@ -74,7 +74,7 @@ def _candidate(decision_time: datetime) -> TradeCandidate:
 def test_candidate_diagnostics_preserve_geometry_and_missing_values() -> None:
     decision_time = datetime(2026, 7, 16, tzinfo=UTC)
     candidate = _candidate(decision_time)
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="TEST/USDT",
         decision_time=decision_time,
         candidates=(candidate,),
@@ -97,7 +97,7 @@ def test_candidate_diagnostics_preserve_geometry_and_missing_values() -> None:
             StrategyType.RANGE_REVERSAL: StrategyDiagnostic(
                 strategy=StrategyType.RANGE_REVERSAL,
                 candidate_count=0,
-                rejection_codes=(Phase4RejectionCode.REGIME_INELIGIBLE,),
+                rejection_codes=(StrategyRejectionCode.REGIME_INELIGIBLE,),
                 reasons=("range reversal is not routed in this regime",),
                 near_miss_state=EntryState.NO_TRADE,
             ),
@@ -105,7 +105,7 @@ def test_candidate_diagnostics_preserve_geometry_and_missing_values() -> None:
         decision_regime=MarketRegime.STRONG_UPTREND,
     )
 
-    records = _candidate_diagnostics(phase4)
+    records = _candidate_diagnostics(strategy_analysis)
 
     generated = records[0]
     assert generated["generated"] is True

@@ -85,7 +85,7 @@ def _candidate(
 
 
 def test_snapshot_preserves_primary_and_viable_alternative() -> None:
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(
@@ -105,8 +105,8 @@ def test_snapshot_preserves_primary_and_viable_alternative() -> None:
             StrategyType.BREAKOUT_CONTINUATION,
         ),
     )
-    phase5 = analyze_candidate_selection(phase4)
-    snapshot = build_candidate_ranking_snapshot(phase5)
+    candidate_selection = analyze_candidate_selection(strategy_analysis)
+    snapshot = build_candidate_ranking_snapshot(candidate_selection)
 
     assert snapshot.primary is not None
     assert snapshot.primary.role is CandidateRankingRole.PRIMARY
@@ -118,7 +118,7 @@ def test_snapshot_preserves_primary_and_viable_alternative() -> None:
 
 
 def test_payload_keeps_deterministic_rank_order() -> None:
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(
@@ -139,7 +139,7 @@ def test_payload_keeps_deterministic_rank_order() -> None:
         ),
     )
     payload = candidate_ranking_payload(
-        build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
+        build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
     )
 
     assert payload["primary"]["rank"] == 1  # type: ignore[index]

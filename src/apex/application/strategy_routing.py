@@ -16,7 +16,7 @@ from apex.strategies import (
 
 
 def apply_strategy_routing(
-    phase4: StrategyAnalysisResult,
+    strategy_analysis: StrategyAnalysisResult,
     *,
     routing_config: Mapping[str, Sequence[str]] | None = None,
 ) -> StrategyAnalysisResult:
@@ -25,11 +25,11 @@ def apply_strategy_routing(
     configured = _normalize_routing_config(routing_config)
     eligible = tuple(
         strategy
-        for strategy in phase4.eligible_strategies or ()
+        for strategy in strategy_analysis.eligible_strategies or ()
         if strategy in configured
     )
-    skipped = dict(phase4.skipped_strategies or {})
-    for strategy in phase4.evaluated_strategies:
+    skipped = dict(strategy_analysis.skipped_strategies or {})
+    for strategy in strategy_analysis.evaluated_strategies:
         if strategy not in configured:
             skipped.setdefault(
                 strategy,
@@ -37,7 +37,7 @@ def apply_strategy_routing(
             )
     candidates = tuple(
         candidate
-        for candidate in phase4.candidates
+        for candidate in strategy_analysis.candidates
         if candidate.strategy in eligible
     )
     newly_suppressed = tuple(
@@ -49,23 +49,23 @@ def apply_strategy_routing(
                 "strategy routing",
             ),
         )
-        for candidate in phase4.candidates
+        for candidate in strategy_analysis.candidates
         if candidate.strategy not in configured
     )
     suppressed_candidates = (
-        phase4.suppressed_candidates + newly_suppressed
+        strategy_analysis.suppressed_candidates + newly_suppressed
     )
     return StrategyAnalysisResult(
-        symbol=phase4.symbol,
-        decision_time=phase4.decision_time,
+        symbol=strategy_analysis.symbol,
+        decision_time=strategy_analysis.decision_time,
         candidates=candidates,
-        evaluated_strategies=phase4.evaluated_strategies,
+        evaluated_strategies=strategy_analysis.evaluated_strategies,
         eligible_strategies=eligible,
         skipped_strategies=skipped,
-        strategy_diagnostics=phase4.strategy_diagnostics,
-        decision_regime=phase4.decision_regime,
-        higher_timeframe_breakout=phase4.higher_timeframe_breakout,
-        strategy_applicability=phase4.strategy_applicability,
+        strategy_diagnostics=strategy_analysis.strategy_diagnostics,
+        decision_regime=strategy_analysis.decision_regime,
+        higher_timeframe_breakout=strategy_analysis.higher_timeframe_breakout,
+        strategy_applicability=strategy_analysis.strategy_applicability,
         suppressed_candidates=suppressed_candidates,
     )
 
@@ -73,7 +73,7 @@ def apply_strategy_routing(
 def build_strategy_routing_payload(
     *,
     assessment: RiskAssessment,
-    phase4: StrategyAnalysisResult | None = None,
+    strategy_analysis: StrategyAnalysisResult | None = None,
     routing_config: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, object]:
     """Return reproducible routing metadata without category-specific paths."""
@@ -85,14 +85,14 @@ def build_strategy_routing_payload(
     selected_strategy_enabled = (
         selected_strategy in enabled if selected_strategy is not None else False
     )
-    routed_eligible = tuple(phase4.eligible_strategies or ()) if phase4 is not None else ()
+    routed_eligible = tuple(strategy_analysis.eligible_strategies or ()) if strategy_analysis is not None else ()
     selected_strategy_routed_eligible = (
         selected_strategy in routed_eligible if selected_strategy is not None else False
     )
     reasons = ["canonical strategy routing applied"]
-    if phase4 is not None:
-        reasons.append(f"decision regime {phase4.decision_regime.value} applied to routing")
-        if phase4.higher_timeframe_breakout:
+    if strategy_analysis is not None:
+        reasons.append(f"decision regime {strategy_analysis.decision_regime.value} applied to routing")
+        if strategy_analysis.higher_timeframe_breakout:
             reasons.append("higher-timeframe breakout continuation routing was active")
     diagnostics = (
         {
@@ -103,9 +103,9 @@ def build_strategy_routing_payload(
                 "near_miss_state": diagnostic.near_miss_state.value,
                 "higher_timeframe_breakout": diagnostic.higher_timeframe_breakout,
             }
-            for strategy, diagnostic in phase4.strategy_diagnostics.items()
+            for strategy, diagnostic in strategy_analysis.strategy_diagnostics.items()
         }
-        if phase4 is not None and phase4.strategy_diagnostics is not None
+        if strategy_analysis is not None and strategy_analysis.strategy_diagnostics is not None
         else {}
     )
     near_miss_counts: dict[str, int] = {}
@@ -120,20 +120,20 @@ def build_strategy_routing_payload(
         "selected_strategy": selected_strategy.value if selected_strategy is not None else None,
         "selected_strategy_enabled": selected_strategy_enabled,
         "selected_strategy_routed_eligible": selected_strategy_routed_eligible,
-        "decision_regime": phase4.decision_regime.value if phase4 is not None else None,
+        "decision_regime": strategy_analysis.decision_regime.value if strategy_analysis is not None else None,
         "higher_timeframe_breakout": (
-            phase4.higher_timeframe_breakout if phase4 is not None else False
+            strategy_analysis.higher_timeframe_breakout if strategy_analysis is not None else False
         ),
         "routed_eligible_strategies": [strategy.value for strategy in routed_eligible],
         "skipped_strategies": (
-            {strategy.value: reason for strategy, reason in phase4.skipped_strategies.items()}
-            if phase4 is not None and phase4.skipped_strategies is not None
+            {strategy.value: reason for strategy, reason in strategy_analysis.skipped_strategies.items()}
+            if strategy_analysis is not None and strategy_analysis.skipped_strategies is not None
             else {}
         ),
         "phase4_strategy_diagnostics": diagnostics,
-        "strategy_applicability": _strategy_applicability_payload(phase4),
-        "suppressed_candidates": _suppressed_candidate_payload(phase4),
-        "candidate_diagnostics": _candidate_diagnostics(phase4),
+        "strategy_applicability": _strategy_applicability_payload(strategy_analysis),
+        "suppressed_candidates": _suppressed_candidate_payload(strategy_analysis),
+        "candidate_diagnostics": _candidate_diagnostics(strategy_analysis),
         "near_miss_state_counts": near_miss_counts,
         "eligible": setup is not None,
         "reasons": reasons,
@@ -143,14 +143,14 @@ def build_strategy_routing_payload(
 
 
 def _strategy_applicability_payload(
-    phase4: StrategyAnalysisResult | None,
+    strategy_analysis: StrategyAnalysisResult | None,
 ) -> list[dict[str, object]]:
-    if phase4 is None:
+    if strategy_analysis is None:
         return []
-    applicability = phase4.strategy_applicability or {}
+    applicability = strategy_analysis.strategy_applicability or {}
     records: list[dict[str, object]] = []
-    eligible = tuple(phase4.eligible_strategies or ())
-    for strategy in phase4.evaluated_strategies:
+    eligible = tuple(strategy_analysis.eligible_strategies or ())
+    for strategy in strategy_analysis.evaluated_strategies:
         record = applicability.get(strategy)
         if record is None:
             continue
@@ -168,9 +168,9 @@ def _strategy_applicability_payload(
 
 
 def _suppressed_candidate_payload(
-    phase4: StrategyAnalysisResult | None,
+    strategy_analysis: StrategyAnalysisResult | None,
 ) -> list[dict[str, object]]:
-    if phase4 is None:
+    if strategy_analysis is None:
         return []
     return [
         {
@@ -179,17 +179,17 @@ def _suppressed_candidate_payload(
             "reason_codes": list(item.reason_codes),
             "reasons": list(item.reasons),
         }
-        for item in phase4.suppressed_candidates
+        for item in strategy_analysis.suppressed_candidates
     ]
 
-def _candidate_diagnostics(phase4: StrategyAnalysisResult | None) -> list[dict[str, object]]:
-    if phase4 is None:
+def _candidate_diagnostics(strategy_analysis: StrategyAnalysisResult | None) -> list[dict[str, object]]:
+    if strategy_analysis is None:
         return []
-    diagnostics = phase4.strategy_diagnostics or {}
+    diagnostics = strategy_analysis.strategy_diagnostics or {}
     records: list[dict[str, object]] = []
-    for strategy in phase4.evaluated_strategies:
+    for strategy in strategy_analysis.evaluated_strategies:
         strategy_candidates = tuple(
-            candidate for candidate in phase4.candidates if candidate.strategy is strategy
+            candidate for candidate in strategy_analysis.candidates if candidate.strategy is strategy
         )
         diagnostic = diagnostics.get(strategy)
         if strategy_candidates:

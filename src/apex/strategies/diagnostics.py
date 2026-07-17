@@ -14,7 +14,7 @@ from apex.structure.contracts import BreakDirection, ConfirmationStatus, TrendDi
 from apex.structure.regime import MarketRegime, classify_market_regime
 
 
-class Phase4RejectionCode(StrEnum):
+class StrategyRejectionCode(StrEnum):
     TREND_MISMATCH = "trend_mismatch"
     MOMENTUM_MISMATCH = "momentum_mismatch"
     HIGHER_TIMEFRAME_CONTRADICTION = "higher_timeframe_contradiction"
@@ -29,7 +29,7 @@ class Phase4RejectionCode(StrEnum):
 class StrategyDiagnostic:
     strategy: StrategyType
     candidate_count: int
-    rejection_codes: tuple[Phase4RejectionCode, ...]
+    rejection_codes: tuple[StrategyRejectionCode, ...]
     reasons: tuple[str, ...]
     near_miss_state: EntryState
     higher_timeframe_breakout: bool = False
@@ -85,7 +85,7 @@ def build_strategy_diagnostics(
             diagnostics[strategy] = StrategyDiagnostic(
                 strategy=strategy,
                 candidate_count=0,
-                rejection_codes=(Phase4RejectionCode.REGIME_INELIGIBLE,),
+                rejection_codes=(StrategyRejectionCode.REGIME_INELIGIBLE,),
                 reasons=(skipped.get(strategy, "strategy is not eligible for the decision regime"),),
                 near_miss_state=EntryState.NO_TRADE,
                 higher_timeframe_breakout=higher_timeframe_breakout,
@@ -113,9 +113,9 @@ def has_higher_timeframe_breakout(context: StrategyContext) -> bool:
 def _infer_rejections(
     context: StrategyContext,
     strategy: StrategyType,
-) -> tuple[tuple[Phase4RejectionCode, ...], tuple[str, ...]]:
+) -> tuple[tuple[StrategyRejectionCode, ...], tuple[str, ...]]:
     frame = context.decision_frame
-    codes: list[Phase4RejectionCode] = []
+    codes: list[StrategyRejectionCode] = []
     reasons: list[str] = []
     trend = frame.structure.trend.direction
     bullish = _bullish_direction(trend)
@@ -130,41 +130,41 @@ def _infer_rejections(
     )
 
     if bullish is None:
-        codes.append(Phase4RejectionCode.TREND_MISMATCH)
+        codes.append(StrategyRejectionCode.TREND_MISMATCH)
         reasons.append(f"decision-frame trend {trend.value} does not establish direction")
     else:
         if directional_momentum and _momentum_mismatch(
             directional_momentum,
             bullish=bullish,
         ):
-            codes.append(Phase4RejectionCode.MOMENTUM_MISMATCH)
+            codes.append(StrategyRejectionCode.MOMENTUM_MISMATCH)
             direction = "bullish" if bullish else "bearish"
             reasons.append(f"decision-frame momentum contradicts the {direction} structure")
         if _higher_timeframe_contradiction(context, bullish=bullish):
-            codes.append(Phase4RejectionCode.HIGHER_TIMEFRAME_CONTRADICTION)
+            codes.append(StrategyRejectionCode.HIGHER_TIMEFRAME_CONTRADICTION)
             direction = "bullish" if bullish else "bearish"
             reasons.append(f"higher-timeframe trend contradicts the {direction} decision thesis")
 
     if strategy is StrategyType.BREAKOUT_CONTINUATION:
         if not frame.structure.breaks and not _has_higher_timeframe_breakout(context):
-            codes.append(Phase4RejectionCode.MISSING_ENTRY_REFERENCES)
+            codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
             reasons.append("no confirmed decision- or higher-timeframe breakout reference exists")
         elif _has_higher_timeframe_breakout(context) and not frame.structure.breaks:
-            codes.append(Phase4RejectionCode.MISSING_ENTRY_REFERENCES)
+            codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
             reasons.append("higher-timeframe breakout exists but lower-timeframe retest/reclaim is pending")
     elif not frame.structure.levels:
-        codes.append(Phase4RejectionCode.MISSING_ENTRY_REFERENCES)
+        codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
         reasons.append("decision frame has no usable structural entry references")
 
     if context.atr <= 0 or context.current_price <= 0:
-        codes.append(Phase4RejectionCode.INVALID_STOP_TARGET_GEOMETRY)
+        codes.append(StrategyRejectionCode.INVALID_STOP_TARGET_GEOMETRY)
         reasons.append("stop and target geometry cannot be constructed")
     elif _references_are_too_far(context):
-        codes.append(Phase4RejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT)
+        codes.append(StrategyRejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT)
         reasons.append("nearest structural reference is more than three ATR from current price")
 
     if not codes:
-        codes.append(Phase4RejectionCode.NO_STRATEGY_TRIGGER)
+        codes.append(StrategyRejectionCode.NO_STRATEGY_TRIGGER)
         reasons.append("strategy-specific trigger conditions were not satisfied")
     return tuple(dict.fromkeys(codes)), tuple(dict.fromkeys(reasons))
 
@@ -210,11 +210,11 @@ def _references_are_too_far(context: StrategyContext) -> bool:
 def _near_miss_state(
     context: StrategyContext,
     strategy: StrategyType,
-    codes: Sequence[Phase4RejectionCode],
+    codes: Sequence[StrategyRejectionCode],
 ) -> EntryState:
-    if Phase4RejectionCode.INVALID_STOP_TARGET_GEOMETRY in codes:
+    if StrategyRejectionCode.INVALID_STOP_TARGET_GEOMETRY in codes:
         return EntryState.INVALIDATED
-    if Phase4RejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT in codes:
+    if StrategyRejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT in codes:
         return EntryState.MISSED_ENTRY
     if strategy is StrategyType.BREAKOUT_CONTINUATION and _has_higher_timeframe_breakout(context):
         frame = context.decision_frame
@@ -222,9 +222,9 @@ def _near_miss_state(
         if trend in _BULLISH | _BEARISH:
             return EntryState.WAIT_FOR_RETEST
         return EntryState.WAIT_FOR_RECLAIM
-    if Phase4RejectionCode.MISSING_ENTRY_REFERENCES in codes:
+    if StrategyRejectionCode.MISSING_ENTRY_REFERENCES in codes:
         return EntryState.WATCH
-    if Phase4RejectionCode.MOMENTUM_MISMATCH in codes:
+    if StrategyRejectionCode.MOMENTUM_MISMATCH in codes:
         return EntryState.APPROACHING_ENTRY
     return EntryState.NO_TRADE
 

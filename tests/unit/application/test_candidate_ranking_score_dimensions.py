@@ -77,13 +77,13 @@ def _candidate() -> TradeCandidate:
 
 
 def _snapshot():
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(_candidate(),),
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
-    return build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
+    return build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
 
 
 def test_ranking_record_exposes_four_score_dimensions() -> None:

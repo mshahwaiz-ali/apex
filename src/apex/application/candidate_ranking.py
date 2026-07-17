@@ -117,20 +117,20 @@ _VIABLE_OUTCOMES = {
 
 
 def build_candidate_ranking_snapshot(
-    phase5: CandidateSelectionResult,
+    candidate_selection: CandidateSelectionResult,
 ) -> CandidateRankingSnapshot:
     """Preserve deterministic candidate rank order without changing selection."""
 
     selected_id = (
-        phase5.selected_candidate.scored.candidate_id
-        if phase5.selected_candidate is not None
+        candidate_selection.selected_candidate.scored.candidate_id
+        if candidate_selection.selected_candidate is not None
         else None
     )
     primary: CandidateRankingRecord | None = None
     alternatives: list[CandidateRankingRecord] = []
     rejected: list[CandidateRankingRecord] = []
 
-    for item in phase5.ranked_candidates:
+    for item in candidate_selection.ranked_candidates:
         if item.scored.candidate_id == selected_id:
             primary = _record(item, CandidateRankingRole.PRIMARY)
         elif item.outcome in _VIABLE_OUTCOMES:
@@ -142,7 +142,7 @@ def build_candidate_ranking_snapshot(
         primary=primary,
         alternatives=tuple(alternatives),
         rejected=tuple(rejected),
-        ranked_count=len(phase5.ranked_candidates),
+        ranked_count=len(candidate_selection.ranked_candidates),
     )
 
 

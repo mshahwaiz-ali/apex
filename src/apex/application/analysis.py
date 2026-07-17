@@ -140,17 +140,17 @@ def analyze_symbol(
         candle_limit=candle_limit,
         received_at=decision_time,
     )
-    phase4 = analyze_strategies(context, decision_time=decision_time)
+    strategy_analysis = analyze_strategies(context, decision_time=decision_time)
     routed_phase4 = apply_strategy_routing(
-        phase4,
+        strategy_analysis,
         routing_config=strategy_routing,
     )
-    phase5 = analyze_futures_phase5(
+    candidate_selection = analyze_futures_phase5(
         routed_phase4,
         environment_route=market_strategy_route,
     )
     assessment = analyze_risk(
-        phase5,
+        candidate_selection,
         config=risk_config,
         exposure=exposure,
     )
@@ -161,9 +161,9 @@ def analyze_symbol(
         if assessment.setup is not None
         else None
     )
-    candidate_ranking = build_candidate_ranking_snapshot(phase5)
+    candidate_ranking = build_candidate_ranking_snapshot(candidate_selection)
     risk_rejection_diagnostics = _build_risk_rejection_diagnostics(
-        phase5=phase5,
+        candidate_selection=candidate_selection,
         assessment=assessment,
         context=context,
         config=risk_config,
@@ -184,16 +184,16 @@ def analyze_symbol(
         precision_entry=precision_entry,
         candidate_ranking=candidate_ranking,
         phase5_diagnostics={
-            "candidate_count": len(phase5.all_scored_candidates),
-            "ranked_count": len(phase5.ranked_candidates),
-            "rejected_count": len(phase5.rejected_candidates),
-            "selected": phase5.selected_candidate is not None,
+            "candidate_count": len(candidate_selection.all_scored_candidates),
+            "ranked_count": len(candidate_selection.ranked_candidates),
+            "rejected_count": len(candidate_selection.rejected_candidates),
+            "selected": candidate_selection.selected_candidate is not None,
             "selected_candidate_id": (
-                phase5.selected_candidate.scored.candidate_id
-                if phase5.selected_candidate is not None
+                candidate_selection.selected_candidate.scored.candidate_id
+                if candidate_selection.selected_candidate is not None
                 else None
             ),
-            "no_trade_reason": phase5.no_trade_reason,
+            "no_trade_reason": candidate_selection.no_trade_reason,
             "candidates": [
                 {
                     "candidate_id": item.scored.candidate_id,
@@ -227,7 +227,7 @@ def analyze_symbol(
                     ),
                     "reasons": list(item.reasons),
                 }
-                for item in phase5.ranked_candidates
+                for item in candidate_selection.ranked_candidates
             ],
         },
         risk_rejection_diagnostics=risk_rejection_diagnostics,
@@ -236,14 +236,14 @@ def analyze_symbol(
 
 def _build_risk_rejection_diagnostics(
     *,
-    phase5: Any,
+    candidate_selection: Any,
     assessment: RiskAssessment,
     context: StrategyContext,
     config: RiskConfig,
 ) -> tuple[Mapping[str, object], ...]:
     """Describe a candidate selection rejected by risk analysis."""
 
-    selected = phase5.selected_candidate
+    selected = candidate_selection.selected_candidate
     if selected is None or assessment.decision is RiskDecision.APPROVED:
         return ()
 
@@ -597,8 +597,8 @@ def _frame_from_candles(
         raise ValueError(f"{symbol} {timeframe} returned no candles")
     features_by_name = create_default_feature_registry().calculate_all(candles)
     relative_volume = features_by_name["relative_volume_20"][0].values
-    relative_volume_for_phase3 = relative_volume if len(relative_volume) == len(candles) else None
-    phase3 = analyze_structure_and_liquidity(candles, relative_volume=relative_volume_for_phase3)
+    relative_volume_for_market_analysis = relative_volume if len(relative_volume) == len(candles) else None
+    market_analysis = analyze_structure_and_liquidity(candles, relative_volume=relative_volume_for_market_analysis)
     latest_closed = candles[-2] if not candles[-1].is_closed and len(candles) > 1 else candles[-1]
     active_candle_price = candles[-1].close if not candles[-1].is_closed else None
     live_price, live_price_source = _select_current_price(
@@ -620,7 +620,7 @@ def _frame_from_candles(
         macd_histogram=_latest(features_by_name["macd"][2]),
         rate_of_change=_latest(features_by_name["roc_12"][0]),
         relative_volume=_latest(features_by_name["relative_volume_20"][0]),
-        trend_strength=phase3.structure.trend.strength,
+        trend_strength=market_analysis.structure.trend.strength,
         range_position=_unit_or_none(_latest(features_by_name["recent_range_position_20"][0])),
         volatility_expansion=_unit_or_none(_latest(features_by_name["candle_range_ratio_20"][0])),
     )
@@ -668,11 +668,11 @@ def _frame_from_candles(
             data_confidence=0.5 if is_stale else 1.0,
             current_price_source=live_price_source,
             features=snapshot,
-            structure=phase3.structure,
-            liquidity=phase3.liquidity,
+            structure=market_analysis.structure,
+            liquidity=market_analysis.liquidity,
             active_candle=not candles[-1].is_closed,
         ),
-        phase3.regime.value,
+        market_analysis.regime.value,
     )
 
 
@@ -811,13 +811,13 @@ def _frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
 
 def _strategy_routing_payload(
     assessment: RiskAssessment,
-    phase4: Any,
+    strategy_analysis: Any,
     routing_config: Mapping[str, Sequence[str]] | None,
 ) -> dict[str, Any]:
     return dict(
         build_strategy_routing_payload(
             assessment=assessment,
-            phase4=phase4,
+            strategy_analysis=strategy_analysis,
             routing_config=routing_config,
         )
     )

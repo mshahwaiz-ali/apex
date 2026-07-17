@@ -47,7 +47,7 @@ def test_strategy_routing_payload_explains_regime_and_rejections() -> None:
     routed = apply_strategy_routing(_phase4(), routing_config={"enabled": ["trend_pullback"]})
     payload = build_strategy_routing_payload(
         assessment=_assessment(),
-        phase4=routed,
+        strategy_analysis=routed,
         routing_config={"enabled": ["trend_pullback"]},
     )
     assert payload["decision_regime"] == "breakout_expansion"

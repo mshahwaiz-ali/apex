@@ -24,7 +24,7 @@ DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
 
 def analyze_candidate_selection(
-    phase4: StrategyAnalysisResult,
+    strategy_analysis: StrategyAnalysisResult,
     *,
     config: ScoringConfig = DEFAULT_SCORING_CONFIG,
     risk_mode: RiskMode = RiskMode.STANDARD,
@@ -47,15 +47,15 @@ def analyze_candidate_selection(
             "strategy approval configuration cannot be supplied when quality gating is disabled"
         )
 
-    scored = score_candidates(phase4.candidates, config=config)
+    scored = score_candidates(strategy_analysis.candidates, config=config)
     scored = apply_strategy_applicability(
         scored,
-        applicability=phase4.strategy_applicability or {},
+        applicability=strategy_analysis.strategy_applicability or {},
     )
     scored = apply_environment_route_alignment(scored, route=environment_route)
     initially_ranked = rank_candidates(
         scored,
-        strategy_order=phase4.evaluated_strategies,
+        strategy_order=strategy_analysis.evaluated_strategies,
     )
     ranked, conflict_summary = resolve_conflicts(initially_ranked, config=config)
     if approval_config is not None:
@@ -67,8 +67,8 @@ def analyze_candidate_selection(
     selected = select_candidate(ranked, config=config)
     rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
     return CandidateSelectionResult(
-        symbol=phase4.symbol,
-        decision_time=phase4.decision_time,
+        symbol=strategy_analysis.symbol,
+        decision_time=strategy_analysis.decision_time,
         all_scored_candidates=scored,
         ranked_candidates=ranked,
         rejected_candidates=rejected,
@@ -76,7 +76,7 @@ def analyze_candidate_selection(
         directional_consensus=conflict_summary.directional_consensus,
         selected_candidate=selected,
         no_trade_reason=None if selected is not None else no_trade_reason(ranked),
-        evaluated_strategy_order=phase4.evaluated_strategies,
+        evaluated_strategy_order=strategy_analysis.evaluated_strategies,
         configuration_id=config.identifier,
         metadata={
             "candidate_count": len(scored),
@@ -84,11 +84,11 @@ def analyze_candidate_selection(
             "selected": selected is not None,
             "config_hash": config.fingerprint(),
             "duplicate_cluster_count": len(conflict_summary.duplicate_groups),
-            "decision_regime": phase4.decision_regime.value,
-            "eligible_strategy_count": len(phase4.eligible_strategies or ()),
-            "skipped_strategy_count": len(phase4.skipped_strategies or {}),
+            "decision_regime": strategy_analysis.decision_regime.value,
+            "eligible_strategy_count": len(strategy_analysis.eligible_strategies or ()),
+            "skipped_strategy_count": len(strategy_analysis.skipped_strategies or {}),
             "strategy_applicability_weighting_enabled": bool(
-                phase4.strategy_applicability
+                strategy_analysis.strategy_applicability
             ),
             "environment_route_weighting_enabled": environment_route is not None,
             "strategy_quality_gate_enabled": approval_config is not None,

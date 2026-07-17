@@ -96,7 +96,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
         ),
         entry_preferred=120.0,
     )
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(legacy_favorite, redesign_favorite),
@@ -106,7 +106,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
         ),
     )
 
-    result = analyze_candidate_selection(phase4)
+    result = analyze_candidate_selection(strategy_analysis)
 
     assert result.all_scored_candidates[0].final_score == 51.9
     assert result.all_scored_candidates[1].final_score == 46.4
@@ -116,7 +116,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
 
 
 def test_redesigned_ranking_does_not_change_legacy_threshold_outcomes() -> None:
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(
@@ -137,7 +137,7 @@ def test_redesigned_ranking_does_not_change_legacy_threshold_outcomes() -> None:
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
 
-    result = analyze_candidate_selection(phase4)
+    result = analyze_candidate_selection(strategy_analysis)
 
     assert result.ranked_candidates[0].final_score == 51.9
     assert result.ranked_candidates[0].outcome.value == "rejected_below_score_threshold"

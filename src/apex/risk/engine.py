@@ -22,13 +22,13 @@ from apex.strategies.contracts import TradeCandidate, TradeDirection
 
 
 def _reject(
-    phase5: CandidateSelectionResult,
+    candidate_selection: CandidateSelectionResult,
     config: RiskConfig,
     *items: tuple[RiskRejectionCode, str],
 ) -> RiskAssessment:
     return RiskAssessment(
-        symbol=phase5.symbol,
-        decision_time=phase5.decision_time,
+        symbol=candidate_selection.symbol,
+        decision_time=candidate_selection.decision_time,
         decision=RiskDecision.REJECTED,
         setup=None,
         rejection_codes=tuple(item[0] for item in items),
@@ -321,7 +321,7 @@ def _candidate_from(selected: RankedCandidate) -> TradeCandidate:
 
 
 def analyze_risk(
-    phase5: CandidateSelectionResult,
+    candidate_selection: CandidateSelectionResult,
     *,
     config: RiskConfig = DEFAULT_RISK_CONFIG,
     exposure: ExposureState | None = None,
@@ -331,10 +331,10 @@ def analyze_risk(
     if exposure is None:
         exposure = ExposureState()
 
-    selected = phase5.selected_candidate
+    selected = candidate_selection.selected_candidate
     if selected is None:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.NO_SELECTED_CANDIDATE,
@@ -351,7 +351,7 @@ def analyze_risk(
     )
     if candidate.entry.is_extended or extended:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.ENTRY_TOO_EXTENDED,
@@ -366,7 +366,7 @@ def analyze_risk(
     )
     if stop.distance < minimum_stop_distance:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.STOP_TOO_TIGHT,
@@ -375,7 +375,7 @@ def analyze_risk(
         )
     if stop.distance_pct > config.maximum_stop_distance_pct:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.STOP_TOO_WIDE,
@@ -386,7 +386,7 @@ def analyze_risk(
     targets = _targets(candidate, stop)
     if max(target.risk_reward for target in targets) < config.minimum_risk_reward:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.INSUFFICIENT_TARGET_SPACE,
@@ -397,12 +397,12 @@ def analyze_risk(
     position = _position_size(config, entry, stop)
     exposure_rejections = _exposure_rejections(config, exposure, position.risk_amount)
     if exposure_rejections:
-        return _reject(phase5, config, *exposure_rejections)
+        return _reject(candidate_selection, config, *exposure_rejections)
 
     leverage = _leverage(candidate, config, position, stop)
     if leverage is None:
         return _reject(
-            phase5,
+            candidate_selection,
             config,
             (
                 RiskRejectionCode.LEVERAGE_UNSAFE,
@@ -411,8 +411,8 @@ def analyze_risk(
         )
 
     return RiskAssessment(
-        symbol=phase5.symbol,
-        decision_time=phase5.decision_time,
+        symbol=candidate_selection.symbol,
+        decision_time=candidate_selection.decision_time,
         decision=RiskDecision.APPROVED,
         setup=RiskApprovedSetup(
             symbol=candidate.symbol,

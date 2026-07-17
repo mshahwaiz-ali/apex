@@ -6,7 +6,7 @@ from typing import Any
 from apex.domain.futures import EntryState
 from apex.strategies.context import TimeframeRole
 from apex.strategies.contracts import StrategyType
-from apex.strategies.diagnostics import Phase4RejectionCode, build_strategy_diagnostics
+from apex.strategies.diagnostics import StrategyRejectionCode, build_strategy_diagnostics
 from apex.structure.contracts import TrendDirection
 from apex.structure.regime import MarketRegime
 
@@ -72,8 +72,8 @@ def test_bullish_structure_rejects_uniformly_bearish_momentum(monkeypatch: Any) 
         monkeypatch,
     )
 
-    assert Phase4RejectionCode.MOMENTUM_MISMATCH in diagnostic.rejection_codes
-    assert Phase4RejectionCode.MISSING_ENTRY_REFERENCES not in diagnostic.rejection_codes
+    assert StrategyRejectionCode.MOMENTUM_MISMATCH in diagnostic.rejection_codes
+    assert StrategyRejectionCode.MISSING_ENTRY_REFERENCES not in diagnostic.rejection_codes
     assert diagnostic.near_miss_state is EntryState.APPROACHING_ENTRY
 
 
@@ -88,7 +88,7 @@ def test_bearish_structure_rejects_higher_timeframe_contradiction(monkeypatch: A
     )
 
     assert (
-        Phase4RejectionCode.HIGHER_TIMEFRAME_CONTRADICTION
+        StrategyRejectionCode.HIGHER_TIMEFRAME_CONTRADICTION
         in diagnostic.rejection_codes
     )
 
@@ -104,7 +104,7 @@ def test_far_structural_reference_marks_entry_as_missed(monkeypatch: Any) -> Non
     )
 
     assert (
-        Phase4RejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT
+        StrategyRejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT
         in diagnostic.rejection_codes
     )
     assert diagnostic.near_miss_state is EntryState.MISSED_ENTRY

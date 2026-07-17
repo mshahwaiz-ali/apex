@@ -74,13 +74,13 @@ def _snapshot():
         evidence=StrategyEvidence(supporting=("test evidence",)),
         metadata={},
     )
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(candidate,),
         evaluated_strategies=(StrategyType.TREND_PULLBACK,),
     )
-    return build_candidate_ranking_snapshot(analyze_candidate_selection(phase4))
+    return build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
 
 
 def test_dimensions_use_redesign_contract_names() -> None:

@@ -109,13 +109,13 @@ def _candidate(
 
 
 def _phase5(candidate: TradeCandidate | None = None) -> CandidateSelectionResult:
-    phase4 = StrategyAnalysisResult(
+    strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=() if candidate is None else (candidate,),
         evaluated_strategies=ORDER,
     )
-    return analyze_candidate_selection(phase4)
+    return analyze_candidate_selection(strategy_analysis)
 
 
 def _scored(candidate_id: str, candidate: TradeCandidate) -> ScoredCandidate:
@@ -341,7 +341,7 @@ def test_exposure_rejects_correlated_risk_above_total_risk() -> None:
 def test_risk_analysis_uses_only_selected_phase5_candidate() -> None:
     selected = _ranked("selected", _candidate(), 1)
     unselected_extended = _ranked("unselected", _candidate(extended=True), 2)
-    phase5 = CandidateSelectionResult(
+    candidate_selection = CandidateSelectionResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         all_scored_candidates=(selected.scored, unselected_extended.scored),
@@ -362,7 +362,7 @@ def test_risk_analysis_uses_only_selected_phase5_candidate() -> None:
         metadata={},
     )
 
-    result = analyze_risk(phase5)
+    result = analyze_risk(candidate_selection)
 
     assert result.decision is RiskDecision.APPROVED
     assert result.setup is not None
