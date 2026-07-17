@@ -11,10 +11,7 @@ from apex.cli_commands.daily_validation import register_daily_validation_command
 from apex.cli_commands.datasets import register_dataset_commands
 from apex.cli_commands.forward_edge import register_forward_edge_commands
 from apex.cli_commands.funded_history import register_funded_history_commands
-from apex.cli_commands.funded_plan_audit import register_funded_plan_audit_commands
 from apex.cli_commands.funded_plan_generation import register_funded_plan_generation_commands
-from apex.cli_commands.funded_plan_package import register_funded_plan_package_commands
-from apex.cli_commands.funded_plan_reproduction import register_funded_plan_reproduction_commands
 from apex.cli_commands.funded_plan_reporting import register_funded_plan_reporting_commands
 from apex.cli_commands.funded_plan_schema import register_funded_plan_schema_commands
 from apex.cli_commands.historical_futures_edge import register_historical_futures_edge_commands
@@ -26,7 +23,6 @@ from apex.cli_commands.market_data import register_market_data_commands
 from apex.cli_commands.p1_review import register_p1_review_command
 from apex.cli_commands.paper_cycle import register_paper_cycle_command
 from apex.cli_commands.paper_daily import register_paper_daily_command
-from apex.cli_commands.paper_evidence_progress import register_paper_evidence_progress_command
 from apex.cli_commands.paper_intake import register_paper_intake_commands
 from apex.cli_commands.paper_pipeline import register_paper_pipeline_commands
 from apex.cli_commands.paper_record_v3 import register_paper_record_v3
@@ -60,16 +56,12 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_funded_plan_generation_commands(app)
     register_funded_plan_reporting_commands(app)
     register_funded_plan_schema_commands(app)
-    register_funded_plan_package_commands(app)
-    register_funded_plan_reproduction_commands(app)
-    register_funded_plan_audit_commands(app)
     register_paper_trading_commands(paper_app)
     register_paper_cycle_command(paper_app)
     register_paper_scheduler_commands(paper_app)
     register_paper_pipeline_commands(paper_app)
     register_paper_status_command(paper_app)
     register_paper_daily_command(paper_app)
-    register_paper_evidence_progress_command(paper_app)
     register_paper_intake_commands(paper_app)
     register_p1_review_command(paper_app)
     remove_commands(paper_app, {"record"})
