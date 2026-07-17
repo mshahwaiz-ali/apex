@@ -24,6 +24,9 @@ from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnv
 from apex.risk import DEFAULT_RISK_CONFIG, ExposureState, RiskConfig
 
 
+DEFAULT_SCAN_DISPLAY_LIMIT = 15
+
+
 @dataclass(frozen=True, slots=True)
 class SymbolAnalysis(_integrated.SymbolAnalysis):
     """Integrated analysis enriched with environment routing and entry actionability."""
@@ -166,7 +169,8 @@ def serialize_symbol_analysis(analysis: _analysis.SymbolAnalysis) -> dict[str, A
 def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     """Return scanner JSON with decision-aware nested analyses."""
 
-    approved = tuple(item for item in result.analyses if item.assessment.setup is not None)
+    displayed = _display_analyses(result)
+    approved = tuple(item for item in displayed if item.assessment.setup is not None)
     long_setups = tuple(
         item
         for item in approved
@@ -184,7 +188,10 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
         "best_overall": serialize_symbol_analysis(approved[0]) if approved else None,
         "top_long_setups": [serialize_symbol_analysis(item) for item in long_setups],
         "top_short_setups": [serialize_symbol_analysis(item) for item in short_setups],
-        "results": [serialize_symbol_analysis(item) for item in result.analyses],
+        "results": [serialize_symbol_analysis(item) for item in displayed],
+        "total_analysis_count": len(result.analyses),
+        "displayed_analysis_count": len(displayed),
+        "display_limit": DEFAULT_SCAN_DISPLAY_LIMIT,
         "failures": dict(result.failures),
     }
 
@@ -243,8 +250,12 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
 def format_scan_text(result: ScanResult) -> str:
     """Return decision-aware human-readable scanner output."""
 
-    lines = [f"Scan generated at {result.generated_at.isoformat()}"]
-    lines.extend(format_symbol_text(analysis) for analysis in result.analyses)
+    displayed = _display_analyses(result)
+    lines = [
+        f"Scan generated at {result.generated_at.isoformat()}",
+        f"Showing top {len(displayed)} of {len(result.analyses)} analyzed symbols",
+    ]
+    lines.extend(format_symbol_text(analysis) for analysis in displayed)
     lines.extend(f"{symbol}: FAILED | {reason}" for symbol, reason in result.failures.items())
     return "\n".join(lines)
 
@@ -301,9 +312,38 @@ def _decision_reason_code(
     )
 
 
-def _scan_sort_key(analysis: _analysis.SymbolAnalysis) -> tuple[int, float, float, str]:
-    setup = analysis.assessment.setup
-    if setup is None:
-        return (1, 0.0, 0.0, analysis.symbol)
-    max_risk_reward = max(target.risk_reward for target in setup.take_profits)
-    return (0, -setup.confidence_score, -max_risk_reward, analysis.symbol)
+def _display_analyses(
+    result: ScanResult,
+    *,
+    limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
+) -> tuple[_analysis.SymbolAnalysis, ...]:
+    """Return the default ranked display slice without mutating full scan results."""
+
+    if limit < 1:
+        raise ValueError("scan display limit must be positive")
+    return result.analyses[:limit]
+
+
+def _scan_sort_key(
+    analysis: _analysis.SymbolAnalysis,
+) -> tuple[float, int, str]:
+    record = _best_rank_record(analysis)
+    if record is None:
+        return (0.0, 1, analysis.symbol)
+    return (
+        -record.final_rank_score,
+        0 if analysis.assessment.setup is not None else 1,
+        analysis.symbol,
+    )
+
+
+def _best_rank_record(analysis: _analysis.SymbolAnalysis) -> Any | None:
+    ranking = analysis.candidate_ranking
+    if ranking is None:
+        return None
+    records = (
+        (() if ranking.primary is None else (ranking.primary,))
+        + ranking.alternatives
+        + ranking.rejected
+    )
+    return min(records, key=lambda item: item.rank, default=None)
