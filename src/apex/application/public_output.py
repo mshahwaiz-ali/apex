@@ -9,7 +9,7 @@ from typing import Any
 import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult
 
-_LEGACY_PUBLIC_KEYS = frozenset({"precision_entry", "near_miss_state"})
+_LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _ACTIONABLE_STATUSES = frozenset({"READY_NOW", "AGGRESSIVE_NOW"})
 _DEVELOPING_STATUSES = frozenset({"PULLBACK_PREFERRED", "WATCH_NEAR_ENTRY"})
 _UNAVAILABLE_STATUSES = frozenset({"LATE_OR_CHASING", "INVALIDATED"})
