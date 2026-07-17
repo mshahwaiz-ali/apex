@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from apex.application.analysis import load_symbols
 from apex.application.futures_universe import futures_universe_symbols
+from apex.application.symbols import load_symbol_file
 from apex.data.providers.base import FuturesUniverseProvider
 
 
@@ -20,7 +20,7 @@ def resolve_futures_symbols(
     """Resolve either an explicit static override or the live exchange universe."""
 
     if symbols_file is not None:
-        return load_symbols(symbols_file)
+        return load_symbol_file(symbols_file)
 
     symbols = futures_universe_symbols(
         provider.fetch_futures_contracts(),
