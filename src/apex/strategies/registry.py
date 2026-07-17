@@ -1,4 +1,4 @@
-"""Stable registry for deterministic strategy analysis strategy generators."""
+"""Stable registry for deterministic strategy candidate generators."""
 
 from __future__ import annotations
 
@@ -8,9 +8,6 @@ from typing import Protocol
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import StrategyType, TradeCandidate
-from apex.strategies.higher_timeframe_breakout import (
-    generate_higher_timeframe_breakout_retest_candidates,
-)
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
@@ -18,7 +15,7 @@ from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 
 class StrategyGenerator(Protocol):
-    """Typed callable boundary shared by all strategy analysis generators."""
+    """Typed callable boundary shared by all strategy generators."""
 
     def __call__(
         self,
@@ -43,12 +40,6 @@ def run_strategy_generator(
     *,
     decision_time: datetime,
 ) -> tuple[TradeCandidate, ...]:
-    """Invoke one registered generator through a single typed orchestration boundary."""
+    """Invoke exactly one registered generator through the typed boundary."""
 
-    candidates = generator(context, decision_time=decision_time)
-    if candidates or generator is not generate_breakout_continuation_candidates:
-        return candidates
-    return generate_higher_timeframe_breakout_retest_candidates(
-        context,
-        decision_time=decision_time,
-    )
+    return generator(context, decision_time=decision_time)
