@@ -63,11 +63,10 @@ _STRATEGY_REGIME_PREFERENCES: Mapping[StrategyType, frozenset[MarketRegime]] = {
     StrategyType.COMPRESSION_EXPANSION: frozenset({MarketRegime.COMPRESSION} | _BREAKOUT),
     StrategyType.RANGE_REVERSAL: frozenset(_RANGE | _TRANSITION),
     StrategyType.FAILED_BREAKOUT_REVERSAL: frozenset(_RANGE | _TRANSITION),
-    StrategyType.LIQUIDITY_REVERSAL: frozenset(_RANGE | _TRANSITION),
+    StrategyType.LIQUIDITY_REJECTION_REVERSAL: frozenset(_RANGE | _TRANSITION),
     StrategyType.VWAP_RECLAIM_REJECTION: frozenset(_TREND | _RANGE | _TRANSITION),
     StrategyType.MOMENTUM_SCALP: frozenset(_TREND | _BREAKOUT | _TRANSITION),
     StrategyType.EXHAUSTION_REVERSAL: frozenset(_TRANSITION | _BREAKOUT),
-    StrategyType.MOMENTUM_CONTINUATION: frozenset(_TREND | _BREAKOUT),
 }
 
 
@@ -90,7 +89,6 @@ def build_strategy_applicability(
             StrategyType.BREAKOUT_RETEST,
             StrategyType.FIRST_PULLBACK_CONTINUATION,
             StrategyType.MOMENTUM_SCALP,
-            StrategyType.MOMENTUM_CONTINUATION,
         }
         if preferred:
             state = StrategyApplicabilityState.APPLICABLE
