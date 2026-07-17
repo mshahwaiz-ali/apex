@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
@@ -111,6 +111,7 @@ class PerformanceSummary:
     by_strategy: dict[str, int]
     by_regime: dict[str, int]
     by_score_band: dict[str, int]
+    by_entry_actionability: dict[str, int] = field(default_factory=dict)
     loss_rate: float = 0.0
     average_win: float = 0.0
     average_loss: float = 0.0

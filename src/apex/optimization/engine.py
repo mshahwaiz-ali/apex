@@ -33,6 +33,7 @@ def performance_from_backtest_study(study: BacktestStudy) -> PerformanceSummary:
         by_strategy=dict(report.by_strategy),
         by_regime={},
         by_score_band={},
+        by_entry_actionability={},
         loss_rate=report.loss_rate,
         average_win=report.average_win,
         average_loss=report.average_loss,
@@ -61,6 +62,9 @@ def performance_from_mapping(payload: dict[str, Any]) -> PerformanceSummary:
         by_strategy=_string_int_mapping(metrics.get("by_strategy", {})),
         by_regime=_string_int_mapping(metrics.get("by_regime", {})),
         by_score_band=_string_int_mapping(metrics.get("by_score_band", {})),
+        by_entry_actionability=_string_int_mapping(
+            metrics.get("by_entry_actionability", {})
+        ),
         loss_rate=float(metrics.get("loss_rate", 0.0)),
         average_win=float(metrics.get("average_win", 0.0)),
         average_loss=float(metrics.get("average_loss", 0.0)),
@@ -108,6 +112,7 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
     by_strategy: dict[str, int] = {}
     by_regime: dict[str, int] = {}
     by_score_band: dict[str, int] = {}
+    by_entry_actionability: dict[str, int] = {}
     for run in selected:
         metrics = run.get("metrics", {})
         if not isinstance(metrics, dict):
@@ -128,6 +133,10 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
         _merge_counts(by_strategy, metrics.get("by_strategy", {}))
         _merge_counts(by_regime, metrics.get("by_regime", {}))
         _merge_counts(by_score_band, metrics.get("by_score_band", {}))
+        _merge_counts(
+            by_entry_actionability,
+            metrics.get("by_entry_actionability", {}),
+        )
 
     profit_factor = None if gross_loss == 0.0 else gross_profit / abs(gross_loss)
     return PerformanceSummary(
@@ -141,6 +150,7 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
         by_strategy=by_strategy,
         by_regime=by_regime,
         by_score_band=by_score_band,
+        by_entry_actionability=by_entry_actionability,
         loss_rate=losing_trade_count / total_trades if total_trades else 0.0,
         average_win=gross_profit / winning_trade_count if winning_trade_count else 0.0,
         average_loss=gross_loss / losing_trade_count if losing_trade_count else 0.0,
@@ -165,6 +175,7 @@ def evaluate_performance(
         by_strategy=dict(summary.by_strategy),
         by_regime=dict(summary.by_regime),
         by_score_band=dict(summary.by_score_band),
+        by_entry_actionability=dict(summary.by_entry_actionability),
         loss_rate=summary.loss_rate,
         average_win=summary.average_win,
         average_loss=summary.average_loss,
@@ -421,6 +432,7 @@ def _summary_payload(summary: PerformanceSummary) -> dict[str, Any]:
         "by_strategy": dict(summary.by_strategy),
         "by_regime": dict(summary.by_regime),
         "by_score_band": dict(summary.by_score_band),
+        "by_entry_actionability": dict(summary.by_entry_actionability),
     }
 
 
