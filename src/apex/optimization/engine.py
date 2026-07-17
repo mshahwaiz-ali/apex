@@ -33,6 +33,9 @@ def performance_from_backtest_study(study: BacktestStudy) -> PerformanceSummary:
         by_strategy=dict(report.by_strategy),
         by_regime={},
         by_score_band={},
+        loss_rate=report.loss_rate,
+        average_win=report.average_win,
+        average_loss=report.average_loss,
     )
 
 
@@ -58,6 +61,9 @@ def performance_from_mapping(payload: dict[str, Any]) -> PerformanceSummary:
         by_strategy=_string_int_mapping(metrics.get("by_strategy", {})),
         by_regime=_string_int_mapping(metrics.get("by_regime", {})),
         by_score_band=_string_int_mapping(metrics.get("by_score_band", {})),
+        loss_rate=float(metrics.get("loss_rate", 0.0)),
+        average_win=float(metrics.get("average_win", 0.0)),
+        average_loss=float(metrics.get("average_loss", 0.0)),
     )
 
 
@@ -95,6 +101,8 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
     net_profit = 0.0
     gross_profit = 0.0
     gross_loss = 0.0
+    winning_trade_count = 0.0
+    losing_trade_count = 0.0
     maximum_drawdown = 0.0
     by_symbol: dict[str, int] = {}
     by_strategy: dict[str, int] = {}
@@ -110,6 +118,8 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
         net_profit += float(metrics.get("net_profit", 0.0))
         gross_profit += float(metrics.get("gross_profit", 0.0))
         gross_loss += float(metrics.get("gross_loss", 0.0))
+        winning_trade_count += float(metrics.get("win_rate", 0.0)) * trades
+        losing_trade_count += float(metrics.get("loss_rate", 0.0)) * trades
         maximum_drawdown = max(maximum_drawdown, float(metrics.get("maximum_drawdown", 0.0)))
         symbol = str(run.get("symbol", ""))
         if symbol:
@@ -131,6 +141,9 @@ def performance_from_campaign_payload(payload: dict[str, Any]) -> PerformanceSum
         by_strategy=by_strategy,
         by_regime=by_regime,
         by_score_band=by_score_band,
+        loss_rate=losing_trade_count / total_trades if total_trades else 0.0,
+        average_win=gross_profit / winning_trade_count if winning_trade_count else 0.0,
+        average_loss=gross_loss / losing_trade_count if losing_trade_count else 0.0,
     )
 
 
@@ -152,6 +165,9 @@ def evaluate_performance(
         by_strategy=dict(summary.by_strategy),
         by_regime=dict(summary.by_regime),
         by_score_band=dict(summary.by_score_band),
+        loss_rate=summary.loss_rate,
+        average_win=summary.average_win,
+        average_loss=summary.average_loss,
     )
     parameter_set = CandidateParameterSet(
         identifier="current-report",
@@ -398,6 +414,9 @@ def _summary_payload(summary: PerformanceSummary) -> dict[str, Any]:
         "profit_factor": summary.profit_factor,
         "maximum_drawdown": summary.maximum_drawdown,
         "net_profit": summary.net_profit,
+        "loss_rate": summary.loss_rate,
+        "average_win": summary.average_win,
+        "average_loss": summary.average_loss,
         "by_symbol": dict(summary.by_symbol),
         "by_strategy": dict(summary.by_strategy),
         "by_regime": dict(summary.by_regime),

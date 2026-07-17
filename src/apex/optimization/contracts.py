@@ -1,4 +1,4 @@
-"""Immutable contracts for Phase 10 optimization."""
+"""Immutable contracts for deterministic calibration and optimization."""
 
 from __future__ import annotations
 
@@ -111,16 +111,29 @@ class PerformanceSummary:
     by_strategy: dict[str, int]
     by_regime: dict[str, int]
     by_score_band: dict[str, int]
+    loss_rate: float = 0.0
+    average_win: float = 0.0
+    average_loss: float = 0.0
 
     def __post_init__(self) -> None:
         if self.total_trades < 0:
             raise ValueError("total trades cannot be negative")
-        for name in ("win_rate", "expectancy", "maximum_drawdown", "net_profit"):
+        for name in (
+            "win_rate",
+            "loss_rate",
+            "expectancy",
+            "maximum_drawdown",
+            "net_profit",
+            "average_win",
+            "average_loss",
+        ):
             value = getattr(self, name)
             if not math.isfinite(value):
                 raise ValueError(f"{name.replace('_', ' ')} must be finite")
-        if not 0.0 <= self.win_rate <= 1.0:
-            raise ValueError("win rate must be in the unit interval")
+        for name in ("win_rate", "loss_rate"):
+            value = getattr(self, name)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name.replace('_', ' ')} must be in the unit interval")
         if self.maximum_drawdown < 0.0:
             raise ValueError("maximum drawdown cannot be negative")
         if self.profit_factor is not None and (
