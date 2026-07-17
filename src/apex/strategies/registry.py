@@ -7,6 +7,9 @@ from typing import Protocol
 
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.breakout_retest import generate_breakout_retest_candidates
+from apex.strategies.compression_expansion import (
+    generate_compression_expansion_candidates,
+)
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.first_pullback_continuation import (
@@ -40,6 +43,10 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
         generate_first_pullback_continuation_candidates,
     ),
     (StrategyType.TREND_PULLBACK, generate_trend_pullback_candidates),
+    (
+        StrategyType.COMPRESSION_EXPANSION,
+        generate_compression_expansion_candidates,
+    ),
     (StrategyType.LIQUIDITY_REVERSAL, generate_liquidity_reversal_candidates),
     (StrategyType.RANGE_REVERSAL, generate_range_reversal_candidates),
     (StrategyType.MOMENTUM_CONTINUATION, generate_momentum_continuation_candidates),
