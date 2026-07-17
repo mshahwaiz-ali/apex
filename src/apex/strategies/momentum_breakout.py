@@ -26,4 +26,37 @@ def generate_momentum_breakout_candidates(
     )
     return tuple(
         _as_momentum_breakout(candidate)
-        for candidate
+        for candidate in candidates
+        if candidate.metadata.get("recent_continuation_break") is True
+    )
+
+
+def _as_momentum_breakout(candidate: TradeCandidate) -> TradeCandidate:
+    metadata = {
+        **dict(candidate.metadata),
+        "strategy_family": StrategyType.MOMENTUM_BREAKOUT.value,
+        "source_strategy": candidate.strategy.value,
+    }
+    evidence = candidate.evidence
+    return replace(
+        candidate,
+        strategy=StrategyType.MOMENTUM_BREAKOUT,
+        evidence=StrategyEvidence(
+            supporting=tuple(
+                dict.fromkeys(
+                    (
+                        "confirmed structural break supports immediate momentum expansion",
+                        *evidence.supporting,
+                    )
+                )
+            ),
+            contradictions=evidence.contradictions,
+            warnings=evidence.warnings,
+            feature_references=evidence.feature_references,
+            structure_references=tuple(
+                dict.fromkeys((*evidence.structure_references, "momentum_breakout"))
+            ),
+            liquidity_references=evidence.liquidity_references,
+        ),
+        metadata=metadata,
+    )
