@@ -12,12 +12,12 @@ from typing import Annotated, Any, cast
 
 import typer
 
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.validation import render_evidence_bundle, render_validation
 
 _FORMAT_ANNOTATION = Annotated[
     str,
-    typer.Option("--format", help="text, json, verbose, or debug"),
+    typer.Option("--format", help="text or json"),
 ]
 
 _JSON_MODE_COMMANDS = {
@@ -59,7 +59,7 @@ def _wrap_callback(callback: Callable[..., Any], command_name: str) -> Callable[
     def wrapped(*args: object, **kwargs: object) -> Any:
         raw_mode = kwargs.pop("output_format", "text")
         try:
-            mode = normalize_output_mode(cast(str, raw_mode))
+            mode = normalize_cli_output_mode(cast(str, raw_mode))
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
 

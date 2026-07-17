@@ -20,7 +20,7 @@ from apex.application import (
     write_analysis_record_sqlite,
 )
 from apex.data.providers.errors import MarketDataProviderError
-from apex.presentation import normalize_output_mode
+from apex.presentation import normalize_cli_output_mode
 from apex.presentation.futures import render_futures_analysis
 
 
@@ -32,7 +32,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
             "text",
             "--output",
             "-o",
-            help="text, json, verbose, or debug",
+            help="text or json",
         ),
         candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
         wallet_balance: float = typer.Option(
@@ -76,7 +76,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
         ),
     ) -> None:
         try:
-            output_mode = normalize_output_mode(output)
+            output_mode = normalize_cli_output_mode(output)
             account = build_futures_account_input(
                 wallet_balance=wallet_balance,
                 risk_mode=risk_mode,

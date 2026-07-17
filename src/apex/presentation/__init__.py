@@ -32,6 +32,19 @@ def normalize_output_mode(value: str | OutputMode) -> OutputMode:
         raise ValueError(f"output mode must be one of: {allowed}") from exc
 
 
+
+def normalize_cli_output_mode(value: str | OutputMode) -> OutputMode:
+    """Normalize the active user-facing CLI output surface."""
+
+    try:
+        mode = normalize_output_mode(value)
+    except ValueError as exc:
+        raise ValueError("CLI output mode must be one of: text, json") from exc
+    if mode not in {OutputMode.TEXT, OutputMode.JSON}:
+        raise ValueError("CLI output mode must be one of: text, json")
+    return mode
+
+
 _LABELS: dict[str, str] = {
     "AGGRESSIVE": "Aggressive",
     "APPROACHING_ENTRY": "Approaching entry",
@@ -229,6 +242,7 @@ __all__ = [
     "humanize_code",
     "humanize_warning",
     "humanize_warnings",
+    "normalize_cli_output_mode",
     "normalize_output_mode",
     "render_bullets",
     "render_fields",
