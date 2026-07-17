@@ -13,6 +13,7 @@ from apex.application.discovery_contracts import (
     TakeProfit,
 )
 from apex.scoring.contracts import CandidateSelectionResult
+from apex.strategies import classify_candidate_actionability
 from apex.strategies.contracts import TradeCandidate, TradeDirection
 
 DEFAULT_MAXIMUM_CHASE_PCT = 0.35
@@ -44,6 +45,7 @@ def build_discovery_assessment(
             symbol=candidate.symbol,
             direction=candidate.direction,
             strategy=candidate.strategy,
+            entry_status=classify_candidate_actionability(candidate),
             decision_time=candidate.decision_time,
             candidate_id=selected.scored.candidate_id,
             confidence_score=selected.final_score,
