@@ -9,6 +9,7 @@ from apex.config.strategy_approval import (
     load_strategy_approval_config,
 )
 from apex.domain import RiskMode
+from apex.scoring.applicability import apply_strategy_applicability
 from apex.scoring.approval_overlay import apply_strategy_quality_gate
 from apex.scoring.config import DEFAULT_SCORING_CONFIG, ScoringConfig
 from apex.scoring.conflicts import resolve_conflicts
@@ -45,6 +46,10 @@ def analyze_phase5(
         )
 
     scored = score_candidates(phase4.candidates, config=config)
+    scored = apply_strategy_applicability(
+        scored,
+        applicability=phase4.strategy_applicability or {},
+    )
     initially_ranked = rank_candidates(
         scored,
         strategy_order=phase4.evaluated_strategies,
@@ -79,6 +84,9 @@ def analyze_phase5(
             "decision_regime": phase4.decision_regime.value,
             "eligible_strategy_count": len(phase4.eligible_strategies or ()),
             "skipped_strategy_count": len(phase4.skipped_strategies or {}),
+            "strategy_applicability_weighting_enabled": bool(
+                phase4.strategy_applicability
+            ),
             "strategy_quality_gate_enabled": approval_config is not None,
             "strategy_quality_risk_mode": risk_mode.value if approval_config is not None else "",
             "accepted_count": sum(
