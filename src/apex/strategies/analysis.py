@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from datetime import datetime
 from types import MappingProxyType
 
@@ -45,6 +46,29 @@ _STRATEGY_REGIME_ALLOWLIST: Mapping[StrategyType, frozenset[MarketRegime]] = {
     StrategyType.MOMENTUM_CONTINUATION: frozenset(_TREND_REGIMES | _BREAKOUT_REGIMES),
 }
 
+class StrategyApplicabilityState(StrEnum):
+    APPLICABLE = "applicable"
+    CONDITIONAL = "conditional"
+    NOT_APPLICABLE = "not_applicable"
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyApplicability:
+    strategy: StrategyType
+    state: StrategyApplicabilityState
+    score: float
+    reason_codes: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.score <= 100.0:
+            raise ValueError("strategy applicability score must be between 0 and 100")
+        if not self.reason_codes:
+            raise ValueError("strategy applicability reason codes cannot be empty")
+        if not self.reasons:
+            raise ValueError("strategy applicability reasons cannot be empty")
+
+
 
 @dataclass(frozen=True, slots=True)
 class Phase4AnalysisResult:
@@ -59,6 +83,9 @@ class Phase4AnalysisResult:
     strategy_diagnostics: Mapping[StrategyType, StrategyDiagnostic] | None = None
     decision_regime: MarketRegime = MarketRegime.UNCERTAIN
     higher_timeframe_breakout: bool = False
+    strategy_applicability: Mapping[
+        StrategyType, StrategyApplicability
+    ] | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -86,6 +113,15 @@ class Phase4AnalysisResult:
         diagnostics = dict(self.strategy_diagnostics or {})
         if any(strategy not in self.evaluated_strategies for strategy in diagnostics):
             raise ValueError("strategy diagnostics must be a subset of evaluated strategies")
+        applicability = dict(self.strategy_applicability or {})
+        if any(strategy not in self.evaluated_strategies for strategy in applicability):
+            raise ValueError(
+                "strategy applicability must be a subset of evaluated strategies"
+            )
+        if applicability and set(applicability) != set(self.evaluated_strategies):
+            raise ValueError(
+                "strategy applicability must cover every evaluated strategy"
+            )
 
         for candidate in self.candidates:
             if candidate.symbol != self.symbol:
@@ -104,6 +140,11 @@ class Phase4AnalysisResult:
         object.__setattr__(self, "eligible_strategies", eligible)
         object.__setattr__(self, "skipped_strategies", MappingProxyType(skipped))
         object.__setattr__(self, "strategy_diagnostics", MappingProxyType(diagnostics))
+        object.__setattr__(
+            self,
+            "strategy_applicability",
+            MappingProxyType(applicability),
+        )
 
 
 def analyze_phase4(
@@ -138,6 +179,12 @@ def analyze_phase4(
         skipped=skipped,
         candidates=candidates,
     )
+    applicability = build_strategy_applicability(
+        regime=decision_regime,
+        evaluated=evaluated,
+        eligible=eligible,
+        higher_timeframe_breakout=higher_breakout,
+    )
     return Phase4AnalysisResult(
         symbol=context.symbol,
         decision_time=decision_time,
@@ -148,7 +195,61 @@ def analyze_phase4(
         strategy_diagnostics=diagnostics,
         decision_regime=decision_regime,
         higher_timeframe_breakout=higher_breakout,
+        strategy_applicability=applicability,
     )
+
+
+def build_strategy_applicability(
+    *,
+    regime: MarketRegime,
+    evaluated: tuple[StrategyType, ...],
+    eligible: tuple[StrategyType, ...],
+    higher_timeframe_breakout: bool,
+) -> Mapping[StrategyType, StrategyApplicability]:
+    records: dict[StrategyType, StrategyApplicability] = {}
+    for strategy in evaluated:
+        canonical = regime in _STRATEGY_REGIME_ALLOWLIST[strategy]
+        breakout_override = (
+            higher_timeframe_breakout
+            and strategy
+            in {
+                StrategyType.BREAKOUT_CONTINUATION,
+                StrategyType.MOMENTUM_CONTINUATION,
+            }
+            and not canonical
+        )
+        if canonical:
+            records[strategy] = StrategyApplicability(
+                strategy=strategy,
+                state=StrategyApplicabilityState.APPLICABLE,
+                score=100.0,
+                reason_codes=("REGIME_APPLICABLE",),
+                reasons=(
+                    f"{regime.value} is a canonical regime for {strategy.value}",
+                ),
+            )
+        elif breakout_override and strategy in eligible:
+            records[strategy] = StrategyApplicability(
+                strategy=strategy,
+                state=StrategyApplicabilityState.CONDITIONAL,
+                score=65.0,
+                reason_codes=("HIGHER_TIMEFRAME_BREAKOUT_OVERRIDE",),
+                reasons=(
+                    "higher-timeframe breakout evidence conditionally enabled "
+                    f"{strategy.value} outside its canonical decision regime",
+                ),
+            )
+        else:
+            records[strategy] = StrategyApplicability(
+                strategy=strategy,
+                state=StrategyApplicabilityState.NOT_APPLICABLE,
+                score=0.0,
+                reason_codes=("REGIME_NOT_APPLICABLE",),
+                reasons=(
+                    f"{regime.value} is outside {strategy.value} applicability",
+                ),
+            )
+    return MappingProxyType(records)
 
 
 def _strategy_eligibility(

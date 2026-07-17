@@ -41,6 +41,7 @@ def apply_strategy_routing(
         strategy_diagnostics=phase4.strategy_diagnostics,
         decision_regime=phase4.decision_regime,
         higher_timeframe_breakout=phase4.higher_timeframe_breakout,
+        strategy_applicability=phase4.strategy_applicability,
     )
 
 
@@ -105,6 +106,7 @@ def build_strategy_routing_payload(
             else {}
         ),
         "phase4_strategy_diagnostics": diagnostics,
+        "strategy_applicability": _strategy_applicability_payload(phase4),
         "candidate_diagnostics": _candidate_diagnostics(phase4),
         "near_miss_state_counts": near_miss_counts,
         "eligible": setup is not None,
@@ -112,6 +114,31 @@ def build_strategy_routing_payload(
         "rejections": list(assessment.reasons),
     }
 
+
+
+def _strategy_applicability_payload(
+    phase4: Phase4AnalysisResult | None,
+) -> list[dict[str, object]]:
+    if phase4 is None:
+        return []
+    applicability = phase4.strategy_applicability or {}
+    records: list[dict[str, object]] = []
+    eligible = tuple(phase4.eligible_strategies or ())
+    for strategy in phase4.evaluated_strategies:
+        record = applicability.get(strategy)
+        if record is None:
+            continue
+        records.append(
+            {
+                "strategy": strategy.value,
+                "state": record.state.value,
+                "score": record.score,
+                "reason_codes": list(record.reason_codes),
+                "reasons": list(record.reasons),
+                "enabled": strategy in eligible,
+            }
+        )
+    return records
 
 def _candidate_diagnostics(phase4: Phase4AnalysisResult | None) -> list[dict[str, object]]:
     if phase4 is None:
