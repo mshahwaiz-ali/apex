@@ -51,7 +51,7 @@ def test_daily_validation_renders_history_and_strategy_shortfalls() -> None:
         "strategy_sample_shortfalls": {"breakout": 4},
     }
 
-    rendered = render_validation(payload, title="Daily Paper Validation", mode="verbose")
+    rendered = render_validation(payload, title="Daily Paper Validation")
 
     assert "History" in rendered
     assert "Observed strategies" in rendered
@@ -77,6 +77,7 @@ def test_evidence_bundle_renders_dimensions_and_availability() -> None:
     assert "Historical evidence: Available" in rendered
     assert "Forward evidence   : Unavailable" in rendered
     assert "Forward evidence missing" in rendered
+    assert "Bundle Details" in rendered
 
 
 def test_overlay_adds_format_and_preserves_json_mode() -> None:

@@ -26,7 +26,7 @@ def render_validation(
 ) -> str:
     """Render one validation, evidence, or readiness payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     report = _mapping(payload.get("report")) or payload
     daily = _mapping(payload.get("daily_history"))
     record = _mapping(payload.get("record"))
@@ -56,10 +56,7 @@ def render_validation(
     if shortfalls:
         sections.append(render_section("Strategy Sample Shortfalls", render_bullets(_mapping_rows(shortfalls))))
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Validation Details", _mapping_fields(report)))
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Raw Payload Summary", _mapping_fields(payload)))
+    sections.append(render_section("Validation Details", _mapping_fields(report)))
     return "\n\n".join(sections)
 
 
@@ -70,7 +67,7 @@ def render_evidence_bundle(
 ) -> str:
     """Render one setup-specific evidence bundle."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     dimensions = _mapping(payload.get("dimensions")) or {}
     sections = [
         render_title("Evidence Bundle"),
@@ -92,8 +89,7 @@ def render_evidence_bundle(
     reasons = _reason_values(payload)
     if reasons:
         sections.append(render_section("Evidence Gaps", render_bullets(reasons)))
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Bundle Details", _mapping_fields(payload)))
+    sections.append(render_section("Bundle Details", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
