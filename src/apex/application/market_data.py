@@ -76,9 +76,7 @@ def create_market_data_services(
     *,
     provider_name: str = "binance",
     provider_builders: dict[str, ProviderBuilder] | None = None,
-    futures_universe_provider_builder: FuturesUniverseProviderBuilder = (
-        BinanceFuturesUniverseProvider
-    ),
+    futures_universe_provider_builder: FuturesUniverseProviderBuilder | None = None,
 ) -> MarketDataServices:
     """Build futures ticker and optionally cached futures candle providers."""
 
@@ -93,10 +91,12 @@ def create_market_data_services(
             f"Unsupported market-data provider: {provider_name}. Supported: {supported}"
         ) from exc
 
-    if futures_universe_provider_builder is BinanceFuturesUniverseProvider:
-        live_futures_universe_provider = BinanceFuturesUniverseProvider(
-            metadata_cache_ttl_seconds=(
-                settings.futures_screener.metadata_cache_ttl_seconds
+    if futures_universe_provider_builder is None:
+        live_futures_universe_provider: ManagedFuturesUniverseProvider = (
+            BinanceFuturesUniverseProvider(
+                metadata_cache_ttl_seconds=(
+                    settings.futures_screener.metadata_cache_ttl_seconds
+                )
             )
         )
     else:
@@ -113,9 +113,7 @@ def create_market_data_services(
             / "futures_universe"
             / "contracts.json",
             time_to_live=timedelta(
-                seconds=(
-                    settings.futures_screener.metadata_cache_ttl_seconds
-                )
+                seconds=settings.futures_screener.metadata_cache_ttl_seconds
             ),
         )
 
