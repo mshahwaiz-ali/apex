@@ -92,6 +92,7 @@ def analyze_symbol(
         strategy_routing=base.strategy_routing,
         precision_entry=base.precision_entry,
         phase5_diagnostics=base.phase5_diagnostics,
+        candidate_ranking=base.candidate_ranking,
         risk_rejection_diagnostics=base.risk_rejection_diagnostics,
         market_environment=environment,
         market_strategy_route=route,

@@ -13,6 +13,11 @@ from typing import Any
 import yaml
 
 from apex.application.analysis_records import build_analysis_record
+from apex.application.candidate_ranking import (
+    CandidateRankingSnapshot,
+    build_candidate_ranking_snapshot,
+    candidate_ranking_payload,
+)
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.market_strategy_router import MarketStrategyRoute
 from apex.application.precision_entry import build_precision_entry_plan
@@ -74,7 +79,7 @@ class SymbolAnalysis:
     strategy_routing: Mapping[str, Any] | None = None
     precision_entry: Mapping[str, Any] | None = None
     phase5_diagnostics: Mapping[str, Any] | None = None
-
+    candidate_ranking: CandidateRankingSnapshot | None = None
     risk_rejection_diagnostics: tuple[Mapping[str, object], ...] = ()
 
 
@@ -156,6 +161,7 @@ def analyze_symbol(
         if assessment.setup is not None
         else None
     )
+    candidate_ranking = build_candidate_ranking_snapshot(phase5)
     risk_rejection_diagnostics = _build_risk_rejection_diagnostics(
         phase5=phase5,
         assessment=assessment,
@@ -176,6 +182,7 @@ def analyze_symbol(
             assessment, routed_phase4, strategy_routing
         ),
         precision_entry=precision_entry,
+        candidate_ranking=candidate_ranking,
         phase5_diagnostics={
             "candidate_count": len(phase5.all_scored_candidates),
             "ranked_count": len(phase5.ranked_candidates),
@@ -479,6 +486,11 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             # payloads. Historical readers retain their compatibility handling.
             "strategy_routing": dict(analysis.strategy_routing or {}),
             "phase5_diagnostics": dict(analysis.phase5_diagnostics or {}),
+            "candidate_ranking": (
+                candidate_ranking_payload(analysis.candidate_ranking)
+                if analysis.candidate_ranking is not None
+                else None
+            ),
             "candidate_count": analysis.candidate_count,
             "evaluated_timeframes": list(analysis.evaluated_timeframes),
             "market_regime": dict(analysis.regime_by_timeframe),
