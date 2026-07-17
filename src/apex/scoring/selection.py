@@ -44,7 +44,7 @@ def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
     """Return an explicit deterministic reason when nothing is selectable."""
 
     if not ranked:
-        return "no Phase 4 candidates were generated"
+        return "no strategy candidates were generated"
     outcomes = {item.outcome for item in ranked}
     if outcomes == {CandidateOutcome.REJECTED_BELOW_THRESHOLD}:
         return "all candidates scored below their configured approval thresholds"

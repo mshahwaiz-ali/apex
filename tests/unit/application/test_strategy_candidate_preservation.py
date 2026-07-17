@@ -12,7 +12,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -77,12 +77,12 @@ def _candidate(strategy: StrategyType) -> TradeCandidate:
     )
 
 
-def _phase4() -> Phase4AnalysisResult:
+def _phase4() -> StrategyAnalysisResult:
     candidates = (
         _candidate(StrategyType.TREND_PULLBACK),
         _candidate(StrategyType.BREAKOUT_CONTINUATION),
     )
-    return Phase4AnalysisResult(
+    return StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=candidates,

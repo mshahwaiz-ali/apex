@@ -8,7 +8,7 @@ from apex.strategies import (
     StrategyType,
     TimeframeContext,
     TimeframeRole,
-    analyze_phase4,
+    analyze_strategies,
 )
 from apex.structure.contracts import (
     LevelRole,
@@ -110,7 +110,7 @@ def test_registry_has_fixed_expected_order() -> None:
 
 
 def test_empty_context_produces_no_candidates() -> None:
-    result = analyze_phase4(_context(actionable=False), decision_time=NOW)
+    result = analyze_strategies(_context(actionable=False), decision_time=NOW)
 
     assert result.candidates == ()
     assert result.decision_regime is MarketRegime.UNCERTAIN
@@ -120,7 +120,7 @@ def test_empty_context_produces_no_candidates() -> None:
 
 
 def test_competing_candidates_are_retained_in_registry_order() -> None:
-    result = analyze_phase4(_context(actionable=True), decision_time=NOW)
+    result = analyze_strategies(_context(actionable=True), decision_time=NOW)
 
     strategies = tuple(candidate.strategy for candidate in result.candidates)
     assert StrategyType.TREND_PULLBACK in strategies
@@ -145,8 +145,8 @@ def test_repeated_analysis_is_deterministic_and_does_not_mutate_context() -> Non
     context = _context(actionable=True)
     original_frames = context.frames
 
-    first = analyze_phase4(context, decision_time=NOW)
-    second = analyze_phase4(context, decision_time=NOW)
+    first = analyze_strategies(context, decision_time=NOW)
+    second = analyze_strategies(context, decision_time=NOW)
 
     assert first == second
     assert context.frames == original_frames

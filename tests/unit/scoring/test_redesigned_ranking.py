@@ -10,7 +10,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -96,7 +96,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
         ),
         entry_preferred=120.0,
     )
-    phase4 = Phase4AnalysisResult(
+    phase4 = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(legacy_favorite, redesign_favorite),
@@ -116,7 +116,7 @@ def test_phase5_ranks_by_redesigned_final_rank_score() -> None:
 
 
 def test_redesigned_ranking_does_not_change_legacy_threshold_outcomes() -> None:
-    phase4 = Phase4AnalysisResult(
+    phase4 = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(

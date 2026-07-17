@@ -1,4 +1,4 @@
-"""Stable registry for deterministic Phase 4 strategy generators."""
+"""Stable registry for deterministic strategy analysis strategy generators."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 
 
 class StrategyGenerator(Protocol):
-    """Typed callable boundary shared by all Phase 4 generators."""
+    """Typed callable boundary shared by all strategy analysis generators."""
 
     def __call__(
         self,

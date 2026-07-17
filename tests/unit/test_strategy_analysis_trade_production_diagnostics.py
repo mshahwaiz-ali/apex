@@ -11,7 +11,7 @@ from apex.strategies.context import TimeframeRole
 from apex.strategies.contracts import StrategyType
 from apex.strategies.diagnostics import (
     Phase4RejectionCode,
-    build_phase4_diagnostics,
+    build_strategy_diagnostics,
     has_higher_timeframe_breakout,
 )
 from apex.structure.contracts import TrendDirection
@@ -80,7 +80,7 @@ def test_breakout_near_miss_reports_retest(monkeypatch: Any) -> None:
         lambda unused: MarketRegime.BREAKOUT_EXPANSION,
     )
 
-    diagnostics = build_phase4_diagnostics(
+    diagnostics = build_strategy_diagnostics(
         context,
         evaluated=(StrategyType.BREAKOUT_CONTINUATION,),
         eligible=(StrategyType.BREAKOUT_CONTINUATION,),

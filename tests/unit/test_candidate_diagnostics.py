@@ -9,7 +9,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -74,7 +74,7 @@ def _candidate(decision_time: datetime) -> TradeCandidate:
 def test_candidate_diagnostics_preserve_geometry_and_missing_values() -> None:
     decision_time = datetime(2026, 7, 16, tzinfo=UTC)
     candidate = _candidate(decision_time)
-    phase4 = Phase4AnalysisResult(
+    phase4 = StrategyAnalysisResult(
         symbol="TEST/USDT",
         decision_time=decision_time,
         candidates=(candidate,),

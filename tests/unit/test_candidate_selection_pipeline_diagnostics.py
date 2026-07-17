@@ -179,7 +179,7 @@ def test_pipeline_payload_preserves_distinct_symbol_paths_and_phase5_summary() -
                 _analysis(
                     symbol="ETH/USDT",
                     selected=False,
-                    no_trade_reason="no Phase 4 candidates were generated",
+                    no_trade_reason="no strategy candidates were generated",
                 ),
             ),
             failures={},

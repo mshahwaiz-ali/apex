@@ -1,4 +1,4 @@
-"""Deterministic Phase 4 rejection and near-miss diagnostics."""
+"""Deterministic strategy analysis rejection and near-miss diagnostics."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ _HIGHER_ROLES = {
 _MAX_REFERENCE_DISTANCE_ATR = 3.0
 
 
-def build_phase4_diagnostics(
+def build_strategy_diagnostics(
     context: StrategyContext,
     *,
     evaluated: Sequence[StrategyType],

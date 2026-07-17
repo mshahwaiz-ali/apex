@@ -9,7 +9,7 @@ from apex.strategies import (
     StrategyContext,
     TimeframeContext,
     TimeframeRole,
-    analyze_phase4,
+    analyze_strategies,
 )
 from apex.structure import analyze_structure
 
@@ -79,7 +79,7 @@ def _context(candles: tuple[Candle, ...]) -> StrategyContext:
 
 def _phase5(candles: tuple[Candle, ...]) -> CandidateSelectionResult:
     decision_time = candles[-1].close_time
-    phase4 = analyze_phase4(_context(candles), decision_time=decision_time)
+    phase4 = analyze_strategies(_context(candles), decision_time=decision_time)
     return analyze_candidate_selection(phase4)
 
 

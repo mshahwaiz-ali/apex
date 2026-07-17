@@ -7,7 +7,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -75,7 +75,7 @@ def _candidate(
 
 def test_rejects_empty_evaluated_strategy_list() -> None:
     with pytest.raises(ValueError, match="at least one evaluated strategy"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             candidates=(),
@@ -85,7 +85,7 @@ def test_rejects_empty_evaluated_strategy_list() -> None:
 
 def test_rejects_duplicate_evaluated_strategies() -> None:
     with pytest.raises(ValueError, match="must be unique"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             candidates=(),
@@ -98,7 +98,7 @@ def test_rejects_duplicate_evaluated_strategies() -> None:
 
 def test_rejects_candidate_with_mismatched_symbol() -> None:
     with pytest.raises(ValueError, match="candidate symbol"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="ETH/USDT",
             decision_time=NOW,
             candidates=(_candidate(),),
@@ -108,7 +108,7 @@ def test_rejects_candidate_with_mismatched_symbol() -> None:
 
 def test_rejects_candidate_with_mismatched_decision_time() -> None:
     with pytest.raises(ValueError, match="candidate decision time"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW + timedelta(minutes=5),
             candidates=(_candidate(),),
@@ -118,7 +118,7 @@ def test_rejects_candidate_with_mismatched_decision_time() -> None:
 
 def test_rejects_candidate_from_unevaluated_strategy() -> None:
     with pytest.raises(ValueError, match="candidate strategy"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             candidates=(_candidate(strategy=StrategyType.MOMENTUM_CONTINUATION),),
@@ -128,7 +128,7 @@ def test_rejects_candidate_from_unevaluated_strategy() -> None:
 
 def test_rejects_candidate_order_that_differs_from_registry_order() -> None:
     with pytest.raises(ValueError, match="stable registry ordering"):
-        Phase4AnalysisResult(
+        StrategyAnalysisResult(
             symbol="BTC/USDT",
             decision_time=NOW,
             candidates=(
@@ -143,7 +143,7 @@ def test_rejects_candidate_order_that_differs_from_registry_order() -> None:
 
 
 def test_accepts_multiple_candidates_from_same_strategy_in_stable_position() -> None:
-    result = Phase4AnalysisResult(
+    result = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(

@@ -14,7 +14,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -74,7 +74,7 @@ def _snapshot():
         evidence=StrategyEvidence(supporting=("test evidence",)),
         metadata={},
     )
-    phase4 = Phase4AnalysisResult(
+    phase4 = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(candidate,),

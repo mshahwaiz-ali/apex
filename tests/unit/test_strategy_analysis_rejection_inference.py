@@ -6,7 +6,7 @@ from typing import Any
 from apex.domain.futures import EntryState
 from apex.strategies.context import TimeframeRole
 from apex.strategies.contracts import StrategyType
-from apex.strategies.diagnostics import Phase4RejectionCode, build_phase4_diagnostics
+from apex.strategies.diagnostics import Phase4RejectionCode, build_strategy_diagnostics
 from apex.structure.contracts import TrendDirection
 from apex.structure.regime import MarketRegime
 
@@ -53,7 +53,7 @@ def _diagnostic(context: SimpleNamespace, monkeypatch: Any):
         "apex.strategies.diagnostics.classify_market_regime",
         lambda unused: MarketRegime.STABLE_RANGE,
     )
-    diagnostics = build_phase4_diagnostics(
+    diagnostics = build_strategy_diagnostics(
         context,
         evaluated=(StrategyType.TREND_PULLBACK,),
         eligible=(StrategyType.TREND_PULLBACK,),

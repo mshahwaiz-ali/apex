@@ -8,7 +8,7 @@ from apex.strategies import (
     StrategyContext,
     TimeframeContext,
     TimeframeRole,
-    analyze_phase4,
+    analyze_strategies,
 )
 from apex.structure import analyze_structure
 
@@ -81,11 +81,11 @@ def test_historical_prefix_is_invariant_after_future_candles_are_appended() -> N
     extended = _candles(40)
     decision_time = historical[-1].close_time
 
-    before_append = analyze_phase4(
+    before_append = analyze_strategies(
         _context(historical),
         decision_time=decision_time,
     )
-    replayed_prefix = analyze_phase4(
+    replayed_prefix = analyze_strategies(
         _context(extended[: len(historical)]),
         decision_time=decision_time,
     )
@@ -99,7 +99,7 @@ def test_candle_derived_context_replay_is_deterministic() -> None:
     second = _context(candles)
 
     assert first == second
-    assert analyze_phase4(first, decision_time=candles[-1].close_time) == analyze_phase4(
+    assert analyze_strategies(first, decision_time=candles[-1].close_time) == analyze_strategies(
         second,
         decision_time=candles[-1].close_time,
     )

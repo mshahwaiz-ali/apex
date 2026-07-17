@@ -31,7 +31,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -109,7 +109,7 @@ def _candidate(
 
 
 def _phase5(candidate: TradeCandidate | None = None) -> CandidateSelectionResult:
-    phase4 = Phase4AnalysisResult(
+    phase4 = StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=() if candidate is None else (candidate,),

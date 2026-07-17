@@ -18,7 +18,7 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     RawQualityMetrics,
     StrategyEvidence,
     StrategyType,
@@ -104,9 +104,9 @@ def _candidate(
     )
 
 
-def _phase4(*candidates: TradeCandidate) -> Phase4AnalysisResult:
+def _phase4(*candidates: TradeCandidate) -> StrategyAnalysisResult:
     ordered = tuple(sorted(candidates, key=lambda item: ORDER.index(item.strategy)))
-    return Phase4AnalysisResult(
+    return StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=ordered,
@@ -275,4 +275,4 @@ def test_major_higher_timeframe_contradiction_is_rejected() -> None:
 def test_empty_phase4_result_is_explicit_no_trade() -> None:
     result = analyze_candidate_selection(_phase4())
     assert result.selected_candidate is None
-    assert result.no_trade_reason == "no Phase 4 candidates were generated"
+    assert result.no_trade_reason == "no strategy candidates were generated"

@@ -6,7 +6,7 @@ from typing import cast
 from apex.application.analysis import ScanResult, SymbolAnalysis
 from apex.application.paper_pipeline_diagnostics import (
     build_futures_pipeline_diagnostics,
-    build_phase4_diagnostic_summary,
+    build_strategy_analysis_diagnostic_summary,
 )
 
 
@@ -78,7 +78,7 @@ def test_aggregates_phase4_diagnostics_by_symbol() -> None:
 
 
 def test_run_summary_counts_rejections_candidates_and_strategy_states() -> None:
-    summary = build_phase4_diagnostic_summary(
+    summary = build_strategy_analysis_diagnostic_summary(
         (
             _analysis(symbol="BTC/USDT", candidate_count=0),
             _analysis(symbol="ETH/USDT", candidate_count=1),
@@ -112,7 +112,7 @@ def test_run_summary_counts_rejections_candidates_and_strategy_states() -> None:
 
 
 def test_run_summary_tracks_higher_timeframe_breakout_fallback() -> None:
-    summary = build_phase4_diagnostic_summary(
+    summary = build_strategy_analysis_diagnostic_summary(
         (
             _analysis(symbol="BTC/USDT", candidate_count=0),
             _analysis(symbol="ETH/USDT", candidate_count=1),
@@ -133,7 +133,7 @@ def test_run_summary_tracks_higher_timeframe_breakout_fallback() -> None:
 
 
 def test_partial_or_absent_routing_diagnostics_are_not_fabricated() -> None:
-    summary = build_phase4_diagnostic_summary(
+    summary = build_strategy_analysis_diagnostic_summary(
         (
             _analysis(
                 candidate_count=0,
@@ -188,7 +188,7 @@ def test_serialized_summary_order_is_deterministic() -> None:
         "skipped_strategies": {},
     }
 
-    payload = build_phase4_diagnostic_summary(
+    payload = build_strategy_analysis_diagnostic_summary(
         (
             _analysis(
                 candidate_count=0,

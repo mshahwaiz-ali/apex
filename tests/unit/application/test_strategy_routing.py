@@ -6,15 +6,15 @@ from typing import cast
 
 from apex.application.strategy_routing import apply_strategy_routing, build_strategy_routing_payload
 from apex.risk import RiskAssessment, RiskDecision, RiskRejectionCode
-from apex.strategies import Phase4AnalysisResult, StrategyType
+from apex.strategies import StrategyAnalysisResult, StrategyType
 from apex.structure.regime import MarketRegime
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 ALL_STRATEGIES = tuple(StrategyType)
 
 
-def _phase4() -> Phase4AnalysisResult:
-    return Phase4AnalysisResult(
+def _phase4() -> StrategyAnalysisResult:
+    return StrategyAnalysisResult(
         symbol="BTC/USDT",
         decision_time=NOW,
         candidates=(),

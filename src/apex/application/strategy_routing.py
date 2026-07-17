@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from apex.config import DEFAULT_STRATEGY_ROUTING
 from apex.risk import RiskAssessment
 from apex.strategies import (
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     StrategyType,
     SuppressedStrategyCandidate,
     TradeCandidate,
@@ -16,10 +16,10 @@ from apex.strategies import (
 
 
 def apply_strategy_routing(
-    phase4: Phase4AnalysisResult,
+    phase4: StrategyAnalysisResult,
     *,
     routing_config: Mapping[str, Sequence[str]] | None = None,
-) -> Phase4AnalysisResult:
+) -> StrategyAnalysisResult:
     """Filter candidates through the canonical enabled-strategy configuration."""
 
     configured = _normalize_routing_config(routing_config)
@@ -55,7 +55,7 @@ def apply_strategy_routing(
     suppressed_candidates = (
         phase4.suppressed_candidates + newly_suppressed
     )
-    return Phase4AnalysisResult(
+    return StrategyAnalysisResult(
         symbol=phase4.symbol,
         decision_time=phase4.decision_time,
         candidates=candidates,
@@ -73,7 +73,7 @@ def apply_strategy_routing(
 def build_strategy_routing_payload(
     *,
     assessment: RiskAssessment,
-    phase4: Phase4AnalysisResult | None = None,
+    phase4: StrategyAnalysisResult | None = None,
     routing_config: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, object]:
     """Return reproducible routing metadata without category-specific paths."""
@@ -143,7 +143,7 @@ def build_strategy_routing_payload(
 
 
 def _strategy_applicability_payload(
-    phase4: Phase4AnalysisResult | None,
+    phase4: StrategyAnalysisResult | None,
 ) -> list[dict[str, object]]:
     if phase4 is None:
         return []
@@ -168,7 +168,7 @@ def _strategy_applicability_payload(
 
 
 def _suppressed_candidate_payload(
-    phase4: Phase4AnalysisResult | None,
+    phase4: StrategyAnalysisResult | None,
 ) -> list[dict[str, object]]:
     if phase4 is None:
         return []
@@ -182,7 +182,7 @@ def _suppressed_candidate_payload(
         for item in phase4.suppressed_candidates
     ]
 
-def _candidate_diagnostics(phase4: Phase4AnalysisResult | None) -> list[dict[str, object]]:
+def _candidate_diagnostics(phase4: StrategyAnalysisResult | None) -> list[dict[str, object]]:
     if phase4 is None:
         return []
     diagnostics = phase4.strategy_diagnostics or {}

@@ -58,7 +58,7 @@ from apex.strategies import (
     StrategyContext,
     TimeframeContext,
     TimeframeRole,
-    analyze_phase4,
+    analyze_strategies,
     strategy_evidence_payload,
     strategy_evidence_summary,
     timeframe_role_sort_key,
@@ -126,7 +126,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_strategy_route: MarketStrategyRoute | None = None,
 ) -> SymbolAnalysis:
-    """Run the deterministic Phase 4 to risk analysis stack for one symbol."""
+    """Run the deterministic strategy analysis to risk analysis stack for one symbol."""
 
     if candle_limit < 40:
         raise ValueError("analysis requires at least 40 candles per timeframe")
@@ -140,7 +140,7 @@ def analyze_symbol(
         candle_limit=candle_limit,
         received_at=decision_time,
     )
-    phase4 = analyze_phase4(context, decision_time=decision_time)
+    phase4 = analyze_strategies(context, decision_time=decision_time)
     routed_phase4 = apply_strategy_routing(
         phase4,
         routing_config=strategy_routing,

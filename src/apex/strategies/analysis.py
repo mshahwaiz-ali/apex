@@ -1,4 +1,4 @@
-"""Phase 4 strategy-candidate orchestration."""
+"""Strategy-candidate generation and applicability orchestration."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import StrategyType, TradeCandidate
 from apex.strategies.diagnostics import (
     StrategyDiagnostic,
-    build_phase4_diagnostics,
+    build_strategy_diagnostics,
     has_higher_timeframe_breakout,
 )
 from apex.strategies.registry import STRATEGY_REGISTRY, run_strategy_generator
@@ -90,7 +90,7 @@ class SuppressedStrategyCandidate:
 
 
 @dataclass(frozen=True, slots=True)
-class Phase4AnalysisResult:
+class StrategyAnalysisResult:
     """Immutable collection of raw candidates produced in registry order."""
 
     symbol: str
@@ -185,11 +185,11 @@ class Phase4AnalysisResult:
         )
 
 
-def analyze_phase4(
+def analyze_strategies(
     context: StrategyContext,
     *,
     decision_time: datetime,
-) -> Phase4AnalysisResult:
+) -> StrategyAnalysisResult:
     """Run all candidate generators without ranking or selecting a winning trade."""
 
     evaluated = tuple(strategy for strategy, _generator in STRATEGY_REGISTRY)
@@ -210,7 +210,7 @@ def analyze_phase4(
             decision_time=decision_time,
         )
     )
-    diagnostics = build_phase4_diagnostics(
+    diagnostics = build_strategy_diagnostics(
         context,
         evaluated=evaluated,
         eligible=eligible,
@@ -223,7 +223,7 @@ def analyze_phase4(
         eligible=eligible,
         higher_timeframe_breakout=higher_breakout,
     )
-    return Phase4AnalysisResult(
+    return StrategyAnalysisResult(
         symbol=context.symbol,
         decision_time=decision_time,
         candidates=candidates,

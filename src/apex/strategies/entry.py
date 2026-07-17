@@ -26,7 +26,7 @@ class EntryReference:
 
 @dataclass(frozen=True, slots=True)
 class EntrySelectionConfig:
-    """Configurable limits used by all Phase 4 strategies."""
+    """Configurable limits used by all strategy analysis strategies."""
 
     max_percentage_distance: float = 0.012
     max_atr_distance: float = 0.8

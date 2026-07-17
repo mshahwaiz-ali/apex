@@ -18,13 +18,13 @@ from apex.scoring.environment_route import EnvironmentRoute, apply_environment_r
 from apex.scoring.ranking import rank_candidates
 from apex.scoring.scorer import score_candidates
 from apex.scoring.selection import no_trade_reason, select_candidate
-from apex.strategies.analysis import Phase4AnalysisResult
+from apex.strategies.analysis import StrategyAnalysisResult
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
 
 def analyze_candidate_selection(
-    phase4: Phase4AnalysisResult,
+    phase4: StrategyAnalysisResult,
     *,
     config: ScoringConfig = DEFAULT_SCORING_CONFIG,
     risk_mode: RiskMode = RiskMode.STANDARD,

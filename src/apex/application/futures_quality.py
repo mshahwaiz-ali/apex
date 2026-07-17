@@ -10,13 +10,13 @@ from apex.domain import RiskMode
 from apex.scoring import CandidateSelectionResult, ScoringConfig, analyze_candidate_selection
 from apex.scoring.config import DEFAULT_SCORING_CONFIG
 from apex.scoring.environment_route import EnvironmentRoute
-from apex.strategies.analysis import Phase4AnalysisResult
+from apex.strategies.analysis import StrategyAnalysisResult
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
 
 
 def analyze_futures_phase5(
-    phase4: Phase4AnalysisResult,
+    phase4: StrategyAnalysisResult,
     *,
     risk_mode: RiskMode | None = None,
     scoring_config: ScoringConfig = DEFAULT_SCORING_CONFIG,

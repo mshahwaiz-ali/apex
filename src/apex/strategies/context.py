@@ -1,4 +1,4 @@
-"""Typed multi-timeframe context consumed by Phase 4 strategies."""
+"""Typed multi-timeframe context consumed by strategy analysis strategies."""
 
 from __future__ import annotations
 

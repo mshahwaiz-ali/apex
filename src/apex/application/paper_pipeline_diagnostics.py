@@ -19,7 +19,7 @@ from apex.application.risk_analysis_diagnostics import (
 
 
 @dataclass(frozen=True, slots=True)
-class Phase4DiagnosticSummary:
+class StrategyAnalysisDiagnosticSummary:
     """Deterministic run-level statistics derived from routing diagnostics."""
 
     rejection_code_counts: Mapping[str, int]
@@ -70,10 +70,10 @@ class Phase4DiagnosticSummary:
         }
 
 
-def build_phase4_diagnostic_summary(
+def build_strategy_analysis_diagnostic_summary(
     analyses: Sequence[SymbolAnalysis],
-) -> Phase4DiagnosticSummary:
-    """Aggregate available Phase 4 routing diagnostics without fabricating gaps."""
+) -> StrategyAnalysisDiagnosticSummary:
+    """Aggregate available strategy analysis routing diagnostics without fabricating gaps."""
 
     rejection_codes: Counter[str] = Counter()
     by_strategy: Counter[str] = Counter()
@@ -129,7 +129,7 @@ def build_phase4_diagnostic_summary(
                     htf_no_candidate += 1
         htf_fallback_eligible += len(fallback_strategies)
 
-    return Phase4DiagnosticSummary(
+    return StrategyAnalysisDiagnosticSummary(
         rejection_code_counts=rejection_codes,
         rejection_counts_by_strategy=by_strategy,
         rejection_counts_by_decision_regime=by_regime,
@@ -148,7 +148,7 @@ def build_phase4_diagnostic_summary(
 
 
 def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
-    """Return detailed and run-level Phase 4 through risk analysis diagnostics."""
+    """Return detailed and run-level strategy analysis through risk analysis diagnostics."""
 
     phase4_analyses = {
         _analysis_key(analysis): _analysis_diagnostics(analysis)
@@ -169,7 +169,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         "scan_analysis_count": len(scan.analyses),
         "scanner_failure_count": len(scan.failures),
         "scanner_failures": dict(sorted(scan.failures.items())),
-        "phase4_summary": build_phase4_diagnostic_summary(scan.analyses).to_payload(),
+        "phase4_summary": build_strategy_analysis_diagnostic_summary(scan.analyses).to_payload(),
         "phase4_analyses": phase4_analyses,
         "phase5_summary": build_candidate_selection_diagnostic_summary(scan.analyses).to_payload(),
         "phase5_analyses": phase5_analyses,

@@ -1,11 +1,11 @@
 """Deterministic strategy candidate generation."""
 
 from apex.strategies.analysis import (
-    Phase4AnalysisResult,
+    StrategyAnalysisResult,
     StrategyApplicability,
     StrategyApplicabilityState,
     SuppressedStrategyCandidate,
-    analyze_phase4,
+    analyze_strategies,
     build_strategy_applicability,
 )
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
@@ -58,7 +58,7 @@ __all__ = [
     "InvalidationConcept",
     "InvalidationType",
     "NormalizedStrategyEvidence",
-    "Phase4AnalysisResult",
+    "StrategyAnalysisResult",
     "RawQualityMetrics",
     "StrategyApplicability",
     "StrategyApplicabilityState",
@@ -75,7 +75,7 @@ __all__ = [
     "TimeframeRole",
     "TradeCandidate",
     "TradeDirection",
-    "analyze_phase4",
+    "analyze_strategies",
     "build_strategy_applicability",
     "generate_breakout_continuation_candidates",
     "generate_liquidity_reversal_candidates",
