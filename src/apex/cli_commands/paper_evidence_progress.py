@@ -10,7 +10,7 @@ import typer
 from apex.application import bootstrap
 from apex.paper_trading.evidence_progress import build_forward_evidence_progress
 from apex.paper_trading.store import PaperTradeStore
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper_progress import render_evidence_progress
 
 
@@ -29,7 +29,7 @@ def register_paper_evidence_progress_command(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         context = bootstrap()
@@ -55,9 +55,9 @@ def register_paper_evidence_progress_command(app: typer.Typer) -> None:
 
 def _resolve_presentation_mode(*, output: str, format_: str | None) -> OutputMode:
     if format_ is not None:
-        return normalize_output_mode(format_)
+        return normalize_cli_output_mode(format_)
 
     legacy = output.strip().lower()
     if legacy not in {"text", "json"}:
         raise ValueError("legacy output must be text or json")
-    return normalize_output_mode(legacy)
+    return normalize_cli_output_mode(legacy)

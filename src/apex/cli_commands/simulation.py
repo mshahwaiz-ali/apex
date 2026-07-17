@@ -17,7 +17,7 @@ from apex.application import (
 )
 from apex.backtesting import BacktestConfig, signal_from_setup, simulate_trade, summarize_trades
 from apex.data.providers.errors import MarketDataProviderError
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.simulation import render_futures_simulation
 
 
@@ -32,7 +32,7 @@ def register_simulation_command(app: typer.Typer) -> None:
         ],
         output: Annotated[
             str,
-            typer.Option("--output", "-o", help="text, json, verbose, or debug"),
+            typer.Option("--output", "-o", help="text or json"),
         ] = "text",
         candle_limit: Annotated[
             int,
@@ -46,7 +46,7 @@ def register_simulation_command(app: typer.Typer) -> None:
         """Simulate one currently approved futures setup over fetched candles."""
 
         try:
-            output_mode = normalize_output_mode(output)
+            output_mode = normalize_cli_output_mode(output)
             canonical = normalize_market_symbol(symbol)
             context = bootstrap()
             risk_config = load_default_risk_config()

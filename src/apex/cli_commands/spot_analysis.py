@@ -45,7 +45,7 @@ def register_spot_analysis_commands(app: typer.Typer) -> None:
         ] = None,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Evaluate canonical spot strategies and build a bounded plan when approved."""

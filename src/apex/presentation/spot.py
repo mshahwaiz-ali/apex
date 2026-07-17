@@ -87,7 +87,7 @@ def render_spot_scan(
 ) -> str:
     """Render ranked live spot scan results and eligibility outcomes."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     ranked = _mapping_sequence(payload.get("ranked"))
     ineligible = _mapping_sequence(payload.get("ineligible"))
     failures = _mapping_sequence(payload.get("failures"))
@@ -109,7 +109,7 @@ def render_spot_scan(
         sections.append(render_section("Ranked Opportunities", render_bullets(_ranked_rows(ranked))))
     else:
         sections.append(render_section("Ranked Opportunities", "  No markets produced a plan."))
-    if ineligible and output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
+    if ineligible:
         sections.append(render_section("Ineligible", render_bullets(_ineligible_rows(ineligible))))
     if failures:
         sections.append(render_section("Failures", render_bullets(_failure_rows(failures))))

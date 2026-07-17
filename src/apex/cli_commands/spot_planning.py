@@ -35,7 +35,7 @@ def register_spot_planning_commands(app: typer.Typer) -> None:
         ] = None,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Build a bounded research-only spot entry, allocation, and exit plan."""

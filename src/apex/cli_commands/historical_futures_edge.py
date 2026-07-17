@@ -50,7 +50,7 @@ def register_historical_futures_edge_commands(app: typer.Typer) -> None:
         ] = False,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Create split-isolated edge profiles from a completed N4.7 campaign."""

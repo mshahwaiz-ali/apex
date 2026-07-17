@@ -11,7 +11,7 @@ import typer
 
 from apex.application import bootstrap
 from apex.paper_trading import PaperOperationsStatus, build_paper_operations_status
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper import render_paper_status
 
 
@@ -31,7 +31,7 @@ def register_paper_status_command(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Inspect cycle, intake, pipeline freshness, failures, locks, and reports."""
@@ -64,7 +64,7 @@ def paper_operations_status_payload(status: PaperOperationsStatus) -> dict[str, 
 def _emit_status(status: PaperOperationsStatus, mode: str) -> None:
     payload = paper_operations_status_payload(status)
     try:
-        output_mode = normalize_output_mode(mode)
+        output_mode = normalize_cli_output_mode(mode)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     if output_mode is OutputMode.JSON:

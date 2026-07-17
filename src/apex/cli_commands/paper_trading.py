@@ -40,7 +40,7 @@ from apex.paper_trading import (
 )
 from apex.presentation import (
     OutputMode,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_fields,
     render_section,
     render_title,
@@ -89,7 +89,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Analyze and record only after risk-mode and account-policy approval."""
@@ -221,7 +221,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Update paper trades and optionally synchronize persistent account state."""
@@ -317,7 +317,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
         report: Path | None = typer.Option(
             None,
@@ -356,7 +356,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
         report: Path | None = typer.Option(
             None,
@@ -387,7 +387,7 @@ def register_paper_trading_commands(app: typer.Typer) -> None:
 
 def _output_mode(value: str) -> OutputMode:
     try:
-        return normalize_output_mode(value)
+        return normalize_cli_output_mode(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 

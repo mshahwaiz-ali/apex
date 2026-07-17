@@ -123,11 +123,10 @@ def test_spot_scan_renders_ranked_and_failure_summaries() -> None:
     }
 
     text = render_spot_scan(payload)
-    verbose = render_spot_scan(payload, mode="verbose")
 
     assert "Spot Market Scan" in text
     assert "#1 BTCUSDT" in text
     assert "plan available" in text
     assert "Failures" in text
-    assert "\n\nIneligible\n" not in text
-    assert "\n\nIneligible\n" in verbose
+    assert "\n\nIneligible\n" in text
+    assert "ETHUSDT" in text

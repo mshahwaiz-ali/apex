@@ -15,7 +15,6 @@ from apex.cli_commands.paper_intake import (
     _resolve_presentation_mode as resolve_intake_mode,
 )
 from apex.paper_trading.intake import IntakeMarketType, IntakeSummary
-from apex.presentation import OutputMode
 from apex.presentation.paper_progress import (
     render_evidence_progress,
     render_operational_review,
@@ -81,9 +80,19 @@ def test_intake_json_preserves_canonical_payload(
     assert payload["created_trade_ids"] == ["paper-1"]
 
 
-def test_format_overrides_legacy_output() -> None:
-    assert resolve_intake_mode(output="json", format_="verbose") is OutputMode.VERBOSE
-    assert resolve_evidence_mode(output="json", format_="debug") is OutputMode.DEBUG
+@pytest.mark.parametrize(
+    ("resolver", "format_value"),
+    (
+        (resolve_intake_mode, "verbose"),
+        (resolve_evidence_mode, "debug"),
+    ),
+)
+def test_removed_formats_fail_cleanly(
+    resolver: object,
+    format_value: str,
+) -> None:
+    with pytest.raises(ValueError, match="CLI output mode must be one of: text, json"):
+        resolver(output="json", format_=format_value)  # type: ignore[operator]
 
 
 @pytest.mark.parametrize(

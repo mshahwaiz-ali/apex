@@ -40,7 +40,7 @@ def register_dataset_commands(app: typer.Typer) -> None:
         ] = False,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         mode = output_mode(output_format)

@@ -49,7 +49,7 @@ from apex.paper_trading import (
     run_scheduled_paper_cycle,
 )
 from apex.cli_commands.registration import remove_registered_commands
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper import render_paper_pipeline
 
 
@@ -85,14 +85,14 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Run futures intake and lifecycle advancement under one pipeline lock."""
 
         selected_format = format_ or output
         try:
-            normalize_output_mode(selected_format)
+            normalize_cli_output_mode(selected_format)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
 
@@ -224,14 +224,14 @@ def register_paper_pipeline_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Run spot intake and lifecycle advancement under one pipeline lock."""
 
         selected_format = format_ or output
         try:
-            normalize_output_mode(selected_format)
+            normalize_cli_output_mode(selected_format)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
 
@@ -334,7 +334,7 @@ def _market_trades(
 
 
 def _emit_skipped_pipeline(market_type: str, reason: str, output: str) -> None:
-    output_mode = normalize_output_mode(output)
+    output_mode = normalize_cli_output_mode(output)
     payload: dict[str, object] = {
         "market_type": market_type,
         "outcome": "skipped",
@@ -355,7 +355,7 @@ def _emit_pipeline(
     *,
     diagnostics: dict[str, Any] | None = None,
 ) -> None:
-    output_mode = normalize_output_mode(output)
+    output_mode = normalize_cli_output_mode(output)
     payload = paper_pipeline_payload(result)
     payload["outcome"] = "completed"
     if diagnostics:

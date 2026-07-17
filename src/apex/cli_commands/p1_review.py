@@ -11,7 +11,7 @@ from typing import Any, cast
 import typer
 
 from apex.backtesting import EvidenceQuality, HistoricalEdgeProfile
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper_progress import render_operational_review
 from apex.paper_trading import (
     ForwardPaperEdgeProfile,
@@ -78,7 +78,7 @@ def register_p1_review_command(app: typer.Typer) -> None:
         format_: str = typer.Option(
             OutputMode.TEXT.value,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Build a hash-verified operational review from persisted evidence."""
@@ -113,7 +113,7 @@ def register_p1_review_command(app: typer.Typer) -> None:
                 manual_execution_usable=manual_execution_usable,
             )
             write_forward_paper_review_report(review, output, force=force)
-            mode = normalize_output_mode(format_)
+            mode = normalize_cli_output_mode(format_)
         except (
             FileExistsError,
             FileNotFoundError,

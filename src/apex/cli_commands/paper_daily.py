@@ -12,7 +12,7 @@ from apex.paper_trading.daily_operations import run_scheduled_daily_report
 from apex.paper_trading.store import PaperTradeStore
 from apex.presentation import (
     OutputMode,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_fields,
     render_section,
     render_title,
@@ -32,7 +32,7 @@ def register_paper_daily_command(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Create or verify one immutable daily paper-validation report."""
@@ -48,7 +48,7 @@ def register_paper_daily_command(app: typer.Typer) -> None:
                 generated_at=generated_at,
                 report_date=resolved_date,
             )
-            output_mode = normalize_output_mode(format_)
+            output_mode = normalize_cli_output_mode(format_)
         except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
 
@@ -79,20 +79,7 @@ def register_paper_daily_command(app: typer.Typer) -> None:
                 "Review the immutable daily evidence and investigate any missing or incomplete activity.",
             ),
         ]
-        if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-            sections.append(
-                render_section("Persistence", render_fields((("Report path", payload["output_path"]),)))
-            )
-        if output_mode is OutputMode.DEBUG:
-            sections.append(
-                render_section(
-                    "Deterministic payload summary",
-                    render_fields(
-                        (
-                            ("Top-level keys", ", ".join(sorted(payload))),
-                            ("Payload field count", len(payload)),
-                        )
-                    ),
-                )
-            )
+        sections.append(
+            render_section("Persistence", render_fields((("Report path", payload["output_path"]),)))
+        )
         typer.echo("\n\n".join(sections))

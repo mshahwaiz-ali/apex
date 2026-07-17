@@ -60,7 +60,7 @@ def register_historical_futures_edge_validation_commands(app: typer.Typer) -> No
         ] = False,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Evaluate train, validation, and untouched final-test edge stability."""

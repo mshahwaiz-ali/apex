@@ -31,7 +31,7 @@ from apex.paper_trading import (
     create_paper_trade,
     derive_paper_trade_guidance,
 )
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper import render_paper_trade
 
 
@@ -71,7 +71,7 @@ def register_paper_record_v3(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Analyze and record with one shared risk mode across quality and account policy."""
@@ -195,7 +195,7 @@ def register_paper_record_v3(app: typer.Typer) -> None:
 
 def _output_mode(value: str) -> OutputMode:
     try:
-        return normalize_output_mode(value)
+        return normalize_cli_output_mode(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 

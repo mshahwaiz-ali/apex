@@ -12,7 +12,7 @@ from apex import __version__
 from apex.application import bootstrap, create_market_data_services, normalize_market_symbol
 from apex.config import load_settings
 from apex.data.providers.errors import MarketDataProviderError
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.system import (
     render_candles,
     render_config,
@@ -35,7 +35,7 @@ def register_system_commands(app: typer.Typer) -> None:
         limit: Annotated[int, typer.Option("--limit", "-l", min=1, max=1000)] = 10,
         output: Annotated[
             str,
-            typer.Option("--output", "-o", help="text, json, verbose, or debug"),
+            typer.Option("--output", "-o", help="text or json"),
         ] = "text",
     ) -> None:
         """Fetch recent public candles and summarize the returned market data."""
@@ -65,7 +65,7 @@ def register_system_commands(app: typer.Typer) -> None:
         ],
         output: Annotated[
             str,
-            typer.Option("--output", "-o", help="text, json, verbose, or debug"),
+            typer.Option("--output", "-o", help="text or json"),
         ] = "text",
     ) -> None:
         """Fetch and explain the current public ticker snapshot."""
@@ -91,7 +91,7 @@ def register_system_commands(app: typer.Typer) -> None:
         ] = Path("config"),
         output: Annotated[
             str,
-            typer.Option("--output", "-o", help="text, json, verbose, or debug"),
+            typer.Option("--output", "-o", help="text or json"),
         ] = "text",
     ) -> None:
         """Validate and summarize the resolved Apex configuration."""
@@ -135,7 +135,7 @@ def register_system_commands(app: typer.Typer) -> None:
 
 def _output_mode(value: str) -> OutputMode:
     try:
-        return normalize_output_mode(value)
+        return normalize_cli_output_mode(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 

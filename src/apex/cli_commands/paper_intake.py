@@ -36,7 +36,7 @@ from apex.domain.spot_market import SpotScannerMode
 from apex.paper_trading.intake import IntakeMarketType, IntakeSummary, intake_summary_payload
 from apex.paper_trading.store import PaperTradeStore
 from apex.cli_commands.registration import remove_registered_commands
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper_progress import render_paper_intake
 
 
@@ -65,7 +65,7 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Scan futures and admit approved actionable plans to the paper store."""
@@ -154,7 +154,7 @@ def register_paper_intake_commands(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Scan cash spot and admit approved long-only plans to the paper store."""
@@ -219,9 +219,9 @@ def _emit_summary(
 
 def _resolve_presentation_mode(*, output: str, format_: str | None) -> OutputMode:
     if format_ is not None:
-        return normalize_output_mode(format_)
+        return normalize_cli_output_mode(format_)
 
     legacy = output.strip().lower()
     if legacy not in {"text", "json"}:
         raise ValueError("legacy output must be text or json")
-    return normalize_output_mode(legacy)
+    return normalize_cli_output_mode(legacy)

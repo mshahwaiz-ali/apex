@@ -45,7 +45,7 @@ def register_spot_orchestration_commands(app: typer.Typer) -> None:
         ] = None,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Evaluate canonical structure/regime data and build a spot plan when approved."""

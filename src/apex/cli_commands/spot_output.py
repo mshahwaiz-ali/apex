@@ -7,7 +7,7 @@ from collections.abc import Mapping
 
 import typer
 
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.spot import render_spot_analysis, render_spot_plan, render_spot_scan
 
 
@@ -15,7 +15,7 @@ def output_mode(value: str) -> OutputMode:
     """Validate one CLI output format."""
 
     try:
-        return normalize_output_mode(value)
+        return normalize_cli_output_mode(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 

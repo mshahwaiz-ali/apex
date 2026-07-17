@@ -18,7 +18,7 @@ from apex.paper_trading import (
 from apex.cli_commands.registration import remove_registered_commands
 from apex.presentation import (
     OutputMode,
-    normalize_output_mode,
+    normalize_cli_output_mode,
     render_fields,
     render_section,
     render_title,
@@ -37,7 +37,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
         format_: str,
     ) -> None:
         try:
-            output_mode = normalize_output_mode(format_)
+            output_mode = normalize_cli_output_mode(format_)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
 
@@ -95,7 +95,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Run one overlap-safe futures paper cycle for cron or systemd."""
@@ -116,7 +116,7 @@ def register_paper_scheduler_commands(app: typer.Typer) -> None:
         format_: str = typer.Option(
             "text",
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Run one overlap-safe spot paper cycle for cron or systemd."""
@@ -162,23 +162,10 @@ def _emit_scheduler(payload: dict[str, object], output_mode: OutputMode) -> None
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Scheduler diagnostics",
-                render_fields((("Log path", payload.get("log_path")),)),
-            )
+    sections.append(
+        render_section(
+            "Scheduler diagnostics",
+            render_fields((("Log path", payload.get("log_path")),)),
         )
-    if output_mode is OutputMode.DEBUG:
-        sections.append(
-            render_section(
-                "Deterministic payload summary",
-                render_fields(
-                    (
-                        ("Top-level keys", ", ".join(sorted(payload))),
-                        ("Payload field count", len(payload)),
-                    )
-                ),
-            )
-        )
+    )
     typer.echo("\n\n".join(sections))

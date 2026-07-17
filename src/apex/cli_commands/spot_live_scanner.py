@@ -61,7 +61,7 @@ def register_spot_live_scanner_commands(app: typer.Typer) -> None:
         ] = None,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
         candles: Annotated[
             int,

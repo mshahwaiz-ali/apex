@@ -18,7 +18,7 @@ from apex.paper_trading import (
     run_provider_backed_paper_cycle,
     write_paper_operation_cycle_result,
 )
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.paper import render_paper_cycle
 
 
@@ -61,7 +61,7 @@ def register_paper_cycle_command(app: typer.Typer) -> None:
         format_: str | None = typer.Option(
             None,
             "--format",
-            help="Presentation format: text, json, verbose, or debug.",
+            help="Presentation format: text or json.",
         ),
     ) -> None:
         """Fetch closed candles and advance one deterministic paper cycle."""
@@ -129,7 +129,7 @@ def _parse_report_date(value: str | None) -> date | None:
 
 def _emit_result(payload: dict[str, Any], mode: str) -> None:
     try:
-        output_mode = normalize_output_mode(mode)
+        output_mode = normalize_cli_output_mode(mode)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     if output_mode is OutputMode.JSON:

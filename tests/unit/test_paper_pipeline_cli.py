@@ -112,7 +112,7 @@ def test_emit_pipeline_text_surfaces_scanner_counts(monkeypatch: Any, capsys: An
 
     pipeline_cli._emit_pipeline(
         result,  # type: ignore[arg-type]
-        "verbose",
+        "text",
         diagnostics={
             "scan_analysis_count": 4,
             "scanner_failure_count": 2,

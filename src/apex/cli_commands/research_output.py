@@ -7,14 +7,14 @@ from collections.abc import Mapping
 
 import typer
 
-from apex.presentation import OutputMode, normalize_output_mode
+from apex.presentation import OutputMode, normalize_cli_output_mode
 
 
 def output_mode(value: str) -> OutputMode:
     """Validate one research output format."""
 
     try:
-        return normalize_output_mode(value)
+        return normalize_cli_output_mode(value)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 

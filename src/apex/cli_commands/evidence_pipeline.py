@@ -68,7 +68,7 @@ def register_evidence_pipeline_commands(app: typer.Typer) -> None:
         force: Annotated[bool, typer.Option("--force")] = False,
         output_format: Annotated[
             str,
-            typer.Option("--format", help="text, json, verbose, or debug"),
+            typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
         """Publish N4.8 through N4.11 evidence artifacts as one atomic run."""
