@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
-from apex.domain.futures import EntryState
+from apex.strategies.actionability import best_entry_status, classify_candidate_actionability
 from apex.strategies.context import StrategyContext, TimeframeRole
-from apex.strategies.contracts import TradeCandidate, TradeDirection
+from apex.strategies.contracts import TradeCandidate
+from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import BreakDirection, ConfirmationStatus, TrendDirection
 from apex.structure.regime import MarketRegime, classify_market_regime
@@ -31,7 +32,7 @@ class StrategyDiagnostic:
     candidate_count: int
     rejection_codes: tuple[StrategyRejectionCode, ...]
     reasons: tuple[str, ...]
-    near_miss_state: EntryState
+    near_miss_state: EntryStatus
     higher_timeframe_breakout: bool = False
 
 
@@ -61,6 +62,13 @@ _BREAKOUT_FAMILIES = {
 _PULLBACK_FAMILIES = {
     StrategyType.FIRST_PULLBACK_CONTINUATION,
     StrategyType.TREND_PULLBACK,
+    StrategyType.VWAP_RECLAIM_REJECTION,
+}
+_REVERSAL_FAMILIES = {
+    StrategyType.RANGE_REVERSAL,
+    StrategyType.FAILED_BREAKOUT_REVERSAL,
+    StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+    StrategyType.EXHAUSTION_REVERSAL,
 }
 _MAX_REFERENCE_DISTANCE_ATR = 3.0
 
@@ -88,7 +96,9 @@ def build_strategy_diagnostics(
                 candidate_count=len(produced),
                 rejection_codes=(),
                 reasons=("strategy generated at least one raw candidate",),
-                near_miss_state=_best_state(tuple(_candidate_state(item) for item in produced)),
+                near_miss_state=best_entry_status(
+                    tuple(classify_candidate_actionability(item) for item in produced)
+                ),
                 higher_timeframe_breakout=higher_breakout,
             )
             continue
@@ -160,6 +170,10 @@ def _infer_rejections(
         ):
             codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
             reasons.append("no structural, EMA, or VWAP pullback reference exists")
+    elif strategy in _REVERSAL_FAMILIES:
+        if not frame.structure.levels and not frame.liquidity.sweeps:
+            codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
+            reasons.append("no structural edge or confirmed liquidity rejection exists")
     elif not frame.structure.levels:
         codes.append(StrategyRejectionCode.MISSING_ENTRY_REFERENCES)
         reasons.append("decision frame has no usable structural entry reference")
@@ -205,48 +219,13 @@ def _near_miss_state(
     context: StrategyContext,
     strategy: StrategyType,
     codes: Sequence[StrategyRejectionCode],
-) -> EntryState:
+) -> EntryStatus:
     if StrategyRejectionCode.INVALID_STOP_TARGET_GEOMETRY in codes:
-        return EntryState.INVALIDATED
+        return EntryStatus.INVALIDATED
     if StrategyRejectionCode.EXCESSIVE_DISTANCE_FROM_CURRENT in codes:
-        return EntryState.MISSED_ENTRY
+        return EntryStatus.LATE_OR_CHASING
     if strategy in _BREAKOUT_FAMILIES and has_higher_timeframe_breakout(context):
-        return EntryState.WAIT_FOR_RETEST
-    if StrategyRejectionCode.MISSING_ENTRY_REFERENCES in codes:
-        return EntryState.WATCH
+        return EntryStatus.PULLBACK_PREFERRED
     if StrategyRejectionCode.MOMENTUM_MISMATCH in codes:
-        return EntryState.APPROACHING_ENTRY
-    return EntryState.NO_TRADE
-
-
-def _candidate_state(candidate: TradeCandidate) -> EntryState:
-    current = candidate.entry.current_price
-    if candidate.direction is TradeDirection.LONG:
-        if current <= candidate.invalidation.price:
-            return EntryState.INVALIDATED
-        if candidate.entry.max_chase_price is not None and current > candidate.entry.max_chase_price:
-            return EntryState.MISSED_ENTRY
-    else:
-        if current >= candidate.invalidation.price:
-            return EntryState.INVALIDATED
-        if candidate.entry.max_chase_price is not None and current < candidate.entry.max_chase_price:
-            return EntryState.MISSED_ENTRY
-    if candidate.entry.lower <= current <= candidate.entry.upper:
-        return EntryState.READY_NOW
-    if candidate.entry.mode.value == "retest":
-        return EntryState.WAIT_FOR_RETEST
-    return EntryState.APPROACHING_ENTRY
-
-
-def _best_state(states: Sequence[EntryState]) -> EntryState:
-    precedence = (
-        EntryState.READY_NOW,
-        EntryState.APPROACHING_ENTRY,
-        EntryState.WAIT_FOR_RETEST,
-        EntryState.WAIT_FOR_RECLAIM,
-        EntryState.WATCH,
-        EntryState.MISSED_ENTRY,
-        EntryState.INVALIDATED,
-        EntryState.NO_TRADE,
-    )
-    return min(states, key=precedence.index)
+        return EntryStatus.PULLBACK_PREFERRED
+    return EntryStatus.WATCH_NEAR_ENTRY
