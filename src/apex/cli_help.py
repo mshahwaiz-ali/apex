@@ -21,8 +21,6 @@ _COMMAND_HELP: dict[str, tuple[str, str]] = {
     "historical-futures-edge-report": ("Research and backtesting", "Summarize historical futures performance by data split and setup segment."),
     "historical-futures-edge-validate": ("Research and backtesting", "Check whether historical futures results remain stable on untouched test data."),
     "forward-edge-validate": ("Paper validation", "Evaluate completed paper trades and measure forward performance by setup segment."),
-    "evidence-bundle-inspect": ("Paper validation", "Inspect a saved validation evidence bundle before review."),
-    "evidence-pipeline-run": ("Paper validation", "Build the complete reproducible validation evidence bundle."),
     "paper-validation-review": ("Paper validation", "Review saved paper evidence against the expected performance model."),
     "paper-validation-generate": ("Paper validation", "Create a review input from saved backtest and paper-trading data."),
     "paper-validation-run": ("Paper validation", "Generate and save one complete daily paper-validation snapshot."),
@@ -46,8 +44,8 @@ def _classify_unknown_command(name: str) -> tuple[str, str] | None:
         return "Paper validation", "Run a paper-trading or forward-validation workflow."
     if name.startswith("funded-"):
         return "Funded readiness", "Run a funded-account evidence or readiness check."
-    if any(token in name for token in ("backtest", "historical", "evidence")):
-        return "Research and backtesting", "Run a reproducible research or evidence workflow."
+    if any(token in name for token in ("backtest", "historical")):
+        return "Research and backtesting", "Run a reproducible research workflow."
     return None
 
 

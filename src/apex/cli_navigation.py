@@ -78,18 +78,6 @@ _ROUTES: tuple[CommandRoute, ...] = (
         "Evaluate completed paper trades and measure forward performance.",
     ),
     CommandRoute(
-        "evidence-bundle-inspect",
-        "validation",
-        "inspect-evidence",
-        "Inspect a saved validation evidence bundle.",
-    ),
-    CommandRoute(
-        "evidence-pipeline-run",
-        "validation",
-        "build-evidence",
-        "Build the complete reproducible validation evidence bundle.",
-    ),
-    CommandRoute(
         "paper-validation-review",
         "validation",
         "review",
