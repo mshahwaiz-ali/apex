@@ -219,12 +219,12 @@ def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
                 f"Routing score: {route.routing_score:.1f}",
             )
         )
-    phase5 = analysis.phase5_diagnostics or {}
+    candidate_diagnostics = analysis.phase5_diagnostics or {}
     lines.extend(_opportunity_summary_lines(analysis))
     lines.extend(
         (
             f"Raw candidates: {analysis.candidate_count}",
-            f"Candidate selection accepted: {'yes' if phase5.get('selected') else 'no'}",
+            f"Candidate selection accepted: {'yes' if candidate_diagnostics.get('selected') else 'no'}",
             f"Decision reason: {_decision_reason_code(analysis, near_entry)}",
         )
     )
@@ -312,14 +312,14 @@ def _decision_reason_code(
 ) -> str:
     environment = getattr(analysis, "market_environment", None)
     route = getattr(analysis, "market_strategy_route", None)
-    phase5 = analysis.phase5_diagnostics or {}
+    candidate_diagnostics = analysis.phase5_diagnostics or {}
     if environment is not None and not environment.tradeable:
         return "ENVIRONMENT_BLOCKED"
     if route is not None and not route.strategy_priority:
         return "NO_ROUTED_STRATEGY"
     if analysis.candidate_count == 0:
         return "NO_CANDIDATE_GENERATED"
-    if not phase5.get("selected"):
+    if not candidate_diagnostics.get("selected"):
         return "CANDIDATE_REJECTED"
     if near_entry is not None and near_entry.entry_state in {
         "WAIT_FOR_RECLAIM",

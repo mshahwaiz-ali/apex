@@ -51,7 +51,7 @@ def build_p1_review_artifact(
         "sources": sources,
         "execution_authorized": False,
         "warnings": [
-            "This artifact preserves P1 review evidence only.",
+            "This artifact preserves forward-validation review evidence only.",
             "It does not authorize testnet, funded, or real-money execution.",
         ],
     }

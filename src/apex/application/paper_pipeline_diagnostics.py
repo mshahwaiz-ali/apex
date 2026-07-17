@@ -158,12 +158,12 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         _analysis_key(analysis): candidate_selection_payload(analysis)
         for analysis in scan.analyses
     }
-    phase6_source = tuple(
+    risk_analysis_source = tuple(
         analysis for analysis in scan.analyses if hasattr(analysis, "assessment")
     )
     phase6_analyses = {
         _analysis_key(analysis): risk_analysis_payload(analysis)
-        for analysis in phase6_source
+        for analysis in risk_analysis_source
     }
     return {
         "scan_analysis_count": len(scan.analyses),
@@ -173,7 +173,7 @@ def build_futures_pipeline_diagnostics(scan: ScanResult) -> dict[str, Any]:
         "phase4_analyses": phase4_analyses,
         "phase5_summary": build_candidate_selection_diagnostic_summary(scan.analyses).to_payload(),
         "phase5_analyses": phase5_analyses,
-        "phase6_summary": build_risk_analysis_diagnostic_summary(phase6_source).to_payload(),
+        "phase6_summary": build_risk_analysis_diagnostic_summary(risk_analysis_source).to_payload(),
         "phase6_analyses": phase6_analyses,
     }
 

@@ -9,13 +9,13 @@ from apex.paper_trading.intake import IntakeMarketType, IntakeSummary
 from apex.paper_trading.scheduler import ScheduledPaperCycleResult
 
 
-def test_pipeline_persists_scanner_and_phase4_diagnostics(tmp_path: Path) -> None:
+def test_pipeline_persists_scanner_and_strategy_diagnostics(tmp_path: Path) -> None:
     started_at = datetime.now(UTC) - timedelta(seconds=1)
     diagnostics = {
         "scan_analysis_count": 4,
         "scanner_failure_count": 1,
         "scanner_failures": {"ETH/USDT": "provider timeout"},
-        "phase4": {
+        "strategy_analysis": {
             "BTC/USDT": {
                 "near_miss_state_counts": {"wait_for_retest": 1},
                 "higher_timeframe_breakout": True,
@@ -59,7 +59,7 @@ def test_pipeline_persists_scanner_and_phase4_diagnostics(tmp_path: Path) -> Non
     assert payload["diagnostics"]["scanner_failures"] == {
         "ETH/USDT": "provider timeout"
     }
-    assert payload["diagnostics"]["phase4"]["BTC/USDT"] == {
+    assert payload["diagnostics"]["strategy_analysis"]["BTC/USDT"] == {
         "higher_timeframe_breakout": True,
         "near_miss_state_counts": {"wait_for_retest": 1},
     }

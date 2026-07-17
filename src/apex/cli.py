@@ -429,7 +429,7 @@ def dataset_campaign_execute(
         exists=True,
         dir_okay=False,
         readable=True,
-        help="Frozen N4.4 campaign-plan manifest.",
+        help="Frozen historical campaign-plan manifest.",
     ),
     execution_manifest_output: Path = typer.Option(  # noqa: B008
         ...,

@@ -232,8 +232,8 @@ def run_chronological_pipeline_backtest(
         )
         candidate_count_distribution[candidate_bucket] += 1
 
-        phase5 = dict(analysis.phase5_diagnostics or {})
-        candidates = phase5.get("candidates", [])
+        candidate_diagnostics = dict(analysis.phase5_diagnostics or {})
+        candidates = candidate_diagnostics.get("candidates", [])
         if isinstance(candidates, list):
             for candidate in candidates:
                 if not isinstance(candidate, dict):
