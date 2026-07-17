@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from apex.application import analysis as _analysis
 from apex.application import integrated_analysis as _integrated
+from apex.application.discovery_contracts import ScanResult
 from apex.application.market_strategy_router import (
     MarketStrategyRoute,
     market_strategy_route_payload,
@@ -34,7 +34,6 @@ class SymbolAnalysis(_integrated.SymbolAnalysis):
     near_current_entry: NearCurrentEntryDecision | None = None
 
 
-ScanResult = _analysis.ScanResult
 load_symbols = _integrated.load_symbols
 write_json_report = _integrated.write_json_report
 
@@ -114,7 +113,7 @@ def scan_symbols(
     """Analyze each symbol once with routing and entry decisions."""
 
     timestamp = generated_at or datetime.now(UTC)
-    analyses: list[_analysis.SymbolAnalysis] = []
+    analyses: list[SymbolAnalysis] = []
     failures: dict[str, str] = {}
 
     for symbol in symbols:
@@ -142,7 +141,7 @@ def scan_symbols(
     )
 
 
-def serialize_symbol_analysis(analysis: _analysis.SymbolAnalysis) -> dict[str, Any]:
+def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Serialize analysis with route and near-current entry overlays."""
 
     payload = _integrated.serialize_symbol_analysis(analysis)
@@ -191,7 +190,7 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     }
 
 
-def format_symbol_text(analysis: _analysis.SymbolAnalysis) -> str:
+def format_symbol_text(analysis: SymbolAnalysis) -> str:
     """Format analysis with explicit pipeline and actionability stages."""
 
     base_text = _integrated.format_symbol_text(analysis)
@@ -277,7 +276,7 @@ def _selected_candidate_diagnostics(
 
 
 def _opportunity_summary_lines(
-    analysis: _analysis.SymbolAnalysis,
+    analysis: SymbolAnalysis,
 ) -> tuple[str, ...]:
     """Return compact operator-facing diagnostics for the best ranked candidate."""
 
@@ -302,7 +301,7 @@ def _opportunity_summary_lines(
 
 
 def _decision_reason_code(
-    analysis: _analysis.SymbolAnalysis,
+    analysis: SymbolAnalysis,
     near_entry: NearCurrentEntryDecision | None,
 ) -> str:
     environment = getattr(analysis, "market_environment", None)
@@ -337,7 +336,7 @@ def _display_analyses(
     result: ScanResult,
     *,
     limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
-) -> tuple[_analysis.SymbolAnalysis, ...]:
+) -> tuple[SymbolAnalysis, ...]:
     """Return the default ranked display slice without mutating full scan results."""
 
     if limit < 1:
@@ -346,7 +345,7 @@ def _display_analyses(
 
 
 def _scan_sort_key(
-    analysis: _analysis.SymbolAnalysis,
+    analysis: SymbolAnalysis,
 ) -> tuple[float, int, str]:
     record = _best_rank_record(analysis)
     if record is None:
@@ -358,7 +357,7 @@ def _scan_sort_key(
     )
 
 
-def _best_rank_record(analysis: _analysis.SymbolAnalysis) -> Any | None:
+def _best_rank_record(analysis: SymbolAnalysis) -> Any | None:
     ranking = analysis.candidate_ranking
     if ranking is None:
         return None
