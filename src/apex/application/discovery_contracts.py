@@ -198,6 +198,7 @@ class SymbolAnalysis:
     regime_by_timeframe: Mapping[str, str]
     data_quality_by_timeframe: Mapping[str, Mapping[str, Any]]
     strategy_routing: Mapping[str, Any] | None = None
+    precision_entry: Mapping[str, Any] | None = None
     phase5_diagnostics: Mapping[str, Any] | None = None
     candidate_ranking: CandidateRankingSnapshot | None = None
 
