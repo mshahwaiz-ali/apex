@@ -27,7 +27,7 @@ def render_futures_analysis(
 ) -> str:
     """Render one serialized futures analysis without recomputing trading logic."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     symbol = str(payload.get("symbol") or "Unknown symbol")
     approved = str(payload.get("decision") or "NO_TRADE").upper() != "NO_TRADE"
     decision = f"{humanize_code(payload.get('decision'))} Setup" if approved else "No Trade"
@@ -53,8 +53,7 @@ def render_futures_analysis(
     if warnings:
         sections.append(render_section("Warnings", render_bullets(warnings)))
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(_render_diagnostics(payload, debug=output_mode is OutputMode.DEBUG))
+    sections.append(_render_diagnostics(payload))
 
     return "\n\n".join(section for section in sections if section)
 
@@ -196,7 +195,7 @@ def _render_risk_profile(payload: Mapping[str, object]) -> str:
     return render_section("Risk Profile", render_fields(fields))
 
 
-def _render_diagnostics(payload: Mapping[str, object], *, debug: bool) -> str:
+def _render_diagnostics(payload: Mapping[str, object]) -> str:
     route = _mapping(payload.get("market_strategy_route"))
     fields: list[tuple[str, object]] = [
         ("Decision reason", humanize_code(payload.get("decision_reason_code"))),
@@ -205,12 +204,10 @@ def _render_diagnostics(payload: Mapping[str, object], *, debug: bool) -> str:
     ]
     priorities = _strings(route.get("strategy_priority"))
     if priorities:
-        fields.append(("Strategies considered", ", ".join(humanize_code(item) for item in priorities)))
-    if debug:
-        fields.extend(
+        fields.append(
             (
-                ("Raw decision code", payload.get("decision_reason_code")),
-                ("Phase diagnostics present", _yes_no(bool(payload.get("phase5_diagnostics")))),
+                "Strategies considered",
+                ", ".join(humanize_code(item) for item in priorities),
             )
         )
     return render_section("Diagnostics", render_fields(fields))

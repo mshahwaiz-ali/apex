@@ -69,21 +69,15 @@ def test_warning_codes_are_humanized() -> None:
     assert "PRIMARY_REGIME_FAILED_BREAKOUT_DOWN" not in text
 
 
-def test_verbose_output_includes_humanized_diagnostics() -> None:
-    text = render_futures_analysis(_base_payload(), mode="verbose")
+def test_default_output_includes_humanized_diagnostics() -> None:
+    text = render_futures_analysis(_base_payload())
 
     assert "Diagnostics" in text
     assert "Candidates evaluated" in text
     assert "No valid setup formed" in text
     assert "Raw decision code" not in text
-
-
-def test_debug_output_preserves_internal_diagnostic_visibility() -> None:
-    text = render_futures_analysis(_base_payload(), mode="debug")
-
-    assert "Raw decision code" in text
-    assert "NO_CANDIDATE_GENERATED" in text
-    assert "Phase diagnostics present" in text
+    assert "NO_CANDIDATE_GENERATED" not in text
+    assert "Phase diagnostics present" not in text
 
 
 def test_wait_for_retest_is_clear() -> None:
