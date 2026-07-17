@@ -65,7 +65,7 @@ def test_spot_analysis_explains_no_approved_setup() -> None:
     assert "retest did not hold" in rendered
 
 
-def test_spot_analysis_verbose_adds_candidate_review_and_warnings() -> None:
+def test_spot_analysis_includes_candidate_review_and_warnings() -> None:
     payload = {
         "selected_strategy": None,
         "candidates": [
@@ -80,11 +80,10 @@ def test_spot_analysis_verbose_adds_candidate_review_and_warnings() -> None:
     }
 
     text = render_spot_analysis(payload)
-    verbose = render_spot_analysis(payload, mode="verbose")
 
-    assert "Candidate Review" not in text
-    assert "Candidate Review" in verbose
-    assert "Research Warnings" in verbose
+    assert "Candidate Review" in text
+    assert "Accumulation range breakout: Watch" in text
+    assert "Research Warnings" in text
 
 
 def test_spot_plan_renders_bounded_position_sections() -> None:

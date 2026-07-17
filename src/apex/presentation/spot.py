@@ -27,7 +27,7 @@ def render_spot_analysis(
 ) -> str:
     """Render one canonical spot analysis or orchestration payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     selected = _mapping(payload.get("selected_strategy"))
     planning = _mapping(payload.get("planning"))
     candidates = _mapping_sequence(payload.get("candidates"))
@@ -62,13 +62,10 @@ def render_spot_analysis(
                 render_section("Planning", render_fields((("Plan available", "No"),)))
             )
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Candidate Review", _candidate_summary(candidates)))
-        warnings = _strings(payload.get("warnings"))
-        if warnings:
-            sections.append(render_section("Research Warnings", render_bullets(warnings)))
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _mapping_fields(payload)))
+    sections.append(render_section("Candidate Review", _candidate_summary(candidates)))
+    warnings = _strings(payload.get("warnings"))
+    if warnings:
+        sections.append(render_section("Research Warnings", render_bullets(warnings)))
     return "\n\n".join(sections)
 
 
@@ -77,13 +74,11 @@ def render_spot_plan(
 ) -> str:
     """Render one standalone bounded spot plan payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     sections = [render_title("Spot Position Plan"), *_planning_sections(payload)]
     warnings = _strings(payload.get("warnings"))
     if warnings:
         sections.append(render_section("Research Warnings", render_bullets(warnings)))
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
@@ -118,8 +113,6 @@ def render_spot_scan(
         sections.append(render_section("Ineligible", render_bullets(_ineligible_rows(ineligible))))
     if failures:
         sections.append(render_section("Failures", render_bullets(_failure_rows(failures))))
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
