@@ -20,7 +20,6 @@ from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.discovery_setup import build_discovery_assessment
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.market_strategy_router import MarketStrategyRoute
-from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
@@ -63,15 +62,6 @@ def analyze_symbol(
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
     selection = analyze_futures_phase5(routed, environment_route=market_strategy_route)
     assessment = build_discovery_assessment(selection)
-    setup = assessment.setup
-    precision = (
-        build_precision_entry_plan(
-            setup,
-            timeframe_contexts=context.frames,
-        ).model_dump(mode="json")
-        if setup is not None
-        else None
-    )
     ranking = build_candidate_ranking_snapshot(selection)
     return SymbolAnalysis(
         symbol=symbol,
@@ -110,7 +100,6 @@ def analyze_symbol(
                 routing_config=strategy_routing,
             )
         ),
-        precision_entry=precision,
         candidate_ranking=ranking,
         phase5_diagnostics={
             "candidate_count": len(selection.all_scored_candidates),
@@ -131,9 +120,7 @@ def analyze_symbol(
                     "outcome": item.outcome.value,
                     "final_score": item.final_score,
                     "evidence": strategy_evidence_payload(item.candidate.evidence),
-                    "evidence_summary": strategy_evidence_summary(
-                        item.candidate.evidence
-                    ),
+                    "evidence_summary": strategy_evidence_summary(item.candidate.evidence),
                     "metadata": dict(item.candidate.metadata),
                     "reasons": list(item.reasons),
                 }
@@ -189,7 +176,6 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "regime_by_timeframe": dict(analysis.regime_by_timeframe),
         "data_quality_by_timeframe": dict(analysis.data_quality_by_timeframe),
         "strategy_routing": analysis.strategy_routing,
-        "precision_entry": analysis.precision_entry,
         "phase5_diagnostics": analysis.phase5_diagnostics,
         "candidate_ranking": (
             candidate_ranking_payload(analysis.candidate_ranking)
