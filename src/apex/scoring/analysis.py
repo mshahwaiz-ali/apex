@@ -2,15 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from apex.config.strategy_approval import (
-    StrategyApprovalConfig,
-    load_strategy_approval_config,
-)
-from apex.domain import RiskMode
 from apex.scoring.applicability import apply_strategy_applicability
-from apex.scoring.approval_overlay import apply_strategy_quality_gate
 from apex.scoring.config import DEFAULT_SCORING_CONFIG, ScoringConfig
 from apex.scoring.conflicts import resolve_conflicts
 from apex.scoring.contracts import CandidateOutcome, CandidateSelectionResult
@@ -20,32 +12,14 @@ from apex.scoring.scorer import score_candidates
 from apex.scoring.selection import no_trade_reason, select_candidate
 from apex.strategies.analysis import StrategyAnalysisResult
 
-DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
-
 
 def analyze_candidate_selection(
     strategy_analysis: StrategyAnalysisResult,
     *,
     config: ScoringConfig = DEFAULT_SCORING_CONFIG,
-    risk_mode: RiskMode = RiskMode.STANDARD,
-    strategy_approval_config: StrategyApprovalConfig | None = None,
-    apply_strategy_quality: bool = False,
     environment_route: EnvironmentRoute | None = None,
 ) -> CandidateSelectionResult:
-    """Consume immutable strategy candidates and produce one deterministic decision.
-
-    Raw candidate scoring does not apply the strategy-quality
-    gate unless ``apply_strategy_quality=True``. Futures orchestration enables the
-    gate explicitly through its futures candidate-selection wrapper.
-    """
-
-    approval_config = strategy_approval_config
-    if apply_strategy_quality and approval_config is None:
-        approval_config = load_strategy_approval_config(DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH)
-    if not apply_strategy_quality and strategy_approval_config is not None:
-        raise ValueError(
-            "strategy approval configuration cannot be supplied when quality gating is disabled"
-        )
+    """Score, rank, resolve, and select candidates without account-oriented gates."""
 
     scored = score_candidates(strategy_analysis.candidates, config=config)
     scored = apply_strategy_applicability(
@@ -58,12 +32,6 @@ def analyze_candidate_selection(
         strategy_order=strategy_analysis.evaluated_strategies,
     )
     ranked, conflict_summary = resolve_conflicts(initially_ranked, config=config)
-    if approval_config is not None:
-        ranked = apply_strategy_quality_gate(
-            ranked,
-            risk_mode=risk_mode,
-            config=approval_config,
-        )
     selected = select_candidate(ranked, config=config)
     rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
     return CandidateSelectionResult(
@@ -91,8 +59,6 @@ def analyze_candidate_selection(
                 strategy_analysis.strategy_applicability
             ),
             "environment_route_weighting_enabled": environment_route is not None,
-            "strategy_quality_gate_enabled": approval_config is not None,
-            "strategy_quality_risk_mode": risk_mode.value if approval_config is not None else "",
             "accepted_count": sum(
                 item.outcome
                 in {
