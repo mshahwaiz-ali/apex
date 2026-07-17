@@ -365,6 +365,10 @@ def result_to_payload(result: OptimizationResult) -> dict[str, Any]:
         },
         "baseline": _summary_payload(result.baseline),
         "candidate": _summary_payload(result.candidate),
+        "performance_deltas": _performance_delta_payload(
+            result.baseline,
+            result.candidate,
+        ),
         "parameter_set": {
             "identifier": result.parameter_set.identifier,
             "group": result.parameter_set.group.value,
@@ -415,6 +419,37 @@ def calibration_to_payload(evaluation: CalibrationEvaluation) -> dict[str, Any]:
             else {}
         ),
     }
+
+
+def _performance_delta_payload(
+    baseline: PerformanceSummary,
+    candidate: PerformanceSummary,
+) -> dict[str, int | float | None]:
+    """Return deterministic candidate-minus-baseline metric deltas."""
+
+    profit_factor_delta = (
+        None
+        if baseline.profit_factor is None or candidate.profit_factor is None
+        else _rounded_delta(candidate.profit_factor, baseline.profit_factor)
+    )
+    return {
+        "total_trades": candidate.total_trades - baseline.total_trades,
+        "win_rate": _rounded_delta(candidate.win_rate, baseline.win_rate),
+        "loss_rate": _rounded_delta(candidate.loss_rate, baseline.loss_rate),
+        "expectancy": _rounded_delta(candidate.expectancy, baseline.expectancy),
+        "profit_factor": profit_factor_delta,
+        "maximum_drawdown": _rounded_delta(
+            candidate.maximum_drawdown,
+            baseline.maximum_drawdown,
+        ),
+        "net_profit": _rounded_delta(candidate.net_profit, baseline.net_profit),
+        "average_win": _rounded_delta(candidate.average_win, baseline.average_win),
+        "average_loss": _rounded_delta(candidate.average_loss, baseline.average_loss),
+    }
+
+
+def _rounded_delta(candidate: float, baseline: float) -> float:
+    return round(candidate - baseline, 6)
 
 
 def _summary_payload(summary: PerformanceSummary) -> dict[str, Any]:
