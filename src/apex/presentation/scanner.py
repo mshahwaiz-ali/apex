@@ -20,8 +20,8 @@ def render_futures_scan(payload: Mapping[str, object]) -> str:
 
     results = _mappings(payload.get("results"))
     failures = _mapping(payload.get("failures"))
-    approved = tuple(item for item in results if _is_approved(item))
-    no_trade = tuple(item for item in results if not _is_approved(item))
+    actionable = tuple(item for item in results if _is_actionable(item))
+    developing = tuple(item for item in results if not _is_actionable(item))
 
     sections = [render_title("Apex Futures Scan")]
     sections.append(
@@ -29,23 +29,23 @@ def render_futures_scan(payload: Mapping[str, object]) -> str:
             "Scan Summary",
             render_fields(
                 (
-                    ("Risk mode", humanize_code(payload.get("risk_mode"))),
-                    ("Markets analyzed", len(results)),
-                    ("Actionable setups", len(approved)),
-                    ("No-trade markets", len(no_trade)),
+                    ("Markets analyzed", payload.get("total_analysis_count") or len(results)),
+                    ("Displayed candidates", len(results)),
+                    ("Actionable setups", len(actionable)),
+                    ("Developing or unavailable", len(developing)),
                     ("Failures", len(failures)),
                 )
             ),
         )
     )
 
-    if approved:
-        sections.append(_render_ranked_setups(approved))
+    if actionable:
+        sections.append(_render_ranked_setups(actionable))
     else:
         sections.append(
             render_section(
                 "Actionable Setups",
-                "  None. Directional bias may still exist, but no executable entry passed the current rules.",
+                "  None. The strongest developing opportunities remain visible below.",
             )
         )
 
@@ -69,9 +69,7 @@ def _render_ranked_setups(results: Sequence[Mapping[str, object]]) -> str:
     return render_section("Actionable Setups", lines)
 
 
-def _render_market_cards(
-    results: Sequence[Mapping[str, object]],
-) -> str:
+def _render_market_cards(results: Sequence[Mapping[str, object]]) -> str:
     if not results:
         return render_section("Markets", "  No market results were returned.")
     cards = [render_futures_analysis(item) for item in results]
@@ -84,7 +82,7 @@ def _render_failures(failures: Mapping[str, object]) -> str:
     return render_section("Failures", lines)
 
 
-def _is_approved(payload: Mapping[str, object]) -> bool:
+def _is_actionable(payload: Mapping[str, object]) -> bool:
     return str(payload.get("decision") or "NO_TRADE").upper() != "NO_TRADE"
 
 
