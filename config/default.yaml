@@ -8,6 +8,27 @@ futures_screener:
   maximum_spread_percentage: 0.25
   minimum_absolute_movement_percentage: 1.0
   shortlist_size: 30
+  ticker_prefilter_size: 90
+  candle_timeframe: 5m
+  candle_limit: 49
+  minimum_candle_count: 25
+  target_quote_volume_24h: 100000000
+  target_movement_percentage: 8.0
+  target_relative_volume: 2.0
+  target_atr_percentage: 2.0
+  maximum_usable_atr_percentage: 6.0
+  maximum_extension_atr: 3.0
+  weights:
+    liquidity: 0.12
+    movement: 0.12
+    acceleration: 0.13
+    relative_volume: 0.13
+    volatility_usability: 0.10
+    entry_freshness: 0.10
+    structure_proximity: 0.08
+    directional_clarity: 0.12
+    spread_quality: 0.05
+    noise_quality: 0.05
   quote_asset: USDT
   blacklist: []
   allowlist: null

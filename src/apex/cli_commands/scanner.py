@@ -63,6 +63,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                 selection = select_futures_scan_symbols(
                     services.futures_universe,
                     services.futures_screener,
+                    services.candles,
                     config=screener_settings.to_domain(),
                     symbols_file=symbols_file,
                     quote_asset=screener_settings.quote_asset,
