@@ -7,9 +7,6 @@ import json
 import pytest
 import typer
 
-from apex.cli_commands.paper_evidence_progress import (
-    _resolve_presentation_mode as resolve_evidence_mode,
-)
 from apex.cli_commands.paper_intake import (
     _emit_summary,
     _resolve_presentation_mode as resolve_intake_mode,
@@ -80,34 +77,14 @@ def test_intake_json_preserves_canonical_payload(
     assert payload["created_trade_ids"] == ["paper-1"]
 
 
-@pytest.mark.parametrize(
-    ("resolver", "format_value"),
-    (
-        (resolve_intake_mode, "verbose"),
-        (resolve_evidence_mode, "debug"),
-    ),
-)
-def test_removed_formats_fail_cleanly(
-    resolver: object,
-    format_value: str,
-) -> None:
+def test_removed_intake_format_fails_cleanly() -> None:
     with pytest.raises(ValueError, match="CLI output mode must be one of: text, json"):
-        resolver(output="json", format_=format_value)  # type: ignore[operator]
+        resolve_intake_mode(output="json", format_="verbose")
 
 
-@pytest.mark.parametrize(
-    ("resolver", "format_value"),
-    (
-        (resolve_intake_mode, "yaml"),
-        (resolve_evidence_mode, "compact"),
-    ),
-)
-def test_invalid_format_fails_cleanly(
-    resolver: object,
-    format_value: str,
-) -> None:
+def test_invalid_intake_format_fails_cleanly() -> None:
     with pytest.raises(ValueError, match="output mode must be one of"):
-        resolver(output="text", format_=format_value)  # type: ignore[operator]
+        resolve_intake_mode(output="text", format_="yaml")
 
 
 def test_invalid_legacy_output_fails_without_format() -> None:

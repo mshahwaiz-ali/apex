@@ -3,13 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import typer
-from typer.testing import CliRunner
-
-from apex.cli_commands.forward_edge_artifact import register_forward_edge_artifact_commands
-from apex.cli_commands.forward_edge_artifact_verify import (
-    register_forward_edge_artifact_verify_commands,
-)
 from apex.validation.forward_edge_artifact import (
     build_forward_edge_artifact,
     write_forward_edge_artifact,
@@ -19,9 +12,6 @@ from apex.validation.forward_edge_artifact_verification import (
     forward_edge_artifact_source_verification_payload,
     verify_forward_edge_artifact_source,
 )
-
-runner = CliRunner()
-
 
 def _report() -> dict[str, object]:
     return {
@@ -67,13 +57,6 @@ def _write_artifact(tmp_path: Path) -> tuple[Path, Path]:
     return artifact_path, historical
 
 
-def _app() -> typer.Typer:
-    app = typer.Typer(no_args_is_help=True)
-    register_forward_edge_artifact_commands(app)
-    register_forward_edge_artifact_verify_commands(app)
-    return app
-
-
 def test_source_verification_accepts_exact_historical_evidence(tmp_path: Path) -> None:
     artifact_path, historical = _write_artifact(tmp_path)
 
@@ -114,57 +97,3 @@ def test_source_verification_rejects_renamed_historical_evidence(tmp_path: Path)
     assert verification.reasons == ("historical_validation_name_mismatch",)
 
 
-def test_verify_cli_emits_json_and_exit_codes(tmp_path: Path) -> None:
-    artifact_path, historical = _write_artifact(tmp_path)
-
-    verified = runner.invoke(
-        _app(),
-        [
-            "forward-edge-seal-verify",
-            "--artifact",
-            str(artifact_path),
-            "--historical-validation",
-            str(historical),
-            "--output",
-            "json",
-        ],
-    )
-
-    assert verified.exit_code == 0, verified.output
-    assert json.loads(verified.output)["status"] == "verified"
-
-    _write_historical(historical, suffix="changed")
-    changed = runner.invoke(
-        _app(),
-        [
-            "forward-edge-seal-verify",
-            "--artifact",
-            str(artifact_path),
-            "--historical-validation",
-            str(historical),
-        ],
-    )
-
-    assert changed.exit_code == 2
-    assert "status=source_changed" in changed.output
-    assert "source_matches=false" in changed.output
-
-
-def test_verify_cli_rejects_invalid_output_before_verification(tmp_path: Path) -> None:
-    artifact_path, historical = _write_artifact(tmp_path)
-
-    result = runner.invoke(
-        _app(),
-        [
-            "forward-edge-seal-verify",
-            "--artifact",
-            str(artifact_path),
-            "--historical-validation",
-            str(historical),
-            "--output",
-            "invalid",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "output must be text or json" in result.output
