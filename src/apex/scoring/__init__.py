@@ -45,7 +45,9 @@ from apex.scoring.rank_score import (
     RANK_SCORE_WEIGHTS,
     CandidateScoreDimensions,
     final_rank_score,
+    rank_penalty_score,
     score_dimensions,
+    unpenalized_rank_score,
 )
 from apex.scoring.quality_gate import (
     CandidateQualityGateDecision,
@@ -97,9 +99,11 @@ __all__ = [
     "apply_strategy_quality_gate",
     "evaluate_candidate_quality_gate",
     "final_rank_score",
+    "rank_penalty_score",
     "evaluate_strategy_approval",
     "evaluate_strategy_approval_with_forward_paper_evidence",
     "evaluate_strategy_approval_with_historical_evidence",
     "score_band_for",
     "score_dimensions",
+    "unpenalized_rank_score",
 ]

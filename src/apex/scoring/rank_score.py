@@ -55,8 +55,8 @@ def score_dimensions(item: ScoredCandidate) -> CandidateScoreDimensions:
     )
 
 
-def final_rank_score(item: ScoredCandidate) -> float:
-    """Return the opportunity/setup-heavy deterministic ranking score."""
+def unpenalized_rank_score(item: ScoredCandidate) -> float:
+    """Return the weighted score before measured warning deductions."""
 
     dimensions = score_dimensions(item)
     return round(
@@ -65,6 +65,21 @@ def final_rank_score(item: ScoredCandidate) -> float:
         + dimensions.timing_score * RANK_SCORE_WEIGHTS["timing_score"]
         + dimensions.risk_feasibility_score
         * RANK_SCORE_WEIGHTS["risk_feasibility_score"],
+        6,
+    )
+
+
+def rank_penalty_score(item: ScoredCandidate) -> float:
+    """Return the already-modeled transparent penalty deduction."""
+
+    return round(item.breakdown.total_penalty, 6)
+
+
+def final_rank_score(item: ScoredCandidate) -> float:
+    """Return the weighted score after measured warning deductions."""
+
+    return round(
+        max(0.0, unpenalized_rank_score(item) - rank_penalty_score(item)),
         6,
     )
 

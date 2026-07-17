@@ -10,7 +10,9 @@ from apex.scoring.rank_score import (
     RANK_SCORE_WEIGHTS,
     CandidateScoreDimensions,
     final_rank_score,
+    rank_penalty_score,
     score_dimensions,
+    unpenalized_rank_score,
 )
 
 
@@ -33,6 +35,8 @@ class CandidateRankingRecord:
     strategy: str
     direction: str
     final_score: float
+    unpenalized_rank_score: float
+    rank_penalty_score: float
     final_rank_score: float
     score_dimensions: CandidateScoreDimensions
     outcome: str
@@ -46,6 +50,10 @@ class CandidateRankingRecord:
             raise ValueError("candidate ranking rank must be positive")
         if not 0.0 <= self.final_score <= 100.0:
             raise ValueError("candidate ranking score must be between zero and 100")
+        if not 0.0 <= self.unpenalized_rank_score <= 100.0:
+            raise ValueError("candidate unpenalized rank score must be between zero and 100")
+        if self.rank_penalty_score < 0.0:
+            raise ValueError("candidate rank penalty score cannot be negative")
         if not 0.0 <= self.final_rank_score <= 100.0:
             raise ValueError("candidate final rank score must be between zero and 100")
         if not self.strategy.strip() or not self.direction.strip():
@@ -149,6 +157,8 @@ def _record(
         strategy=item.candidate.strategy.value,
         direction=item.candidate.direction.value,
         final_score=item.final_score,
+        unpenalized_rank_score=unpenalized_rank_score(item.scored),
+        rank_penalty_score=rank_penalty_score(item.scored),
         final_rank_score=final_rank_score(item.scored),
         score_dimensions=score_dimensions(item.scored),
         outcome=item.outcome.value,
@@ -165,6 +175,8 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "strategy": item.strategy,
         "direction": item.direction,
         "final_score": item.final_score,
+        "unpenalized_rank_score": item.unpenalized_rank_score,
+        "rank_penalty_score": item.rank_penalty_score,
         "final_rank_score": item.final_rank_score,
         "score_dimensions": {
             "opportunity_score": item.score_dimensions.opportunity_score,
