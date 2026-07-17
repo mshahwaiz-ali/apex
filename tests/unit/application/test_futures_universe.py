@@ -66,10 +66,23 @@ def test_blacklist_and_allowlist_use_normalized_symbol_forms() -> None:
     assert tuple(item.exchange_symbol for item in selected) == ("BTCUSDT",)
 
 
-def test_duplicate_exchange_symbols_are_deduplicated() -> None:
-    first = _contract("BTCUSDT")
-    second = _contract("BTCUSDT")
+def test_duplicate_exchange_symbols_use_deterministic_tie_break() -> None:
+    canonical = _contract("BTCUSDT")
+    alias = FuturesContractMetadata(
+        symbol="XBT/USDT",
+        exchange_symbol="BTCUSDT",
+        base_asset="XBT",
+        quote_asset="USDT",
+        status="TRADING",
+        contract_type="PERPETUAL",
+        tick_size=0.01,
+        step_size=0.001,
+        minimum_quantity=0.001,
+        minimum_notional=5.0,
+    )
 
-    selected = filter_futures_universe((first, second))
+    forward = filter_futures_universe((alias, canonical))
+    reverse = filter_futures_universe((canonical, alias))
 
-    assert selected == (second,)
+    assert forward == (canonical,)
+    assert reverse == forward
