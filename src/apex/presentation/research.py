@@ -22,7 +22,7 @@ from apex.presentation import (
 def render_backtest(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one chronological backtest report."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     metrics = _mapping(payload.get("metrics")) or {}
     metadata = _mapping(payload.get("metadata")) or {}
     failures = _mapping(payload.get("failures")) or {}
@@ -47,9 +47,11 @@ def render_backtest(payload: Mapping[str, object], *, mode: str | OutputMode = "
     ]
     if failures:
         sections.append(render_section("Failures", render_bullets(_mapping_rows(failures))))
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Execution Diagnostics", _diagnostic_summary(diagnostics)))
-    if output_mode is OutputMode.DEBUG:
+    if diagnostics:
+        sections.append(
+            render_section("Execution Diagnostics", _diagnostic_summary(diagnostics))
+        )
+    if metadata:
         sections.append(render_section("Metadata", _mapping_fields(metadata)))
     return "\n\n".join(sections)
 
@@ -57,7 +59,7 @@ def render_backtest(payload: Mapping[str, object], *, mode: str | OutputMode = "
 def render_campaign(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render one chronological campaign payload."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     variants = _variant_items(payload)
     sections = [
         render_title("Historical Backtest Campaign"),
@@ -77,21 +79,18 @@ def render_campaign(payload: Mapping[str, object], *, mode: str | OutputMode = "
         sections.append(render_section("Variant Results", render_bullets(_variant_rows(variants))))
     else:
         sections.append(render_section("Variant Results", "  No campaign variants were returned."))
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Campaign Details", _mapping_fields(payload)))
+    sections.append(render_section("Campaign Details", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
 def render_comparison(payload: Mapping[str, object], *, mode: str | OutputMode = "text") -> str:
     """Render comparison data from two saved backtest reports."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     sections = [
         render_title("Backtest Comparison"),
         render_section("Comparison", _mapping_fields(payload)),
     ]
-    if output_mode is OutputMode.DEBUG:
-        sections.append(render_section("Diagnostics", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
@@ -103,7 +102,7 @@ def render_edge_report(
 ) -> str:
     """Render one historical futures edge report summary."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     sections = [
         render_title("Historical Futures Edge Report"),
         render_section(
@@ -119,8 +118,7 @@ def render_edge_report(
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Report Details", _mapping_fields(report)))
+    sections.append(render_section("Report Details", _mapping_fields(report)))
     return "\n\n".join(sections)
 
 
@@ -132,7 +130,7 @@ def render_edge_validation(
 ) -> str:
     """Render one out-of-sample historical edge validation summary."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     sections = [
         render_title("Historical Edge Validation"),
         render_section(
@@ -151,8 +149,7 @@ def render_edge_validation(
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(render_section("Validation Details", _mapping_fields(report)))
+    sections.append(render_section("Validation Details", _mapping_fields(report)))
     return "\n\n".join(sections)
 
 
@@ -164,7 +161,7 @@ def render_dataset_export(
 ) -> str:
     """Render historical dataset export completion."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     candles = _sequence(payload.get("candles"))
     sections = [
         render_title("Historical Dataset Export"),
@@ -180,20 +177,19 @@ def render_dataset_export(
             ),
         ),
     ]
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        timeframes = sorted(
-            {
-                str(item.get("timeframe"))
-                for item in candles
-                if isinstance(item, Mapping) and item.get("timeframe") is not None
-            }
+    timeframes = sorted(
+        {
+            str(item.get("timeframe"))
+            for item in candles
+            if isinstance(item, Mapping) and item.get("timeframe") is not None
+        }
+    )
+    sections.append(
+        render_section(
+            "Dataset Details",
+            render_fields((("Timeframes", ", ".join(timeframes) or UNAVAILABLE),)),
         )
-        sections.append(
-            render_section(
-                "Dataset Details",
-                render_fields((("Timeframes", ", ".join(timeframes) or UNAVAILABLE),)),
-            )
-        )
+    )
     return "\n\n".join(sections)
 
 

@@ -18,7 +18,7 @@ from apex.presentation.research import (
 )
 
 
-def test_backtest_renders_core_performance_and_verbose_diagnostics() -> None:
+def test_backtest_renders_core_performance_and_diagnostics() -> None:
     payload = {
         "symbol": "BTCUSDT",
         "dataset_source": "fixture.json",
@@ -40,13 +40,13 @@ def test_backtest_renders_core_performance_and_verbose_diagnostics() -> None:
     }
 
     text = render_backtest(payload)
-    verbose = render_backtest(payload, mode="verbose")
 
     assert "Historical Backtest — BTCUSDT" in text
     assert "Profit factor" in text
     assert "1.42" in text
-    assert "Execution Diagnostics" not in text
-    assert "Execution Diagnostics" in verbose
+    assert "Execution Diagnostics" in text
+    assert "Rejection code counts" in text
+    assert "Metadata" in text
 
 
 def test_campaign_renders_variant_results() -> None:
@@ -104,7 +104,7 @@ def test_dataset_export_renders_candle_count() -> None:
         ],
     }
 
-    rendered = render_dataset_export(payload, output_path="dataset.json", mode="verbose")
+    rendered = render_dataset_export(payload, output_path="dataset.json")
 
     assert "Closed candles: 2" in rendered
     assert "1m, 5m" in rendered
