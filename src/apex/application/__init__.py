@@ -11,6 +11,7 @@ from apex.application.analysis_records import (
     write_analysis_record_sqlite,
 )
 from apex.application.bootstrap import bootstrap
+from apex.application.configuration_identity import configuration_metadata
 from apex.application.decision_analysis import (
     ScanResult,
     SymbolAnalysis,
@@ -36,6 +37,7 @@ __all__ = [
     "analyze_symbol",
     "bootstrap",
     "build_analysis_record",
+    "configuration_metadata",
     "create_market_data_services",
     "load_symbol_file",
     "normalize_market_symbol",
