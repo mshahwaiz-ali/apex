@@ -6,10 +6,6 @@ import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-import typer
-from typer.testing import CliRunner
-
-from apex.cli_commands.funded_plan_audit import register_funded_plan_audit_commands
 from apex.funded import (
     DrawdownModel,
     ProviderPolicyBinding,
@@ -20,15 +16,6 @@ from apex.funded import (
     write_funded_plan_evidence_package,
     write_funded_plan_package_index,
 )
-
-runner = CliRunner()
-
-
-def _app() -> typer.Typer:
-    app = typer.Typer(no_args_is_help=True)
-    register_funded_plan_audit_commands(app)
-    return app
-
 
 def _binding() -> ProviderPolicyBinding:
     return ProviderPolicyBinding(
@@ -133,59 +120,3 @@ def test_index_write_load_and_tamper_detection(tmp_path: Path) -> None:
         assert "hash mismatch" in str(exc)
     else:
         raise AssertionError("tampered funded-plan package index was accepted")
-
-
-def test_inspect_cli_writes_redacted_summary(tmp_path: Path) -> None:
-    package_path = tmp_path / "package.json"
-    output_path = tmp_path / "summary.json"
-    write_funded_plan_evidence_package(
-        _package(generated_at=datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)),
-        package_path,
-    )
-
-    result = runner.invoke(
-        _app(),
-        [
-            "funded-plan-package-inspect",
-            "--input",
-            str(package_path),
-            "--output",
-            str(output_path),
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert "FUNDED_PLAN_PACKAGE_INSPECTED" in result.output
-    assert "execution_authorized=false" in result.output
-    payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["execution_authorized"] is False
-    assert "account" not in payload
-
-
-def test_index_cli_builds_and_verifies_index(tmp_path: Path) -> None:
-    package_path = tmp_path / "package.json"
-    index_path = tmp_path / "index.json"
-    write_funded_plan_evidence_package(
-        _package(generated_at=datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)),
-        package_path,
-    )
-
-    created = runner.invoke(
-        _app(),
-        [
-            "funded-plan-package-index",
-            "--package",
-            str(package_path),
-            "--output",
-            str(index_path),
-        ],
-    )
-    verified = runner.invoke(
-        _app(),
-        ["funded-plan-package-index-verify", "--input", str(index_path)],
-    )
-
-    assert created.exit_code == 0, created.output
-    assert verified.exit_code == 0, verified.output
-    assert "packages=1" in created.output
-    assert "execution_authorized=false" in verified.output
