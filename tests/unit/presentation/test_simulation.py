@@ -48,6 +48,7 @@ def test_completed_simulation_is_trader_facing() -> None:
     assert "Net PnL" in rendered
     assert "Realized R" in rendered
     assert "Risk Impact" in rendered
+    assert "Simulation Assumptions" in rendered
     assert "net_pnl=" not in rendered
 
 
@@ -66,8 +67,8 @@ def test_no_setup_simulation_explains_rejection() -> None:
     assert "NO_BACKTEST" not in rendered
 
 
-def test_verbose_simulation_adds_assumptions() -> None:
-    rendered = render_futures_simulation(_completed_payload(), mode="verbose")
+def test_default_simulation_includes_assumptions() -> None:
+    rendered = render_futures_simulation(_completed_payload())
 
     assert "Simulation Assumptions" in rendered
     assert "Fee rate" in rendered

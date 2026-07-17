@@ -28,7 +28,7 @@ def render_futures_simulation(
 ) -> str:
     """Explain one current-setup simulation payload without changing its schema."""
 
-    output_mode = normalize_output_mode(mode)
+    normalize_output_mode(mode)
     symbol = str(payload.get("symbol") or _nested(payload, "trade", "signal", "symbol") or UNAVAILABLE)
     title = render_title(f"Futures Setup Simulation — {symbol}")
 
@@ -119,28 +119,26 @@ def render_futures_simulation(
         ),
     ]
 
-    if output_mode in {OutputMode.VERBOSE, OutputMode.DEBUG}:
-        sections.append(
-            render_section(
-                "Simulation Assumptions",
-                render_fields(
+    sections.append(
+        render_section(
+            "Simulation Assumptions",
+            render_fields(
+                (
+                    ("Slippage modeled", _metadata_value(metadata, "slippage_pct")),
+                    ("Fee rate", _metadata_value(metadata, "fee_pct")),
                     (
-                        ("Slippage modeled", _metadata_value(metadata, "slippage_pct")),
-                        ("Fee rate", _metadata_value(metadata, "fee_pct")),
-                        ("Maximum holding candles", _metadata_value(metadata, "maximum_holding_candles")),
-                        ("Conservative intrabar", _metadata_value(metadata, "conservative_intrabar")),
-                        ("Total trades", metrics.get("total_trades", 1)),
-                    )
-                ),
-            )
+                        "Maximum holding candles",
+                        _metadata_value(metadata, "maximum_holding_candles"),
+                    ),
+                    (
+                        "Conservative intrabar",
+                        _metadata_value(metadata, "conservative_intrabar"),
+                    ),
+                    ("Total trades", metrics.get("total_trades", 1)),
+                )
+            ),
         )
-    if output_mode is OutputMode.DEBUG and metadata:
-        sections.append(
-            render_section(
-                "Diagnostics",
-                render_fields((humanize_code(key), value) for key, value in sorted(metadata.items())),
-            )
-        )
+    )
 
     return "\n\n".join(sections)
 
