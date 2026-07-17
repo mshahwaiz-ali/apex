@@ -10,6 +10,11 @@ from typing import Any
 
 from apex.application import analysis as _analysis
 from apex.application.market_strategy_router import route_market_strategies
+from apex.application.market_state import (
+    MarketStateSnapshot,
+    classify_market_state,
+    market_state_payload,
+)
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
     Candle,
@@ -33,6 +38,7 @@ class SymbolAnalysis(_analysis.SymbolAnalysis):
     """Base analysis enriched with deterministic multi-timeframe fusion."""
 
     market_environment: MarketEnvironment | None = None
+    market_state: MarketStateSnapshot | None = None
 
 
 ScanResult = _analysis.ScanResult
@@ -129,6 +135,16 @@ def analyze_symbol(
         strategy_routing=strategy_routing,
         market_strategy_route=market_strategy_route,
     )
+    routing = base.strategy_routing or {}
+    decision_regime = routing.get("decision_regime")
+    market_state = (
+        classify_market_state(
+            decision_regime=str(decision_regime),
+            environment=environment,
+        )
+        if environment is not None and isinstance(decision_regime, str)
+        else None
+    )
     return SymbolAnalysis(
         symbol=base.symbol,
         generated_at=base.generated_at,
@@ -142,6 +158,7 @@ def analyze_symbol(
         phase5_diagnostics=base.phase5_diagnostics,
         risk_rejection_diagnostics=base.risk_rejection_diagnostics,
         market_environment=environment,
+        market_state=market_state,
     )
 
 
@@ -197,6 +214,12 @@ def serialize_symbol_analysis(analysis: _analysis.SymbolAnalysis) -> dict[str, A
     environment = getattr(analysis, "market_environment", None)
     payload["market_environment"] = (
         market_environment_payload(environment) if isinstance(environment, MarketEnvironment) else None
+    )
+    market_state = getattr(analysis, "market_state", None)
+    payload["market_state"] = (
+        market_state_payload(market_state)
+        if isinstance(market_state, MarketStateSnapshot)
+        else None
     )
     return payload
 
