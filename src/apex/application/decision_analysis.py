@@ -77,6 +77,7 @@ def analyze_symbol(
             route,
             selected_strategy=setup.strategy if setup is not None else None,
             selected_direction=setup.direction if setup is not None else None,
+            selected_candidate=_selected_candidate_diagnostics(base.phase5_diagnostics),
         )
         if environment is not None and route is not None
         else None
@@ -246,6 +247,26 @@ def format_scan_text(result: ScanResult) -> str:
     lines.extend(format_symbol_text(analysis) for analysis in result.analyses)
     lines.extend(f"{symbol}: FAILED | {reason}" for symbol, reason in result.failures.items())
     return "\n".join(lines)
+
+
+def _selected_candidate_diagnostics(
+    diagnostics: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if diagnostics is None:
+        return None
+    selected_id = diagnostics.get("selected_candidate_id")
+    candidates = diagnostics.get("candidates")
+    if not isinstance(selected_id, str) or not isinstance(candidates, list):
+        return None
+    return next(
+        (
+            candidate
+            for candidate in candidates
+            if isinstance(candidate, Mapping)
+            and candidate.get("candidate_id") == selected_id
+        ),
+        None,
+    )
 
 
 def _decision_reason_code(

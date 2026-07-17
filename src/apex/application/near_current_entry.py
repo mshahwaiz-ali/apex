@@ -23,6 +23,14 @@ class ChaseRisk(StrEnum):
     EXTREME = "EXTREME"
 
 
+class SweepAlignment(StrEnum):
+    """Relationship between confirmed sweep evidence and setup direction."""
+
+    NONE = "NONE"
+    SUPPORTIVE = "SUPPORTIVE"
+    OPPOSING = "OPPOSING"
+
+
 class EntryActionability(StrEnum):
     """Simplified user-facing entry status."""
 
@@ -55,6 +63,9 @@ class NearCurrentEntryDecision:
     structural_invalidation: float | None
     entry_quality_score: float | None
     chase_risk: ChaseRisk | None
+    sweep_alignment: SweepAlignment
+    sweep_side: str | None
+    sweep_strength: float | None
     warning_codes: tuple[str, ...]
     warnings: tuple[str, ...]
     reason_codes: tuple[str, ...]
@@ -68,6 +79,7 @@ def evaluate_near_current_entry(
     *,
     selected_strategy: StrategyType | None = None,
     selected_direction: TradeDirection | None = None,
+    selected_candidate: Mapping[str, Any] | None = None,
 ) -> NearCurrentEntryDecision:
     """Combine precision geometry with market-environment actionability."""
 
@@ -90,6 +102,9 @@ def evaluate_near_current_entry(
             structural_invalidation=None,
             entry_quality_score=None,
             chase_risk=None,
+            sweep_alignment=SweepAlignment.NONE,
+            sweep_side=None,
+            sweep_strength=None,
             warning_codes=(),
             warnings=(),
             reason_codes=("PRECISION_ENTRY_UNAVAILABLE",),
@@ -129,6 +144,19 @@ def evaluate_near_current_entry(
             score -= 15.0
             warning_codes.append("NO_PREFERRED_ROUTE_DIRECTION")
             warnings.append("Market route has no preferred direction")
+
+    sweep_alignment, sweep_side, sweep_strength = _sweep_evidence(
+        selected_candidate,
+        selected_direction=selected_direction,
+    )
+    if sweep_alignment is SweepAlignment.SUPPORTIVE:
+        score += 5.0
+        codes.append("SUPPORTIVE_LIQUIDITY_SWEEP")
+        reasons.append("Confirmed liquidity sweep supports the selected setup direction")
+    elif sweep_alignment is SweepAlignment.OPPOSING:
+        score -= 10.0
+        warning_codes.append("OPPOSING_LIQUIDITY_SWEEP")
+        warnings.append("Confirmed liquidity sweep opposes the selected setup direction")
 
     chase_risk = _chase_risk(distance_pct, environment)
     if state != "NO_TRADE":
@@ -195,6 +223,9 @@ def evaluate_near_current_entry(
         structural_invalidation=_number(precision_entry.get("structural_invalidation")),
         entry_quality_score=round(max(0.0, min(100.0, score)), 6),
         chase_risk=chase_risk,
+        sweep_alignment=sweep_alignment,
+        sweep_side=sweep_side,
+        sweep_strength=sweep_strength,
         warning_codes=tuple(dict.fromkeys(warning_codes)),
         warnings=tuple(dict.fromkeys(warnings)),
         reason_codes=tuple(dict.fromkeys(codes)),
@@ -223,11 +254,51 @@ def near_current_entry_payload(decision: NearCurrentEntryDecision) -> dict[str, 
         "structural_invalidation": decision.structural_invalidation,
         "entry_quality_score": decision.entry_quality_score,
         "chase_risk": decision.chase_risk.value if decision.chase_risk is not None else None,
+        "sweep_alignment": decision.sweep_alignment.value,
+        "sweep_side": decision.sweep_side,
+        "sweep_strength": decision.sweep_strength,
         "warning_codes": list(decision.warning_codes),
         "warnings": list(decision.warnings),
         "reason_codes": list(decision.reason_codes),
         "reasons": list(decision.reasons),
     }
+
+
+def _sweep_evidence(
+    selected_candidate: Mapping[str, Any] | None,
+    *,
+    selected_direction: TradeDirection | None,
+) -> tuple[SweepAlignment, str | None, float | None]:
+    if selected_candidate is None or selected_direction is None:
+        return SweepAlignment.NONE, None, None
+
+    evidence = selected_candidate.get("evidence")
+    supporting = evidence.get("supporting") if isinstance(evidence, Mapping) else None
+    statements = tuple(str(item).lower() for item in supporting or ())
+    sweep_side = next(
+        (
+            side
+            for side in ("buy_side", "sell_side")
+            if any(f"confirmed {side} liquidity sweep" in item for item in statements)
+        ),
+        None,
+    )
+    if sweep_side is None:
+        return SweepAlignment.NONE, None, None
+
+    metadata = selected_candidate.get("metadata")
+    recovery = _number(metadata.get("close_recovery")) if isinstance(metadata, Mapping) else None
+    strength = None if recovery is None else round(max(0.0, min(1.0, recovery)), 6)
+    supportive = (
+        selected_direction is TradeDirection.LONG and sweep_side == "sell_side"
+    ) or (
+        selected_direction is TradeDirection.SHORT and sweep_side == "buy_side"
+    )
+    return (
+        SweepAlignment.SUPPORTIVE if supportive else SweepAlignment.OPPOSING,
+        sweep_side,
+        strength,
+    )
 
 
 def _entry_actionability(

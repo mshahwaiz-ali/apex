@@ -188,6 +188,11 @@ def analyze_symbol(
             "ranked_count": len(phase5.ranked_candidates),
             "rejected_count": len(phase5.rejected_candidates),
             "selected": phase5.selected_candidate is not None,
+            "selected_candidate_id": (
+                phase5.selected_candidate.scored.candidate_id
+                if phase5.selected_candidate is not None
+                else None
+            ),
             "no_trade_reason": phase5.no_trade_reason,
             "candidates": [
                 {
@@ -200,6 +205,7 @@ def analyze_symbol(
                     "evidence_summary": strategy_evidence_summary(
                         item.candidate.evidence
                     ),
+                    "metadata": dict(item.candidate.metadata),
                     "environment_route_alignment": (
                         {
                             "state": item.scored.environment_route_alignment.state.value,
