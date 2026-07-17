@@ -17,7 +17,7 @@ from apex.backtesting import (
 
 
 def test_shared_wallet_contracts_are_publicly_importable() -> None:
-    """Keep the supported N4.8 import surface explicit and stable."""
+    """Keep the supported historical-backtesting import surface explicit and stable."""
 
     exported = (
         SHARED_HISTORICAL_FUTURES_SCHEMA_VERSION,

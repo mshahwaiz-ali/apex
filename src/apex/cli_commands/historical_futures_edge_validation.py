@@ -18,7 +18,7 @@ from apex.presentation.research import render_edge_validation
 
 
 def register_historical_futures_edge_validation_commands(app: typer.Typer) -> None:
-    """Register N4.9 out-of-sample evidence validation."""
+    """Register out-of-sample evidence validation."""
 
     @app.command("historical-futures-edge-validate")
     def historical_futures_edge_validate(

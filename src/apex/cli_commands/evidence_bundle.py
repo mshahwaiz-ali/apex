@@ -13,7 +13,7 @@ from apex.validation.evidence_bundle import load_evidence_bundle
 
 
 def register_evidence_bundle_commands(app: typer.Typer) -> None:
-    """Register N4.11 artifact-to-approval evidence inspection."""
+    """Register artifact-to-approval evidence inspection."""
 
     @app.command("evidence-bundle-inspect")
     def evidence_bundle_inspect(

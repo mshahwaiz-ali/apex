@@ -1,4 +1,4 @@
-"""CLI orchestration for the complete N4 evidence pipeline."""
+"""CLI orchestration for the complete historical evidence pipeline."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from apex.validation.forward_edge import ForwardEdgePolicy
 
 
 def register_evidence_pipeline_commands(app: typer.Typer) -> None:
-    """Register the final N4 evidence pipeline command."""
+    """Register the final historical evidence pipeline command."""
 
     @app.command("evidence-pipeline-run")
     def evidence_pipeline_run(
@@ -71,7 +71,7 @@ def register_evidence_pipeline_commands(app: typer.Typer) -> None:
             typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
-        """Publish N4.8 through N4.11 evidence artifacts as one atomic run."""
+        """Publish historical evidence artifacts as one atomic run."""
 
         mode = output_mode(output_format)
         try:

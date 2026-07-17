@@ -1,6 +1,6 @@
 """Deterministic historical futures backtest campaign orchestration.
 
-This module consumes verified N4.7 historical signal artifacts and replays accepted
+This module consumes verified historical signal artifacts and replays accepted
 signals through the existing futures backtester. It deliberately preserves
 rejected and failed analysis observations and keeps train, validation, and final-test
 results isolated.
@@ -183,7 +183,7 @@ def execute_historical_futures_campaign(
     request: HistoricalFuturesCampaignRequest,
     inputs: HistoricalSignalCampaignInputs,
 ) -> HistoricalFuturesCampaignResult:
-    """Verify N4.7 artifacts and replay accepted signals without live data calls."""
+    """Verify historical artifacts and replay accepted signals without live data calls."""
 
     manifest = load_historical_signal_execution_manifest(request.signal_manifest_path)
     payloads = load_historical_signal_record_payloads(request.records_path)

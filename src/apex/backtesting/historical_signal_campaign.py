@@ -67,7 +67,7 @@ class HistoricalSourceDataset:
 
 @dataclass(frozen=True, slots=True)
 class HistoricalSignalCampaignInputs:
-    """Fully verified immutable inputs for one N4.7 replay campaign."""
+    """Fully verified immutable inputs for one historical replay campaign."""
 
     campaign_id: str
     provider: str

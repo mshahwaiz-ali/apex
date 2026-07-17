@@ -1,6 +1,6 @@
 """Validated strategy-specific futures approval thresholds.
 
-This module owns the N3 strategy-quality configuration. Thresholds are
+This module owns the strategy-quality configuration. Thresholds are
 selected by canonical strategy and risk mode; unknown or incomplete
 configuration fails validation rather than falling back silently.
 """

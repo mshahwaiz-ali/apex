@@ -20,7 +20,7 @@ from apex.historical_signals import (
 def register_historical_signal_generation_commands(
     dataset_app: typer.Typer,
 ) -> None:
-    """Register the N4.6.3 historical signal campaign command."""
+    """Register the historical signal campaign command."""
 
     @dataset_app.command("historical-signals-generate")
     def historical_signals_generate(

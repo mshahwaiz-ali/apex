@@ -1,4 +1,4 @@
-"""N4.6 deterministic multi-timeframe dataset campaign tests."""
+"""Deterministic multi-timeframe dataset campaign tests."""
 
 from __future__ import annotations
 

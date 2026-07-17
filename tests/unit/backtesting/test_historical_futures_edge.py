@@ -1,4 +1,4 @@
-"""Tests for N4.8 historical futures edge report integration."""
+"""Tests for historical futures edge report integration."""
 
 from __future__ import annotations
 

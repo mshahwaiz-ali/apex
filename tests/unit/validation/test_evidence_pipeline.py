@@ -1,4 +1,4 @@
-"""Tests for N4.12 atomic evidence pipeline orchestration."""
+"""Tests for atomic evidence pipeline orchestration."""
 
 from __future__ import annotations
 

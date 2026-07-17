@@ -51,7 +51,7 @@ StrategyDecision = (
 
 
 class StrategyApprovalError(FuturesPlanSafetyError):
-    """Raised when a setup fails deterministic N3 strategy approval."""
+    """Raised when a setup fails deterministic strategy approval."""
 
     def __init__(self, decision: StrategyDecision) -> None:
         self.decision = decision

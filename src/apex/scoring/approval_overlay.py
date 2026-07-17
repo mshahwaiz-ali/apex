@@ -22,7 +22,7 @@ def apply_strategy_quality_gate(
     risk_mode: RiskMode,
     config: StrategyApprovalConfig,
 ) -> tuple[RankedCandidate, ...]:
-    """Reject candidates that fail N3 while preserving deterministic rank order."""
+    """Reject candidates that fail strategy approval while preserving deterministic rank order."""
 
     gated: list[RankedCandidate] = []
     for item in ranked:

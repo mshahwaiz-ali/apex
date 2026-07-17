@@ -54,7 +54,7 @@ def build_forward_edge_report(
     generated_at: datetime,
     policy: ForwardEdgePolicy | None = None,
 ) -> dict[str, Any]:
-    """Evaluate closed paper trades against N4.9 validated setup segments."""
+    """Evaluate closed paper trades against validated setup segments."""
 
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("forward edge report time must be timezone-aware")

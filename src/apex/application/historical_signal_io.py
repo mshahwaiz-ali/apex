@@ -27,7 +27,7 @@ HISTORICAL_SIGNAL_EXECUTION_SCHEMA_VERSION: Final = 1
 
 @dataclass(frozen=True, slots=True)
 class HistoricalSignalExecutionManifest:
-    """Audit manifest for one persisted N4.7 signal-generation run."""
+    """Audit manifest for one persisted historical signal-generation run."""
 
     campaign_id: str
     records_path: str

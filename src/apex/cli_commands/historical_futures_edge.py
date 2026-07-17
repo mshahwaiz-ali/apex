@@ -53,7 +53,7 @@ def register_historical_futures_edge_commands(app: typer.Typer) -> None:
             typer.Option("--format", help="text or json"),
         ] = "text",
     ) -> None:
-        """Create split-isolated edge profiles from a completed N4.7 campaign."""
+        """Create split-isolated edge profiles from a completed historical campaign."""
 
         mode = output_mode(output_format)
         try:

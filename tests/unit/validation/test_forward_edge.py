@@ -1,4 +1,4 @@
-"""Tests for N4.10 forward-paper evidence attachment."""
+"""Tests for forward-paper evidence attachment."""
 
 from __future__ import annotations
 

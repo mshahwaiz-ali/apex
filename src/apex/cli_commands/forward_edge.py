@@ -17,7 +17,7 @@ from apex.validation.forward_edge import (
 
 
 def register_forward_edge_commands(app: typer.Typer) -> None:
-    """Register N4.10 forward-paper evidence attachment."""
+    """Register forward-paper evidence attachment."""
 
     @app.command("forward-edge-validate")
     def forward_edge_validate(
@@ -48,7 +48,7 @@ def register_forward_edge_commands(app: typer.Typer) -> None:
         ] = 0.50,
         force: Annotated[bool, typer.Option("--force")] = False,
     ) -> None:
-        """Attach closed paper outcomes to N4.9 validated setup segments."""
+        """Attach closed paper outcomes to validated setup segments."""
 
         try:
             report = build_forward_edge_report(

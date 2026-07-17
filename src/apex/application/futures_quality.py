@@ -1,4 +1,4 @@
-"""Application helper for the N3 futures standard-mode quality pass."""
+"""Application helper for the futures standard-mode quality pass."""
 
 from __future__ import annotations
 

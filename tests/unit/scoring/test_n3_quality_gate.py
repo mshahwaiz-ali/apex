@@ -1,4 +1,4 @@
-"""Focused tests for the N3 futures standard-mode quality pass."""
+"""Focused tests for the futures standard-mode quality pass."""
 
 from __future__ import annotations
 

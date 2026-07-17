@@ -1,4 +1,4 @@
-"""CLI workflow for deterministic S10 empirical calibration."""
+"""CLI workflow for deterministic empirical calibration."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from apex.optimization import (
 
 
 def register_empirical_calibration_commands(optimize_app: typer.Typer) -> None:
-    """Register the S10 empirical calibration command."""
+    """Register the empirical calibration command."""
 
     @optimize_app.command("empirical-calibrate")
     def empirical_calibrate(

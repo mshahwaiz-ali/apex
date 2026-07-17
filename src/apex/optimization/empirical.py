@@ -1,4 +1,4 @@
-"""Deterministic S10 empirical calibration reporting."""
+"""Deterministic empirical calibration reporting."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class StabilityPolicy:
 
 @dataclass(frozen=True, slots=True)
 class EmpiricalCalibrationReport:
-    """Immutable S10 selection, stability, and isolated final-test audit artifact."""
+    """Immutable selection, stability, and isolated final-test audit artifact."""
 
     payload: dict[str, Any]
     report_sha256: str

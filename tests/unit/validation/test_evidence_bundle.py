@@ -1,4 +1,4 @@
-"""Tests for N4.11 canonical evidence bundle resolution."""
+"""Tests for canonical evidence bundle resolution."""
 
 from __future__ import annotations
 

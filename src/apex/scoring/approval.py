@@ -1,4 +1,4 @@
-"""Deterministic N3 futures strategy approval and eligibility decisions."""
+"""Deterministic futures strategy approval and eligibility decisions."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class SetupEligibility(StrEnum):
 
 
 class ApprovalReasonCode(StrEnum):
-    """Stable machine-readable N3 approval and rejection reasons."""
+    """Stable machine-readable strategy approval and rejection reasons."""
 
     STRATEGY_APPROVED = "STRATEGY_APPROVED"
     STRATEGY_SCORE_BELOW_MODE_THRESHOLD = "STRATEGY_SCORE_BELOW_MODE_THRESHOLD"
@@ -102,7 +102,7 @@ def evaluate_strategy_approval(
     account_policy_decision: AccountPolicyDecision | None = None,
     historical_evidence_available: bool = False,
 ) -> StrategyApprovalDecision:
-    """Evaluate N3 quality and eligibility without fabricating historical evidence."""
+    """Evaluate strategy quality and eligibility without fabricating historical evidence."""
 
     rule = config.rule_for(strategy)
     required_score = rule.minimum_score_for(risk_mode)

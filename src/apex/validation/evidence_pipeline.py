@@ -1,4 +1,4 @@
-"""Atomic orchestration for the complete N4 historical evidence pipeline."""
+"""Atomic orchestration for the complete historical evidence pipeline."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ PIPELINE_MANIFEST_SCHEMA_VERSION = 1
 
 @dataclass(frozen=True, slots=True)
 class EvidencePipelineResult:
-    """Published N4 evidence pipeline artifact locations."""
+    """Published historical evidence pipeline artifact locations."""
 
     pipeline_id: str
     output_directory: Path
@@ -53,7 +53,7 @@ def run_evidence_pipeline(
     maximum_evidence_age: timedelta | None = None,
     force: bool = False,
 ) -> EvidencePipelineResult:
-    """Build and atomically publish N4.8 through N4.11 artifacts."""
+    """Build and atomically publish historical evidence artifacts."""
 
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("evidence pipeline generation time must be timezone-aware")

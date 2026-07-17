@@ -1,4 +1,4 @@
-"""Tests for N4.9 futures out-of-sample edge validation."""
+"""Tests for futures out-of-sample edge validation."""
 
 from __future__ import annotations
 

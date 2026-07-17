@@ -1,4 +1,4 @@
-"""Candidate-level N3 quality guards for controlled futures approval."""
+"""Candidate-level quality guards for controlled futures approval."""
 
 from __future__ import annotations
 

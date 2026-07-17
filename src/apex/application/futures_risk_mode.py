@@ -1,4 +1,4 @@
-"""Scoped futures risk-mode selection for N3 orchestration."""
+"""Scoped futures risk-mode selection for futures orchestration."""
 
 from __future__ import annotations
 

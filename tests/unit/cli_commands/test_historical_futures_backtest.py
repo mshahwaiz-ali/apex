@@ -1,4 +1,4 @@
-"""Focused tests for the N4.8 historical futures backtest CLI."""
+"""Focused tests for the historical futures backtest CLI."""
 
 from __future__ import annotations
 

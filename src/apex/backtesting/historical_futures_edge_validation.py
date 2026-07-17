@@ -1,4 +1,4 @@
-"""Validate N4.8 futures edge reports across chronological evidence splits."""
+"""Validate futures edge reports across chronological evidence splits."""
 
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def write_historical_futures_edge_validation_report(
 
 
 def load_historical_futures_edge_validation_report(path: Path) -> dict[str, Any]:
-    """Load and validate one persisted N4.9 report."""
+    """Load and validate one persisted futures edge report."""
 
     return _normalize_validation_report(_load_object(path))
 
@@ -213,7 +213,7 @@ def _policy_payload(policy: HistoricalEdgeValidationPolicy) -> dict[str, Any]:
 
 def _verify_source_report(source: Mapping[str, object]) -> None:
     if source.get("source_type") != "historical_futures_campaign":
-        raise ValueError("N4.9 requires a historical futures edge report")
+        raise ValueError("historical futures edge validation requires an edge report")
     if source.get("schema_version") != 1:
         raise ValueError("unsupported historical edge report schema version")
     _required_string(source, "report_id")

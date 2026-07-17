@@ -21,7 +21,7 @@ from apex.backtesting.shared_wallet_replay import SharedWalletConfig
 
 
 def register_historical_futures_backtest_commands(dataset_app: typer.Typer) -> None:
-    """Register the N4.8 historical futures backtest command."""
+    """Register the historical futures backtest command."""
 
     @dataset_app.command("historical-futures-backtest")
     def historical_futures_backtest(
