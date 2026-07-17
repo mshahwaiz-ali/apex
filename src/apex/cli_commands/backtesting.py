@@ -1,30 +1,18 @@
-"""Focused public backtest command."""
+"""Focused public chronological backtest command."""
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
+from typing import Annotated
+
 import typer
 
-from apex.cli import backtest as legacy_backtest
-
-
-def register_backtesting_commands(app: typer.Typer) -> None:
-    """Register one focused strategy-evaluation command."""
-
-    @app.command("backtest")
-    def backtest(
-        symbol: str = typer.Argument(..., help="Trading pair, for example BTCUSDT."),
-        output: str = typer.Option("text", "--output", "-o", help="text or json"),
-        candle_limit: int = typer.Option(240, "--candles", min=80, max=1000),
-        replay_timeframe: str = typer.Option("5m", "--replay-timeframe"),
-    ) -> None:
-        """Evaluate the current discovery setup against subsequent market candles."""
-
-        legacy_backtest(
-            symbol=symbol,
-            output=output,
-            candle_limit=candle_limit,
-            replay_timeframe=replay_timeframe,
-        )
-
-
-__all__ = ["register_backtesting_commands"]
+from apex.application import analyze_selected_symbol, bootstrap, create_market_data_services
+from apex.backtesting.contracts import BacktestConfig
+from apex.backtesting.discovery_signal import signal_from_discovery_setup
+from apex.backtesting.engine import simulate_trade, summarize_trades
+from apex.backtesting.historical_signal_replay import (
+    HistoricalCandleSeries,
+    HistoricalCandleStore,
+    HistoricalReplayProvider,
