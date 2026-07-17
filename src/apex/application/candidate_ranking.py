@@ -8,6 +8,14 @@ from enum import StrEnum
 from apex.scoring import CandidateOutcome, Phase5AnalysisResult, RankedCandidate
 
 
+RANK_SCORE_WEIGHTS = {
+    "opportunity_score": 0.30,
+    "setup_score": 0.35,
+    "timing_score": 0.20,
+    "risk_feasibility_score": 0.15,
+}
+
+
 class CandidateRankingRole(StrEnum):
     """Role assigned after deterministic Phase 5 ranking."""
 
@@ -23,14 +31,14 @@ class CandidateScoreDimensions:
     opportunity_score: float
     setup_score: float
     timing_score: float
-    risk_score: float
+    risk_feasibility_score: float
 
     def __post_init__(self) -> None:
         for name in (
             "opportunity_score",
             "setup_score",
             "timing_score",
-            "risk_score",
+            "risk_feasibility_score",
         ):
             value = getattr(self, name)
             if not 0.0 <= value <= 100.0:
@@ -47,6 +55,7 @@ class CandidateRankingRecord:
     strategy: str
     direction: str
     final_score: float
+    final_rank_score: float
     score_dimensions: CandidateScoreDimensions
     outcome: str
     reason_codes: tuple[str, ...]
@@ -59,6 +68,8 @@ class CandidateRankingRecord:
             raise ValueError("candidate ranking rank must be positive")
         if not 0.0 <= self.final_score <= 100.0:
             raise ValueError("candidate ranking score must be between zero and 100")
+        if not 0.0 <= self.final_rank_score <= 100.0:
+            raise ValueError("candidate final rank score must be between zero and 100")
         if not self.strategy.strip() or not self.direction.strip():
             raise ValueError("candidate ranking strategy and direction cannot be empty")
 
@@ -143,6 +154,7 @@ def candidate_ranking_payload(
         "ranked_count": snapshot.ranked_count,
         "alternative_count": len(snapshot.alternatives),
         "rejected_count": len(snapshot.rejected),
+        "rank_score_weights": dict(RANK_SCORE_WEIGHTS),
     }
 
 
@@ -159,6 +171,7 @@ def _record(
         strategy=item.candidate.strategy.value,
         direction=item.candidate.direction.value,
         final_score=item.final_score,
+        final_rank_score=_final_rank_score(_score_dimensions(item)),
         score_dimensions=_score_dimensions(item),
         outcome=item.outcome.value,
         reason_codes=tuple(dict.fromkeys((*alignment_codes,))),
@@ -179,7 +192,18 @@ def _score_dimensions(item: RankedCandidate) -> CandidateScoreDimensions:
             metrics["structure_quality"],
         ),
         timing_score=round(metrics["entry_quality"] * 100.0, 6),
-        risk_score=round(metrics["target_space_quality"] * 100.0, 6),
+        risk_feasibility_score=round(metrics["target_space_quality"] * 100.0, 6),
+    )
+
+
+def _final_rank_score(dimensions: CandidateScoreDimensions) -> float:
+    return round(
+        dimensions.opportunity_score * RANK_SCORE_WEIGHTS["opportunity_score"]
+        + dimensions.setup_score * RANK_SCORE_WEIGHTS["setup_score"]
+        + dimensions.timing_score * RANK_SCORE_WEIGHTS["timing_score"]
+        + dimensions.risk_feasibility_score
+        * RANK_SCORE_WEIGHTS["risk_feasibility_score"],
+        6,
     )
 
 
@@ -195,11 +219,12 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "strategy": item.strategy,
         "direction": item.direction,
         "final_score": item.final_score,
+        "final_rank_score": item.final_rank_score,
         "score_dimensions": {
             "opportunity_score": item.score_dimensions.opportunity_score,
             "setup_score": item.score_dimensions.setup_score,
             "timing_score": item.score_dimensions.timing_score,
-            "risk_score": item.score_dimensions.risk_score,
+            "risk_feasibility_score": item.score_dimensions.risk_feasibility_score,
         },
         "outcome": item.outcome,
         "reason_codes": list(item.reason_codes),
