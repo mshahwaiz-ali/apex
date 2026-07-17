@@ -33,6 +33,13 @@ from apex.strategies.contracts import (
     TradeDirection,
 )
 from apex.strategies.entry import EntryReference, EntrySelectionConfig, select_entry_zone
+from apex.strategies.evidence import (
+    NormalizedStrategyEvidence,
+    StrategyEvidenceKind,
+    normalize_strategy_evidence,
+    strategy_evidence_payload,
+    strategy_evidence_summary,
+)
 from apex.strategies.liquidity_reversal import generate_liquidity_reversal_candidates
 from apex.strategies.momentum_continuation import generate_momentum_continuation_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
@@ -50,6 +57,7 @@ __all__ = [
     "FeatureSnapshot",
     "InvalidationConcept",
     "InvalidationType",
+    "NormalizedStrategyEvidence",
     "Phase4AnalysisResult",
     "RawQualityMetrics",
     "StrategyApplicability",
@@ -57,6 +65,7 @@ __all__ = [
     "StrategyContext",
     "SuppressedStrategyCandidate",
     "StrategyEvidence",
+    "StrategyEvidenceKind",
     "StrategyGenerator",
     "StrategyType",
     "TargetConcept",
@@ -73,6 +82,9 @@ __all__ = [
     "generate_momentum_continuation_candidates",
     "generate_range_reversal_candidates",
     "generate_trend_pullback_candidates",
+    "normalize_strategy_evidence",
     "select_entry_zone",
+    "strategy_evidence_payload",
+    "strategy_evidence_summary",
     "timeframe_role_sort_key",
 ]

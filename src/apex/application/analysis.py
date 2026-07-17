@@ -54,6 +54,8 @@ from apex.strategies import (
     TimeframeContext,
     TimeframeRole,
     analyze_phase4,
+    strategy_evidence_payload,
+    strategy_evidence_summary,
     timeframe_role_sort_key,
 )
 
@@ -187,6 +189,10 @@ def analyze_symbol(
                     "direction": item.candidate.direction.value,
                     "outcome": item.outcome.value,
                     "final_score": item.final_score,
+                    "evidence": strategy_evidence_payload(item.candidate.evidence),
+                    "evidence_summary": strategy_evidence_summary(
+                        item.candidate.evidence
+                    ),
                     "environment_route_alignment": (
                         {
                             "state": item.scored.environment_route_alignment.state.value,

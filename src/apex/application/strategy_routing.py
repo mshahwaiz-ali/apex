@@ -10,6 +10,8 @@ from apex.strategies import (
     StrategyType,
     SuppressedStrategyCandidate,
     TradeCandidate,
+    strategy_evidence_payload,
+    strategy_evidence_summary,
 )
 
 
@@ -250,6 +252,8 @@ def _generated_candidate_payload(candidate: TradeCandidate) -> dict[str, object]
         ),
         "near_miss_state": None,
         "invalidation": candidate.invalidation.price,
+        "evidence": strategy_evidence_payload(candidate.evidence),
+        "evidence_summary": strategy_evidence_summary(candidate.evidence),
     }
 
 
