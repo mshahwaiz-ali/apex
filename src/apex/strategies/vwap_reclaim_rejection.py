@@ -56,4 +56,10 @@ def _as_vwap_reclaim_rejection(candidate: TradeCandidate) -> TradeCandidate:
             contradictions=evidence.contradictions,
             warnings=evidence.warnings,
             feature_references=evidence.feature_references,
-            structure_references=tuple
+            structure_references=tuple(
+                dict.fromkeys((*evidence.structure_references, "vwap_reclaim_rejection"))
+            ),
+            liquidity_references=evidence.liquidity_references,
+        ),
+        metadata=metadata,
+    )
