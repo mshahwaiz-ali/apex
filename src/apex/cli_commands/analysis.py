@@ -18,7 +18,7 @@ from apex.application import (
 from apex.application.public_output import serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
-from apex.presentation.futures import render_futures_analysis
+from apex.presentation.discovery_output import render_discovery_analysis
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
@@ -76,7 +76,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
         if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_futures_analysis(payload, mode=output_mode))
+        typer.echo(render_discovery_analysis(payload, mode=output_mode))
 
 
 __all__ = ["register_analysis_commands"]
