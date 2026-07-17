@@ -1,4 +1,4 @@
-"""Operational status inspection for sustained P1 paper validation."""
+"""Operational status inspection for sustained paper validation."""
 
 from __future__ import annotations
 

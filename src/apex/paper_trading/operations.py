@@ -1,4 +1,4 @@
-"""Deterministic provider-independent P1 paper operations."""
+"""Deterministic provider-independent paper operations."""
 
 from __future__ import annotations
 

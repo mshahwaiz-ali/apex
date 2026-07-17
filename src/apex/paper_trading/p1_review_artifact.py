@@ -1,4 +1,4 @@
-"""Seal P1 review reports with reproducible source provenance."""
+"""Seal forward-validation review reports with reproducible source provenance."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def build_p1_review_artifact(
     daily_report_path: Path,
     paper_store_path: Path,
 ) -> dict[str, Any]:
-    """Build a deterministic artifact binding one P1 review to all source files."""
+    """Build a deterministic artifact binding one forward-validation review to all source files."""
 
     review = load_and_verify_forward_paper_review_report(review_report_path)
     source_paths = {
@@ -65,7 +65,7 @@ def write_p1_review_artifact(
     *,
     force: bool = False,
 ) -> None:
-    """Persist one sealed P1 review artifact atomically and reload-verify it."""
+    """Persist one sealed forward-validation review artifact atomically and reload-verify it."""
 
     normalized = _verify_artifact(payload)
     if path.exists() and not force:
@@ -83,7 +83,7 @@ def write_p1_review_artifact(
 
 
 def load_and_verify_p1_review_artifact(path: Path) -> dict[str, Any]:
-    """Load and verify one sealed P1 review artifact."""
+    """Load and verify one sealed forward-validation review artifact."""
 
     value: object = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):

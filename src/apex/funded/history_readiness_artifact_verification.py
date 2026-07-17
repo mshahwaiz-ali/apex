@@ -29,7 +29,7 @@ class FundedHistoryReadinessArtifactSourceStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class FundedHistoryReadinessArtifactSourceVerification:
-    """Deterministic source-verification result for one sealed R1 artifact."""
+    """Deterministic source-verification result for one sealed funded-readiness artifact."""
 
     status: FundedHistoryReadinessArtifactSourceStatus
     artifact_path: str

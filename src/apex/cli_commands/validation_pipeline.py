@@ -1,4 +1,4 @@
-"""Integrated P1 generation/review and R1 report-consumption commands."""
+"""Integrated validation generation/review and funded-readiness commands."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from apex.validation.history import (
 
 
 def register_validation_pipeline_commands(app: typer.Typer) -> None:
-    """Register end-to-end P1 and report-backed R1 commands."""
+    """Register end-to-end validation and report-backed funded-readiness commands."""
 
     @app.command("paper-validation-run")
     def paper_validation_run(
@@ -67,7 +67,7 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
         ),
         manual_instruction_failures: int = typer.Option(0, "--manual-instruction-failures", min=0),
     ) -> None:
-        """Generate, evaluate, and persist one auditable daily P1 snapshot."""
+        """Generate, evaluate, and persist one auditable daily validation snapshot."""
 
         try:
             trades = PaperTradeStore(paper_store).load()
@@ -154,7 +154,7 @@ def register_validation_pipeline_commands(app: typer.Typer) -> None:
         report: Path | None = typer.Option(None, "--report", dir_okay=False),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
-        """Evaluate R1 using a separately persisted canonical P1 report."""
+        """Evaluate funded readiness using a separately persisted canonical validation report."""
 
         try:
             payload = _load_mapping(input_file)

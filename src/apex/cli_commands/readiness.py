@@ -1,4 +1,4 @@
-"""P1 forward-validation and R1 funded-readiness CLI commands."""
+"""Forward-validation and funded-readiness CLI commands."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class _PaperMetrics:
 
 
 def register_readiness_commands(app: typer.Typer) -> None:
-    """Register schema-driven P1 and R1 review commands."""
+    """Register schema-driven validation and funded-readiness review commands."""
 
     @app.command("paper-validation-review")
     def paper_validation_review(

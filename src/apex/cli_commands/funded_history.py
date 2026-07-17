@@ -1,4 +1,4 @@
-"""R1 CLI consuming the canonical aggregate P1 history report."""
+"""Funded-readiness CLI consuming the canonical aggregate validation-history report."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from apex.validation import AggregateHistoryReason, AggregateHistoryReport
 
 
 def register_funded_history_commands(app: typer.Typer) -> None:
-    """Register aggregate-history-backed R1 review."""
+    """Register aggregate-history-backed funded-readiness review."""
 
     @app.command("funded-readiness-from-history")
     def funded_readiness_from_history(
@@ -38,7 +38,7 @@ def register_funded_history_commands(app: typer.Typer) -> None:
         report: Path | None = typer.Option(None, "--report", dir_okay=False),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
-        """Evaluate R1 from verified operator evidence plus aggregate P1 history."""
+        """Evaluate funded readiness from verified operator evidence plus aggregate validation history."""
 
         try:
             payload = _load_mapping(input_file)

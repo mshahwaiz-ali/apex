@@ -1,4 +1,4 @@
-"""CLI for persistent daily P1 validation history."""
+"""CLI for persistent daily forward-validation history."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from apex.validation.history import (
 
 
 def register_daily_validation_commands(app: typer.Typer) -> None:
-    """Register daily P1 history commands."""
+    """Register daily forward-validation history commands."""
 
     @app.command("paper-validation-daily")
     def paper_validation_daily(
@@ -39,7 +39,7 @@ def register_daily_validation_commands(app: typer.Typer) -> None:
         trading_date: str | None = typer.Option(None, "--date"),
         minimum_per_strategy: int = typer.Option(10, "--minimum-per-strategy", min=1),
     ) -> None:
-        """Evaluate one P1 input and persist a date-keyed daily snapshot."""
+        """Evaluate one forward-validation input and persist a date-keyed daily snapshot."""
 
         try:
             payload = _load_mapping(input_file)

@@ -1,4 +1,4 @@
-"""CLI support for sealing P1 review evidence."""
+"""CLI support for sealing forward-validation review evidence."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from apex.paper_trading.p1_review_artifact import (
 
 
 def register_p1_review_artifact_commands(app: typer.Typer) -> None:
-    """Register deterministic P1 review artifact sealing."""
+    """Register deterministic forward-validation review artifact sealing."""
 
     @app.command("p1-review-seal")
     def p1_review_seal(
@@ -41,7 +41,7 @@ def register_p1_review_artifact_commands(app: typer.Typer) -> None:
         output: Annotated[Path, typer.Option("--output", dir_okay=False)],
         force: Annotated[bool, typer.Option("--force")] = False,
     ) -> None:
-        """Seal one P1 review and all exact source evidence files."""
+        """Seal one forward-validation review and all exact source evidence files."""
 
         try:
             artifact = build_p1_review_artifact(

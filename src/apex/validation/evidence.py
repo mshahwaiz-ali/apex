@@ -1,4 +1,4 @@
-"""Generate deterministic P1 evidence from persisted paper trades."""
+"""Generate deterministic validation evidence from persisted paper trades."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class GeneratedPaperEvidence:
 
 
 def generate_paper_evidence(trades: tuple[PaperTrade, ...]) -> GeneratedPaperEvidence:
-    """Derive P1 metrics without inventing unavailable operational evidence."""
+    """Derive validation metrics without inventing unavailable operational evidence."""
 
     closed = tuple(
         sorted(

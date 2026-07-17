@@ -1,4 +1,4 @@
-"""Application boundary for repeatable P1 paper-operation cycles."""
+"""Application boundary for repeatable paper-operation cycles."""
 
 from __future__ import annotations
 

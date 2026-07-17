@@ -14,7 +14,7 @@ from apex.validation.forward import ForwardValidationReport
 
 @dataclass(frozen=True, slots=True)
 class DailyValidationRecord:
-    """One date-keyed P1 validation snapshot."""
+    """One date-keyed forward-validation snapshot."""
 
     trading_date: date
     generated_at: datetime

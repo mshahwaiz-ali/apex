@@ -1,4 +1,4 @@
-"""Deterministic P1 deviation, lifecycle-audit, and review artifacts."""
+"""Deterministic forward-validation deviation, lifecycle-audit, and review artifacts."""
 
 from __future__ import annotations
 
@@ -226,7 +226,7 @@ def build_forward_paper_review_report(
     sample_sufficient: bool,
     manual_execution_usable: bool,
 ) -> ForwardPaperReviewReport:
-    """Build immutable P1 review while withholding production eligibility."""
+    """Build an immutable forward-validation review while withholding production eligibility."""
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("review generation time must be timezone-aware")
     if not sample_sufficient:

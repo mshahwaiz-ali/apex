@@ -1,4 +1,4 @@
-"""Idempotent scheduled daily reporting for P1 paper validation."""
+"""Idempotent scheduled daily reporting for paper validation."""
 
 from __future__ import annotations
 

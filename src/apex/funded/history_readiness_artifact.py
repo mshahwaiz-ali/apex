@@ -24,7 +24,7 @@ def build_funded_history_readiness_artifact(
     history_review_path: Path,
     report_path: Path,
 ) -> dict[str, Any]:
-    """Build a deterministic artifact binding an R1 review to aggregate P1 history."""
+    """Build a deterministic artifact binding a funded-readiness review to aggregate validation history."""
 
     input_payload = _load_object(input_path, "funded-readiness input")
     history_payload = _load_object(history_review_path, "aggregate history review")

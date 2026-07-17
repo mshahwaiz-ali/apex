@@ -1,4 +1,4 @@
-"""CLI reporting for P1 forward-paper sample progress."""
+"""CLI reporting for forward-paper sample progress."""
 
 from __future__ import annotations
 

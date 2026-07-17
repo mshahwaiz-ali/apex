@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class FundedReadinessReason(StrEnum):
-    """Stable machine-readable R1 blocker codes."""
+    """Stable machine-readable funded-readiness blocker codes."""
 
     PROVIDER_LIMITS_UNVERIFIED = "PROVIDER_LIMITS_UNVERIFIED"
     PROVIDER_POLICY_BINDING_REQUIRED = "PROVIDER_POLICY_BINDING_REQUIRED"
@@ -83,7 +83,7 @@ class ManualExecutionChecklist:
 
 @dataclass(frozen=True, slots=True)
 class FundedReadinessReport:
-    """Schema-versioned R1 readiness decision for manual funded operation."""
+    """Schema-versioned readiness decision for manual funded operation."""
 
     schema_version: int
     generated_at: datetime
@@ -117,7 +117,7 @@ def evaluate_funded_readiness(
     kill_switch_state: KillSwitchState,
     generated_at: datetime,
 ) -> FundedReadinessReport:
-    """Evaluate R1 readiness from evidence that remains explicitly non-authorizing."""
+    """Evaluate funded readiness from evidence that remains explicitly non-authorizing."""
 
     from apex.validation import AggregateHistoryReport, ProductionEligibility
 

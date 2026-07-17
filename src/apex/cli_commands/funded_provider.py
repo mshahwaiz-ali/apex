@@ -1,4 +1,4 @@
-"""CLI commands for verified funded-provider limits and R1 input preparation."""
+"""CLI commands for verified funded-provider limits and readiness-input preparation."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def register_funded_provider_commands(app: typer.Typer) -> None:
         output: Annotated[Path, typer.Option("--output", dir_okay=False)],
         force: Annotated[bool, typer.Option("--force")] = False,
     ) -> None:
-        """Prepare exact R1 input from fresh provider limits and a funded policy."""
+        """Prepare exact funded-readiness input from fresh provider limits and a funded policy."""
 
         try:
             selected_date = date.fromisoformat(as_of)

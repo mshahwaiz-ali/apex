@@ -1,4 +1,4 @@
-"""CLI verification for sealed P1 review evidence artifacts."""
+"""CLI verification for sealed forward-validation review evidence artifacts."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from apex.paper_trading.p1_review_artifact_verification import (
 
 
 def register_p1_review_artifact_verify_commands(app: typer.Typer) -> None:
-    """Register offline P1 review artifact source verification."""
+    """Register offline forward-validation review artifact source verification."""
 
     @app.command("p1-review-seal-verify")
     def p1_review_seal_verify(
@@ -46,7 +46,7 @@ def register_p1_review_artifact_verify_commands(app: typer.Typer) -> None:
         ],
         output: Annotated[str, typer.Option("--output", "-o", help="text or json")] = "text",
     ) -> None:
-        """Verify a sealed P1 review artifact against all exact source files."""
+        """Verify a sealed forward-validation review artifact against all exact source files."""
 
         normalized_output = output.strip().lower()
         if normalized_output not in {"text", "json"}:

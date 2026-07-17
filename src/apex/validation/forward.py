@@ -10,7 +10,7 @@ from typing import Protocol
 
 
 class BacktestValidationMetrics(Protocol):
-    """Minimum modeled metrics required for P1 comparison."""
+    """Minimum modeled metrics required for forward-validation comparison."""
 
     @property
     def total_trades(self) -> int: ...
@@ -26,7 +26,7 @@ class BacktestValidationMetrics(Protocol):
 
 
 class PaperValidationMetrics(Protocol):
-    """Minimum forward-paper metrics required for P1 comparison."""
+    """Minimum forward-paper metrics required for validation comparison."""
 
     @property
     def closed_trades(self) -> int: ...
@@ -58,7 +58,7 @@ class ValidationReason(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ForwardValidationThresholds:
-    """Configurable P1 acceptance thresholds."""
+    """Configurable forward-validation acceptance thresholds."""
 
     minimum_closed_trades: int = 30
     maximum_win_rate_deviation: float = 0.15
@@ -106,7 +106,7 @@ class ForwardValidationEvidence:
 
 @dataclass(frozen=True, slots=True)
 class ForwardValidationReport:
-    """Schema-versioned P1 production-eligibility review."""
+    """Schema-versioned forward-validation production-eligibility review."""
 
     schema_version: int
     generated_at: datetime
@@ -138,7 +138,7 @@ def evaluate_forward_validation(
     thresholds: ForwardValidationThresholds,
     generated_at: datetime,
 ) -> ForwardValidationReport:
-    """Evaluate P1 acceptance without fabricating unavailable operational evidence."""
+    """Evaluate forward-validation acceptance without fabricating unavailable operational evidence."""
 
     if generated_at.tzinfo is None or generated_at.utcoffset() is None:
         raise ValueError("forward-validation report time must be timezone-aware")

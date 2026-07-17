@@ -1,4 +1,4 @@
-"""Verify sealed P1 review artifacts against exact source evidence files."""
+"""Verify sealed forward-validation review artifacts against exact source evidence files."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ __all__ = [
 
 
 class P1ReviewArtifactSourceStatus(StrEnum):
-    """Outcome of checking all sealed P1 review source files."""
+    """Outcome of checking all sealed forward-validation review source files."""
 
     VERIFIED = "verified"
     SOURCE_CHANGED = "source_changed"
@@ -27,7 +27,7 @@ class P1ReviewArtifactSourceStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class P1ReviewArtifactSourceVerification:
-    """Deterministic source-verification result for one sealed P1 review."""
+    """Deterministic source-verification result for one sealed forward-validation review."""
 
     status: P1ReviewArtifactSourceStatus
     artifact_path: str
@@ -46,7 +46,7 @@ def verify_p1_review_artifact_sources(
     daily_report_path: Path,
     paper_store_path: Path,
 ) -> P1ReviewArtifactSourceVerification:
-    """Verify a sealed P1 review artifact against all supplied source files."""
+    """Verify a sealed forward-validation review artifact against all supplied source files."""
 
     artifact = load_and_verify_p1_review_artifact(artifact_path)
     supplied = {

@@ -1,4 +1,4 @@
-"""CLI for aggregate P1 validation-history review."""
+"""CLI for aggregate forward-validation-history review."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def register_history_review_commands(app: typer.Typer) -> None:
         maximum_drawdown_deterioration: float = typer.Option(0.05, min=0.0),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
     ) -> None:
-        """Review accumulated daily P1 records and persist the canonical aggregate report."""
+        """Review accumulated daily validation records and persist the canonical aggregate report."""
 
         try:
             thresholds = AggregateHistoryThresholds(

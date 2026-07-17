@@ -11,7 +11,7 @@ from apex.validation.history import DailyValidationRecord
 
 
 class AggregateHistoryReason(StrEnum):
-    """Stable machine-readable aggregate P1 blocker codes."""
+    """Stable machine-readable aggregate validation blocker codes."""
 
     INSUFFICIENT_VALIDATION_DAYS = "INSUFFICIENT_VALIDATION_DAYS"
     INSUFFICIENT_TOTAL_SAMPLES = "INSUFFICIENT_TOTAL_SAMPLES"
@@ -25,7 +25,7 @@ class AggregateHistoryReason(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class AggregateHistoryThresholds:
-    """Operator-controlled thresholds for aggregate P1 history review."""
+    """Operator-controlled thresholds for aggregate validation-history review."""
 
     minimum_validation_days: int = 10
     minimum_total_samples: int = 30
@@ -60,7 +60,7 @@ class AggregateHistoryThresholds:
 
 @dataclass(frozen=True, slots=True)
 class AggregateHistoryReport:
-    """Schema-versioned aggregate P1 history decision consumed by R1."""
+    """Schema-versioned aggregate validation-history decision consumed by funded readiness."""
 
     schema_version: int
     generated_at: datetime
@@ -93,7 +93,7 @@ def evaluate_aggregate_history(
     thresholds: AggregateHistoryThresholds,
     generated_at: datetime,
 ) -> AggregateHistoryReport:
-    """Evaluate cumulative daily P1 evidence without double-counting cumulative samples."""
+    """Evaluate cumulative daily validation evidence without double-counting cumulative samples."""
 
     ordered = tuple(sorted(records, key=lambda item: item.trading_date))
     latest = ordered[-1] if ordered else None

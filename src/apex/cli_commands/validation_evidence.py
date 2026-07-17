@@ -1,4 +1,4 @@
-"""CLI generation of P1 review inputs from stored paper trades."""
+"""CLI generation of validation-review inputs from stored paper trades."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def register_validation_evidence_commands(app: typer.Typer) -> None:
         ),
         manual_instruction_failures: int = typer.Option(0, "--manual-instruction-failures", min=0),
     ) -> None:
-        """Build a P1 review input from saved backtest and paper records."""
+        """Build a validation-review input from saved backtest and paper records."""
 
         try:
             backtest = _load_backtest_metrics(backtest_report)

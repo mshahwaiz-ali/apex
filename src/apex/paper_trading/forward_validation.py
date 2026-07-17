@@ -1,4 +1,4 @@
-"""Deterministic P1 forward-paper daily validation reporting."""
+"""Deterministic forward-paper daily validation reporting."""
 
 from __future__ import annotations
 

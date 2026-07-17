@@ -29,7 +29,7 @@ def prepare_funded_readiness_input(
     as_of: date | None = None,
     maximum_age_days: int = 0,
 ) -> dict[str, Any]:
-    """Return a JSON-ready R1 input with exact verified provider limits."""
+    """Return a JSON-ready funded-readiness input with exact verified provider limits."""
 
     validate_provider_preset_against_policy(preset, policy)
     binding = bind_provider_policy(
@@ -73,7 +73,7 @@ def write_funded_readiness_input(
     *,
     force: bool = False,
 ) -> None:
-    """Persist a prepared R1 input atomically and verify exact JSON reload."""
+    """Persist a prepared funded-readiness input atomically and verify exact JSON reload."""
 
     normalized = _json_object(payload)
     if normalized.get("execution_authorized") is not False:

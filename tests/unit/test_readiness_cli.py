@@ -1,4 +1,4 @@
-"""Focused CLI coverage for P1 and R1 review commands."""
+"""Focused CLI coverage for validation and funded-readiness review commands."""
 
 from __future__ import annotations
 
