@@ -31,7 +31,6 @@ from apex.cli_commands.research_overlay import install_research_output_overlay
 from apex.cli_commands.scanner import register_scanner_commands
 from apex.cli_commands.simulation import register_simulation_command
 from apex.cli_commands.system import register_system_commands
-from apex.cli_commands.validation_evidence import register_validation_evidence_commands
 from apex.cli_commands.validation_overlay import install_validation_output_overlay
 from apex.cli_commands.validation_pipeline import register_validation_pipeline_commands
 from apex.cli_overlay import remove_commands
@@ -57,7 +56,6 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_risk_mode_campaign_command(app)
     install_research_output_overlay(app)
     register_readiness_commands(app)
-    register_validation_evidence_commands(app)
     register_validation_pipeline_commands(app)
     register_daily_validation_commands(app)
     register_history_review_commands(app)

@@ -31,7 +31,6 @@ from apex.cli_commands.paper_status import register_paper_status_command
 from apex.cli_commands.paper_trading import register_paper_trading_commands
 from apex.cli_commands.readiness import register_readiness_commands
 from apex.cli_commands.scanner import register_scanner_commands
-from apex.cli_commands.validation_evidence import register_validation_evidence_commands
 from apex.cli_commands.validation_pipeline import register_validation_pipeline_commands
 from apex.cli_overlay import remove_commands
 
@@ -51,7 +50,6 @@ def install_cli_commands(app: typer.Typer, paper_app: typer.Typer) -> None:
     register_risk_mode_campaign_command(app)
     register_readiness_commands(app)
     register_funded_provider_commands(app)
-    register_validation_evidence_commands(app)
     register_validation_pipeline_commands(app)
     register_daily_validation_commands(app)
     register_history_review_commands(app)
