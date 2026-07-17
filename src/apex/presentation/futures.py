@@ -1,4 +1,4 @@
-"""Trader-facing futures analysis presentation."""
+"""Trader-facing futures trade-discovery presentation."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from collections.abc import Mapping, Sequence
 
 from apex.presentation import (
     OutputMode,
-    format_amount,
     format_price,
     format_ratio,
     format_score,
@@ -25,36 +24,27 @@ def render_futures_analysis(
     *,
     mode: str | OutputMode = OutputMode.TEXT,
 ) -> str:
-    """Render one serialized futures analysis without recomputing trading logic."""
+    """Render one serialized futures analysis without account-planning concerns."""
 
     normalize_cli_output_mode(mode)
     symbol = str(payload.get("symbol") or "Unknown symbol")
-    approved = str(payload.get("decision") or "NO_TRADE").upper() != "NO_TRADE"
-    decision = f"{humanize_code(payload.get('decision'))} Setup" if approved else "No Trade"
+    actionable = str(payload.get("decision") or "NO_TRADE").upper() != "NO_TRADE"
+    decision = f"{humanize_code(payload.get('decision'))} Setup" if actionable else "No Trade"
 
     sections = [render_title(f"{symbol} — {decision}")]
     sections.append(_render_market_view(payload))
-    sections.append(_render_trade_decision(payload, approved=approved))
-    if approved:
+    sections.append(_render_trade_decision(payload, actionable=actionable))
+    if actionable:
         sections.append(_render_action(payload))
         sections.append(_render_trade_quality(payload))
     else:
         sections.append(_render_watch_conditions(payload))
-
-    execution_approval = _render_execution_approval(payload)
-    if execution_approval:
-        sections.append(execution_approval)
-
-    risk_profile = _render_risk_profile(payload)
-    if risk_profile:
-        sections.append(risk_profile)
 
     warnings = _warnings(payload)
     if warnings:
         sections.append(render_section("Warnings", render_bullets(warnings)))
 
     sections.append(_render_diagnostics(payload))
-
     return "\n\n".join(section for section in sections if section)
 
 
@@ -75,12 +65,16 @@ def _render_market_view(payload: Mapping[str, object]) -> str:
     )
 
 
-def _render_trade_decision(payload: Mapping[str, object], *, approved: bool) -> str:
+def _render_trade_decision(
+    payload: Mapping[str, object],
+    *,
+    actionable: bool,
+) -> str:
     near_entry = _mapping(payload.get("near_current_entry"))
     route = _mapping(payload.get("market_strategy_route"))
     action = humanize_code(near_entry.get("entry_state") or payload.get("entry_state"))
     if action == "Unavailable":
-        action = "Trade setup available" if approved else "No trade right now"
+        action = "Trade setup available" if actionable else "No trade right now"
     long_score, short_score = _direction_scores(payload)
     return render_section(
         "Trade Decision",
@@ -89,7 +83,7 @@ def _render_trade_decision(payload: Mapping[str, object], *, approved: bool) -> 
                 ("Action", action),
                 ("Long opportunity", _opportunity_label(long_score, "long", route)),
                 ("Short opportunity", _opportunity_label(short_score, "short", route)),
-                ("Reason", _decision_reason(payload, approved=approved)),
+                ("Reason", _decision_reason(payload, actionable=actionable)),
             )
         ),
     )
@@ -109,7 +103,7 @@ def _render_watch_conditions(payload: Mapping[str, object]) -> str:
     if trigger is not None:
         fields.append(("Nearest trigger", format_price(trigger)))
     if not fields:
-        fields.append(("Next step", "Wait for a valid setup to form near the current price"))
+        fields.append(("Next step", "Monitor the nearest valid entry or structural trigger"))
     return render_section("What Would Change the Decision", render_fields(fields))
 
 
@@ -123,15 +117,16 @@ def _render_action(payload: Mapping[str, object]) -> str:
         ("Strategy", humanize_code(payload.get("strategy"))),
         ("Current price", format_price(payload.get("current_price"))),
         ("Entry zone", _price_range(entry_zone.get("low"), entry_zone.get("high"))),
-        ("Ideal entry", format_price(entry_zone.get("preferred"))),
+        ("Preferred entry", format_price(entry_zone.get("preferred"))),
         ("Maximum chase price", format_price(entry_zone.get("maximum_chase_price"))),
+        ("Structural invalidation", format_price(payload.get("invalidation"))),
         ("Stop loss", format_price(payload.get("stop_loss"))),
     ]
     for index, target in enumerate(targets[:3], start=1):
         fields.append((f"Take profit {index}", format_price(target.get("price"))))
     if targets:
         fields.append(("Risk/reward", format_ratio(targets[0].get("risk_reward"))))
-    return render_section("Action", render_fields(fields))
+    return render_section("Trade Plan", render_fields(fields))
 
 
 def _render_trade_quality(payload: Mapping[str, object]) -> str:
@@ -147,52 +142,6 @@ def _render_trade_quality(payload: Mapping[str, object]) -> str:
             )
         ),
     )
-
-
-def _render_execution_approval(payload: Mapping[str, object]) -> str:
-    approval = _mapping(payload.get("execution_approval"))
-    if not approval:
-        plan = _mapping(payload.get("futures_plan"))
-        approval = _mapping(plan.get("execution_approval"))
-    if not approval:
-        return ""
-
-    approved = bool(approval.get("approved"))
-    reasons = _strings(approval.get("reasons"))
-    fields: list[tuple[str, object]] = [
-        ("Execution status", humanize_code(approval.get("status"))),
-        ("Approved to execute", "Yes" if approved else "No"),
-        ("Eligibility", humanize_code(approval.get("eligibility"))),
-    ]
-    if reasons:
-        fields.append(("Block reason", reasons[0]))
-
-    return render_section("Execution Approval", render_fields(fields))
-
-
-def _render_risk_profile(payload: Mapping[str, object]) -> str:
-    account = _mapping(payload.get("futures_account"))
-    plan = _mapping(payload.get("futures_plan"))
-    if not account and not plan:
-        return ""
-    fields: list[tuple[str, object]] = [
-        ("Wallet", format_amount(account.get("wallet_balance"), currency="USDT")),
-        ("Risk mode", humanize_code(account.get("risk_mode"))),
-        ("Maximum planned loss", format_amount(account.get("maximum_account_loss_amount"), currency="USDT")),
-        ("Margin mode", humanize_code(account.get("margin_mode"))),
-        ("Leverage mode", humanize_code(account.get("leverage_mode"))),
-    ]
-    plan_data = _mapping(plan.get("plan")) or plan
-    for label, key in (
-        ("Leverage", "leverage"),
-        ("Position size", "quantity"),
-        ("Required margin", "required_margin"),
-        ("Estimated liquidation", "estimated_liquidation_price"),
-    ):
-        value = plan_data.get(key)
-        if value is not None:
-            fields.append((label, format_price(value) if "liquidation" in key else str(value)))
-    return render_section("Risk Profile", render_fields(fields))
 
 
 def _render_diagnostics(payload: Mapping[str, object]) -> str:
@@ -213,21 +162,21 @@ def _render_diagnostics(payload: Mapping[str, object]) -> str:
     return render_section("Diagnostics", render_fields(fields))
 
 
-def _decision_reason(payload: Mapping[str, object], *, approved: bool) -> str:
+def _decision_reason(payload: Mapping[str, object], *, actionable: bool) -> str:
     near_entry = _mapping(payload.get("near_current_entry"))
     reasons = _strings(near_entry.get("reasons"))
-    if approved:
-        return reasons[0] if reasons else "Approved setup satisfies the current trade criteria"
+    if actionable:
+        return reasons[0] if reasons else "Current market evidence supports a usable setup"
     code = str(payload.get("decision_reason_code") or "")
     explanations = {
-        "NO_CANDIDATE_GENERATED": "No valid setup formed near the current price",
-        "CANDIDATE_REJECTED": "A setup formed but did not meet the required quality or risk standards",
-        "NO_ROUTED_STRATEGY": "No strategy matched the current market condition",
-        "ENVIRONMENT_BLOCKED": "Current market conditions are not safe enough to trade",
-        "MISSED_ENTRY": "The valid entry has already passed",
-        "INVALIDATED": "The setup was invalidated before entry",
-        "WAIT_FOR_RECLAIM": "Price must reclaim the required structure before entry",
-        "WAIT_FOR_RETEST": "Price must retest the required level before entry",
+        "NO_CANDIDATE_GENERATED": "No strategy produced a defensible setup near current price",
+        "CANDIDATE_REJECTED": "The available setup lacked sufficient market or trade geometry",
+        "NO_ROUTED_STRATEGY": "No strategy matched the measured market condition",
+        "ENVIRONMENT_BLOCKED": "Current market structure is too unstable for a defensible plan",
+        "MISSED_ENTRY": "The useful entry has already passed",
+        "INVALIDATED": "The trade thesis has structurally failed",
+        "WAIT_FOR_RECLAIM": "A nearby reclaim remains the clearest activation condition",
+        "WAIT_FOR_RETEST": "A nearby retest remains the clearest entry condition",
     }
     if code in explanations:
         return explanations[code]
@@ -243,11 +192,23 @@ def _direction_scores(payload: Mapping[str, object]) -> tuple[float | None, floa
     )
 
 
-def _opportunity_label(score: float | None, direction: str, route: Mapping[str, object]) -> str:
+def _opportunity_label(
+    score: float | None,
+    direction: str,
+    route: Mapping[str, object],
+) -> str:
     if score is None:
         preferred = str(route.get("preferred_direction") or "").lower()
         return "Preferred" if preferred == direction else "Not preferred"
-    strength = "Strong" if score >= 75 else "Moderate" if score >= 55 else "Weak" if score >= 35 else "Very weak"
+    strength = (
+        "Strong"
+        if score >= 75
+        else "Moderate"
+        if score >= 55
+        else "Weak"
+        if score >= 35
+        else "Very weak"
+    )
     return f"{strength} ({format_score(score)})"
 
 
