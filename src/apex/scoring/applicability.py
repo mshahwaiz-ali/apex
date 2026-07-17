@@ -67,6 +67,7 @@ def apply_strategy_applicability(
                     *item.notes,
                     "conditional strategy applicability penalty applied",
                 ),
+                environment_route_alignment=item.environment_route_alignment,
             )
         )
     return tuple(adjusted)

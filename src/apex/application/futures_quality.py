@@ -9,6 +9,7 @@ from apex.config import StrategyApprovalConfig, load_strategy_approval_config
 from apex.domain import RiskMode
 from apex.scoring import Phase5AnalysisResult, ScoringConfig, analyze_phase5
 from apex.scoring.config import DEFAULT_SCORING_CONFIG
+from apex.scoring.environment_route import EnvironmentRoute
 from apex.strategies.analysis import Phase4AnalysisResult
 
 DEFAULT_STRATEGY_APPROVAL_CONFIG_PATH = Path("config/strategy_approval.yaml")
@@ -20,6 +21,7 @@ def analyze_futures_phase5(
     risk_mode: RiskMode | None = None,
     scoring_config: ScoringConfig = DEFAULT_SCORING_CONFIG,
     strategy_approval_config: StrategyApprovalConfig | None = None,
+    environment_route: EnvironmentRoute | None = None,
 ) -> Phase5AnalysisResult:
     """Run Phase 5 with explicit N3 strategy-quality approval enabled."""
 
@@ -33,4 +35,5 @@ def analyze_futures_phase5(
         risk_mode=selected_risk_mode,
         strategy_approval_config=approval_config,
         apply_strategy_quality=True,
+        environment_route=environment_route,
     )

@@ -28,6 +28,33 @@ class DirectionalConsensus(StrEnum):
     NONE = "none"
 
 
+class EnvironmentRouteAlignmentState(StrEnum):
+    ALIGNED = "aligned"
+    LOWER_PRIORITY = "lower_priority"
+    DIRECTION_CONFLICT = "direction_conflict"
+    BLOCKED = "blocked"
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentRouteAlignment:
+    state: EnvironmentRouteAlignmentState
+    route_priority: int | None
+    preferred_direction: str
+    routing_score: float
+    score_adjustment: float
+    reason_codes: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.route_priority is not None and self.route_priority < 1:
+            raise ValueError("environment route priority must be positive")
+        _bounded_score("environment routing score", self.routing_score)
+        if not math.isfinite(self.score_adjustment) or self.score_adjustment > 0.0:
+            raise ValueError("environment route score adjustment must be finite and non-positive")
+        if len(self.reason_codes) != len(self.reasons):
+            raise ValueError("environment route reasons must match reason codes")
+
+
 def _aware(name: str, value: datetime) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{name} must be timezone-aware")
@@ -69,6 +96,7 @@ class ScoredCandidate:
     breakdown: ScoreBreakdown
     normalized_metrics: Mapping[str, float]
     notes: tuple[str, ...] = ()
+    environment_route_alignment: EnvironmentRouteAlignment | None = None
 
     def __post_init__(self) -> None:
         if not self.candidate_id.strip():

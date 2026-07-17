@@ -14,6 +14,7 @@ from apex.scoring.approval_overlay import apply_strategy_quality_gate
 from apex.scoring.config import DEFAULT_SCORING_CONFIG, ScoringConfig
 from apex.scoring.conflicts import resolve_conflicts
 from apex.scoring.contracts import CandidateOutcome, Phase5AnalysisResult
+from apex.scoring.environment_route import EnvironmentRoute, apply_environment_route_alignment
 from apex.scoring.ranking import rank_candidates
 from apex.scoring.scorer import score_candidates
 from apex.scoring.selection import no_trade_reason, select_candidate
@@ -29,6 +30,7 @@ def analyze_phase5(
     risk_mode: RiskMode = RiskMode.STANDARD,
     strategy_approval_config: StrategyApprovalConfig | None = None,
     apply_strategy_quality: bool = False,
+    environment_route: EnvironmentRoute | None = None,
 ) -> Phase5AnalysisResult:
     """Consume immutable Phase 4 candidates and produce one deterministic decision.
 
@@ -50,6 +52,7 @@ def analyze_phase5(
         scored,
         applicability=phase4.strategy_applicability or {},
     )
+    scored = apply_environment_route_alignment(scored, route=environment_route)
     initially_ranked = rank_candidates(
         scored,
         strategy_order=phase4.evaluated_strategies,
@@ -87,6 +90,7 @@ def analyze_phase5(
             "strategy_applicability_weighting_enabled": bool(
                 phase4.strategy_applicability
             ),
+            "environment_route_weighting_enabled": environment_route is not None,
             "strategy_quality_gate_enabled": approval_config is not None,
             "strategy_quality_risk_mode": risk_mode.value if approval_config is not None else "",
             "accepted_count": sum(

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from apex.application import analysis as _analysis
+from apex.application.market_strategy_router import route_market_strategies
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
     Candle,
@@ -114,6 +115,7 @@ def analyze_symbol(
         received_at=decision_time,
     )
     environment = build_market_environment(context, config=market_environment_config)
+    market_strategy_route = route_market_strategies(environment)
     base = _analysis.analyze_symbol(
         symbol,
         cached_provider,
@@ -125,6 +127,7 @@ def analyze_symbol(
         exposure=exposure,
         generated_at=decision_time,
         strategy_routing=strategy_routing,
+        market_strategy_route=market_strategy_route,
     )
     return SymbolAnalysis(
         symbol=base.symbol,

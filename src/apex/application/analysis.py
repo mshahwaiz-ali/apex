@@ -14,6 +14,7 @@ import yaml
 
 from apex.application.analysis_records import build_analysis_record
 from apex.application.futures_quality import analyze_futures_phase5
+from apex.application.market_strategy_router import MarketStrategyRoute
 from apex.application.precision_entry import build_precision_entry_plan
 from apex.application.strategy_routing import (
     apply_strategy_routing,
@@ -116,6 +117,7 @@ def analyze_symbol(
     exposure: ExposureState | None = None,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+    market_strategy_route: MarketStrategyRoute | None = None,
 ) -> SymbolAnalysis:
     """Run the deterministic Phase 4 to Phase 6 stack for one symbol."""
 
@@ -136,7 +138,10 @@ def analyze_symbol(
         phase4,
         routing_config=strategy_routing,
     )
-    phase5 = analyze_futures_phase5(routed_phase4)
+    phase5 = analyze_futures_phase5(
+        routed_phase4,
+        environment_route=market_strategy_route,
+    )
     assessment = analyze_phase6(
         phase5,
         config=risk_config,
@@ -182,6 +187,25 @@ def analyze_symbol(
                     "direction": item.candidate.direction.value,
                     "outcome": item.outcome.value,
                     "final_score": item.final_score,
+                    "environment_route_alignment": (
+                        {
+                            "state": item.scored.environment_route_alignment.state.value,
+                            "route_priority": item.scored.environment_route_alignment.route_priority,
+                            "preferred_direction": (
+                                item.scored.environment_route_alignment.preferred_direction
+                            ),
+                            "routing_score": item.scored.environment_route_alignment.routing_score,
+                            "score_adjustment": (
+                                item.scored.environment_route_alignment.score_adjustment
+                            ),
+                            "reason_codes": list(
+                                item.scored.environment_route_alignment.reason_codes
+                            ),
+                            "reasons": list(item.scored.environment_route_alignment.reasons),
+                        }
+                        if item.scored.environment_route_alignment is not None
+                        else None
+                    ),
                     "reasons": list(item.reasons),
                 }
                 for item in phase5.ranked_candidates
