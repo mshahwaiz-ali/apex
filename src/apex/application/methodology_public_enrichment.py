@@ -17,6 +17,10 @@ from apex.application.methodology_confirmation_source_semantics import (
     confirmation_source_semantics_payload,
     derive_confirmation_source_semantics,
 )
+from apex.application.methodology_contradiction_semantics import (
+    contradiction_semantics_payload,
+    derive_contradiction_semantics,
+)
 from apex.application.methodology_entry_opportunity_semantics import (
     derive_entry_opportunity_semantics,
     entry_opportunity_semantics_payload,
@@ -24,6 +28,10 @@ from apex.application.methodology_entry_opportunity_semantics import (
 from apex.application.methodology_evidence_freshness_semantics import (
     derive_evidence_freshness_semantics,
     evidence_freshness_semantics_payload,
+)
+from apex.application.methodology_evidence_independence_semantics import (
+    derive_evidence_independence_semantics,
+    evidence_independence_semantics_payload,
 )
 from apex.application.methodology_execution_geometry_semantics import (
     derive_execution_geometry_semantics,
@@ -74,15 +82,15 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent projection, coverage, state, and execution semantics.
+    """Return transparent projection, evidence, coverage, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
-    unavailable values to masquerade as native evidence, calibrated probability,
-    closed-candle confirmation, verified strategy eligibility, complete timeframe
-    coverage, usable execution conditions, canonical geometry, authoritative
-    actionability, hidden rejection, score-authorized execution, or a universal
-    target horizon.
+    unavailable values to masquerade as native evidence, independent confirmation,
+    calibrated probability, closed-candle confirmation, verified strategy
+    eligibility, complete timeframe coverage, usable execution conditions,
+    canonical geometry, authoritative actionability, hidden rejection,
+    score-authorized execution, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -94,8 +102,10 @@ def methodology_public_enrichment(
     actionability = derive_actionability_semantics(setup, projected)
     confidence = derive_confidence_semantics(projected.confidence)
     confirmation_source = derive_confirmation_source_semantics(projected)
+    contradictions = derive_contradiction_semantics(projected)
     entry_opportunities = derive_entry_opportunity_semantics(projected)
     evidence_freshness = derive_evidence_freshness_semantics(projected)
+    evidence_independence = derive_evidence_independence_semantics(projected)
     execution_geometry = derive_execution_geometry_semantics(
         setup,
         projected,
@@ -126,11 +136,17 @@ def methodology_public_enrichment(
         "methodology_confirmation_source_semantics": (
             confirmation_source_semantics_payload(confirmation_source)
         ),
+        "methodology_contradiction_semantics": contradiction_semantics_payload(
+            contradictions
+        ),
         "methodology_entry_opportunity_semantics": entry_opportunity_semantics_payload(
             entry_opportunities
         ),
         "methodology_evidence_freshness_semantics": evidence_freshness_semantics_payload(
             evidence_freshness
+        ),
+        "methodology_evidence_independence_semantics": (
+            evidence_independence_semantics_payload(evidence_independence)
         ),
         "methodology_execution_geometry_semantics": execution_geometry_semantics_payload(
             execution_geometry
