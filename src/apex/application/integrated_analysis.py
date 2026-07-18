@@ -20,6 +20,7 @@ from apex.application.market_state import (
     market_state_payload,
 )
 from apex.application.market_strategy_router import route_market_strategies
+from apex.application.methodology_market_state import adapt_market_state
 from apex.application.symbols import load_symbol_file
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
@@ -35,6 +36,7 @@ from apex.market_environment import (
     build_market_environment,
     market_environment_payload,
 )
+from apex.structure.regime import classify_market_regime
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,7 @@ class SymbolAnalysis(DiscoverySymbolAnalysis):
 
     market_environment: MarketEnvironment | None = None
     market_state: MarketStateSnapshot | None = None
+
 
 load_symbols = load_symbol_file
 write_json_report = _analysis.write_json_report
@@ -94,6 +97,7 @@ class _CachingMarketDataProvider:
             self._exchange_filters[symbol] = snapshot
         return self._exchange_filters[symbol]
 
+
 def analyze_symbol(
     symbol: str,
     provider: MarketDataProvider,
@@ -105,6 +109,7 @@ def analyze_symbol(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+    methodology_gate_mode: str = "shadow",
 ) -> SymbolAnalysis:
     """Run discovery and attach fused market environment."""
 
@@ -121,6 +126,12 @@ def analyze_symbol(
     )
     environment = build_market_environment(context, config=market_environment_config)
     route = route_market_strategies(environment)
+    decision_regime = classify_market_regime(context.decision_frame.structure)
+    market_state = classify_market_state(
+        decision_regime=decision_regime.value,
+        environment=environment,
+    )
+    methodology_state = adapt_market_state(market_state)
     base = _analysis.analyze_symbol(
         symbol,
         cached,
@@ -131,12 +142,8 @@ def analyze_symbol(
         generated_at=decision_time,
         strategy_routing=strategy_routing,
         market_strategy_route=route,
-    )
-    decision_regime = (base.strategy_routing or {}).get("decision_regime")
-    market_state = (
-        classify_market_state(decision_regime=str(decision_regime), environment=environment)
-        if isinstance(decision_regime, str)
-        else None
+        methodology_market_state=methodology_state.primary,
+        methodology_gate_mode=methodology_gate_mode,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -149,6 +156,8 @@ def analyze_symbol(
         strategy_routing=base.strategy_routing,
         phase5_diagnostics=base.phase5_diagnostics,
         candidate_ranking=base.candidate_ranking,
+        methodology=base.methodology,
+        methodology_gate=base.methodology_gate,
         market_environment=environment,
         market_state=market_state,
     )
