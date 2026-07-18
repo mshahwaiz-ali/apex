@@ -10,6 +10,10 @@ import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_snapshot import methodology_snapshot_payload
+from apex.application.methodology_strategy_evaluation import (
+    evaluate_strategy_registry,
+    strategy_eligibility_evaluation_payload,
+)
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _ACTIONABLE_STATUSES = frozenset({"READY_NOW", "AGGRESSIVE_NOW"})
@@ -21,9 +25,17 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Return one discovery result without legacy entry-state overlays."""
 
     payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
-    payload["methodology"] = methodology_snapshot_payload(
-        project_analysis_methodology(analysis)
-    )
+    methodology = project_analysis_methodology(analysis)
+    payload["methodology"] = methodology_snapshot_payload(methodology)
+    payload["methodology_strategy_eligibility"] = [
+        strategy_eligibility_evaluation_payload(item)
+        for item in evaluate_strategy_registry(
+            market_state=(
+                None if methodology.market_state is None else methodology.market_state.primary
+            ),
+            evidence=methodology.evidence,
+        )
+    ]
     setup = payload.get("setup")
     if not isinstance(setup, dict):
         payload["entry_status"] = None
