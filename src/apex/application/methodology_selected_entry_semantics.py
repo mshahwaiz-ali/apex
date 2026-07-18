@@ -48,13 +48,24 @@ class SelectedEntrySemantics:
 def derive_selected_entry_semantics(
     methodology: MethodologySnapshot,
 ) -> SelectedEntrySemantics:
-    """Select only an unambiguous canonical opportunity; otherwise stay unavailable."""
-
+    """Use explicit core selection when present; otherwise preserve uncertainty."""
     opportunities = methodology.entry_opportunities
-    selected = opportunities[0] if len(opportunities) == 1 else None
+    decision = methodology.selected_entry
+    authoritative = decision is not None
+    if decision is not None:
+        selected = decision.opportunity
+        selected_index = opportunities.index(selected)
+    elif len(opportunities) == 1:
+        selected = opportunities[0]
+        selected_index = 0
+    else:
+        selected = None
+        selected_index = None
+
     maturity = methodology.setup_maturity
     currently_executable = bool(
-        selected is not None
+        authoritative
+        and selected is not None
         and selected.kind in _IMMEDIATE_TYPES
         and maturity is SetupMaturity.ENTRY_AVAILABLE
         and methodology.executable
@@ -72,45 +83,62 @@ def derive_selected_entry_semantics(
         item.kind is EntryOpportunityType.PREFERRED_NEARBY for item in opportunities
     )
 
-    if not opportunities:
+    if decision is not None:
+        reason = decision.reason
+    elif not opportunities:
         reason = "no canonical entry opportunity exists"
     elif len(opportunities) > 1:
         reason = (
-            "multiple canonical opportunities exist, but no explicit selected-opportunity field "
-            "is available; tuple order is not treated as authority"
+            "multiple canonical opportunities exist, but the methodology core has not "
+            "selected one; tuple order is not treated as authority"
         )
     elif methodology.hard_blockers:
-        reason = "one canonical opportunity exists, but methodology hard blockers prevent execution"
-    elif currently_executable:
-        reason = "the only canonical opportunity is immediate and methodology-executable"
+        reason = (
+            "one canonical opportunity exists, but it is only an unambiguous candidate "
+            "and methodology hard blockers prevent execution"
+        )
     elif future_trigger_required:
-        reason = "the only canonical opportunity is conditional and requires its trigger"
+        reason = (
+            "the only canonical opportunity is visible as an unambiguous candidate and "
+            "requires its trigger, but no authoritative core selection exists"
+        )
     else:
-        reason = "the only canonical opportunity is visible, but current execution is not proven"
+        reason = (
+            "the only canonical opportunity is visible as an unambiguous candidate, but "
+            "the methodology core has not declared an authoritative selection"
+        )
+
+    limitations = [
+        "current-price and direction geometry are unavailable for independent chase validation",
+        "entry selection cannot override hard blockers, maturity, or incomplete methodology geometry",
+    ]
+    if not authoritative:
+        limitations.insert(
+            0,
+            "no explicit canonical selected-entry decision is available",
+        )
+    if len(opportunities) > 1 and not authoritative:
+        limitations.insert(
+            1,
+            "multiple opportunities must not be reduced to the first tuple item",
+        )
 
     return SelectedEntrySemantics(
         opportunity_count=len(opportunities),
         selection_available=selected is not None,
-        selection_authoritative=False,
-        selected_index=0 if selected is not None else None,
+        selection_authoritative=authoritative,
+        selected_index=selected_index,
         selected_kind=None if selected is None else selected.kind.value,
         selected_opportunity=None if selected is None else _opportunity_payload(selected),
         currently_executable=currently_executable,
         future_trigger_required=future_trigger_required,
-        required_trigger=(
-            None if selected is None else selected.confirmation_level
-        ),
+        required_trigger=None if selected is None else selected.confirmation_level,
         aggressive_alternative_available=aggressive_available,
         conditional_alternative_available=conditional_available,
         better_nearby_alternative_available=better_nearby,
         maximum_chase_respected=None,
         selection_reason=reason,
-        selection_limitations=(
-            "the canonical snapshot does not expose an explicit selected-opportunity identifier",
-            "multiple opportunities must not be reduced to the first tuple item",
-            "current-price and direction geometry are unavailable for independent chase validation",
-            "entry selection cannot override hard blockers, maturity, or incomplete methodology geometry",
-        ),
+        selection_limitations=tuple(limitations),
     )
 
 
@@ -118,7 +146,6 @@ def selected_entry_semantics_payload(
     semantics: SelectedEntrySemantics,
 ) -> dict[str, Any]:
     """Serialize selected-entry interpretation."""
-
     return {
         "opportunity_count": semantics.opportunity_count,
         "selection_available": semantics.selection_available,
