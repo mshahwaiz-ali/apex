@@ -7,6 +7,7 @@ from typing import Any
 
 from apex.application.methodology_contracts import TargetCandidate
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.strategies.contracts import TradeDirection
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,12 +23,14 @@ class TargetFeasibilityItem:
     declared_risk_multiple: float
     derived_gross_risk_multiple: float | None
     declared_geometry_consistent: bool | None
+    on_correct_side: bool | None
 
 
 @dataclass(frozen=True, slots=True)
 class TargetFeasibilitySemantics:
     """Truthful target geometry, provenance, and unavailable feasibility evidence."""
 
+    direction_available: bool
     selected_entry_available: bool
     invalidation_available: bool
     gross_geometry_available: bool
@@ -40,6 +43,7 @@ class TargetFeasibilitySemantics:
     net_reward_geometry_available: bool
     obstacle_room_proven: bool | None
     directionally_validated: bool
+    all_targets_on_correct_side: bool | None
     universal_minimum_risk_reward_applied: bool
     interpretation: str
     limitations: tuple[str, ...]
@@ -50,11 +54,12 @@ def derive_target_feasibility_semantics(
     *,
     native_methodology_available: bool,
 ) -> TargetFeasibilitySemantics:
-    """Derive gross target geometry while preserving unavailable direction and costs."""
+    """Derive gross target geometry while preserving unavailable costs and obstacles."""
 
     decision = methodology.selected_entry
     invalidation = methodology.invalidation
-    entry = None if decision is None else decision.opportunity.ideal_entry
+    opportunity = None if decision is None else decision.opportunity
+    entry = None if opportunity is None else opportunity.ideal_entry
     risk_distance = (
         None
         if entry is None or invalidation is None
@@ -62,9 +67,19 @@ def derive_target_feasibility_semantics(
     )
     gross_available = risk_distance is not None and risk_distance > 0.0
     items = tuple(
-        _target_item(target, entry=entry, risk_distance=risk_distance)
+        _target_item(
+            target,
+            methodology=methodology,
+            entry=entry,
+            risk_distance=risk_distance,
+        )
         for target in methodology.targets
     )
+    directional_results = tuple(
+        item.on_correct_side for item in items if item.on_correct_side is not None
+    )
+    directionally_validated = bool(items) and len(directional_results) == len(items)
+    all_correct = all(directional_results) if directionally_validated else None
 
     if not methodology.targets:
         interpretation = "no canonical target candidates are available"
@@ -73,17 +88,25 @@ def derive_target_feasibility_semantics(
             "canonical targets exist, but gross reward geometry cannot be derived until an "
             "authoritative selected entry and structural invalidation are both available"
         )
+    elif not directionally_validated:
+        interpretation = (
+            "gross reward geometry is available, but canonical direction is unavailable so "
+            "target-side correctness cannot be proven"
+        )
     else:
         interpretation = (
-            "gross target distance and R-multiple magnitudes are derived from the canonical "
-            "selected entry and invalidation; no universal minimum R:R is imposed"
+            "gross target distance, directional side, and R-multiple magnitudes are derived from "
+            "canonical geometry; no universal minimum R:R is imposed"
         )
 
     return TargetFeasibilitySemantics(
+        direction_available=methodology.direction is not None,
         selected_entry_available=decision is not None,
         invalidation_available=invalidation is not None,
         gross_geometry_available=gross_available,
-        geometry_authoritative=bool(native_methodology_available and gross_available),
+        geometry_authoritative=bool(
+            native_methodology_available and gross_available and directionally_validated
+        ),
         entry_reference_price=entry,
         risk_distance=risk_distance,
         target_count=len(methodology.targets),
@@ -91,11 +114,11 @@ def derive_target_feasibility_semantics(
         costs_available=False,
         net_reward_geometry_available=False,
         obstacle_room_proven=None,
-        directionally_validated=False,
+        directionally_validated=directionally_validated,
+        all_targets_on_correct_side=all_correct,
         universal_minimum_risk_reward_applied=False,
         interpretation=interpretation,
         limitations=(
-            "direction is not explicit in the canonical methodology snapshot, so target-side correctness cannot be proven",
             "fees, funding, spread, and target-exit slippage are unavailable, so net reward geometry is not claimed",
             "target source text does not prove clear room before opposing structure",
             "declared and derived R multiples may differ because legacy or upstream calculations may use different entry or cost assumptions",
@@ -110,6 +133,7 @@ def target_feasibility_semantics_payload(
     """Serialize target feasibility interpretation."""
 
     return {
+        "direction_available": semantics.direction_available,
         "selected_entry_available": semantics.selected_entry_available,
         "invalidation_available": semantics.invalidation_available,
         "gross_geometry_available": semantics.gross_geometry_available,
@@ -128,6 +152,7 @@ def target_feasibility_semantics_payload(
                 "declared_risk_multiple": item.declared_risk_multiple,
                 "derived_gross_risk_multiple": item.derived_gross_risk_multiple,
                 "declared_geometry_consistent": item.declared_geometry_consistent,
+                "on_correct_side": item.on_correct_side,
             }
             for item in semantics.targets
         ],
@@ -135,6 +160,7 @@ def target_feasibility_semantics_payload(
         "net_reward_geometry_available": semantics.net_reward_geometry_available,
         "obstacle_room_proven": semantics.obstacle_room_proven,
         "directionally_validated": semantics.directionally_validated,
+        "all_targets_on_correct_side": semantics.all_targets_on_correct_side,
         "universal_minimum_risk_reward_applied": (
             semantics.universal_minimum_risk_reward_applied
         ),
@@ -146,6 +172,7 @@ def target_feasibility_semantics_payload(
 def _target_item(
     target: TargetCandidate,
     *,
+    methodology: MethodologySnapshot,
     entry: float | None,
     risk_distance: float | None,
 ) -> TargetFeasibilityItem:
@@ -170,7 +197,21 @@ def _target_item(
         declared_risk_multiple=target.risk_multiple,
         derived_gross_risk_multiple=derived_r,
         declared_geometry_consistent=consistent,
+        on_correct_side=_target_on_correct_side(methodology, target),
     )
+
+
+def _target_on_correct_side(
+    methodology: MethodologySnapshot,
+    target: TargetCandidate,
+) -> bool | None:
+    decision = methodology.selected_entry
+    if methodology.direction is None or decision is None:
+        return None
+    entry = decision.opportunity
+    if methodology.direction is TradeDirection.LONG:
+        return target.price > entry.zone_high
+    return target.price < entry.zone_low
 
 
 __all__ = [
