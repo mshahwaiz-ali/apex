@@ -84,6 +84,10 @@ from apex.application.methodology_strategy_fit_semantics import (
     derive_strategy_fit_semantics,
     strategy_fit_semantics_payload,
 )
+from apex.application.methodology_target_feasibility_semantics import (
+    derive_target_feasibility_semantics,
+    target_feasibility_semantics_payload,
+)
 from apex.application.methodology_target_horizon_semantics import (
     derive_target_horizon_semantics,
     target_horizon_semantics_payload,
@@ -146,6 +150,10 @@ def methodology_public_enrichment(
         native_methodology_available=native_available,
     )
     strategy_fit = derive_strategy_fit_semantics(setup, projected)
+    target_feasibility = derive_target_feasibility_semantics(
+        projected,
+        native_methodology_available=native_available,
+    )
     target_horizon = derive_target_horizon_semantics(projected)
     timeframe_coverage = derive_timeframe_coverage_semantics(analysis)
     return {
@@ -192,6 +200,9 @@ def methodology_public_enrichment(
         ),
         "methodology_stop_quality_semantics": stop_quality_semantics_payload(stop_quality),
         "methodology_strategy_fit_semantics": strategy_fit_semantics_payload(strategy_fit),
+        "methodology_target_feasibility_semantics": target_feasibility_semantics_payload(
+            target_feasibility
+        ),
         "methodology_target_horizon_semantics": target_horizon_semantics_payload(
             target_horizon
         ),
