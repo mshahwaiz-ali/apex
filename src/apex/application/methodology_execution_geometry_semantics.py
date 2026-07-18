@@ -14,7 +14,8 @@ class ExecutionGeometrySemantics:
     """Truthful execution interpretation for native and compatibility geometry."""
 
     setup_available: bool
-    canonical_entry_available: bool
+    canonical_opportunities_available: bool
+    canonical_selected_entry_available: bool
     canonical_invalidation_available: bool
     compatibility_entry_available: bool
     compatibility_stop_available: bool
@@ -32,37 +33,45 @@ def derive_execution_geometry_semantics(
 ) -> ExecutionGeometrySemantics:
     """Separate legacy price geometry from canonical execution completeness."""
 
-    canonical_entry_available = bool(methodology.entry_opportunities)
+    canonical_opportunities_available = bool(methodology.entry_opportunities)
+    canonical_selected_entry_available = methodology.selected_entry is not None
     canonical_invalidation_available = methodology.invalidation is not None
     compatibility_entry_available = setup is not None
     compatibility_stop_available = setup is not None
     execution_ready = methodology.executable
     geometry_authoritative = (
         native_methodology_available
-        and canonical_entry_available
+        and canonical_selected_entry_available
         and canonical_invalidation_available
     )
 
     if execution_ready:
         interpretation = (
-            "canonical entry, invalidation, and target geometry are complete and no hard "
-            "methodology blocker is present"
+            "canonical selected-entry, invalidation, and target geometry are complete and no "
+            "hard methodology blocker is present"
         )
     elif setup is None:
         interpretation = "no selected setup exists, so execution geometry is unavailable"
-    elif not canonical_entry_available or not canonical_invalidation_available:
+    elif not canonical_opportunities_available or not canonical_invalidation_available:
         interpretation = (
             "legacy entry and stop prices are visible for compatibility, but canonical "
             "execution geometry remains incomplete"
         )
+    elif not canonical_selected_entry_available:
+        interpretation = (
+            "canonical opportunities and invalidation exist, but the methodology core has not "
+            "selected an entry; the opportunity set alone does not authorize execution"
+        )
     else:
         interpretation = (
-            "canonical geometry exists but another methodology condition prevents execution"
+            "canonical selected-entry geometry exists but another methodology condition prevents "
+            "execution"
         )
 
     return ExecutionGeometrySemantics(
         setup_available=setup is not None,
-        canonical_entry_available=canonical_entry_available,
+        canonical_opportunities_available=canonical_opportunities_available,
+        canonical_selected_entry_available=canonical_selected_entry_available,
         canonical_invalidation_available=canonical_invalidation_available,
         compatibility_entry_available=compatibility_entry_available,
         compatibility_stop_available=compatibility_stop_available,
@@ -70,6 +79,7 @@ def derive_execution_geometry_semantics(
         geometry_authoritative=geometry_authoritative,
         interpretation=interpretation,
         limitations=(
+            "a canonical opportunity set is not an authoritative selected-entry decision",
             "a legacy entry zone is not automatically an executable canonical opportunity",
             "a legacy stop price does not prove touch, wick, or close invalidation semantics",
             "missing volatility buffer and slippage remain unavailable rather than zero",
@@ -85,7 +95,8 @@ def execution_geometry_semantics_payload(
 
     return {
         "setup_available": semantics.setup_available,
-        "canonical_entry_available": semantics.canonical_entry_available,
+        "canonical_opportunities_available": semantics.canonical_opportunities_available,
+        "canonical_selected_entry_available": semantics.canonical_selected_entry_available,
         "canonical_invalidation_available": semantics.canonical_invalidation_available,
         "compatibility_entry_available": semantics.compatibility_entry_available,
         "compatibility_stop_available": semantics.compatibility_stop_available,
