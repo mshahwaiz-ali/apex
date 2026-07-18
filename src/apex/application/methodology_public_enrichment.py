@@ -124,11 +124,16 @@ def methodology_public_enrichment(
     hidden rejection, executed lifecycle actions, or a universal target horizon.
     """
 
+    effective_auxiliary = (
+        analysis.methodology_auxiliary_evidence
+        if auxiliary_evidence is None
+        else auxiliary_evidence
+    )
     effective_source_bundle, effective_stop_noise = _resolve_auxiliary_evidence(
         projected,
         source_bundle=source_bundle,
         stop_noise_evidence=stop_noise_evidence,
-        auxiliary_evidence=auxiliary_evidence,
+        auxiliary_evidence=effective_auxiliary,
     )
     source_candles = (
         () if effective_source_bundle is None else effective_source_bundle.source_candles
