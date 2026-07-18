@@ -52,7 +52,7 @@ class EntrySelectionConfig:
 DEFAULT_ENTRY_SELECTION_CONFIG = EntrySelectionConfig()
 
 
-def select_entry_zone(
+def find_entry_zones(
     *,
     current_price: float,
     atr: float,
@@ -62,8 +62,8 @@ def select_entry_zone(
     references: tuple[EntryReference, ...] = (),
     config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     allow_market_entry: bool = True,
-) -> EntryZone:
-    """Return the best actionable entry while rejecting unjustified waiting."""
+) -> tuple[EntryZone, ...]:
+    """Return every eligible entry opportunity in deterministic preference order."""
 
     _validate_market_geometry(
         current_price=current_price,
@@ -137,14 +137,54 @@ def select_entry_zone(
             "no confirmed current-price entry or eligible nearby entry reference is available"
         )
 
-    return min(
+    ranked = sorted(
         eligible,
         key=lambda item: (
             -item[1],
             item[0].distance_from_current,
             -item[0].location_quality,
             item[0].mode.value,
+            item[0].preferred,
         ),
+    )
+    unique: list[EntryZone] = []
+    seen: set[tuple[float, float, float, EntryMode]] = set()
+    for zone, _ in ranked:
+        key = (
+            round(zone.lower, 12),
+            round(zone.upper, 12),
+            round(zone.preferred, 12),
+            zone.mode,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(zone)
+    return tuple(unique)
+
+
+def select_entry_zone(
+    *,
+    current_price: float,
+    atr: float,
+    direction: TradeDirection,
+    invalidation_price: float,
+    target_price: float,
+    references: tuple[EntryReference, ...] = (),
+    config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
+    allow_market_entry: bool = True,
+) -> EntryZone:
+    """Return the preferred entry while preserving multi-entry search separately."""
+
+    return find_entry_zones(
+        current_price=current_price,
+        atr=atr,
+        direction=direction,
+        invalidation_price=invalidation_price,
+        target_price=target_price,
+        references=references,
+        config=config,
+        allow_market_entry=allow_market_entry,
     )[0]
 
 

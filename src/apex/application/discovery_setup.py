@@ -12,9 +12,18 @@ from apex.application.discovery_contracts import (
     StopQualityBand,
     TakeProfit,
 )
+from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
 from apex.scoring.contracts import CandidateSelectionResult
+from apex.scoring.quality_dimensions import derive_quality_dimensions
+from apex.scoring.selection import is_entry_status_executable
 from apex.strategies import classify_candidate_actionability
-from apex.strategies.contracts import TradeCandidate, TradeDirection
+from apex.strategies.contracts import (
+    EntryZone,
+    TargetType,
+    TradeCandidate,
+    TradeDirection,
+)
+from apex.strategies.entry_status import EntryStatus
 
 DEFAULT_MAXIMUM_CHASE_PCT = 0.35
 DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
@@ -38,9 +47,16 @@ def build_discovery_assessment(
         )
 
     candidate = selected.candidate
-    entry = _entry(candidate)
+    entry_status = classify_candidate_actionability(candidate)
+    entry = _entry_zone(candidate.entry, candidate.direction)
+    entry_opportunities = tuple(
+        _entry_zone(opportunity, candidate.direction)
+        for opportunity in candidate.entry_opportunities
+    )
     stop = _stop(candidate)
     targets = _targets(candidate, stop)
+    lifecycle = candidate.lifecycle
+    expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
     return DiscoveryAssessment(
         symbol=candidate_selection.symbol,
         decision_time=candidate_selection.decision_time,
@@ -48,7 +64,7 @@ def build_discovery_assessment(
             symbol=candidate.symbol,
             direction=candidate.direction,
             strategy=candidate.strategy,
-            entry_status=classify_candidate_actionability(candidate),
+            entry_status=entry_status,
             decision_time=candidate.decision_time,
             candidate_id=selected.scored.candidate_id,
             confidence_score=selected.final_score,
@@ -57,48 +73,50 @@ def build_discovery_assessment(
             take_profits=targets,
             management_policies=_management_policies(targets),
             warnings=tuple(candidate.evidence.warnings),
+            quality_dimensions=derive_quality_dimensions(candidate.quality),
+            execution_allowed_now=is_entry_status_executable(entry_status),
+            entry_opportunities=entry_opportunities,
+            setup_expiry_seconds=expiry_seconds,
+            setup_expiry_reason=_expiry_reason(candidate),
+            trader_headline=_trader_headline(entry_status),
         ),
     )
 
 
-def _entry(candidate: TradeCandidate) -> ActionableEntry:
-    configured_chase = candidate.entry.max_chase_price
+def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
+    configured_chase = zone.max_chase_price
     if configured_chase is None:
-        offset = candidate.entry.preferred * DEFAULT_MAXIMUM_CHASE_PCT / 100.0
+        offset = zone.preferred * DEFAULT_MAXIMUM_CHASE_PCT / 100.0
         configured_chase = (
-            candidate.entry.upper + offset
-            if candidate.direction is TradeDirection.LONG
-            else candidate.entry.lower - offset
+            zone.upper + offset if direction is TradeDirection.LONG else zone.lower - offset
         )
     return ActionableEntry(
-        lower=candidate.entry.lower,
-        upper=candidate.entry.upper,
-        preferred=candidate.entry.preferred,
-        current_price=candidate.entry.current_price,
+        lower=zone.lower,
+        upper=zone.upper,
+        preferred=zone.preferred,
+        current_price=zone.current_price,
         maximum_chase_price=configured_chase,
-        current_price_inside_zone=(
-            candidate.entry.lower <= candidate.entry.current_price <= candidate.entry.upper
-        ),
+        current_price_inside_zone=zone.lower <= zone.current_price <= zone.upper,
     )
 
 
 def _stop(candidate: TradeCandidate) -> StopLoss:
     preferred = candidate.entry.preferred
-    percentage_buffer = preferred * DEFAULT_STRUCTURAL_STOP_BUFFER_PCT / 100.0
     raw_atr = candidate.metadata.get("decision_atr")
     atr = (
         float(raw_atr)
         if isinstance(raw_atr, int | float) and not isinstance(raw_atr, bool) and raw_atr > 0
         else None
     )
-    atr_buffer = 0.0 if atr is None else atr * DEFAULT_STRUCTURAL_STOP_BUFFER_ATR
-    buffer = max(percentage_buffer, atr_buffer)
-    price = (
-        candidate.invalidation.price - buffer
-        if candidate.direction is TradeDirection.LONG
-        else candidate.invalidation.price + buffer
+    geometry = build_stop_geometry(
+        direction=candidate.direction,
+        preferred_entry=preferred,
+        invalidation_price=candidate.invalidation.price,
+        invalidation_type=candidate.invalidation.kind,
+        atr=atr,
+        minimum_buffer_pct=DEFAULT_STRUCTURAL_STOP_BUFFER_PCT,
+        structural_buffer_atr=DEFAULT_STRUCTURAL_STOP_BUFFER_ATR,
     )
-    distance = abs(preferred - price)
     quality_score = max(
         0.0,
         min(
@@ -114,31 +132,29 @@ def _stop(candidate: TradeCandidate) -> StopLoss:
         else StopQualityBand.WEAK
     )
     return StopLoss(
-        price=price,
-        distance=distance,
-        distance_pct=distance / preferred * 100.0,
+        price=geometry.price,
+        distance=geometry.distance,
+        distance_pct=geometry.distance_pct,
         rationale=(
             *candidate.invalidation.rationale,
-            (
-                (
-                    "adaptive buffer beyond thesis invalidation: "
-                    f"{DEFAULT_STRUCTURAL_STOP_BUFFER_ATR:g} ATR"
-                )
-                if atr_buffer >= percentage_buffer and atr is not None
-                else (
-                    f"minimum {DEFAULT_STRUCTURAL_STOP_BUFFER_PCT:g}% buffer "
-                    "beyond thesis invalidation"
-                )
-            ),
+            geometry.buffer_reason,
         ),
         quality_score=quality_score,
         quality_band=quality_band,
+        invalidation_type=candidate.invalidation.kind,
+        buffer_rationale=geometry.buffer_reason,
     )
 
 
 def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...]:
     preferred = candidate.entry.preferred
-    partials = _partial_close_percentages(len(candidate.targets.levels))
+    levels = build_layered_targets(
+        direction=candidate.direction,
+        preferred_entry=preferred,
+        stop_price=stop.price,
+        strategy_targets=candidate.targets.levels,
+    )
+    partials = _partial_close_percentages(len(levels))
     return tuple(
         TakeProfit(
             label=level.label,
@@ -147,9 +163,43 @@ def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...
             risk_reward=abs(level.price - preferred) / stop.distance,
             rationale=level.rationale,
             partial_close_pct=partial,
+            target_type=level.kind,
+            purpose=_target_purpose(level.kind, level.label),
         )
-        for level, partial in zip(candidate.targets.levels, partials, strict=True)
+        for level, partial in zip(levels, partials, strict=True)
     )
+
+
+def _target_purpose(kind: TargetType, label: str) -> str:
+    if kind is TargetType.PARTIAL:
+        return "risk-reduction partial"
+    if kind is TargetType.EXPANSION:
+        return "conditional extension target"
+    if label.upper() == "TP1":
+        return "first structural objective"
+    return "primary structural objective"
+
+
+def _expiry_reason(candidate: TradeCandidate) -> str:
+    explicit = candidate.entry.expires_after_seconds is not None
+    source = (
+        "explicit strategy entry expiry" if explicit else "strategy and entry-mode validity policy"
+    )
+    return f"{source}: {candidate.strategy.value} / {candidate.entry.mode.value}"
+
+
+def _trader_headline(status: EntryStatus) -> str:
+    if status is EntryStatus.READY_NOW:
+        return "Strong setup — executable now"
+    if status is EntryStatus.AGGRESSIVE_NOW:
+        return "Strong setup — aggressive execution possible"
+    if status is EntryStatus.PULLBACK_PREFERRED:
+        return "Strong setup — pullback/retest/reclaim pending"
+    if status is EntryStatus.WATCH_NEAR_ENTRY:
+        return "Developing setup — watch only"
+    if status in {EntryStatus.LATE_OR_CHASING, EntryStatus.INVALIDATED}:
+        return "Late or invalidated setup"
+    return "No defensible setup found"
 
 
 def _partial_close_percentages(count: int) -> tuple[float, ...]:

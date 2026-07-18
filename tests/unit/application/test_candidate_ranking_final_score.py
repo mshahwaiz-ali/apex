@@ -71,7 +71,7 @@ def _snapshot():
             target_space_quality=0.75,
         ),
         evidence=StrategyEvidence(supporting=("test evidence",)),
-        metadata={},
+        metadata={"entry_confirmation_complete": True},
     )
     strategy_analysis = StrategyAnalysisResult(
         symbol="BTC/USDT",

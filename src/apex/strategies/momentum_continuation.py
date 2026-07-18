@@ -21,7 +21,7 @@ from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
-    select_entry_zone,
+    find_entry_zones,
 )
 from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import (
@@ -104,11 +104,9 @@ def _candidate_for_direction(
         return None
 
     references = _entry_references(context, bullish=bullish)
-    entry_confirmation_complete = has_break and aligned == total and not context.provisional
-    if not entry_confirmation_complete and not references:
-        return None
+    entry_confirmation_complete = has_break and aligned * 2 >= total and not context.provisional
     try:
-        entry = select_entry_zone(
+        entry_opportunities = find_entry_zones(
             current_price=current,
             atr=atr,
             direction=direction,
@@ -116,17 +114,28 @@ def _candidate_for_direction(
             target_price=target_price,
             references=references,
             config=entry_config,
-            allow_market_entry=entry_confirmation_complete,
+            # Preserve a structurally valid setup even when execution confirmation
+            # is incomplete. Actionability classification prevents an unconfirmed
+            # market-near entry from being labelled READY_NOW.
+            allow_market_entry=True,
         )
     except ValueError:
         return None
-    if entry.is_extended:
-        return None
+    entry = entry_opportunities[0]
 
     features = frame.features
     warnings: list[str] = []
     if context.provisional:
         warnings.append("active-candle evidence is provisional")
+    if entry.is_extended:
+        warnings.append(
+            "current execution is extended; preserve the setup for pullback, retest, "
+            "or renewed confirmation rather than chasing"
+        )
+    if not entry_confirmation_complete:
+        warnings.append(
+            "setup structure remains valid but current-price execution confirmation is incomplete"
+        )
     if higher_timeframe_conflict:
         warnings.append("higher-timeframe trend conflicts with the decision-frame momentum thesis")
     return TradeCandidate(
@@ -189,21 +198,23 @@ def _candidate_for_direction(
         ),
         metadata={
             "decision_timeframe": frame.timeframe,
+            "entry_opportunity_count": len(entry_opportunities),
             "momentum_signal_count": total,
             "aligned_momentum_count": aligned,
             "recent_continuation_break": has_break,
             "higher_timeframe_conflict": higher_timeframe_conflict,
             "entry_confirmation_complete": entry_confirmation_complete,
             "entry_confirmation_reason": (
-                "confirmed structural break, complete momentum alignment, and closed evidence"
+                "confirmed structural break, majority momentum alignment, and closed evidence"
                 if entry_confirmation_complete
                 else (
-                    "current-price execution withheld; use a nearby reference "
-                    "and wait for confirmation"
+                    "setup preserved but current-price execution remains conditional; "
+                    "use a pullback, retest, reclaim, or renewed confirmation"
                 )
             ),
             "decision_atr": atr,
         },
+        entry_opportunities=entry_opportunities,
         provisional=context.provisional,
     )
 

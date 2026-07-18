@@ -43,7 +43,7 @@ def _candidate(*, provisional: bool, contradiction: float) -> TradeCandidate:
             atr_distance=0.0,
             estimated_move_missed=0.0,
             location_quality=0.80,
-            mode=EntryMode.MARKET_NEAR,
+            mode=EntryMode.PULLBACK,
             rationale=("test entry",),
         ),
         invalidation=InvalidationConcept(

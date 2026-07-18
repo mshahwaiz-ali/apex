@@ -258,6 +258,22 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             "strategy": setup.strategy.value,
             "entry_status": setup.entry_status.value,
             "confidence_score": setup.confidence_score,
+            "trader_headline": setup.trader_headline,
+            "execution_allowed_now": setup.execution_allowed_now,
+            "setup_expiry_seconds": setup.setup_expiry_seconds,
+            "setup_validity": _duration_label(setup.setup_expiry_seconds),
+            "setup_expiry_reason": setup.setup_expiry_reason,
+            "quality_dimensions": (
+                None
+                if setup.quality_dimensions is None
+                else {
+                    "setup_quality": setup.quality_dimensions.setup_quality,
+                    "execution_quality": setup.quality_dimensions.execution_quality,
+                    "target_quality": setup.quality_dimensions.target_quality,
+                    "risk_quality": setup.quality_dimensions.risk_quality,
+                    "overall_trade_quality": (setup.quality_dimensions.overall_trade_quality),
+                }
+            ),
             "entry": {
                 "lower": setup.entry.lower,
                 "upper": setup.entry.upper,
@@ -266,12 +282,26 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
                 "maximum_chase_price": setup.entry.maximum_chase_price,
                 "current_price_inside_zone": setup.entry.current_price_inside_zone,
             },
+            "alternative_entry_opportunities": [
+                {
+                    "lower": opportunity.lower,
+                    "upper": opportunity.upper,
+                    "preferred": opportunity.preferred,
+                    "current_price": opportunity.current_price,
+                    "maximum_chase_price": opportunity.maximum_chase_price,
+                    "current_price_inside_zone": (opportunity.current_price_inside_zone),
+                }
+                for opportunity in setup.entry_opportunities
+                if opportunity != setup.entry
+            ],
             "stop_loss": {
                 "price": setup.stop_loss.price,
                 "distance": setup.stop_loss.distance,
                 "distance_pct": setup.stop_loss.distance_pct,
                 "quality_score": setup.stop_loss.quality_score,
                 "quality_band": setup.stop_loss.quality_band.value,
+                "stop_type": setup.stop_loss.invalidation_type.value,
+                "single_buffer_rationale": setup.stop_loss.buffer_rationale,
                 "rationale": list(setup.stop_loss.rationale),
             },
             "take_profits": [
@@ -281,6 +311,8 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
                     "reward": target.reward,
                     "risk_reward": target.risk_reward,
                     "partial_close_pct": target.partial_close_pct,
+                    "target_type": target.target_type.value,
+                    "purpose": target.purpose,
                     "rationale": list(target.rationale),
                 }
                 for target in setup.take_profits
@@ -297,6 +329,15 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             "warnings": list(setup.warnings),
         }
     return payload
+
+
+def _duration_label(seconds: int | None) -> str | None:
+    if seconds is None:
+        return None
+    minutes, remaining = divmod(seconds, 60)
+    if remaining == 0:
+        return f"{minutes} minutes"
+    return f"{minutes}m {remaining}s"
 
 
 def serialize_scan_result(result: ScanResult) -> dict[str, Any]:

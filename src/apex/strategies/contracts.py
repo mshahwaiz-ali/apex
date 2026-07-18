@@ -26,6 +26,43 @@ class EntryMode(StrEnum):
     SCALED_ENTRY = "scaled_entry"
 
 
+_STRATEGY_BASE_EXPIRY_SECONDS: dict[StrategyType, int] = {
+    StrategyType.MOMENTUM_SCALP: 300,
+    StrategyType.MOMENTUM_BREAKOUT: 900,
+    StrategyType.BREAKOUT_CONTINUATION: 1_200,
+    StrategyType.COMPRESSION_EXPANSION: 1_200,
+    StrategyType.BREAKOUT_RETEST: 2_700,
+    StrategyType.FIRST_PULLBACK_CONTINUATION: 2_700,
+    StrategyType.TREND_PULLBACK: 3_600,
+    StrategyType.VWAP_RECLAIM_REJECTION: 1_800,
+    StrategyType.RANGE_REVERSAL: 2_700,
+    StrategyType.FAILED_BREAKOUT_REVERSAL: 1_800,
+    StrategyType.LIQUIDITY_REJECTION_REVERSAL: 1_800,
+    StrategyType.EXHAUSTION_REVERSAL: 900,
+}
+
+_ENTRY_MODE_EXPIRY_MULTIPLIER: dict[EntryMode, float] = {
+    EntryMode.MARKET_NEAR: 0.50,
+    EntryMode.MOMENTUM_CONTINUATION: 0.75,
+    EntryMode.SCALED_ENTRY: 1.00,
+    EntryMode.PULLBACK: 1.25,
+    EntryMode.RETEST: 1.50,
+    EntryMode.SWEEP_RECOVERY: 1.00,
+}
+
+
+def candidate_expiry_seconds(
+    *,
+    strategy: StrategyType,
+    entry_mode: EntryMode,
+) -> int:
+    "Return deterministic setup validity from strategy and entry type."
+
+    base = _STRATEGY_BASE_EXPIRY_SECONDS.get(strategy, 900)
+    multiplier = _ENTRY_MODE_EXPIRY_MULTIPLIER.get(entry_mode, 1.0)
+    return max(180, round(base * multiplier))
+
+
 class InvalidationType(StrEnum):
     STRUCTURAL = "structural"
     LIQUIDITY = "liquidity"
@@ -234,6 +271,7 @@ class TradeCandidate:
     quality: RawQualityMetrics
     evidence: StrategyEvidence
     metadata: Mapping[str, str | int | float | bool]
+    entry_opportunities: tuple[EntryZone, ...] = ()
     lifecycle: CandidateLifecycle | None = None
     provisional: bool = False
 
@@ -251,12 +289,40 @@ class TradeCandidate:
                 raise ValueError("short invalidation must be above the entry zone")
             if any(level.price >= self.entry.lower for level in self.targets.levels):
                 raise ValueError("short targets must be below the entry zone")
+        opportunities = self.entry_opportunities or (self.entry,)
+        if self.entry not in opportunities:
+            opportunities = (self.entry, *opportunities)
+        deduplicated: list[EntryZone] = []
+        seen: set[tuple[float, float, float, EntryMode]] = set()
+        for opportunity in opportunities:
+            key = (
+                round(opportunity.lower, 12),
+                round(opportunity.upper, 12),
+                round(opportunity.preferred, 12),
+                opportunity.mode,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            if self.direction is TradeDirection.LONG:
+                if self.invalidation.price >= opportunity.lower:
+                    raise ValueError("long invalidation must be below every entry opportunity")
+                if any(level.price <= opportunity.upper for level in self.targets.levels):
+                    raise ValueError("long targets must be above every entry opportunity")
+            else:
+                if self.invalidation.price <= opportunity.upper:
+                    raise ValueError("short invalidation must be above every entry opportunity")
+                if any(level.price >= opportunity.lower for level in self.targets.levels):
+                    raise ValueError("short targets must be below every entry opportunity")
+            deduplicated.append(opportunity)
+        object.__setattr__(self, "entry_opportunities", tuple(deduplicated))
+
         metadata = dict(self.metadata)
-        for key, value in metadata.items():
-            if not key.strip():
+        for metadata_key, value in metadata.items():
+            if not metadata_key.strip():
                 raise ValueError("metadata keys cannot be empty")
             if isinstance(value, float):
-                _finite(f"metadata {key}", value)
+                _finite(f"metadata {metadata_key}", value)
         object.__setattr__(self, "metadata", MappingProxyType(metadata))
         if self.lifecycle is None:
             object.__setattr__(
@@ -267,7 +333,13 @@ class TradeCandidate:
                         f"{self.symbol}:{self.strategy.value}:{self.direction.value}:"
                         f"{round(self.entry.preferred, 8)}"
                     ),
-                    expires_after_seconds=self.entry.expires_after_seconds or 900,
+                    expires_after_seconds=(
+                        self.entry.expires_after_seconds
+                        or candidate_expiry_seconds(
+                            strategy=self.strategy,
+                            entry_mode=self.entry.mode,
+                        )
+                    ),
                     invalidation_price=self.invalidation.price,
                     invalidation_reason="candidate invalidation price is breached",
                 ),

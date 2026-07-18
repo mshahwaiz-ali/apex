@@ -12,7 +12,12 @@ from typing import Any
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_snapshot import MethodologySnapshot
-from apex.strategies.contracts import TradeDirection
+from apex.scoring.quality_dimensions import CandidateQualityDimensions
+from apex.strategies.contracts import (
+    InvalidationType,
+    TargetType,
+    TradeDirection,
+)
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
@@ -76,6 +81,8 @@ class StopLoss:
     rationale: tuple[str, ...]
     quality_score: float = 0.5
     quality_band: StopQualityBand = StopQualityBand.ACCEPTABLE
+    invalidation_type: InvalidationType = InvalidationType.STRUCTURAL
+    buffer_rationale: str = ""
 
     def __post_init__(self) -> None:
         _positive("stop price", self.price)
@@ -96,6 +103,8 @@ class TakeProfit:
     risk_reward: float
     rationale: tuple[str, ...]
     partial_close_pct: float = 100.0
+    target_type: TargetType = TargetType.STRUCTURAL
+    purpose: str = "primary structural objective"
 
     def __post_init__(self) -> None:
         if not self.label.strip():
@@ -111,6 +120,8 @@ class TakeProfit:
             raise ValueError("partial close percentage cannot exceed 100")
         if not self.rationale:
             raise ValueError("target rationale cannot be empty")
+        if not self.purpose.strip():
+            raise ValueError("target purpose cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +152,12 @@ class DiscoverySetup:
     take_profits: tuple[TakeProfit, ...]
     management_policies: tuple[ManagementPolicy, ...]
     warnings: tuple[str, ...] = ()
+    quality_dimensions: CandidateQualityDimensions | None = None
+    execution_allowed_now: bool = False
+    entry_opportunities: tuple[ActionableEntry, ...] = ()
+    setup_expiry_seconds: int | None = None
+    setup_expiry_reason: str = ""
+    trader_headline: str = ""
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():
@@ -154,6 +171,10 @@ class DiscoverySetup:
             raise ValueError("discovery setup requires at least one target")
         if not self.management_policies:
             raise ValueError("discovery setup requires management policies")
+        if self.setup_expiry_seconds is not None and self.setup_expiry_seconds <= 0:
+            raise ValueError("setup expiry must be positive when provided")
+        if self.setup_expiry_seconds is not None and not self.setup_expiry_reason.strip():
+            raise ValueError("setup expiry reason is required when expiry is provided")
         partial_total = sum(target.partial_close_pct for target in self.take_profits)
         if not math.isclose(partial_total, 100.0, rel_tol=0.0, abs_tol=1e-9):
             raise ValueError("take-profit partial percentages must sum to 100")

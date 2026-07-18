@@ -16,6 +16,10 @@ from apex.presentation import (
     render_section,
     render_title,
 )
+from apex.presentation.scan_groups import (
+    flatten_existing_scan_groups,
+    group_scan_results,
+)
 
 
 def render_discovery_analysis(
@@ -50,7 +54,8 @@ def render_discovery_analysis(
     targets = _mappings(setup.get("take_profits"))
     policies = _mappings(setup.get("management_policies"))
     direction = humanize_code(setup.get("direction"))
-    sections = [render_title(f"{symbol} — {direction} Setup")]
+    headline = str(setup.get("trader_headline") or f"{direction} setup")
+    sections = [render_title(f"{symbol} — {headline}")]
     sections.append(
         render_section(
             "Selected Setup",
@@ -61,10 +66,32 @@ def render_discovery_analysis(
                     ("Direction", direction),
                     ("Strategy", humanize_code(setup.get("strategy"))),
                     ("Confidence", format_score(setup.get("confidence_score"))),
+                    ("Execution allowed now", _yes_no(setup.get("execution_allowed_now"))),
+                    ("Setup validity", setup.get("setup_validity")),
                 )
             ),
         )
     )
+    quality = _mapping(setup.get("quality_dimensions"))
+    if quality:
+        sections.append(
+            render_section(
+                "Trade Quality",
+                render_fields(
+                    (
+                        ("Setup quality", format_score(quality.get("setup_quality"))),
+                        ("Execution quality", format_score(quality.get("execution_quality"))),
+                        ("Target quality", format_score(quality.get("target_quality"))),
+                        ("Risk quality", format_score(quality.get("risk_quality"))),
+                        (
+                            "Overall trade quality",
+                            format_score(quality.get("overall_trade_quality")),
+                        ),
+                    )
+                ),
+            )
+        )
+
     entry_label, entry_value = _entry_display(entry.get("lower"), entry.get("upper"))
     trade_fields: list[tuple[str, object]] = [
         ("Current price", format_price(entry.get("current_price"))),
@@ -73,6 +100,8 @@ def render_discovery_analysis(
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
         ("Structural stop", format_price(stop.get("price"))),
         ("Stop distance", f"{stop.get('distance_pct', 0):.2f}%"),
+        ("Stop type", humanize_code(stop.get("stop_type"))),
+        ("Single buffer", stop.get("single_buffer_rationale")),
         ("Stop quality", humanize_code(stop.get("quality_band"))),
     ]
     for index, target in enumerate(targets[:3], start=1):
@@ -81,10 +110,40 @@ def render_discovery_analysis(
                 f"TP{index}",
                 f"{format_price(target.get('price'))} | "
                 f"{format_ratio(target.get('risk_reward'))} | "
-                f"close {target.get('partial_close_pct', 0):g}%",
+                f"close {target.get('partial_close_pct', 0):g}% | "
+                f"{humanize_code(target.get('target_type'))} | "
+                f"{target.get('purpose')}",
             )
         )
     sections.append(render_section("Trade Plan", render_fields(trade_fields)))
+
+    alternatives = _mappings(setup.get("alternative_entry_opportunities"))
+    if alternatives:
+        alternative_lines = [
+            (
+                f"{_price_range(item.get('lower'), item.get('upper'))} | "
+                f"preferred {format_price(item.get('preferred'))} | "
+                f"max chase {format_price(item.get('maximum_chase_price'))}"
+            )
+            for item in alternatives[:4]
+        ]
+        sections.append(
+            render_section("Alternative Entry Opportunities", render_bullets(alternative_lines))
+        )
+
+    expiry_reason = setup.get("setup_expiry_reason")
+    if expiry_reason:
+        sections.append(
+            render_section(
+                "Setup Validity",
+                render_fields(
+                    (
+                        ("Duration", setup.get("setup_validity")),
+                        ("Reason", expiry_reason),
+                    )
+                ),
+            )
+        )
 
     reasons = _strings(payload.get("reasons"))
     if reasons:
@@ -174,10 +233,7 @@ def render_discovery_analysis(
 def render_discovery_scan(payload: Mapping[str, object]) -> str:
     """Render ranked canonical scan output grouped by actionability."""
 
-    actionable = _mappings(payload.get("actionable_setups"))
-    developing = _mappings(payload.get("developing_setups"))
-    unavailable = _mappings(payload.get("unavailable_setups"))
-    no_trade = _mappings(payload.get("no_trade_results"))
+    grouped = group_scan_results(flatten_existing_scan_groups(payload))
     sections = [render_title("Apex Futures Scan")]
     sections.append(
         render_section(
@@ -187,10 +243,12 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
                     ("Markets analyzed", payload.get("total_analysis_count")),
                     ("Displayed candidates", payload.get("displayed_analysis_count")),
                     ("Selected setups", payload.get("selected_setup_count")),
-                    ("Actionable now", payload.get("actionable_count")),
-                    ("Developing", payload.get("developing_count")),
-                    ("Unavailable", payload.get("unavailable_count")),
-                    ("No trade", payload.get("no_trade_count")),
+                    ("Ready now", len(grouped.ready)),
+                    ("Aggressive now", len(grouped.aggressive)),
+                    ("Conditional entry", len(grouped.conditional)),
+                    ("Developing/watch", len(grouped.developing)),
+                    ("Late or invalidated", len(grouped.unavailable)),
+                    ("No setup found", len(grouped.no_setup)),
                     ("Long candidates", payload.get("long_candidate_count")),
                     ("Short candidates", payload.get("short_candidate_count")),
                     ("Status counts", payload.get("status_counts")),
@@ -205,10 +263,12 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
     sections.extend(
         section
         for section in (
-            _render_group("Actionable Setups", actionable),
-            _render_group("Developing Setups", developing),
-            _render_group("Late or Invalidated", unavailable),
-            _render_group("No Trade", no_trade),
+            _render_group("Ready Now", grouped.ready),
+            _render_group("Aggressive Entries", grouped.aggressive),
+            _render_group("Pullback / Retest / Reclaim Pending", grouped.conditional),
+            _render_group("Developing / Watch", grouped.developing),
+            _render_group("Late or Invalidated", grouped.unavailable),
+            _render_group("No Setup Found", grouped.no_setup),
         )
         if section
     )

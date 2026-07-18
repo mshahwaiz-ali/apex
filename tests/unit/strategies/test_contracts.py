@@ -199,7 +199,7 @@ def test_candidate_lifecycle_defaults_from_trade_geometry() -> None:
     assert candidate.lifecycle is not None
     assert candidate.lifecycle.status is CandidateLifecycleStatus.ACTIVE
     assert candidate.lifecycle.cooldown_key == "BTC/USDT:trend_pullback:long:100.0"
-    assert candidate.lifecycle.expires_after_seconds == 900
+    assert candidate.lifecycle.expires_after_seconds == 1800
     assert candidate.lifecycle.invalidation_price == pytest.approx(98.0)
 
 

@@ -99,7 +99,10 @@ def _candidate(
             supporting=("valid deterministic thesis",),
             structure_references=("level:100",),
         ),
-        metadata={} if metadata is None else metadata,
+        metadata={
+            "entry_confirmation_complete": True,
+            **({} if metadata is None else metadata),
+        },
         provisional=provisional,
     )
 
@@ -235,7 +238,16 @@ def test_equal_opposing_strength_returns_no_trade() -> None:
 
 
 def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:
-    result = analyze_candidate_selection(_phase4(_candidate(quality=0.75, provisional=True)))
+    result = analyze_candidate_selection(
+        _phase4(
+            _candidate(
+                quality=0.75,
+                provisional=True,
+                entry_lower=100.1,
+                entry_upper=100.3,
+            )
+        )
+    )
     assert result.selected_candidate is not None
     assert result.selected_candidate.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
 

@@ -79,7 +79,7 @@ def _candidate(
             target_space_quality=quality,
         ),
         evidence=StrategyEvidence(supporting=("test evidence",)),
-        metadata={},
+        metadata={"entry_confirmation_complete": True},
     )
 
 
