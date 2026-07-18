@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from apex.application.methodology_adapters import strategy_evidence_observations
 from apex.application.methodology_selected_strategy_gate import MethodologyGateMode
+from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_enforcement import (
     StrategyEnforcementAction,
     StrategyEnforcementDecision,
+    derive_strategy_enforcement,
 )
+from apex.application.methodology_strategy_evaluation import evaluate_strategy_eligibility
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
 from apex.strategies.strategy_types import StrategyType
 
@@ -30,6 +34,38 @@ class MethodologyCandidateRoutingResult:
             raise ValueError("suppressed strategies must be unique")
         if not self.reason_codes:
             raise ValueError("methodology candidate routing requires reason codes")
+
+
+def evaluate_methodology_candidate_routing(
+    analysis: StrategyAnalysisResult,
+    *,
+    market_state: PrimaryMarketState | None,
+    mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
+) -> MethodologyCandidateRoutingResult:
+    """Evaluate each generated strategy from its own candidate evidence."""
+
+    decisions: list[StrategyEnforcementDecision] = []
+    for strategy in analysis.evaluated_strategies:
+        evidence = tuple(
+            observation
+            for candidate in analysis.candidates
+            if StrategyType(candidate.strategy.value) is strategy
+            for observation in strategy_evidence_observations(candidate.evidence)
+        )
+        decisions.append(
+            derive_strategy_enforcement(
+                evaluate_strategy_eligibility(
+                    strategy,
+                    market_state=market_state,
+                    evidence=evidence,
+                )
+            )
+        )
+    return apply_methodology_candidate_routing(
+        analysis,
+        tuple(decisions),
+        mode=mode,
+    )
 
 
 def apply_methodology_candidate_routing(
@@ -114,5 +150,6 @@ def methodology_candidate_routing_payload(
 __all__ = [
     "MethodologyCandidateRoutingResult",
     "apply_methodology_candidate_routing",
+    "evaluate_methodology_candidate_routing",
     "methodology_candidate_routing_payload",
 ]
