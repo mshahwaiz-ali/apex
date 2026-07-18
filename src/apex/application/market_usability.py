@@ -121,15 +121,15 @@ def classify_market_usability(
         else MarketUsabilityState.USABLE
     )
     score = max(0.0, min(1.0, average_confidence - min(worst_spread, 1.0) * 0.25))
-    reasons = (
-        "market data is current and execution quality is acceptable",
+    reason = (
+        "market data is current and execution quality is acceptable"
         if state is MarketUsabilityState.USABLE
-        else "market remains usable with measurable cautions",
+        else "market remains usable with measurable cautions"
     )
     return MarketUsabilityAssessment(
         state=state,
         score=score,
-        reasons=reasons,
+        reasons=(reason,),
         warnings=tuple(sorted(set(warnings))),
         missing_inputs=tuple(sorted(set(missing))),
     )
