@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from apex.scoring import (
     CandidateOutcome,
     CandidateSelectionResult,
     RankedCandidate,
 )
-from apex.scoring.config import score_band_for
+from apex.scoring.config import DEFAULT_SCORING_CONFIG, score_band_for
 from apex.scoring.rank_score import (
     RANK_SCORE_WEIGHTS,
     CandidateScoreDimensions,
@@ -47,9 +49,13 @@ class CandidateRankingRecord:
     rank: int
     role: CandidateRankingRole
     strategy: str
+    strategy_family: str
+    strategy_subtype: str | None
     direction: str
     entry_status: EntryStatus
     final_score: float
+    approval_threshold: float
+    score_shortfall: float
     unpenalized_rank_score: float
     rank_penalty_score: float
     final_rank_score: float
@@ -59,6 +65,12 @@ class CandidateRankingRecord:
     outcome: str
     reason_codes: tuple[str, ...]
     reasons: tuple[str, ...]
+    entry: Mapping[str, Any]
+    invalidation: Mapping[str, Any]
+    targets: tuple[Mapping[str, Any], ...]
+    evidence: Mapping[str, Any]
+    metadata: Mapping[str, Any]
+    provisional: bool
 
     def __post_init__(self) -> None:
         if not self.candidate_id.strip():
@@ -169,9 +181,13 @@ def _record(
         rank=item.rank,
         role=role,
         strategy=item.candidate.strategy.value,
+        strategy_family=item.candidate.strategy.canonical_family.value,
+        strategy_subtype=item.candidate.strategy.canonical_subtype,
         direction=item.candidate.direction.value,
         entry_status=classify_candidate_actionability(item.candidate),
         final_score=item.final_score,
+        approval_threshold=DEFAULT_SCORING_CONFIG.minimum_accept_score,
+        score_shortfall=max(0.0, DEFAULT_SCORING_CONFIG.minimum_accept_score - item.final_score),
         unpenalized_rank_score=unpenalized_rank_score(item.scored),
         rank_penalty_score=rank_penalty_score(item.scored),
         final_rank_score=final_rank_score(item.scored),
@@ -184,7 +200,64 @@ def _record(
         outcome=item.outcome.value,
         reason_codes=tuple(dict.fromkeys((*alignment_codes,))),
         reasons=item.reasons,
+        entry=_entry_payload(item.candidate),
+        invalidation=_invalidation_payload(item.candidate),
+        targets=_target_payloads(item.candidate),
+        evidence=_evidence_payload(item.candidate),
+        metadata=dict(item.candidate.metadata),
+        provisional=item.candidate.provisional,
     )
+
+
+def _entry_payload(candidate: Any) -> dict[str, Any]:
+    entry = candidate.entry
+    return {
+        "lower": entry.lower,
+        "upper": entry.upper,
+        "preferred": entry.preferred,
+        "current_price": entry.current_price,
+        "maximum_chase_price": entry.max_chase_price,
+        "mode": entry.mode.value,
+        "distance_from_current": entry.distance_from_current,
+        "atr_distance": entry.atr_distance,
+        "estimated_move_missed": entry.estimated_move_missed,
+        "location_quality": entry.location_quality,
+        "is_extended": entry.is_extended,
+        "rationale": list(entry.rationale),
+    }
+
+
+def _invalidation_payload(candidate: Any) -> dict[str, Any]:
+    invalidation = candidate.invalidation
+    return {
+        "kind": invalidation.kind.value,
+        "price": invalidation.price,
+        "rationale": list(invalidation.rationale),
+    }
+
+
+def _target_payloads(candidate: Any) -> tuple[dict[str, Any], ...]:
+    return tuple(
+        {
+            "kind": level.kind.value,
+            "price": level.price,
+            "label": level.label,
+            "rationale": list(level.rationale),
+        }
+        for level in candidate.targets.levels
+    )
+
+
+def _evidence_payload(candidate: Any) -> dict[str, Any]:
+    evidence = candidate.evidence
+    return {
+        "supporting": list(evidence.supporting),
+        "contradictions": list(evidence.contradictions),
+        "warnings": list(evidence.warnings),
+        "feature_references": list(evidence.feature_references),
+        "structure_references": list(evidence.structure_references),
+        "liquidity_references": list(evidence.liquidity_references),
+    }
 
 
 def candidate_quality_label(
@@ -210,9 +283,13 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "rank": item.rank,
         "role": item.role.value,
         "strategy": item.strategy,
+        "strategy_family": item.strategy_family,
+        "strategy_subtype": item.strategy_subtype,
         "direction": item.direction,
         "entry_status": item.entry_status.value,
         "final_score": item.final_score,
+        "approval_threshold": item.approval_threshold,
+        "score_shortfall": item.score_shortfall,
         "unpenalized_rank_score": item.unpenalized_rank_score,
         "rank_penalty_score": item.rank_penalty_score,
         "final_rank_score": item.final_rank_score,
@@ -227,4 +304,10 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
         "outcome": item.outcome,
         "reason_codes": list(item.reason_codes),
         "reasons": list(item.reasons),
+        "entry": dict(item.entry),
+        "invalidation": dict(item.invalidation),
+        "targets": [dict(target) for target in item.targets],
+        "evidence": dict(item.evidence),
+        "metadata": dict(item.metadata),
+        "provisional": item.provisional,
     }

@@ -145,3 +145,24 @@ def test_payload_keeps_deterministic_rank_order() -> None:
     assert payload["alternatives"][0]["rank"] == 2  # type: ignore[index]
     assert payload["ranked_count"] == 2
     assert payload["alternative_count"] == 1
+
+
+def test_payload_preserves_candidate_geometry_for_focused_analysis() -> None:
+    strategy_analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(_candidate(StrategyType.TREND_PULLBACK, quality=0.40),),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+    )
+    payload = candidate_ranking_payload(
+        build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
+    )
+
+    rejected = payload["rejected"][0]  # type: ignore[index]
+    assert rejected["direction"] == "long"
+    assert rejected["approval_threshold"] == 58.0
+    assert rejected["score_shortfall"] > 0.0
+    assert rejected["entry"]["preferred"] == 100.0
+    assert rejected["invalidation"]["price"] == 95.0
+    assert rejected["targets"][0]["price"] == 110.0
+    assert rejected["evidence"]["supporting"] == ["test evidence"]

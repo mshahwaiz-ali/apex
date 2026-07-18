@@ -36,9 +36,7 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
     OPEN_INTEREST_HISTORY_PATH = "/futures/data/openInterestHist"
     TAKER_FLOW_HISTORY_PATH = "/futures/data/takerlongshortRatio"
 
-    def fetch_funding_rates(
-        self, symbol: str, limit: int = 100
-    ) -> tuple[FundingRateSnapshot, ...]:
+    def fetch_funding_rates(self, symbol: str, limit: int = 100) -> tuple[FundingRateSnapshot, ...]:
         payload = self._fetch_evidence_rows(
             self.FUNDING_RATE_PATH,
             symbol,

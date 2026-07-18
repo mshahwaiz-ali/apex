@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
+from apex.application.focused_analysis import focused_analysis_payload
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_selected_strategy_verdict import (
     derive_selected_strategy_verdict,
@@ -89,6 +90,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     )
     payload["entry_state"] = None if maturity is None else maturity.public_entry_state.value
     payload["quality_score"] = payload.get("confidence_score")
+    payload["focused_analysis"] = focused_analysis_payload(payload)
 
     setup = payload.get("setup")
     _add_canonical_strategy_identity(setup)

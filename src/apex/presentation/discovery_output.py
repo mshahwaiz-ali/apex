@@ -33,23 +33,32 @@ def render_discovery_analysis(
     symbol = str(payload.get("symbol") or "Unknown symbol")
     selected_setup = _mapping(payload.get("setup"))
     developing_setup = _mapping(payload.get("developing_setup"))
+    focused = _mapping(payload.get("focused_analysis"))
     developing_only = not selected_setup and bool(developing_setup)
     setup = selected_setup or developing_setup
     if not setup:
         reasons = _strings(payload.get("reasons"))
         sections = [render_title(f"{symbol} — No Trade")]
+        sections.extend(_focused_market_sections(focused))
         sections.append(
             render_section(
-                "Assessment",
+                "Current Decision",
                 render_fields(
                     (
-                        ("Status", "No trade"),
-                        ("Reason", reasons[0] if reasons else "No defensible setup was selected"),
+                        ("Trade now", "No"),
+                        (
+                            "Reason",
+                            reasons[0] if reasons else "No defensible setup was selected",
+                        ),
                         ("Candidates evaluated", payload.get("candidate_count")),
                     )
                 ),
             )
         )
+        sections.extend(_focused_direction_sections(focused))
+        watch = _strings(focused.get("watch_plan"))
+        if watch:
+            sections.append(render_section("Watch Next", render_bullets(watch)))
         return "\n\n".join(sections)
 
     entry = _mapping(setup.get("entry"))
@@ -60,6 +69,23 @@ def render_discovery_analysis(
     headline = str(setup.get("trader_headline") or f"{direction} setup")
     title = "Valid Setup, Entry Pending" if developing_only else headline
     sections = [render_title(f"{symbol} — {title}")]
+    sections.extend(_focused_market_sections(focused))
+    focused_assessment = _mapping(focused.get("directional_assessment"))
+    if focused_assessment:
+        sections.append(
+            render_section(
+                "Directional Assessment",
+                render_fields(
+                    (
+                        ("Preferred side", humanize_code(focused_assessment.get("preferred_side"))),
+                        ("Long thesis", humanize_code(focused_assessment.get("long_state"))),
+                        ("Short thesis", humanize_code(focused_assessment.get("short_state"))),
+                        ("Analytical confidence", focused_assessment.get("confidence_label")),
+                        ("Reason", focused_assessment.get("reason")),
+                    )
+                ),
+            )
+        )
     sections.append(
         render_section(
             "Best Valid Pending Setup" if developing_only else "Selected Setup",
@@ -241,6 +267,28 @@ def render_discovery_analysis(
         )
     if warnings:
         sections.append(render_section("Warnings", render_bullets(dict.fromkeys(warnings))))
+    if focused:
+        selected_direction = str(setup.get("direction") or "")
+        opposite_key = "short_thesis" if selected_direction == "long" else "long_thesis"
+        opposite = _mapping(focused.get(opposite_key))
+        if opposite:
+            sections.append(
+                render_section(
+                    f"{humanize_code(opposite.get('direction'))}-Side Assessment",
+                    render_fields(
+                        (
+                            ("Status", humanize_code(opposite.get("state"))),
+                            ("Strategy", humanize_code(opposite.get("primary_strategy"))),
+                            ("Rule-based quality", _quality_score(opposite.get("score"))),
+                            ("Outcome", humanize_code(opposite.get("candidate_outcome"))),
+                            ("Reason", opposite.get("summary")),
+                        )
+                    ),
+                )
+            )
+        watch = _strings(focused.get("watch_plan"))
+        if watch:
+            sections.append(render_section("Watch Next", render_bullets(watch)))
     return "\n\n".join(sections)
 
 
@@ -364,6 +412,83 @@ def _pending_activation_summary(setup: Mapping[str, object]) -> str:
     return lines[0] if lines else "execution confirmation remains incomplete"
 
 
+def _focused_market_sections(focused: Mapping[str, object]) -> list[str]:
+    outlook = _mapping(focused.get("market_outlook"))
+    if not outlook:
+        return []
+    return [
+        render_section(
+            "Market Outlook",
+            render_fields(
+                (
+                    ("Regime", humanize_code(outlook.get("regime"))),
+                    ("Market condition", humanize_code(outlook.get("market_condition"))),
+                    ("Primary structure", humanize_code(outlook.get("primary_structure"))),
+                    ("Setup structure", humanize_code(outlook.get("setup_structure"))),
+                    ("Entry timeframe", outlook.get("entry_timeframe")),
+                    ("Volatility", humanize_code(outlook.get("volatility"))),
+                    ("Participation", humanize_code(outlook.get("participation"))),
+                    ("Current location", outlook.get("current_location")),
+                )
+            ),
+        )
+    ]
+
+
+def _focused_direction_sections(focused: Mapping[str, object]) -> list[str]:
+    if not focused:
+        return []
+    sections: list[str] = []
+    assessment = _mapping(focused.get("directional_assessment"))
+    if assessment:
+        sections.append(
+            render_section(
+                "Directional Assessment",
+                render_fields(
+                    (
+                        ("Preferred side", humanize_code(assessment.get("preferred_side"))),
+                        ("Long thesis", humanize_code(assessment.get("long_state"))),
+                        ("Short thesis", humanize_code(assessment.get("short_state"))),
+                        ("Analytical confidence", assessment.get("confidence_label")),
+                        ("Reason", assessment.get("reason")),
+                    )
+                ),
+            )
+        )
+    for title, key in (("Long Assessment", "long_thesis"), ("Short Assessment", "short_thesis")):
+        thesis = _mapping(focused.get(key))
+        if not thesis:
+            continue
+        sections.append(
+            render_section(
+                title,
+                render_fields(
+                    (
+                        ("Status", humanize_code(thesis.get("state"))),
+                        ("Strategy", humanize_code(thesis.get("primary_strategy"))),
+                        ("Rule-based quality", _quality_score(thesis.get("score"))),
+                        ("Required threshold", _quality_score(thesis.get("approval_threshold"))),
+                        ("Shortfall", _score_shortfall(thesis.get("score_shortfall"))),
+                        ("Outcome", humanize_code(thesis.get("candidate_outcome"))),
+                        ("Summary", thesis.get("summary")),
+                    )
+                ),
+            )
+        )
+        blockers = _strings(thesis.get("blockers"))
+        activation = _strings(thesis.get("activation_conditions"))
+        invalidation = _strings(thesis.get("invalidation_conditions"))
+        if blockers:
+            sections.append(render_section(f"{title} Blockers", render_bullets(blockers[:5])))
+        if activation:
+            sections.append(render_section(f"{title} Activation", render_bullets(activation[:4])))
+        if invalidation:
+            sections.append(
+                render_section(f"{title} Invalidation", render_bullets(invalidation[:3]))
+            )
+    return sections
+
+
 def _mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
 
@@ -422,6 +547,11 @@ def _entry_display(low: object, high: object) -> tuple[str, str]:
 def _quality_score(value: object) -> str:
     formatted = format_score(value)
     return formatted if formatted == "Unavailable" else f"{formatted}/100"
+
+
+def _score_shortfall(value: object) -> str:
+    formatted = format_score(value)
+    return formatted if formatted == "Unavailable" else f"{formatted} points"
 
 
 def _chase_label(setup: Mapping[str, object]) -> str:
