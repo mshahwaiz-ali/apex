@@ -37,6 +37,10 @@ from apex.application.methodology_execution_geometry_semantics import (
     derive_execution_geometry_semantics,
     execution_geometry_semantics_payload,
 )
+from apex.application.methodology_expiry_semantics import (
+    derive_expiry_semantics,
+    expiry_semantics_payload,
+)
 from apex.application.methodology_geometry_projection import project_setup_geometry
 from apex.application.methodology_invalidation_semantics import (
     derive_invalidation_semantics,
@@ -54,6 +58,10 @@ from apex.application.methodology_provenance import (
     derive_methodology_provenance,
     methodology_completeness_payload,
     methodology_provenance_payload,
+)
+from apex.application.methodology_ranking_integrity_semantics import (
+    derive_ranking_integrity_semantics,
+    ranking_integrity_semantics_payload,
 )
 from apex.application.methodology_rejection_semantics import (
     derive_rejection_semantics,
@@ -82,15 +90,15 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent projection, evidence, coverage, and execution semantics.
+    """Return transparent evidence, expiry, ranking, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, independent confirmation,
     calibrated probability, closed-candle confirmation, verified strategy
     eligibility, complete timeframe coverage, usable execution conditions,
-    canonical geometry, authoritative actionability, hidden rejection,
-    score-authorized execution, or a universal target horizon.
+    proven elapsed-bar expiry, rank-authorized execution, canonical geometry,
+    authoritative actionability, hidden rejection, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -111,6 +119,7 @@ def methodology_public_enrichment(
         projected,
         native_methodology_available=native_available,
     )
+    expiry = derive_expiry_semantics(projected)
     invalidation = derive_invalidation_semantics(
         setup,
         projected,
@@ -118,6 +127,7 @@ def methodology_public_enrichment(
     )
     market_state = derive_market_state_semantics(projected)
     market_usability = derive_market_usability_semantics(projected)
+    ranking_integrity = derive_ranking_integrity_semantics(analysis, projected)
     rejections = derive_rejection_semantics(projected)
     score = derive_score_semantics(setup, projected)
     strategy_fit = derive_strategy_fit_semantics(setup, projected)
@@ -151,10 +161,14 @@ def methodology_public_enrichment(
         "methodology_execution_geometry_semantics": execution_geometry_semantics_payload(
             execution_geometry
         ),
+        "methodology_expiry_semantics": expiry_semantics_payload(expiry),
         "methodology_invalidation_semantics": invalidation_semantics_payload(invalidation),
         "methodology_market_state_semantics": market_state_semantics_payload(market_state),
         "methodology_market_usability_semantics": market_usability_semantics_payload(
             market_usability
+        ),
+        "methodology_ranking_integrity_semantics": ranking_integrity_semantics_payload(
+            ranking_integrity
         ),
         "methodology_rejection_semantics": rejection_semantics_payload(rejections),
         "methodology_score_semantics": score_semantics_payload(score),
