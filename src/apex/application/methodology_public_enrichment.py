@@ -46,6 +46,10 @@ from apex.application.methodology_invalidation_semantics import (
     derive_invalidation_semantics,
     invalidation_semantics_payload,
 )
+from apex.application.methodology_management_semantics import (
+    derive_management_semantics,
+    management_semantics_payload,
+)
 from apex.application.methodology_market_state_semantics import (
     derive_market_state_semantics,
     market_state_semantics_payload,
@@ -111,7 +115,7 @@ def methodology_public_enrichment(
     eligibility, complete timeframe coverage, usable execution conditions,
     proven elapsed-bar expiry, authoritative selected-entry decisions,
     rank-authorized execution, canonical geometry, authoritative actionability,
-    hidden rejection, or a universal target horizon.
+    hidden rejection, executed lifecycle actions, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -138,6 +142,7 @@ def methodology_public_enrichment(
         projected,
         native_methodology_available=native_available,
     )
+    management = derive_management_semantics(projected)
     market_state = derive_market_state_semantics(projected)
     market_usability = derive_market_usability_semantics(projected)
     ranking_integrity = derive_ranking_integrity_semantics(analysis, projected)
@@ -186,6 +191,7 @@ def methodology_public_enrichment(
         ),
         "methodology_expiry_semantics": expiry_semantics_payload(expiry),
         "methodology_invalidation_semantics": invalidation_semantics_payload(invalidation),
+        "methodology_management_semantics": management_semantics_payload(management),
         "methodology_market_state_semantics": market_state_semantics_payload(market_state),
         "methodology_market_usability_semantics": market_usability_semantics_payload(
             market_usability
