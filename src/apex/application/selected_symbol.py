@@ -20,8 +20,9 @@ def analyze_selected_symbol(
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+    methodology_gate_mode: str = "shadow",
 ) -> SymbolAnalysis:
-    """Normalize a user-entered symbol and run the trade-discovery pipeline."""
+    """Normalize a user-entered symbol and run the shared discovery pipeline."""
 
     normalized_symbol = normalize_market_symbol(symbol)
     return analyze_symbol(
@@ -33,6 +34,7 @@ def analyze_selected_symbol(
         candle_limit=candle_limit,
         generated_at=generated_at,
         strategy_routing=strategy_routing,
+        methodology_gate_mode=methodology_gate_mode,
     )
 
 
