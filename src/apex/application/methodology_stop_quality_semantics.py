@@ -8,6 +8,7 @@ from typing import Any
 from apex.application.discovery_contracts import DiscoverySetup
 from apex.application.methodology_contracts import EntryOpportunity
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.methodology_stop_noise_contracts import StopNoiseEvidence
 from apex.strategies.contracts import TradeDirection
 
 
@@ -30,6 +31,15 @@ class StopQualitySemantics:
     legacy_quality_score: float | None
     legacy_quality_band: str | None
     legacy_quality_authoritative: bool
+    noise_evidence_available: bool
+    noise_measure: str | None
+    noise_value: float | None
+    noise_timeframe: str | None
+    noise_sample_size: int | None
+    noise_source: str | None
+    required_clearance_multiplier: float | None
+    required_clearance_distance: float | None
+    stop_distance_in_noise_units: float | None
     normal_noise_clearance_proven: bool | None
     stop_inside_entry_zone: bool | None
     directionally_validated: bool
@@ -43,8 +53,9 @@ def derive_stop_quality_semantics(
     methodology: MethodologySnapshot,
     *,
     native_methodology_available: bool,
+    noise_evidence: StopNoiseEvidence | None = None,
 ) -> StopQualitySemantics:
-    """Describe stop geometry while leaving unavailable quality evidence unresolved."""
+    """Describe stop geometry and only claim noise clearance from explicit evidence."""
 
     selected = _selected_opportunity(methodology)
     invalidation = methodology.invalidation
@@ -60,11 +71,6 @@ def derive_stop_quality_semantics(
         )
         inside_zone = selected.zone_low <= invalidation.price <= selected.zone_high
         correct_side = _stop_on_correct_side(methodology, selected)
-        interpretation = (
-            "canonical selected-entry and structural-invalidation geometry are available; "
-            "distance, buffer, execution allowance, and directional side are reported without "
-            "applying an unconfigured universal stop-quality threshold"
-        )
     else:
         entry_reference = None
         distance = None
@@ -72,14 +78,56 @@ def derive_stop_quality_semantics(
         structural_distance = None
         inside_zone = None
         correct_side = None
+
+    distance_in_noise = (
+        None
+        if distance is None or noise_evidence is None
+        else distance / noise_evidence.value
+    )
+    noise_clearance = (
+        None
+        if distance is None or noise_evidence is None
+        else distance >= noise_evidence.required_clearance_distance
+    )
+
+    if not geometry_available:
         interpretation = (
             "canonical stop-quality geometry is incomplete because an authoritative selected "
             "entry and structural invalidation are not both available"
+        )
+    elif noise_evidence is None:
+        interpretation = (
+            "canonical stop geometry is available, but normal-noise clearance remains unknown "
+            "because no ATR or realized-noise evidence is attached"
+        )
+    elif noise_clearance:
+        interpretation = (
+            "the structural stop clears the explicitly configured normal-noise distance for the "
+            "recorded measure and timeframe; this is not a universal stop-width rule"
+        )
+    else:
+        interpretation = (
+            "the structural stop does not clear the explicitly configured normal-noise distance; "
+            "the setup may require rejection or re-construction rather than arbitrary widening"
         )
 
     legacy_score = None if setup is None else setup.stop_loss.quality_score
     legacy_band = None if setup is None else setup.stop_loss.quality_band.value
     directionally_validated = methodology.direction is not None and correct_side is not None
+    limitations = [
+        "absolute distance alone cannot establish that a stop is structurally strong or outside normal noise",
+        "legacy stop-quality scores remain compatibility metadata and are not canonical methodology authority",
+        "position size, leverage, and acceptable monetary loss must not alter the structural invalidation level",
+    ]
+    if noise_evidence is None:
+        limitations.insert(
+            0,
+            "ATR, realized-range, or realized-volatility evidence is unavailable, so normal-noise clearance is not claimed",
+        )
+    else:
+        limitations.append(
+            "the configured clearance multiplier is strategy-specific evidence, not a universal market threshold"
+        )
 
     return StopQualitySemantics(
         canonical_available=invalidation is not None,
@@ -99,17 +147,25 @@ def derive_stop_quality_semantics(
         legacy_quality_score=legacy_score,
         legacy_quality_band=legacy_band,
         legacy_quality_authoritative=False,
-        normal_noise_clearance_proven=None,
+        noise_evidence_available=noise_evidence is not None,
+        noise_measure=None if noise_evidence is None else noise_evidence.measure.value,
+        noise_value=None if noise_evidence is None else noise_evidence.value,
+        noise_timeframe=None if noise_evidence is None else noise_evidence.timeframe,
+        noise_sample_size=None if noise_evidence is None else noise_evidence.sample_size,
+        noise_source=None if noise_evidence is None else noise_evidence.source,
+        required_clearance_multiplier=(
+            None if noise_evidence is None else noise_evidence.required_clearance_multiplier
+        ),
+        required_clearance_distance=(
+            None if noise_evidence is None else noise_evidence.required_clearance_distance
+        ),
+        stop_distance_in_noise_units=distance_in_noise,
+        normal_noise_clearance_proven=noise_clearance,
         stop_inside_entry_zone=inside_zone,
         directionally_validated=directionally_validated,
         stop_on_correct_side=correct_side,
         interpretation=interpretation,
-        limitations=(
-            "ATR, realized-volatility, and normal-noise clearance evidence are not present in the canonical invalidation contract",
-            "absolute distance alone cannot establish that a stop is structurally strong or outside normal noise",
-            "legacy stop-quality scores remain compatibility metadata and are not canonical methodology authority",
-            "position size, leverage, and acceptable monetary loss must not alter the structural invalidation level",
-        ),
+        limitations=tuple(limitations),
     )
 
 
@@ -134,6 +190,15 @@ def stop_quality_semantics_payload(
         "legacy_quality_score": semantics.legacy_quality_score,
         "legacy_quality_band": semantics.legacy_quality_band,
         "legacy_quality_authoritative": semantics.legacy_quality_authoritative,
+        "noise_evidence_available": semantics.noise_evidence_available,
+        "noise_measure": semantics.noise_measure,
+        "noise_value": semantics.noise_value,
+        "noise_timeframe": semantics.noise_timeframe,
+        "noise_sample_size": semantics.noise_sample_size,
+        "noise_source": semantics.noise_source,
+        "required_clearance_multiplier": semantics.required_clearance_multiplier,
+        "required_clearance_distance": semantics.required_clearance_distance,
+        "stop_distance_in_noise_units": semantics.stop_distance_in_noise_units,
         "normal_noise_clearance_proven": semantics.normal_noise_clearance_proven,
         "stop_inside_entry_zone": semantics.stop_inside_entry_zone,
         "directionally_validated": semantics.directionally_validated,
