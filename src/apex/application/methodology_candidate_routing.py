@@ -112,14 +112,14 @@ def apply_methodology_candidate_routing(
             suppressed_strategies.append(strategy)
 
     retained_tuple = tuple(retained)
-    retained_ids = {candidate.candidate_id for candidate in retained_tuple}
+    retained_identity = {id(candidate) for candidate in retained_tuple}
     routed = replace(
         analysis,
         candidates=retained_tuple,
         candidate_actionability=tuple(
             item
             for item in analysis.candidate_actionability
-            if item.candidate.candidate_id in retained_ids
+            if id(item.candidate) in retained_identity
         ),
         suppressed_candidates=analysis.suppressed_candidates + tuple(newly_suppressed),
     )
