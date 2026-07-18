@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from apex.application.market_usability import (
+    MarketUsabilityAssessment,
+    market_usability_payload,
+)
 from apex.application.methodology_contracts import (
     ConfidenceAssessment,
     Contradiction,
@@ -27,6 +31,7 @@ from apex.application.methodology_strategy_contracts import (
 class MethodologySnapshot:
     """Normalized methodology result that later phases can populate incrementally."""
 
+    market_usability: MarketUsabilityAssessment | None = None
     market_state: MarketStateClassification | None = None
     setup_maturity: SetupMaturity | None = None
     confirmation_policy: ConfirmationPolicy | None = None
@@ -81,6 +86,11 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
     """Serialize a methodology snapshot without implying calibrated probability."""
 
     return {
+        "market_usability": (
+            None
+            if snapshot.market_usability is None
+            else market_usability_payload(snapshot.market_usability)
+        ),
         "market_state": None
         if snapshot.market_state is None
         else {
@@ -178,9 +188,7 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
             "strongest_support": snapshot.confidence.strongest_support,
             "strongest_contradiction": snapshot.confidence.strongest_contradiction,
             "missing_evidence": list(snapshot.confidence.missing_evidence),
-            "model_estimated_success_rate": (
-                snapshot.confidence.model_estimated_success_rate
-            ),
+            "model_estimated_success_rate": snapshot.confidence.model_estimated_success_rate,
             "sample_size": snapshot.confidence.sample_size,
         },
         "rejections": [
