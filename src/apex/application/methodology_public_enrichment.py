@@ -161,6 +161,8 @@ def methodology_public_enrichment(
     target_feasibility = derive_target_feasibility_semantics(
         projected,
         native_methodology_available=native_available,
+        execution_costs=projected.execution_costs,
+        obstacle_evidence=projected.target_obstacles,
     )
     target_horizon = derive_target_horizon_semantics(projected)
     timeframe_coverage = derive_timeframe_coverage_semantics(analysis)
