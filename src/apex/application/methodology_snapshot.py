@@ -24,6 +24,10 @@ from apex.application.methodology_evidence_aggregation import (
     aggregate_evidence_families,
     evidence_family_aggregate_payload,
 )
+from apex.application.methodology_management_contracts import (
+    ManagementActionType,
+    ManagementStep,
+)
 from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
 from apex.application.methodology_strategy_contracts import (
     ConfirmationPolicy,
@@ -48,6 +52,7 @@ class MethodologySnapshot:
     selected_entry: SelectedEntryDecision | None = None
     invalidation: StructuralInvalidation | None = None
     targets: tuple[TargetCandidate, ...] = ()
+    management_steps: tuple[ManagementStep, ...] = ()
     duration: DurationExpectation | None = None
     confidence: ConfidenceAssessment | None = None
     rejections: tuple[RejectionReason, ...] = ()
@@ -66,9 +71,26 @@ class MethodologySnapshot:
                 )
         if len(set(self.targets)) != len(self.targets):
             raise ValueError("target candidates must not contain duplicates")
+        if len(set(self.management_steps)) != len(self.management_steps):
+            raise ValueError("management steps must not contain duplicates")
         if len(set(self.rejections)) != len(self.rejections):
             raise ValueError("rejection reasons must not contain duplicates")
+        self._validate_management_steps()
         self._validate_directional_geometry()
+
+    def _validate_management_steps(self) -> None:
+        target_roles = {target.role for target in self.targets}
+        partial_total = 0.0
+        for step in self.management_steps:
+            if step.kind is not ManagementActionType.PARTIAL_EXIT:
+                continue
+            if step.target_role not in target_roles:
+                raise ValueError(
+                    "partial-exit management must reference a canonical target role"
+                )
+            partial_total += step.close_percentage or 0.0
+        if partial_total > 100.0:
+            raise ValueError("partial-exit close percentages cannot exceed 100")
 
     def _validate_directional_geometry(self) -> None:
         if self.direction is None or self.selected_entry is None:
@@ -193,6 +215,19 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
                 "conditional": item.conditional,
             }
             for item in snapshot.targets
+        ],
+        "management_steps": [
+            {
+                "kind": item.kind.value,
+                "trigger": item.trigger,
+                "action": item.action,
+                "rationale": list(item.rationale),
+                "target_role": (
+                    None if item.target_role is None else item.target_role.value
+                ),
+                "close_percentage": item.close_percentage,
+            }
+            for item in snapshot.management_steps
         ],
         "duration": None
         if snapshot.duration is None
