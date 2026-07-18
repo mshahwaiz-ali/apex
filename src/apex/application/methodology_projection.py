@@ -15,6 +15,7 @@ from apex.application.market_usability import (
     classify_market_usability,
 )
 from apex.application.methodology_contracts import TargetCandidate, TargetRole
+from apex.application.methodology_entry_selection import select_canonical_entry
 from apex.application.methodology_management_contracts import (
     ManagementActionType,
     ManagementStep,
@@ -74,6 +75,11 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
                     else contradictions
                 ),
             )
+
+    if methodology.selected_entry is None:
+        selected_entry = select_canonical_entry(methodology)
+        if selected_entry is not None:
+            methodology = replace(methodology, selected_entry=selected_entry)
     return methodology
 
 
