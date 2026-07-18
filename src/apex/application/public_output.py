@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
+from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_snapshot import methodology_snapshot_payload
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
@@ -20,10 +21,8 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Return one discovery result without legacy entry-state overlays."""
 
     payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
-    payload["methodology"] = (
-        None
-        if analysis.methodology is None
-        else methodology_snapshot_payload(analysis.methodology)
+    payload["methodology"] = methodology_snapshot_payload(
+        project_analysis_methodology(analysis)
     )
     setup = payload.get("setup")
     if not isinstance(setup, dict):
