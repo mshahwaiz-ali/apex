@@ -62,6 +62,7 @@ def analyze_symbol(
         generated_at=generated_at,
         strategy_routing=strategy_routing,
         market_environment_config=market_environment_config,
+        methodology_gate_mode=methodology_gate_mode,
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
