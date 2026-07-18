@@ -20,6 +20,11 @@ from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.discovery_setup import build_discovery_assessment
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.market_strategy_router import MarketStrategyRoute
+from apex.application.methodology_candidate_routing import (
+    evaluate_methodology_candidate_routing,
+    methodology_candidate_routing_payload,
+)
+from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
@@ -43,6 +48,8 @@ def analyze_symbol(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_strategy_route: MarketStrategyRoute | None = None,
+    methodology_market_state: PrimaryMarketState | None = None,
+    methodology_gate_mode: str = "shadow",
 ) -> SymbolAnalysis:
     """Run candidate discovery from market evidence and trade geometry."""
 
@@ -60,7 +67,16 @@ def analyze_symbol(
     )
     strategy_analysis = analyze_strategies(context, decision_time=decision_time)
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
-    selection = analyze_futures_phase5(routed, environment_route=market_strategy_route)
+    methodology_routing = evaluate_methodology_candidate_routing(
+        routed,
+        market_state=methodology_market_state,
+        mode=methodology_gate_mode,
+    )
+    eligible_routed = methodology_routing.analysis
+    selection = analyze_futures_phase5(
+        eligible_routed,
+        environment_route=market_strategy_route,
+    )
     assessment = build_discovery_assessment(selection)
     ranking = build_candidate_ranking_snapshot(selection)
     return SymbolAnalysis(
@@ -96,7 +112,7 @@ def analyze_symbol(
         strategy_routing=dict(
             build_strategy_routing_payload(
                 assessment=assessment,
-                strategy_analysis=routed,
+                strategy_analysis=eligible_routed,
                 routing_config=strategy_routing,
             )
         ),
@@ -112,6 +128,9 @@ def analyze_symbol(
                 else None
             ),
             "no_trade_reason": selection.no_trade_reason,
+            "methodology_candidate_routing": methodology_candidate_routing_payload(
+                methodology_routing
+            ),
             "candidates": [
                 {
                     "candidate_id": item.scored.candidate_id,
