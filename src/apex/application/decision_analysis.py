@@ -17,6 +17,9 @@ from apex.application.market_strategy_router import (
     market_strategy_route_payload,
     route_market_strategies,
 )
+from apex.application.methodology_gate_orchestration import (
+    apply_configured_methodology_gate,
+)
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -45,8 +48,9 @@ def analyze_symbol(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+    methodology_gate_mode: str = "shadow",
 ) -> SymbolAnalysis:
-    """Run integrated discovery analysis and attach canonical market routing."""
+    """Run integrated discovery analysis, routing, and the shared methodology gate."""
 
     base = _integrated.analyze_symbol(
         symbol,
@@ -61,7 +65,7 @@ def analyze_symbol(
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
-    return SymbolAnalysis(
+    analysis = SymbolAnalysis(
         symbol=base.symbol,
         generated_at=base.generated_at,
         assessment=base.assessment,
@@ -72,9 +76,18 @@ def analyze_symbol(
         strategy_routing=base.strategy_routing,
         phase5_diagnostics=base.phase5_diagnostics,
         candidate_ranking=base.candidate_ranking,
+        methodology=getattr(base, "methodology", None),
+        methodology_gate=getattr(base, "methodology_gate", None),
         market_environment=environment,
         market_state=base.market_state,
         market_strategy_route=route,
+    )
+    return cast(
+        SymbolAnalysis,
+        apply_configured_methodology_gate(
+            analysis,
+            mode=methodology_gate_mode,
+        ),
     )
 
 
@@ -89,8 +102,9 @@ def scan_symbols(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+    methodology_gate_mode: str = "shadow",
 ) -> DiscoveryScanResult:
-    """Analyze each symbol once with canonical routing and ranking."""
+    """Analyze each symbol once with canonical routing, gating, and ranking."""
 
     timestamp = generated_at or datetime.now(UTC)
     analyses: list[SymbolAnalysis] = []
@@ -108,6 +122,7 @@ def scan_symbols(
                     generated_at=timestamp,
                     strategy_routing=strategy_routing,
                     market_environment_config=market_environment_config,
+                    methodology_gate_mode=methodology_gate_mode,
                 )
             )
         except Exception as exc:  # Scanner intentionally isolates per-symbol failures.
@@ -132,6 +147,7 @@ def serialize_symbol_analysis(analysis: DiscoverySymbolAnalysis) -> dict[str, An
     payload["market_strategy_route"] = (
         market_strategy_route_payload(route) if isinstance(route, MarketStrategyRoute) else None
     )
+    payload["methodology_gate"] = getattr(analysis, "methodology_gate", None)
     payload["decision_reason_code"] = _decision_reason_code(analysis)
     return payload
 
@@ -242,6 +258,9 @@ def _opportunity_summary_lines(analysis: DiscoverySymbolAnalysis) -> tuple[str, 
 
 
 def _decision_reason_code(analysis: DiscoverySymbolAnalysis) -> str:
+    gate = getattr(analysis, "methodology_gate", None)
+    if isinstance(gate, Mapping) and gate.get("changed") is True:
+        return "METHODOLOGY_SELECTED_STRATEGY_SUPPRESSED"
     environment = getattr(analysis, "market_environment", None)
     route = getattr(analysis, "market_strategy_route", None)
     candidate_diagnostics = analysis.phase5_diagnostics or {}
