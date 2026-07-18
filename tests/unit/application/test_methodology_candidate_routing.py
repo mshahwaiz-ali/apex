@@ -15,7 +15,7 @@ from apex.application.methodology_strategy_enforcement import (
     StrategyEnforcementDecision,
 )
 from apex.strategies.analysis import CandidateActionability, StrategyAnalysisResult
-from apex.strategies.contracts import StrategyEvidence, TradeCandidate
+from apex.strategies.contracts import StrategyEvidence, TradeCandidate, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
@@ -24,6 +24,7 @@ from apex.strategies.strategy_types import StrategyType
 class _Candidate:
     symbol: str
     strategy: StrategyType
+    direction: TradeDirection
     decision_time: datetime
     evidence: StrategyEvidence
 
@@ -34,6 +35,7 @@ def _candidate(strategy: StrategyType) -> TradeCandidate:
         _Candidate(
             symbol="BTCUSDT",
             strategy=strategy,
+            direction=TradeDirection.LONG,
             decision_time=datetime(2026, 7, 18, tzinfo=UTC),
             evidence=StrategyEvidence(
                 supporting=("price structure supports the setup",),
@@ -126,8 +128,7 @@ def test_enforce_mode_removes_explicit_conflict_and_keeps_audit_record() -> None
     assert payload["suppressed_candidates"] == [
         {
             "strategy": StrategyType.RANGE_REVERSAL.value,
-            "direction": cast(_Candidate, result.analysis.suppressed_candidates[0].candidate)
-            .strategy.value.replace("range_reversal", "range_reversal"),
+            "direction": "long",
             "reason_codes": ["TEST_SUPPRESS"],
             "reasons": ["range_reversal is suppress"],
         }
