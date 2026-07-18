@@ -99,16 +99,16 @@ class FuturesTickerSnapshot:
 class FuturesOpportunityWeights:
     """Normalized component weights for the opportunity score."""
 
-    liquidity: float = 0.12
-    movement: float = 0.12
-    acceleration: float = 0.13
+    liquidity: float = 0.09
+    movement: float = 0.10
+    acceleration: float = 0.11
     relative_volume: float = 0.13
     volatility_usability: float = 0.10
-    entry_freshness: float = 0.10
-    structure_proximity: float = 0.08
-    directional_clarity: float = 0.12
+    entry_freshness: float = 0.14
+    structure_proximity: float = 0.12
+    directional_clarity: float = 0.08
     spread_quality: float = 0.05
-    noise_quality: float = 0.05
+    noise_quality: float = 0.08
 
     def __post_init__(self) -> None:
         values = self.as_dict().values()

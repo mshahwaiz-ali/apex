@@ -61,6 +61,7 @@ def select_entry_zone(
     target_price: float,
     references: tuple[EntryReference, ...] = (),
     config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
+    allow_market_entry: bool = True,
 ) -> EntryZone:
     """Return the best actionable entry while rejecting unjustified waiting."""
 
@@ -86,7 +87,9 @@ def select_entry_zone(
         invalidation_price=invalidation_price,
         target_price=target_price,
     )
-    eligible: list[tuple[EntryZone, float]] = [(market, market_rr)]
+    eligible: list[tuple[EntryZone, float]] = []
+    if allow_market_entry:
+        eligible.append((market, market_rr))
     for reference in references:
         distance = abs(reference.price - current_price)
         allowed_distance = max(
@@ -128,6 +131,11 @@ def select_entry_zone(
         if distance > 0 and improvement < config.minimum_risk_reward_improvement:
             continue
         eligible.append((zone, reference_rr))
+
+    if not eligible:
+        raise ValueError(
+            "no confirmed current-price entry or eligible nearby entry reference is available"
+        )
 
     return min(
         eligible,

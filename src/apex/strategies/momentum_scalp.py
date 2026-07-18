@@ -30,6 +30,8 @@ def generate_momentum_scalp_candidates(
         if candidate.entry.atr_distance <= 0.6
         and candidate.entry.location_quality >= 0.65
         and not candidate.entry.is_extended
+        and candidate.metadata.get("entry_confirmation_complete") is True
+        and not candidate.provisional
     )
 
 

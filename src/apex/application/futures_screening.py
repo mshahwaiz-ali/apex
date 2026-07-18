@@ -504,9 +504,21 @@ def score_futures_opportunity(
         ideal=config.target_atr_percentage,
         maximum=config.maximum_usable_atr_percentage,
     )
-    entry_freshness = 100.0 * _clamp01(
+    raw_entry_freshness = 100.0 * _clamp01(
         1.0 - features.ema_distance_atr / config.maximum_extension_atr
     )
+    pullback_location = 100.0 * _clamp01(1.0 - abs(features.ema_distance_atr - 0.35) / 1.25)
+    controlled_range = 100.0 * _clamp01(1.0 - max(0.0, features.range_expansion - 1.0) / 2.0)
+    participation_quality = 100.0 * _clamp01(
+        1.0 - abs(features.current_participation - 1.15) / 1.35
+    )
+    pullback_readiness = (
+        pullback_location * 0.45
+        + controlled_range * 0.25
+        + participation_quality * 0.15
+        + features.breakout_proximity * 100.0 * 0.15
+    )
+    entry_freshness = raw_entry_freshness * 0.60 + pullback_readiness * 0.40
     structure_proximity = features.breakout_proximity * 100
     directional_clarity = 100.0 * _clamp01(
         features.directional_persistence * 0.65
@@ -536,6 +548,13 @@ def score_futures_opportunity(
         "noise_quality": noise_quality,
     }
     total = sum(components[name] * weight for name, weight in config.weights.as_dict().items())
+    extension_excess = max(0.0, features.ema_distance_atr - 1.75)
+    expansion_excess = max(0.0, features.range_expansion - 2.0)
+    overextension_penalty = min(
+        15.0,
+        extension_excess * 4.0 + expansion_excess * 3.0,
+    )
+    total -= overextension_penalty
 
     reasons: list[str] = []
     cautions: list[str] = []
@@ -545,13 +564,21 @@ def score_futures_opportunity(
         reasons.append("recent participation is above baseline")
     if structure_proximity >= 70:
         reasons.append("price is near a recent structural boundary")
+    if pullback_readiness >= 70:
+        reasons.append("price location supports a controlled pullback or retest entry")
     if directional_clarity >= 70:
         reasons.append("recent candles show directional persistence")
     if not reasons:
         reasons.append("balanced movement, liquidity, and entry-quality profile")
 
     if entry_freshness < 45:
-        cautions.append("price is extended from the short EMA")
+        cautions.append("price is extended or poorly located for a fresh entry")
+    if pullback_readiness < 40:
+        cautions.append("current price lacks a controlled pullback or retest profile")
+    if overextension_penalty >= 4:
+        cautions.append(
+            f"overextension reduced shortlist score by {overextension_penalty:.1f} points"
+        )
     if noise_quality < 45:
         cautions.append("recent candles contain elevated wick or range noise")
     if volatility_usability < 45:

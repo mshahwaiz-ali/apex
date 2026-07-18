@@ -18,6 +18,7 @@ from apex.strategies.contracts import TradeCandidate, TradeDirection
 
 DEFAULT_MAXIMUM_CHASE_PCT = 0.35
 DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
+DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
 
 
 def build_discovery_assessment(
@@ -83,7 +84,15 @@ def _entry(candidate: TradeCandidate) -> ActionableEntry:
 
 def _stop(candidate: TradeCandidate) -> StopLoss:
     preferred = candidate.entry.preferred
-    buffer = preferred * DEFAULT_STRUCTURAL_STOP_BUFFER_PCT / 100.0
+    percentage_buffer = preferred * DEFAULT_STRUCTURAL_STOP_BUFFER_PCT / 100.0
+    raw_atr = candidate.metadata.get("decision_atr")
+    atr = (
+        float(raw_atr)
+        if isinstance(raw_atr, int | float) and not isinstance(raw_atr, bool) and raw_atr > 0
+        else None
+    )
+    atr_buffer = 0.0 if atr is None else atr * DEFAULT_STRUCTURAL_STOP_BUFFER_ATR
+    buffer = max(percentage_buffer, atr_buffer)
     price = (
         candidate.invalidation.price - buffer
         if candidate.direction is TradeDirection.LONG
@@ -108,7 +117,20 @@ def _stop(candidate: TradeCandidate) -> StopLoss:
         price=price,
         distance=distance,
         distance_pct=distance / preferred * 100.0,
-        rationale=(*candidate.invalidation.rationale, "buffer beyond thesis invalidation"),
+        rationale=(
+            *candidate.invalidation.rationale,
+            (
+                (
+                    "adaptive buffer beyond thesis invalidation: "
+                    f"{DEFAULT_STRUCTURAL_STOP_BUFFER_ATR:g} ATR"
+                )
+                if atr_buffer >= percentage_buffer and atr is not None
+                else (
+                    f"minimum {DEFAULT_STRUCTURAL_STOP_BUFFER_PCT:g}% buffer "
+                    "beyond thesis invalidation"
+                )
+            ),
+        ),
         quality_score=quality_score,
         quality_band=quality_band,
     )

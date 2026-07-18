@@ -104,15 +104,22 @@ def _candidate_for_direction(
         return None
 
     references = _entry_references(context, bullish=bullish)
-    entry = select_entry_zone(
-        current_price=current,
-        atr=atr,
-        direction=direction,
-        invalidation_price=invalidation_price,
-        target_price=target_price,
-        references=references,
-        config=entry_config,
-    )
+    entry_confirmation_complete = has_break and aligned == total and not context.provisional
+    if not entry_confirmation_complete and not references:
+        return None
+    try:
+        entry = select_entry_zone(
+            current_price=current,
+            atr=atr,
+            direction=direction,
+            invalidation_price=invalidation_price,
+            target_price=target_price,
+            references=references,
+            config=entry_config,
+            allow_market_entry=entry_confirmation_complete,
+        )
+    except ValueError:
+        return None
     if entry.is_extended:
         return None
 
@@ -186,6 +193,16 @@ def _candidate_for_direction(
             "aligned_momentum_count": aligned,
             "recent_continuation_break": has_break,
             "higher_timeframe_conflict": higher_timeframe_conflict,
+            "entry_confirmation_complete": entry_confirmation_complete,
+            "entry_confirmation_reason": (
+                "confirmed structural break, complete momentum alignment, and closed evidence"
+                if entry_confirmation_complete
+                else (
+                    "current-price execution withheld; use a nearby reference "
+                    "and wait for confirmation"
+                )
+            ),
+            "decision_atr": atr,
         },
         provisional=context.provisional,
     )

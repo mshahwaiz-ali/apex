@@ -40,7 +40,13 @@ def classify_candidate_actionability(candidate: TradeCandidate) -> EntryStatus:
             return EntryStatus.LATE_OR_CHASING
 
     if candidate.entry.lower <= current <= candidate.entry.upper:
-        return EntryStatus.READY_NOW
+        confirmed = (
+            candidate.metadata.get("entry_confirmation_complete") is True
+            and not candidate.provisional
+        )
+        if candidate.entry.mode is not EntryMode.MARKET_NEAR or confirmed:
+            return EntryStatus.READY_NOW
+        return EntryStatus.WATCH_NEAR_ENTRY
     if candidate.entry.is_extended:
         return EntryStatus.LATE_OR_CHASING
     if (

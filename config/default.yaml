@@ -20,16 +20,16 @@ futures_screener:
   maximum_usable_atr_percentage: 6.0
   maximum_extension_atr: 3.0
   weights:
-    liquidity: 0.12
-    movement: 0.12
-    acceleration: 0.13
+    liquidity: 0.09
+    movement: 0.10
+    acceleration: 0.11
     relative_volume: 0.13
     volatility_usability: 0.10
-    entry_freshness: 0.10
-    structure_proximity: 0.08
-    directional_clarity: 0.12
+    entry_freshness: 0.14
+    structure_proximity: 0.12
+    directional_clarity: 0.08
     spread_quality: 0.05
-    noise_quality: 0.05
+    noise_quality: 0.08
   quote_asset: USDT
   blacklist: []
   allowlist: null
