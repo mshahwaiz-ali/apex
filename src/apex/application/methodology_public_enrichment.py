@@ -80,6 +80,7 @@ from apex.application.methodology_selected_entry_semantics import (
     selected_entry_semantics_payload,
 )
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.methodology_source_bundle import MethodologySourceBundle
 from apex.application.methodology_stop_quality_semantics import (
     derive_stop_quality_semantics,
     stop_quality_semantics_payload,
@@ -105,6 +106,7 @@ from apex.application.methodology_timeframe_coverage_semantics import (
 def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
+    source_bundle: MethodologySourceBundle | None = None,
 ) -> dict[str, Any]:
     """Return transparent evidence, entry, ranking, and execution semantics.
 
@@ -118,6 +120,16 @@ def methodology_public_enrichment(
     hidden rejection, executed lifecycle actions, or a universal target horizon.
     """
 
+    if source_bundle is not None:
+        source_bundle.validate_for(projected)
+    source_candles = () if source_bundle is None else source_bundle.source_candles
+    source_references = (
+        () if source_bundle is None else source_bundle.evidence_references
+    )
+    confirmation_candle = (
+        None if source_bundle is None else source_bundle.confirmation_source
+    )
+
     provenance = derive_methodology_provenance(
         stored_methodology=analysis.methodology,
         projected=projected,
@@ -129,10 +141,17 @@ def methodology_public_enrichment(
         projected.confidence,
         projected.calibration,
     )
-    confirmation_source = derive_confirmation_source_semantics(projected)
+    confirmation_source = derive_confirmation_source_semantics(
+        projected,
+        confirmation_candle,
+    )
     contradictions = derive_contradiction_semantics(projected)
     entry_opportunities = derive_entry_opportunity_semantics(projected)
-    evidence_freshness = derive_evidence_freshness_semantics(projected)
+    evidence_freshness = derive_evidence_freshness_semantics(
+        projected,
+        source_candles,
+        source_references,
+    )
     evidence_independence = derive_evidence_independence_semantics(projected)
     execution_geometry = derive_execution_geometry_semantics(
         setup,
