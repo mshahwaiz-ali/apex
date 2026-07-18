@@ -65,6 +65,7 @@ def apply_selected_strategy_gate(
                 decision_time=assessment.decision_time,
                 setup=None,
                 reasons=reasons,
+                developing_setup=assessment.developing_setup,
             ),
             mode=mode,
             changed=True,

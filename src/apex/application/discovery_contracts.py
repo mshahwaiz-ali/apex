@@ -200,6 +200,7 @@ class DiscoveryAssessment:
     decision_time: datetime
     setup: DiscoverySetup | None
     reasons: tuple[str, ...] = ()
+    developing_setup: DiscoverySetup | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -210,6 +211,16 @@ class DiscoveryAssessment:
             raise ValueError("selected discovery setup cannot also have no-trade reasons")
         if self.setup is None and not self.reasons:
             raise ValueError("no-trade assessment requires a reason")
+        if self.developing_setup is not None:
+            if self.developing_setup.symbol != self.symbol:
+                raise ValueError("developing setup symbol must match assessment symbol")
+            if self.developing_setup.execution_allowed_now:
+                raise ValueError("developing setup must not authorize current execution")
+            if (
+                self.setup is not None
+                and self.developing_setup.candidate_id == self.setup.candidate_id
+            ):
+                raise ValueError("selected and developing setup identities must differ")
 
 
 @dataclass(frozen=True, slots=True)

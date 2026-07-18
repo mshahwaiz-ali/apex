@@ -110,3 +110,94 @@ def test_warning_is_data_quality_neutral_evidence() -> None:
     assert evidence[0].family is EvidenceFamily.DATA_QUALITY
     assert evidence[0].effect is EvidenceEffect.NEUTRAL
     assert contradictions == ()
+
+
+def test_duplicate_phase5_records_are_deduplicated_in_source_order() -> None:
+    duplicate = {
+        "kind": "supporting",
+        "code": "SUPPORTING_001",
+        "detail": "volume expansion confirms breakout participation",
+    }
+    diagnostics = {
+        "candidates": [
+            {
+                "candidate_id": "candidate-1",
+                "evidence": [
+                    duplicate,
+                    dict(duplicate),
+                    {
+                        "kind": "feature_reference",
+                        "code": "FEATURE_REFERENCE_001",
+                        "detail": "RSI momentum remains constructive",
+                    },
+                ],
+            }
+        ]
+    }
+
+    evidence, contradictions = selected_candidate_methodology_evidence(
+        diagnostics, candidate_id="candidate-1"
+    )
+
+    assert [item.source for item in evidence] == [
+        "phase5:candidate-1:supporting_001",
+        "phase5:candidate-1:feature_reference_001",
+    ]
+    assert len(evidence) == len(set(evidence))
+    assert contradictions == ()
+
+
+def test_duplicate_contradictions_are_deduplicated() -> None:
+    duplicate = {
+        "kind": "contradiction",
+        "code": "CONTRADICTION_001",
+        "detail": "higher timeframe resistance remains nearby",
+    }
+    diagnostics = {
+        "candidates": [
+            {
+                "candidate_id": "candidate-1",
+                "evidence": [duplicate, dict(duplicate)],
+            }
+        ]
+    }
+
+    evidence, contradictions = selected_candidate_methodology_evidence(
+        diagnostics, candidate_id="candidate-1"
+    )
+
+    assert len(evidence) == 1
+    assert len(contradictions) == 1
+    assert len(evidence) == len(set(evidence))
+    assert len(contradictions) == len(set(contradictions))
+
+
+def test_same_family_distinct_evidence_is_preserved() -> None:
+    diagnostics = {
+        "candidates": [
+            {
+                "candidate_id": "candidate-1",
+                "evidence": [
+                    {
+                        "kind": "supporting",
+                        "code": "SUPPORTING_001",
+                        "detail": "volume expansion confirms breakout participation",
+                    },
+                    {
+                        "kind": "supporting",
+                        "code": "SUPPORTING_002",
+                        "detail": "relative volume remains above its recent baseline",
+                    },
+                ],
+            }
+        ]
+    }
+
+    evidence, contradictions = selected_candidate_methodology_evidence(
+        diagnostics, candidate_id="candidate-1"
+    )
+
+    assert len(evidence) == 2
+    assert evidence[0] != evidence[1]
+    assert all(item.family is EvidenceFamily.PARTICIPATION for item in evidence)
+    assert contradictions == ()

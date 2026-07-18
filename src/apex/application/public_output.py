@@ -69,12 +69,14 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         )
     )
     selected_setup = analysis.assessment.setup
+    developing_setup = analysis.assessment.developing_setup
+    effective_setup = selected_setup or developing_setup
     maturity = (
         None
-        if selected_setup is None
+        if effective_setup is None
         else derive_setup_maturity(
-            selected_setup.strategy,
-            selected_setup.entry_status,
+            effective_setup.strategy,
+            effective_setup.entry_status,
         )
     )
     payload["methodology_setup_maturity"] = (
@@ -86,6 +88,15 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
 
     setup = payload.get("setup")
     if not isinstance(setup, dict):
+        developing = payload.get("developing_setup")
+        if isinstance(developing, dict):
+            status = developing.get("entry_status")
+            payload["entry_status"] = status
+            payload["strategy"] = developing.get("strategy")
+            payload["confidence_score"] = developing.get("confidence_score")
+            payload["decision_reason_code"] = _selected_reason_code(maturity, status)
+            payload["result_group"] = _result_group(maturity)
+            return cast(dict[str, Any], payload)
         payload["entry_status"] = None
         payload["strategy"] = None
         payload["confidence_score"] = None
@@ -125,8 +136,8 @@ def serialize_scan_result(
         else tuple(
             item
             for item in result.analyses
-            if item.assessment.setup is not None
-            and item.assessment.setup.direction.value == normalized_direction
+            if (effective := item.assessment.setup or item.assessment.developing_setup) is not None
+            and effective.direction.value == normalized_direction
         )
     )
     displayed = tuple(ranked[:display_limit])
@@ -136,17 +147,22 @@ def serialize_scan_result(
     unavailable = [item for item in serialized if item.get("result_group") == "unavailable"]
     no_trade = [item for item in serialized if item.get("result_group") == "no_trade"]
     selected = [item for item in serialized if item.get("setup") is not None]
+    valid = [
+        item
+        for item in serialized
+        if item.get("setup") is not None or item.get("developing_setup") is not None
+    ]
     maturity_counts = Counter(
         str(maturity["maturity"])
-        for item in selected
+        for item in valid
         if isinstance((maturity := item.get("methodology_setup_maturity")), Mapping)
         and maturity.get("maturity") is not None
     )
     status_counts = Counter(
-        str(item["entry_status"]) for item in selected if item.get("entry_status") is not None
+        str(item["entry_status"]) for item in valid if item.get("entry_status") is not None
     )
-    long_count = sum(item.get("decision") == "LONG" for item in selected)
-    short_count = sum(item.get("decision") == "SHORT" for item in selected)
+    long_count = sum(_effective_direction(item) == "long" for item in valid)
+    short_count = sum(_effective_direction(item) == "short" for item in valid)
     return {
         "generated_at": result.generated_at.isoformat(),
         "best_overall": selected[0] if selected else None,
@@ -173,6 +189,16 @@ def serialize_scan_result(
         "maturity_counts": dict(sorted(maturity_counts.items())),
         "failures": dict(result.failures),
     }
+
+
+def _effective_direction(item: Mapping[str, Any]) -> str | None:
+    setup = item.get("setup")
+    if not isinstance(setup, Mapping):
+        setup = item.get("developing_setup")
+    if not isinstance(setup, Mapping):
+        return None
+    direction = setup.get("direction")
+    return None if direction is None else str(direction)
 
 
 def _selected_reason_code(

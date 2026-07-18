@@ -13,7 +13,11 @@ from apex.application.discovery_contracts import (
     TakeProfit,
 )
 from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
-from apex.scoring.contracts import CandidateSelectionResult
+from apex.scoring.contracts import (
+    CandidateOutcome,
+    CandidateSelectionResult,
+    RankedCandidate,
+)
 from apex.scoring.quality_dimensions import derive_quality_dimensions
 from apex.scoring.selection import is_entry_status_executable
 from apex.strategies import classify_candidate_actionability
@@ -29,13 +33,19 @@ DEFAULT_MAXIMUM_CHASE_PCT = 0.35
 DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
 DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
 
+_VALID_DEVELOPING_OUTCOMES = {
+    CandidateOutcome.ACCEPTED,
+    CandidateOutcome.ACCEPTED_WITH_WARNING,
+}
+
 
 def build_discovery_assessment(
     candidate_selection: CandidateSelectionResult,
 ) -> DiscoveryAssessment:
-    """Convert candidate selection into a discovery assessment."""
+    """Convert candidate selection into executable and developing setup views."""
 
     selected = candidate_selection.selected_candidate
+    developing = _best_developing_candidate(candidate_selection, selected=selected)
     if selected is None:
         return DiscoveryAssessment(
             symbol=candidate_selection.symbol,
@@ -44,9 +54,37 @@ def build_discovery_assessment(
             reasons=(
                 candidate_selection.no_trade_reason or "candidate selection produced no setup",
             ),
+            developing_setup=(None if developing is None else _build_setup(developing)),
         )
 
-    candidate = selected.candidate
+    return DiscoveryAssessment(
+        symbol=candidate_selection.symbol,
+        decision_time=candidate_selection.decision_time,
+        setup=_build_setup(selected),
+        developing_setup=None if developing is None else _build_setup(developing),
+    )
+
+
+def _best_developing_candidate(
+    candidate_selection: CandidateSelectionResult,
+    *,
+    selected: RankedCandidate | None,
+) -> RankedCandidate | None:
+    selected_id = None if selected is None else selected.scored.candidate_id
+    return next(
+        (
+            item
+            for item in candidate_selection.ranked_candidates
+            if item.scored.candidate_id != selected_id
+            and item.outcome in _VALID_DEVELOPING_OUTCOMES
+            and not is_entry_status_executable(classify_candidate_actionability(item.candidate))
+        ),
+        None,
+    )
+
+
+def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
+    candidate = ranked.candidate
     entry_status = classify_candidate_actionability(candidate)
     entry = _entry_zone(candidate.entry, candidate.direction)
     entry_opportunities = tuple(
@@ -57,29 +95,25 @@ def build_discovery_assessment(
     targets = _targets(candidate, stop)
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
-    return DiscoveryAssessment(
-        symbol=candidate_selection.symbol,
-        decision_time=candidate_selection.decision_time,
-        setup=DiscoverySetup(
-            symbol=candidate.symbol,
-            direction=candidate.direction,
-            strategy=candidate.strategy,
-            entry_status=entry_status,
-            decision_time=candidate.decision_time,
-            candidate_id=selected.scored.candidate_id,
-            confidence_score=selected.final_score,
-            entry=entry,
-            stop_loss=stop,
-            take_profits=targets,
-            management_policies=_management_policies(targets),
-            warnings=tuple(candidate.evidence.warnings),
-            quality_dimensions=derive_quality_dimensions(candidate.quality),
-            execution_allowed_now=is_entry_status_executable(entry_status),
-            entry_opportunities=entry_opportunities,
-            setup_expiry_seconds=expiry_seconds,
-            setup_expiry_reason=_expiry_reason(candidate),
-            trader_headline=_trader_headline(entry_status),
-        ),
+    return DiscoverySetup(
+        symbol=candidate.symbol,
+        direction=candidate.direction,
+        strategy=candidate.strategy,
+        entry_status=entry_status,
+        decision_time=candidate.decision_time,
+        candidate_id=ranked.scored.candidate_id,
+        confidence_score=ranked.final_score,
+        entry=entry,
+        stop_loss=stop,
+        take_profits=targets,
+        management_policies=_management_policies(targets),
+        warnings=tuple(candidate.evidence.warnings),
+        quality_dimensions=derive_quality_dimensions(candidate.quality),
+        execution_allowed_now=is_entry_status_executable(entry_status),
+        entry_opportunities=entry_opportunities,
+        setup_expiry_seconds=expiry_seconds,
+        setup_expiry_reason=_expiry_reason(candidate),
+        trader_headline=_trader_headline(entry_status),
     )
 
 

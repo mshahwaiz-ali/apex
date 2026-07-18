@@ -59,7 +59,7 @@ def group_scan_results(
 def classify_scan_result(result: Mapping[str, object]) -> ScanGroup:
     """Return one stable operator group for a discovery result."""
 
-    setup = _mapping(result.get("setup"))
+    setup = _mapping(result.get("setup")) or _mapping(result.get("developing_setup"))
     if not setup:
         return ScanGroup.NO_SETUP
 
@@ -100,7 +100,7 @@ def flatten_existing_scan_groups(
     seen: set[tuple[str, str, str]] = set()
     for key in ordered_keys:
         for item in _mappings(payload.get(key)):
-            setup = _mapping(item.get("setup"))
+            setup = _mapping(item.get("setup")) or _mapping(item.get("developing_setup"))
             identity = (
                 str(item.get("symbol") or ""),
                 str(setup.get("strategy") or ""),

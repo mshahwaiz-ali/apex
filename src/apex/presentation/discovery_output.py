@@ -31,7 +31,10 @@ def render_discovery_analysis(
 
     normalize_cli_output_mode(mode)
     symbol = str(payload.get("symbol") or "Unknown symbol")
-    setup = _mapping(payload.get("setup"))
+    selected_setup = _mapping(payload.get("setup"))
+    developing_setup = _mapping(payload.get("developing_setup"))
+    developing_only = not selected_setup and bool(developing_setup)
+    setup = selected_setup or developing_setup
     if not setup:
         reasons = _strings(payload.get("reasons"))
         sections = [render_title(f"{symbol} — No Trade")]
@@ -55,10 +58,11 @@ def render_discovery_analysis(
     policies = _mappings(setup.get("management_policies"))
     direction = humanize_code(setup.get("direction"))
     headline = str(setup.get("trader_headline") or f"{direction} setup")
-    sections = [render_title(f"{symbol} — {headline}")]
+    title = "Valid Setup, Entry Pending" if developing_only else headline
+    sections = [render_title(f"{symbol} — {title}")]
     sections.append(
         render_section(
-            "Selected Setup",
+            "Best Valid Pending Setup" if developing_only else "Selected Setup",
             render_fields(
                 (
                     ("Group", humanize_code(payload.get("result_group"))),
@@ -147,10 +151,16 @@ def render_discovery_analysis(
 
     reasons = _strings(payload.get("reasons"))
     if reasons:
-        sections.append(render_section("Why This Direction", render_bullets(reasons[:4])))
+        reason_title = "Why Not Executable Now" if developing_only else "Why This Direction"
+        sections.append(render_section(reason_title, render_bullets(reasons[:4])))
+
+    if developing_only:
+        activation_lines = _pending_activation_lines(setup)
+        if activation_lines:
+            sections.append(render_section("Activation Required", render_bullets(activation_lines)))
 
     entry_semantics = _mapping(payload.get("methodology_selected_entry_semantics"))
-    if entry_semantics:
+    if entry_semantics and not developing_only:
         sections.append(
             render_section(
                 "Why This Entry",
@@ -167,7 +177,7 @@ def render_discovery_analysis(
 
     invalidation = _mapping(payload.get("methodology_invalidation_semantics"))
     failure_event = invalidation.get("failure_event")
-    if failure_event is not None:
+    if failure_event is not None and not developing_only:
         sections.append(
             render_section(
                 "What Invalidates It",
@@ -182,7 +192,7 @@ def render_discovery_analysis(
         )
 
     target_semantics = _mapping(payload.get("methodology_target_feasibility_semantics"))
-    if target_semantics:
+    if target_semantics and not developing_only:
         sections.append(
             render_section(
                 "Why These Targets",
@@ -220,7 +230,11 @@ def render_discovery_analysis(
         sections.append(render_section("Trade Management", render_bullets(policy_lines)))
 
     warnings = _strings(setup.get("warnings"))
-    if target_semantics and target_semantics.get("costs_available") is not True:
+    if (
+        not developing_only
+        and target_semantics
+        and target_semantics.get("costs_available") is not True
+    ):
         warnings = (
             *warnings,
             "displayed reward geometry is gross; fees and slippage are not included",
@@ -278,9 +292,76 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
 def _render_group(title: str, results: Sequence[Mapping[str, object]]) -> str:
     if not results:
         return ""
-    cards = [render_discovery_analysis(item) for item in results]
+    cards = [_render_scan_card(item) for item in results]
     separator = "\n\n" + "═" * 56 + "\n\n"
     return render_section(title, separator.join(cards))
+
+
+def _render_scan_card(payload: Mapping[str, object]) -> str:
+    symbol = str(payload.get("symbol") or "Unknown symbol")
+    selected = _mapping(payload.get("setup"))
+    developing = _mapping(payload.get("developing_setup"))
+    setup = selected or developing
+    if not setup:
+        reasons = _strings(payload.get("reasons"))
+        return "\n".join(
+            (
+                f"{symbol} — No Trade",
+                f"  Reason     : {reasons[0] if reasons else 'No defensible setup was selected'}",
+                f"  Candidates : {payload.get('candidate_count')}",
+            )
+        )
+
+    entry = _mapping(setup.get("entry"))
+    stop = _mapping(setup.get("stop_loss"))
+    targets = _mappings(setup.get("take_profits"))
+    direction = humanize_code(setup.get("direction"))
+    state = "Entry Pending" if developing and not selected else "Selected Setup"
+    fields: list[tuple[str, object]] = [
+        ("State", state),
+        ("Status", humanize_code(setup.get("entry_status"))),
+        ("Direction", direction),
+        ("Strategy", humanize_code(setup.get("strategy"))),
+        ("Confidence", format_score(setup.get("confidence_score"))),
+        ("Current price", format_price(entry.get("current_price"))),
+        ("Preferred entry", format_price(entry.get("preferred"))),
+        ("Stop", format_price(stop.get("price"))),
+    ]
+    if targets:
+        fields.append(
+            ("Targets", " / ".join(format_price(item.get("price")) for item in targets[:3]))
+        )
+    if developing and not selected:
+        fields.extend(
+            (
+                ("Activation", _pending_activation_summary(setup)),
+                ("Valid for", setup.get("setup_validity")),
+                ("Inspect", f"apex analyze {symbol.replace('/', '')}"),
+            )
+        )
+    return "\n".join((f"{symbol} — {state}", render_fields(fields)))
+
+
+def _pending_activation_lines(setup: Mapping[str, object]) -> tuple[str, ...]:
+    warnings = _strings(setup.get("warnings"))
+    material = tuple(
+        warning
+        for warning in warnings
+        if "confirmation" in warning.lower()
+        or "provisional" in warning.lower()
+        or "retest" in warning.lower()
+        or "reclaim" in warning.lower()
+        or "pullback" in warning.lower()
+    )
+    if material:
+        return tuple(dict.fromkeys(material))[:4]
+    status = humanize_code(setup.get("entry_status"))
+    return (f"{status} must transition to an executable entry state",)
+
+
+def _pending_activation_summary(setup: Mapping[str, object]) -> str:
+    lines = _pending_activation_lines(setup)
+    return lines[0] if lines else "execution confirmation remains incomplete"
 
 
 def _mapping(value: object) -> Mapping[str, object]:

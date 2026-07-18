@@ -319,7 +319,8 @@ def _scan_sort_key(analysis: DiscoverySymbolAnalysis) -> tuple[int, float, int, 
 def _scan_maturity_class(analysis: DiscoverySymbolAnalysis) -> int:
     """Return actionable, developing, unavailable, or no-trade scan priority."""
 
-    setup = analysis.assessment.setup
+    assessment = analysis.assessment
+    setup = assessment.setup or getattr(assessment, "developing_setup", None)
     if setup is None:
         return 3
     maturity = derive_setup_maturity(setup.strategy, setup.entry_status)

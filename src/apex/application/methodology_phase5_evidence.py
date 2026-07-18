@@ -45,6 +45,8 @@ def selected_candidate_methodology_evidence(
 
     observations: list[EvidenceObservation] = []
     contradictions: list[Contradiction] = []
+    seen_observations: set[EvidenceObservation] = set()
+    seen_contradictions: set[Contradiction] = set()
     for index, record in enumerate(raw_evidence, start=1):
         if not isinstance(record, Mapping):
             continue
@@ -56,26 +58,28 @@ def selected_candidate_methodology_evidence(
         family = _family_for_record(kind=kind, detail=detail)
         effect, strength = _effect_and_strength(kind)
         source = f"phase5:{candidate_id}:{code.lower()}"
-        observations.append(
-            EvidenceObservation(
+        observation = EvidenceObservation(
+            family=family,
+            source=source,
+            normalized_strength=strength,
+            freshness=1.0,
+            independence_group=_independence_group(family, detail),
+            effect=effect,
+            reason=detail,
+        )
+        if observation not in seen_observations:
+            seen_observations.add(observation)
+            observations.append(observation)
+        if effect is EvidenceEffect.CONTRADICTS:
+            contradiction = Contradiction(
+                code=code,
                 family=family,
-                source=source,
-                normalized_strength=strength,
-                freshness=1.0,
-                independence_group=_independence_group(family, detail),
-                effect=effect,
+                severity=strength,
                 reason=detail,
             )
-        )
-        if effect is EvidenceEffect.CONTRADICTS:
-            contradictions.append(
-                Contradiction(
-                    code=code,
-                    family=family,
-                    severity=strength,
-                    reason=detail,
-                )
-            )
+            if contradiction not in seen_contradictions:
+                seen_contradictions.add(contradiction)
+                contradictions.append(contradiction)
     return tuple(observations), tuple(contradictions)
 
 
