@@ -10,6 +10,10 @@ import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_snapshot import methodology_snapshot_payload
+from apex.application.methodology_strategy_enforcement import (
+    derive_strategy_enforcement_registry,
+    strategy_enforcement_payload,
+)
 from apex.application.methodology_strategy_evaluation import (
     evaluate_strategy_registry,
     strategy_eligibility_evaluation_payload,
@@ -27,14 +31,18 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
     methodology = project_analysis_methodology(analysis)
     payload["methodology"] = methodology_snapshot_payload(methodology)
+    eligibility = evaluate_strategy_registry(
+        market_state=(
+            None if methodology.market_state is None else methodology.market_state.primary
+        ),
+        evidence=methodology.evidence,
+    )
     payload["methodology_strategy_eligibility"] = [
-        strategy_eligibility_evaluation_payload(item)
-        for item in evaluate_strategy_registry(
-            market_state=(
-                None if methodology.market_state is None else methodology.market_state.primary
-            ),
-            evidence=methodology.evidence,
-        )
+        strategy_eligibility_evaluation_payload(item) for item in eligibility
+    ]
+    payload["methodology_strategy_enforcement_shadow"] = [
+        strategy_enforcement_payload(item)
+        for item in derive_strategy_enforcement_registry(eligibility)
     ]
     setup = payload.get("setup")
     if not isinstance(setup, dict):
