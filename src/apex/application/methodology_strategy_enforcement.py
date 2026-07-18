@@ -23,4 +23,71 @@ class StrategyEnforcementAction(StrEnum):
 class StrategyEnforcementDecision:
     strategy: StrategyType
     action: StrategyEnforcementAction
-    reason
+    reason_codes: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.reason_codes or not self.reasons:
+            raise ValueError("strategy enforcement decision requires reasons")
+        if len(set(self.reason_codes)) != len(self.reason_codes):
+            raise ValueError("strategy enforcement reason codes must be unique")
+
+
+def derive_strategy_enforcement(
+    evaluation: StrategyEligibilityEvaluation,
+) -> StrategyEnforcementDecision:
+    """Translate one eligibility result into a non-mutating routing decision."""
+
+    if evaluation.state is StrategyEligibilityState.COMPATIBLE:
+        return StrategyEnforcementDecision(
+            strategy=evaluation.strategy,
+            action=StrategyEnforcementAction.ALLOW,
+            reason_codes=("METHODOLOGY_COMPATIBLE",),
+            reasons=evaluation.reasons,
+        )
+    if evaluation.state is StrategyEligibilityState.PROHIBITED_STATE:
+        return StrategyEnforcementDecision(
+            strategy=evaluation.strategy,
+            action=StrategyEnforcementAction.SUPPRESS,
+            reason_codes=("METHODOLOGY_PROHIBITED_STATE",),
+            reasons=evaluation.reasons,
+        )
+    if evaluation.state is StrategyEligibilityState.INCOMPATIBLE_STATE:
+        return StrategyEnforcementDecision(
+            strategy=evaluation.strategy,
+            action=StrategyEnforcementAction.SUPPRESS,
+            reason_codes=("METHODOLOGY_INCOMPATIBLE_STATE",),
+            reasons=evaluation.reasons,
+        )
+    return StrategyEnforcementDecision(
+        strategy=evaluation.strategy,
+        action=StrategyEnforcementAction.DEFER,
+        reason_codes=("METHODOLOGY_METADATA_INCOMPLETE",),
+        reasons=evaluation.reasons,
+    )
+
+
+def derive_strategy_enforcement_registry(
+    evaluations: tuple[StrategyEligibilityEvaluation, ...],
+) -> tuple[StrategyEnforcementDecision, ...]:
+    return tuple(derive_strategy_enforcement(item) for item in evaluations)
+
+
+def strategy_enforcement_payload(
+    decision: StrategyEnforcementDecision,
+) -> dict[str, Any]:
+    return {
+        "strategy": decision.strategy.value,
+        "action": decision.action.value,
+        "reason_codes": list(decision.reason_codes),
+        "reasons": list(decision.reasons),
+    }
+
+
+__all__ = [
+    "StrategyEnforcementAction",
+    "StrategyEnforcementDecision",
+    "derive_strategy_enforcement",
+    "derive_strategy_enforcement_registry",
+    "strategy_enforcement_payload",
+]
