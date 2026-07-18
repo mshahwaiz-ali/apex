@@ -14,6 +14,7 @@ from apex.application.methodology_strategy_enforcement import (
 )
 from apex.application.methodology_strategy_evaluation import evaluate_strategy_eligibility
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
+from apex.strategies.contracts import TradeCandidate
 from apex.strategies.strategy_types import StrategyType
 
 
@@ -92,7 +93,7 @@ def apply_methodology_candidate_routing(
         )
 
     decision_by_strategy = {item.strategy: item for item in decisions}
-    retained = []
+    retained: list[TradeCandidate] = []
     newly_suppressed: list[SuppressedStrategyCandidate] = []
     suppressed_strategies: list[StrategyType] = []
     for candidate in analysis.candidates:
