@@ -65,9 +65,10 @@ def render_discovery_analysis(
             ),
         )
     )
+    entry_label, entry_value = _entry_display(entry.get("lower"), entry.get("upper"))
     trade_fields: list[tuple[str, object]] = [
         ("Current price", format_price(entry.get("current_price"))),
-        ("Entry zone", _price_range(entry.get("lower"), entry.get("upper"))),
+        (entry_label, entry_value),
         ("Preferred entry", format_price(entry.get("preferred"))),
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
         ("Structural stop", format_price(stop.get("price"))),
@@ -160,8 +161,13 @@ def render_discovery_analysis(
         sections.append(render_section("Trade Management", render_bullets(policy_lines)))
 
     warnings = _strings(setup.get("warnings"))
+    if target_semantics and target_semantics.get("costs_available") is not True:
+        warnings = (
+            *warnings,
+            "displayed reward geometry is gross; fees and slippage are not included",
+        )
     if warnings:
-        sections.append(render_section("Warnings", render_bullets(warnings)))
+        sections.append(render_section("Warnings", render_bullets(dict.fromkeys(warnings))))
     return "\n\n".join(sections)
 
 
@@ -264,6 +270,12 @@ def _price_range(low: object, high: object) -> str:
     if high is None:
         return format_price(low)
     return f"{format_price(low)} - {format_price(high)}"
+
+
+def _entry_display(low: object, high: object) -> tuple[str, str]:
+    if low is not None and high is not None and low == high:
+        return "Entry price", format_price(low)
+    return "Entry zone", _price_range(low, high)
 
 
 __all__ = ["render_discovery_analysis", "render_discovery_scan"]

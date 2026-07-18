@@ -89,6 +89,8 @@ def derive_confirmation_source_semantics(
             "intrabar or lower-timeframe confirmation is permitted and remains distinct from "
             "closed-candle proof"
         )
+    elif not confirmation_complete:
+        interpretation = "strategy confirmation remains pending; the setup is not executable"
     else:
         interpretation = "canonical confirmation requirements are complete"
 

@@ -31,7 +31,9 @@ def derive_actionability_semantics(
     legacy_status = None if setup is None else setup.entry_status.value
     maturity = methodology.setup_maturity
     blocked = bool(methodology.hard_blockers)
-    execution_ready = methodology.executable
+    execution_ready = (
+        methodology.executable and maturity is SetupMaturity.ENTRY_AVAILABLE and not blocked
+    )
 
     if blocked:
         actionability = "blocked"
