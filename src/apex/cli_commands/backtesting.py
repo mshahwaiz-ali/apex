@@ -16,6 +16,7 @@ from apex.application import (
     bootstrap,
     create_market_data_services,
     normalize_market_symbol,
+    serialize_symbol_analysis,
 )
 from apex.backtesting.contracts import BacktestConfig, BacktestRequest
 from apex.backtesting.discovery_signal import signal_from_discovery_setup
@@ -120,14 +121,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             store = HistoricalCandleStore(series)
             decision_times = tuple(
                 replay_series.candles[
-                    len(replay_series.candles)
-                    - replay_candles * (decision_points - index)
-                    - 1
+                    len(replay_series.candles) - replay_candles * (decision_points - index) - 1
                 ].close_time
                 for index in range(decision_points)
             )
             signals = []
             no_trade_decisions: list[dict[str, object]] = []
+            calibration_records: list[dict[str, object]] = []
             decision_partitions: list[dict[str, str]] = []
             for decision_index, decision_time in enumerate(decision_times):
                 partition = _campaign_partition(decision_index, decision_points)
@@ -154,6 +154,12 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     market_environment_config=context.settings.market_environment,
                 )
                 setup = analysis.assessment.setup
+                calibration_records.append(
+                    _calibration_record(
+                        analysis=analysis,
+                        partition=partition,
+                    )
+                )
                 if setup is None:
                     no_trade_decisions.append(
                         {
@@ -183,6 +189,34 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             )
         )
         report = study.report
+        replay_outcomes = {
+            trade.signal.generated_at.isoformat(): {
+                "outcome": trade.outcome.value,
+                "realized_r_multiple": trade.realized_r_multiple,
+                "net_pnl": trade.net_pnl,
+                "maximum_favorable_excursion_r": trade.metadata.get(
+                    "maximum_favorable_excursion_r"
+                ),
+                "maximum_adverse_excursion_r": trade.metadata.get("maximum_adverse_excursion_r"),
+            }
+            for trade in report.trades
+        }
+        calibration_records = [
+            {
+                **record,
+                "future_replay": replay_outcomes.get(
+                    str(record["decision_time"]),
+                    {
+                        "outcome": "no_signal",
+                        "realized_r_multiple": None,
+                        "net_pnl": None,
+                        "maximum_favorable_excursion_r": None,
+                        "maximum_adverse_excursion_r": None,
+                    },
+                ),
+            }
+            for record in calibration_records
+        ]
         partition_by_time = {
             item["decision_time"]: item["partition"] for item in decision_partitions
         }
@@ -192,8 +226,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     tuple(
                         trade
                         for trade in report.trades
-                        if partition_by_time.get(trade.signal.generated_at.isoformat())
-                        == partition
+                        if partition_by_time.get(trade.signal.generated_at.isoformat()) == partition
                     )
                 )
             )
@@ -210,6 +243,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_times": [item.isoformat() for item in decision_times],
             "decision_partitions": decision_partitions,
             "no_trade_decisions": no_trade_decisions,
+            "calibration_records": calibration_records,
             "trades": [_jsonable(trade) for trade in report.trades],
             "metrics": _report_metrics(report),
             "metrics_by_partition": partition_metrics,
@@ -267,6 +301,44 @@ def _campaign_source_limit(
     # Cover the active provider candle, interval-boundary alignment, and the
     # analysis core's closed-prefix/provisional-candle lookback.
     return candle_limit + displaced_bars + 4
+
+
+def _calibration_record(*, analysis: object, partition: str) -> dict[str, object]:
+    serialized = serialize_symbol_analysis(analysis)  # type: ignore[arg-type]
+    setup = serialized.get("setup")
+    diagnostics = serialized.get("phase5_diagnostics")
+    zero_trade = (
+        diagnostics.get("zero_trade_diagnostics") if isinstance(diagnostics, Mapping) else None
+    )
+    methodology_routing = (
+        diagnostics.get("methodology_candidate_routing")
+        if isinstance(diagnostics, Mapping)
+        else None
+    )
+    return {
+        "schema_version": 1,
+        "symbol": serialized.get("symbol"),
+        "decision_time": serialized.get("generated_at"),
+        "partition": partition,
+        "production_decision": serialized.get("decision"),
+        "methodology_gate_mode": (
+            methodology_routing.get("mode") if isinstance(methodology_routing, Mapping) else None
+        ),
+        "methodology_decision": (
+            {
+                "suppressed_candidate_count": methodology_routing.get("suppressed_candidate_count"),
+                "suppressed_strategies": methodology_routing.get("suppressed_strategies"),
+                "reason_codes": methodology_routing.get("reason_codes"),
+            }
+            if isinstance(methodology_routing, Mapping)
+            else None
+        ),
+        "no_trade_reasons": serialized.get("reasons"),
+        "zero_trade_diagnostics": zero_trade,
+        "entry_geometry": None if not isinstance(setup, Mapping) else setup.get("entry"),
+        "stop_geometry": None if not isinstance(setup, Mapping) else setup.get("stop_loss"),
+        "target_geometry": None if not isinstance(setup, Mapping) else setup.get("take_profits"),
+    }
 
 
 def _jsonable(value: object) -> object:

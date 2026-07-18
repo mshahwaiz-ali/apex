@@ -12,8 +12,8 @@ futures_screener:
   shortlist_size: 36
   ticker_prefilter_size: 120
   candle_timeframe: 5m
-  candle_limit: 49
-  minimum_candle_count: 25
+  candle_limit: 145
+  minimum_candle_count: 72
   target_quote_volume_24h: 100000000
   target_movement_percentage: 8.0
   target_relative_volume: 2.0

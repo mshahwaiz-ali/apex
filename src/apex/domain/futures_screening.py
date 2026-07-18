@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -144,8 +145,8 @@ class FuturesScreenerConfig:
     shortlist_size: int = 30
     ticker_prefilter_size: int = 90
     candle_timeframe: str = "5m"
-    candle_limit: int = 49
-    minimum_candle_count: int = 25
+    candle_limit: int = 145
+    minimum_candle_count: int = 72
     target_quote_volume_24h: float = 100_000_000.0
     target_movement_percentage: float = 8.0
     target_relative_volume: float = 2.0
@@ -339,6 +340,7 @@ class FuturesScreeningResult:
     candle_screened_count: int
     candidates: tuple[FuturesScreeningCandidate, ...]
     exclusions: tuple[FuturesScreeningExclusion, ...]
+    selection_lane_budgets: Mapping[FuturesDiscoveryLane, int] | None = None
 
     def __post_init__(self) -> None:
         for field_name in (

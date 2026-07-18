@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +22,12 @@ from apex.application.discovery_context import (
     build_strategy_context,
     frame_data_quality_payload,
 )
-from apex.application.discovery_contracts import DiscoverySetup, ScanResult, SymbolAnalysis
+from apex.application.discovery_contracts import (
+    DiscoverySetup,
+    ScanResult,
+    SymbolAnalysis,
+    TakeProfit,
+)
 from apex.application.discovery_setup import build_discovery_assessment
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.market_strategy_router import MarketStrategyRoute
@@ -112,15 +118,25 @@ def analyze_symbol(
     candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
     phase5_diagnostics = {
         "candidate_count": len(selection.all_scored_candidates),
+        "raw_candidate_count": len(strategy_analysis.candidates),
+        "retained_candidate_count": len(eligible_routed.candidates),
         "ranked_count": len(selection.ranked_candidates),
         "rejected_count": len(selection.rejected_candidates),
         "selected": selection.selected_candidate is not None,
+        "developing_setup_selected": assessment.developing_setup is not None,
         "selected_candidate_id": (
             selection.selected_candidate.scored.candidate_id
             if selection.selected_candidate is not None
             else None
         ),
         "no_trade_reason": selection.no_trade_reason,
+        "zero_trade_diagnostics": _zero_trade_diagnostics(
+            strategy_analysis=strategy_analysis,
+            eligible_routed=eligible_routed,
+            selection=selection,
+            assessment=assessment,
+            methodology_routing=methodology_routing,
+        ),
         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
         "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
         "candidates": [
@@ -195,6 +211,85 @@ def analyze_symbol(
         phase5_diagnostics=phase5_diagnostics,
         methodology=methodology,
     )
+
+
+def _zero_trade_diagnostics(
+    *,
+    strategy_analysis: Any,
+    eligible_routed: Any,
+    selection: Any,
+    assessment: Any,
+    methodology_routing: Any,
+) -> dict[str, Any]:
+    """Summarize why a decision did or did not become an executable setup."""
+
+    raw_status_counts = Counter(
+        item.status.value for item in getattr(strategy_analysis, "candidate_actionability", ())
+    )
+    retained_status_counts = Counter(
+        item.status.value for item in getattr(eligible_routed, "candidate_actionability", ())
+    )
+    family_counts = Counter(
+        item.strategy.canonical_family.value for item in getattr(eligible_routed, "candidates", ())
+    )
+    strategy_diagnostics = getattr(strategy_analysis, "strategy_diagnostics", None) or {}
+    rejection_codes = Counter(
+        code.value
+        for diagnostic in strategy_diagnostics.values()
+        for code in diagnostic.rejection_codes
+    )
+    strategy_summary = {
+        strategy.value: {
+            "candidate_count": diagnostic.candidate_count,
+            "canonical_family": strategy.canonical_family.value,
+            "canonical_subtype": strategy.canonical_subtype,
+            "near_miss_state": diagnostic.near_miss_state.value,
+            "rejection_codes": [code.value for code in diagnostic.rejection_codes],
+            "reasons": list(diagnostic.reasons),
+        }
+        for strategy, diagnostic in strategy_diagnostics.items()
+    }
+    ranked_outcomes = Counter(item.outcome.value for item in selection.ranked_candidates)
+    rejected_reasons = Counter(
+        reason for item in selection.rejected_candidates for reason in item.reasons
+    )
+    selected = selection.selected_candidate
+    developing = assessment.developing_setup
+    return {
+        "diagnostic_version": 1,
+        "execution_filter_policy": (
+            "strict: diagnostics may explain zero trades, but do not loosen entry filters"
+        ),
+        "decision": "TRADE" if selected is not None else "NO_TRADE",
+        "no_trade_reason": selection.no_trade_reason,
+        "selection_summary": {
+            "raw_candidate_count": len(strategy_analysis.candidates),
+            "retained_candidate_count": len(eligible_routed.candidates),
+            "ranked_count": len(selection.ranked_candidates),
+            "rejected_count": len(selection.rejected_candidates),
+            "selected_candidate_id": None if selected is None else selected.scored.candidate_id,
+            "developing_candidate_id": None if developing is None else developing.candidate_id,
+        },
+        "entry_status_distribution": {
+            "raw": dict(sorted(raw_status_counts.items())),
+            "retained": dict(sorted(retained_status_counts.items())),
+        },
+        "canonical_family_distribution": dict(sorted(family_counts.items())),
+        "ranked_outcome_distribution": dict(sorted(ranked_outcomes.items())),
+        "strategy_rejection_code_distribution": dict(sorted(rejection_codes.items())),
+        "top_rejected_reasons": [
+            {"reason": reason, "count": count} for reason, count in rejected_reasons.most_common(8)
+        ],
+        "strategy_diagnostics": strategy_summary,
+        "methodology_shadow_vs_enforce": {
+            "mode": methodology_routing.mode.value,
+            "suppressed_candidate_count": methodology_routing.suppressed_candidate_count,
+            "suppressed_strategies": [
+                strategy.value for strategy in methodology_routing.suppressed_strategies
+            ],
+            "reason_codes": list(methodology_routing.reason_codes),
+        },
+    }
 
 
 def scan_symbols(
@@ -317,6 +412,7 @@ def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
             "stop_type": setup.stop_loss.invalidation_type.value,
             "single_buffer_rationale": setup.stop_loss.buffer_rationale,
             "rationale": list(setup.stop_loss.rationale),
+            "quality_evidence": _stop_quality_evidence(setup),
         },
         "take_profits": [
             {
@@ -327,6 +423,7 @@ def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
                 "partial_close_pct": target.partial_close_pct,
                 "target_type": target.target_type.value,
                 "purpose": target.purpose,
+                "context": _target_context(setup, target),
                 "rationale": list(target.rationale),
             }
             for target in setup.take_profits
@@ -341,6 +438,38 @@ def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
             for policy in setup.management_policies
         ],
         "warnings": list(setup.warnings),
+    }
+
+
+def _stop_quality_evidence(setup: DiscoverySetup) -> dict[str, Any]:
+    risk = setup.stop_loss.distance
+    entry = setup.entry.preferred
+    return {
+        "strategy_family": setup.strategy.canonical_family.value,
+        "structural_significance": setup.stop_loss.invalidation_type.value,
+        "noise_clearance": setup.stop_loss.buffer_rationale,
+        "distance_pct": setup.stop_loss.distance_pct,
+        "risk_unit": risk,
+        "cost_adjusted_r_note": (
+            "execution costs are not deducted here; use backtest calibration records"
+        ),
+        "close_or_touch_rule": "close",
+        "distance_from_entry": abs(entry - setup.stop_loss.price),
+    }
+
+
+def _target_context(setup: DiscoverySetup, target: TakeProfit) -> dict[str, Any]:
+    expected_move_pct = abs(target.price - setup.entry.preferred) / setup.entry.preferred * 100.0
+    return {
+        "strategy_family": setup.strategy.canonical_family.value,
+        "source": target.target_type.value,
+        "role": target.purpose,
+        "expected_move_pct": expected_move_pct,
+        "risk_multiple": target.risk_reward,
+        "conditional": target.target_type.value == "expansion",
+        "reachable_within_setup_life": (
+            None if setup.setup_expiry_seconds is None else target.risk_reward <= 3.0
+        ),
     }
 
 

@@ -278,7 +278,7 @@ def screen_futures_universe(
             _normalize_symbol(item[0].exchange_symbol),
         ),
     )
-    selected = _select_lane_budgeted(ranked, config.shortlist_size)
+    selected, lane_budgets = _select_lane_budgeted(ranked, config.shortlist_size)
     selected_symbols = {_normalize_symbol(item[0].exchange_symbol) for item in selected}
 
     for contract, _, _, opportunity, _ in ranked:
@@ -320,6 +320,7 @@ def screen_futures_universe(
         candle_screened_count=len(scored),
         candidates=candidates,
         exclusions=tuple(exclusions),
+        selection_lane_budgets=lane_budgets,
     )
 
 
@@ -334,29 +335,28 @@ def _select_lane_budgeted(
         ]
     ],
     limit: int,
-) -> list[
-    tuple[
-        FuturesContractMetadata,
-        FuturesTickerSnapshot,
-        FuturesOpportunityFeatures,
-        FuturesOpportunityScore,
-        tuple[FuturesDiscoveryLaneSignal, ...],
-    ]
+) -> tuple[
+    list[
+        tuple[
+            FuturesContractMetadata,
+            FuturesTickerSnapshot,
+            FuturesOpportunityFeatures,
+            FuturesOpportunityScore,
+            tuple[FuturesDiscoveryLaneSignal, ...],
+        ]
+    ],
+    dict[FuturesDiscoveryLane, int],
 ]:
     """Reserve shortlist capacity per discovery lane, then fill by global quality."""
 
     if len(ranked) <= limit:
-        return ranked
+        return ranked, _lane_budgets(ranked, limit)
     lane_order = tuple(FuturesDiscoveryLane)
-    quota = max(1, limit // len(lane_order))
+    lane_budgets = _lane_budgets(ranked, limit)
     selected_symbols: set[str] = set()
     for lane in lane_order:
         lane_ranked = sorted(
-            (
-                item
-                for item in ranked
-                if any(signal.lane is lane for signal in item[4])
-            ),
+            (item for item in ranked if any(signal.lane is lane for signal in item[4])),
             key=lambda item: (
                 -max(signal.score for signal in item[4] if signal.lane is lane),
                 -item[3].total,
@@ -364,6 +364,7 @@ def _select_lane_budgeted(
             ),
         )
         added = 0
+        quota = lane_budgets.get(lane, 0)
         for item in lane_ranked:
             symbol = _normalize_symbol(item[0].exchange_symbol)
             if symbol in selected_symbols:
@@ -377,10 +378,73 @@ def _select_lane_budgeted(
             break
         selected_symbols.add(_normalize_symbol(item[0].exchange_symbol))
     return [
-        item
-        for item in ranked
-        if _normalize_symbol(item[0].exchange_symbol) in selected_symbols
-    ]
+        item for item in ranked if _normalize_symbol(item[0].exchange_symbol) in selected_symbols
+    ], lane_budgets
+
+
+def _lane_budgets(
+    ranked: Sequence[
+        tuple[
+            FuturesContractMetadata,
+            FuturesTickerSnapshot,
+            FuturesOpportunityFeatures,
+            FuturesOpportunityScore,
+            tuple[FuturesDiscoveryLaneSignal, ...],
+        ]
+    ],
+    limit: int,
+) -> dict[FuturesDiscoveryLane, int]:
+    """Allocate shortlist surveillance by observed lane evidence, not equal quotas."""
+
+    lane_order = tuple(FuturesDiscoveryLane)
+    available = {
+        lane: sum(1 for item in ranked if any(signal.lane is lane for signal in item[4]))
+        for lane in lane_order
+    }
+    active_lanes = tuple(lane for lane in lane_order if available[lane] > 0)
+    if not active_lanes or limit <= 0:
+        return {lane: 0 for lane in lane_order}
+
+    lane_signal = {
+        lane: sum(
+            max(signal.score for signal in item[4] if signal.lane is lane)
+            for item in ranked
+            if any(signal.lane is lane for signal in item[4])
+        )
+        for lane in active_lanes
+    }
+    total_signal = sum(lane_signal.values())
+    baseline = 1.0
+    weights = {
+        lane: baseline + (lane_signal[lane] / total_signal if total_signal > 0 else 0.0)
+        for lane in active_lanes
+    }
+    total_weight = sum(weights.values())
+    raw = {lane: limit * weights[lane] / total_weight for lane in active_lanes}
+    budgets = {lane: min(available[lane], max(1, int(raw[lane]))) for lane in active_lanes}
+    while sum(budgets.values()) > limit:
+        lane = min(
+            (item for item in active_lanes if budgets[item] > 1),
+            key=lambda item: (raw[item] - budgets[item], item.value),
+            default=None,
+        )
+        if lane is None:
+            break
+        budgets[lane] -= 1
+    while sum(budgets.values()) < limit:
+        lane = max(
+            active_lanes,
+            key=lambda item: (
+                available[item] - budgets[item],
+                raw[item] - budgets[item],
+                weights[item],
+                item.value,
+            ),
+        )
+        if budgets[lane] >= available[lane]:
+            break
+        budgets[lane] += 1
+    return {lane: budgets.get(lane, 0) for lane in lane_order}
 
 
 def _screen_tickers_only(
@@ -508,6 +572,9 @@ def _screen_tickers_only(
         candle_screened_count=0,
         candidates=candidates,
         exclusions=tuple(exclusions),
+        selection_lane_budgets={
+            FuturesDiscoveryLane.FAST_MOVER: len(candidates),
+        },
     )
 
 

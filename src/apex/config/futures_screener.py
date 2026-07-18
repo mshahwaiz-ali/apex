@@ -66,8 +66,8 @@ class FuturesScreenerSettings(BaseModel):
     shortlist_size: int = Field(default=36, gt=0)
     ticker_prefilter_size: int = Field(default=120, gt=0)
     candle_timeframe: str = Field(default="5m", min_length=1)
-    candle_limit: int = Field(default=49, ge=13, le=250)
-    minimum_candle_count: int = Field(default=25, ge=13)
+    candle_limit: int = Field(default=145, ge=13, le=250)
+    minimum_candle_count: int = Field(default=72, ge=13)
     target_quote_volume_24h: float = Field(
         default=100_000_000.0,
         gt=0,

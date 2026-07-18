@@ -175,6 +175,8 @@ def test_dynamic_selection_serializes_screening_diagnostics() -> None:
     assert payload["total_contracts"] == 2
     assert payload["total_tickers"] == 3
     assert payload["shortlisted_count"] == 2
+    assert payload["selection_policy"] == "ticker_only_absolute_movement"
+    assert payload["selection_lane_budgets"]["fast_mover"] == 2
 
     candidates = payload["candidates"]
 

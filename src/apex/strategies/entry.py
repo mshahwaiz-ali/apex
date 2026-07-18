@@ -77,6 +77,8 @@ def find_entry_zones(
         preferred=current_price,
         atr=atr,
         direction=direction,
+        invalidation_price=invalidation_price,
+        target_price=target_price,
         mode=EntryMode.MARKET_NEAR,
         rationale=("current price is technically valid and immediately actionable",),
         scaled=False,
@@ -110,6 +112,8 @@ def find_entry_zones(
             preferred=reference.price,
             atr=atr,
             direction=direction,
+            invalidation_price=invalidation_price,
+            target_price=target_price,
             mode=EntryMode.SCALED_ENTRY if reference.scaled else reference.mode,
             rationale=reference.rationale,
             scaled=reference.scaled,
@@ -194,6 +198,8 @@ def _build_zone(
     preferred: float,
     atr: float,
     direction: TradeDirection,
+    invalidation_price: float,
+    target_price: float,
     mode: EntryMode,
     rationale: tuple[str, ...],
     scaled: bool,
@@ -202,17 +208,27 @@ def _build_zone(
     distance = abs(preferred - current_price)
     percentage_distance = distance / current_price
     atr_distance = distance / atr
-    allowed_distance = max(
-        current_price * config.max_percentage_distance,
-        atr * config.max_atr_distance,
+    base_distance = max(
+        current_price * config.max_percentage_distance, atr * config.max_atr_distance
     )
-    max_chase_price = (
-        current_price + allowed_distance
-        if direction is TradeDirection.LONG
-        else current_price - allowed_distance
+    risk = abs(preferred - invalidation_price)
+    reward = abs(target_price - preferred)
+    minimum_remaining_reward = risk * 1.1
+    reward_room_distance = max(0.0, reward - minimum_remaining_reward)
+    structure_room_distance = max(0.0, abs(target_price - preferred) * 0.65)
+    allowed_distance = min(
+        base_distance,
+        max(reward_room_distance, 0.0),
+        max(structure_room_distance, 0.0),
     )
-    location_quality = max(0.0, 1.0 - distance / allowed_distance)
     half_width = atr * config.scaled_half_width_atr if scaled else 0.0
+    allowed_distance = max(allowed_distance, half_width)
+    max_chase_price = (
+        preferred + allowed_distance
+        if direction is TradeDirection.LONG
+        else preferred - allowed_distance
+    )
+    location_quality = 1.0 if allowed_distance == 0 else max(0.0, 1.0 - distance / allowed_distance)
     return EntryZone(
         lower=preferred - half_width,
         upper=preferred + half_width,

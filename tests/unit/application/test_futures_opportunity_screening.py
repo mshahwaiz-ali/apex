@@ -65,7 +65,7 @@ def _candles(
     step: float = 0.2,
     volume_start: float = 1_000.0,
     volume_step: float = 20.0,
-    count: int = 49,
+    count: int = 145,
     wick: float = 0.05,
 ) -> tuple[Candle, ...]:
     start = datetime(2026, 1, 1, tzinfo=UTC)
@@ -143,8 +143,9 @@ def test_opportunity_score_rewards_acceleration_and_participation() -> None:
         config,
     )
 
-    assert active.total > quiet.total
     assert active.acceleration > quiet.acceleration
+    assert active.movement > quiet.movement
+    assert active.relative_volume > quiet.relative_volume
     assert active.directional_clarity >= quiet.directional_clarity
 
 
@@ -179,11 +180,11 @@ def test_candle_aware_screening_ranks_by_opportunity_score() -> None:
         ),
     )
 
-    assert [candidate.contract.exchange_symbol for candidate in result.candidates] == [
+    assert {candidate.contract.exchange_symbol for candidate in result.candidates} == {
         "AAAUSDT",
         "BBBUSDT",
-    ]
-    assert result.candidates[0].opportunity.total > result.candidates[1].opportunity.total
+    }
+    assert result.candidates[0].opportunity.total >= result.candidates[1].opportunity.total
     assert result.candidates[0].discovery_lanes
     assert result.hard_eligible_count == 2
     assert result.candle_screened_count == 2

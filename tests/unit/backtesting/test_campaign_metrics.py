@@ -3,7 +3,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from apex.backtesting import BacktestConfig, BacktestSignal, simulate_trade, summarize_trades
-from apex.cli_commands.backtesting import _jsonable, _report_metrics
+from apex.cli_commands import backtesting as backtesting_cli
+from apex.cli_commands.backtesting import _calibration_record, _jsonable, _report_metrics
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
@@ -80,3 +81,35 @@ def test_campaign_report_exposes_fill_and_excursion_metrics() -> None:
     assert serialized_trade["metadata"]["maximum_favorable_excursion_r"] > 0
     assert metrics["trades"] == []
     assert metrics["metadata"]["entry_fill_rate"] == pytest.approx(0.5)
+
+
+def test_calibration_record_preserves_zero_trade_and_methodology_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        backtesting_cli,
+        "serialize_symbol_analysis",
+        lambda _analysis: {
+            "symbol": "BTCUSDT",
+            "generated_at": "2026-07-18T12:00:00+00:00",
+            "decision": "NO_TRADE",
+            "reasons": ["candidate selection produced no setup"],
+            "setup": None,
+            "phase5_diagnostics": {
+                "zero_trade_diagnostics": {"decision": "NO_TRADE"},
+                "methodology_candidate_routing": {
+                    "mode": "shadow",
+                    "suppressed_candidate_count": 0,
+                    "suppressed_strategies": [],
+                    "reason_codes": ["METHODOLOGY_CANDIDATE_ROUTING_SHADOW"],
+                },
+            },
+        },
+    )
+
+    record = _calibration_record(analysis=object(), partition="validation")
+
+    assert record["production_decision"] == "NO_TRADE"
+    assert record["methodology_gate_mode"] == "shadow"
+    assert record["zero_trade_diagnostics"] == {"decision": "NO_TRADE"}
+    assert record["entry_geometry"] is None

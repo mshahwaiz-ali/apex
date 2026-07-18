@@ -146,6 +146,17 @@ def serialize_futures_screening(
             )
             for lane in FuturesDiscoveryLane
         },
+        "selection_lane_budgets": {
+            lane.value: (result.selection_lane_budgets or {}).get(lane, 0)
+            for lane in FuturesDiscoveryLane
+        },
+        "selection_policy": (
+            "dynamic_signal_weighted_lane_budgets"
+            if result.selection_lane_budgets is not None and result.candle_screened_count > 0
+            else "ticker_only_absolute_movement"
+            if result.selection_lane_budgets is not None
+            else "legacy_global_rank"
+        ),
         "candidates": [
             {
                 "rank": candidate.rank,
