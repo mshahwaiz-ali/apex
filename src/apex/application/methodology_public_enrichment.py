@@ -5,9 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 from apex.application.discovery_contracts import SymbolAnalysis
+from apex.application.methodology_actionability_semantics import (
+    actionability_semantics_payload,
+    derive_actionability_semantics,
+)
 from apex.application.methodology_confidence_semantics import (
     confidence_semantics_payload,
     derive_confidence_semantics,
+)
+from apex.application.methodology_entry_opportunity_semantics import (
+    derive_entry_opportunity_semantics,
+    entry_opportunity_semantics_payload,
 )
 from apex.application.methodology_execution_geometry_semantics import (
     derive_execution_geometry_semantics,
@@ -42,13 +50,13 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent projection, execution, score, and rejection semantics.
+    """Return transparent projection, actionability, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, calibrated probability,
-    canonical execution geometry, hidden rejection, score-authorized execution, or
-    a universal target horizon.
+    canonical execution geometry, authoritative actionability, hidden rejection,
+    score-authorized execution, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -57,7 +65,9 @@ def methodology_public_enrichment(
     )
     setup = analysis.assessment.setup
     native_available = analysis.methodology is not None
+    actionability = derive_actionability_semantics(setup, projected)
     confidence = derive_confidence_semantics(projected.confidence)
+    entry_opportunities = derive_entry_opportunity_semantics(projected)
     execution_geometry = derive_execution_geometry_semantics(
         setup,
         projected,
@@ -77,7 +87,13 @@ def methodology_public_enrichment(
         "methodology_compatibility_geometry": (
             None if setup is None else project_setup_geometry(setup)
         ),
+        "methodology_actionability_semantics": actionability_semantics_payload(
+            actionability
+        ),
         "methodology_confidence_semantics": confidence_semantics_payload(confidence),
+        "methodology_entry_opportunity_semantics": entry_opportunity_semantics_payload(
+            entry_opportunities
+        ),
         "methodology_execution_geometry_semantics": execution_geometry_semantics_payload(
             execution_geometry
         ),
