@@ -1,71 +1,411 @@
 # Apex Command Reference
 
-Apex is a deterministic Binance USDT perpetual-futures opportunity-discovery and analysis tool.
-It does not manage wallets, recommend leverage, place orders, run paper accounts, operate testnet execution, or evaluate funded-account readiness.
-
-## Public CLI
+Apex exposes a small public CLI for Binance USDT perpetual-futures discovery, focused analysis, configuration validation, and chronological replay.
 
 ```text
 apex scan
 apex analyze SYMBOL
-apex config-check
 apex backtest SYMBOL
+apex config-check
 apex version
 ```
 
-## Commands
+> Apex produces analysis. It does not place trades, recommend leverage, size positions from wallet equity, or manage exchange accounts.
 
-### Scan Futures Markets
+## Before using the CLI
+
+From the repository root:
+
+```bash
+cd ~/data_drive/apex
+source .venv/bin/activate
+```
+
+Confirm the installed command surface:
+
+```bash
+apex --help
+```
+
+Use command-specific help whenever you need the exact installed options:
 
 ```bash
 apex scan --help
-apex scan
-apex scan --output json
-apex scan --results 20 --shortlist 30 --direction both
+apex analyze --help
+apex backtest --help
+apex config-check --help
 ```
 
-Discovers active Binance USDT perpetual-futures symbols, screens market quality, analyzes eligible symbols, and ranks deterministic opportunities.
-Use `--results` to control displayed ranked results, `--shortlist` to control detailed analysis breadth, and `--direction long|short|both` to focus the final display.
-
-### Analyze One Symbol
+## 1. Scan the futures market
 
 ```bash
-apex analyze BTCUSDT --help
+apex scan
+```
+
+This is the broad discovery command. It:
+
+1. discovers active Binance USDT perpetual contracts;
+2. applies lightweight liquidity, spread, movement, volatility, freshness, and noise screening;
+3. shortlists the strongest symbols;
+4. runs the shared full analysis pipeline on each shortlisted symbol;
+5. ranks and displays the strongest valid results.
+
+A scan may return fewer results than requested. Apex does not invent or force setups to fill a quota.
+
+### Common scan examples
+
+Default text scan:
+
+```bash
+apex scan
+```
+
+Show only the top five displayed results:
+
+```bash
+apex scan --results 5
+```
+
+Analyze a wider shortlist, then display the top ten:
+
+```bash
+apex scan --shortlist 50 --results 10
+```
+
+Show only long candidates:
+
+```bash
+apex scan --direction long
+```
+
+Show only short candidates:
+
+```bash
+apex scan --direction short
+```
+
+Show both directions:
+
+```bash
+apex scan --direction both
+```
+
+Produce machine-readable JSON:
+
+```bash
+apex scan --output json
+```
+
+Use the short output flag:
+
+```bash
+apex scan -o json
+```
+
+Request a larger analysis candle window:
+
+```bash
+apex scan --candles 300
+```
+
+Use a static symbol list instead of live universe discovery:
+
+```bash
+apex scan --symbols-file config/symbols.yaml
+```
+
+Write the complete JSON payload to a report file while keeping terminal output:
+
+```bash
+apex scan --report data/reports/latest_scan.json
+```
+
+Append normalized analysis records to JSONL:
+
+```bash
+apex scan --record data/records/scan_history.jsonl
+```
+
+Store normalized analysis records in SQLite:
+
+```bash
+apex scan --record-db data/records/apex_analysis.sqlite3
+```
+
+Combine practical controls:
+
+```bash
+apex scan \
+  --shortlist 40 \
+  --results 8 \
+  --direction both \
+  --candles 250 \
+  --report data/reports/latest_scan.json
+```
+
+### Scan options
+
+| Option | Default | Purpose |
+|---|---:|---|
+| `--symbols-file PATH` | live discovery | Override the live universe with a readable symbol file |
+| `--output`, `-o` | `text` | Output format: `text` or `json` |
+| `--report PATH` | none | Write the full scan payload as JSON |
+| `--record PATH` | none | Append normalized records to JSONL |
+| `--record-db PATH` | none | Store normalized records in SQLite |
+| `--candles N` | `200` | Closed-candle analysis depth; accepted range is 40-999 |
+| `--results N` | `20` | Maximum displayed ranked results; accepted range is 1-50 |
+| `--shortlist N` | `30` | Symbols sent to detailed analysis; accepted range is 1-100 |
+| `--direction VALUE` | `both` | Display `long`, `short`, or `both` |
+| `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
+
+## 2. Analyze one symbol
+
+```bash
 apex analyze BTCUSDT
+```
+
+This command bypasses market-wide discovery and sends the requested symbol directly into the same full analysis core used by `apex scan`.
+
+It can return:
+
+- market state and strategy routing;
+- long, short, or `NO_TRADE` decision;
+- entry status and entry zones;
+- ideal entry and maximum chase;
+- structural invalidation and stop;
+- target and reward geometry;
+- setup maturity, evidence, warnings, and contradictions;
+- quality, confidence, and ranking diagnostics;
+- management and expiry guidance.
+
+### Common analysis examples
+
+Analyze Bitcoin futures:
+
+```bash
+apex analyze BTCUSDT
+```
+
+Analyze another provider-supported futures symbol:
+
+```bash
+apex analyze ETHUSDT
+```
+
+Return JSON:
+
+```bash
 apex analyze BTCUSDT --output json
+```
+
+Use more candles per configured timeframe:
+
+```bash
+apex analyze BTCUSDT --candles 300
+```
+
+Append the result to a JSONL research record:
+
+```bash
+apex analyze BTCUSDT --record data/records/manual_analysis.jsonl
+```
+
+Store the result in SQLite:
+
+```bash
+apex analyze BTCUSDT --record-db data/records/apex_analysis.sqlite3
+```
+
+Load settings from another configuration directory:
+
+```bash
 apex analyze BTCUSDT --config-dir config
 ```
 
-Runs focused multi-timeframe analysis for one futures symbol and returns entry geometry, structural invalidation, TP1/TP2/TP3 guidance, scoring, warnings, and rejection reasons.
+### Analyze options
 
-### Backtest One Symbol
+| Option | Default | Purpose |
+|---|---:|---|
+| `SYMBOL` | required | Provider-supported futures symbol, such as `BTCUSDT` |
+| `--output`, `-o` | `text` | Output format: `text` or `json` |
+| `--candles N` | `200` | Candle depth per configured timeframe; accepted range is 40-1000 |
+| `--record PATH` | none | Append the normalized result to JSONL |
+| `--record-db PATH` | none | Store the normalized result in SQLite |
+| `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
+
+## 3. Backtest one historical decision
 
 ```bash
-apex backtest BTCUSDT --help
 apex backtest BTCUSDT
+```
+
+This is a focused chronological prefix/holdout replay, not a portfolio-wide optimization command.
+
+The command:
+
+1. downloads closed historical candles;
+2. withholds the final replay window;
+3. analyzes only the historical prefix at the decision timestamp;
+4. converts the selected discovery setup into a replay signal;
+5. simulates entry, stop, targets, partial exits, costs, expiry, and ambiguous candles on the withheld data;
+6. prints the resulting outcome and metrics.
+
+When the historical prefix produces no valid setup, the command returns `NO_TRADE` rather than manufacturing a signal.
+
+### Common backtest examples
+
+Default focused replay:
+
+```bash
+apex backtest BTCUSDT
+```
+
+Return JSON:
+
+```bash
 apex backtest BTCUSDT --output json
+```
+
+Use `5m` replay candles and hold out 24 candles:
+
+```bash
 apex backtest BTCUSDT --replay-timeframe 5m --replay-candles 24
 ```
 
-Replays a focused historical prefix/holdout evaluation for one symbol. It evaluates discovery signal geometry only; it does not model wallet allocation, leverage, margin, liquidation, funded rules, paper state, or exchange execution.
+Use a deeper historical decision prefix:
 
-### Check Configuration
+```bash
+apex backtest BTCUSDT --candles 400 --replay-candles 50
+```
+
+Replay another timeframe:
+
+```bash
+apex backtest ETHUSDT --replay-timeframe 15m --replay-candles 20
+```
+
+### Backtest options
+
+| Option | Default | Purpose |
+|---|---:|---|
+| `SYMBOL` | required | Provider-supported futures symbol |
+| `--output`, `-o` | `text` | Output format: `text` or `json` |
+| `--candles N` | `240` | Historical decision-prefix depth; accepted range is 80-900 |
+| `--replay-timeframe TF` | `5m` | Timeframe used for the withheld forward replay |
+| `--replay-candles N` | `24` | Number of withheld replay candles; accepted range is 1-100 |
+| `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
+
+### What this backtest does not model
+
+It does not model:
+
+- wallet allocation;
+- leverage or required margin;
+- liquidation price;
+- funded-account restrictions;
+- paper-account state;
+- live order placement or exchange execution.
+
+## 4. Validate configuration
 
 ```bash
 apex config-check
 ```
 
-Validates the active focused configuration and prints resolved settings.
+This command loads and validates the active configuration, then prints the resolved settings. Run it after changing YAML files or when a command fails during bootstrap.
 
-### Version
+Examples:
+
+```bash
+apex config-check
+apex config-check --help
+```
+
+The primary runtime configuration is `config/default.yaml`. The current default methodology gate is configured in shadow mode, meaning methodology diagnostics are calculated and exposed without automatically replacing every established public decision.
+
+## 5. Show the installed version
 
 ```bash
 apex version
 ```
 
-Prints the installed Apex package version.
+This prints the installed Apex package version.
 
-## Development Validation
+## Output formats
+
+Commands that support output selection accept:
+
+```text
+text
+json
+```
+
+Use text for operator-readable terminal output:
+
+```bash
+apex analyze BTCUSDT --output text
+```
+
+Use JSON for scripts, storage, comparison, and research:
+
+```bash
+apex analyze BTCUSDT --output json
+```
+
+## Understanding common decisions
+
+| Decision or status | Practical meaning |
+|---|---|
+| `READY_NOW` | Configured execution conditions are complete near the current price |
+| `AGGRESSIVE_NOW` | Immediate entry exists but carries explicit caution |
+| `PULLBACK_PREFERRED` | Current structure may remain usable, but a retracement improves geometry |
+| `RETEST_PREFERRED` | A level retest offers the preferred execution path |
+| `RECLAIM_REQUIRED` | Price must regain the stated level before approval |
+| `APPROACHING_ENTRY` / `WATCH_NEAR_ENTRY` | Price is close, but the entry condition is not complete |
+| `WAIT_FOR_CLOSE` | The pattern or breakout depends on candle completion |
+| `DEVELOPING_SETUP` | A measurable setup exists but is not yet executable |
+| `LATE_ENTRY` / `LATE_OR_CHASING` | Direction may remain valid, but the current entry has deteriorated |
+| `MISSED_ENTRY` | The planned geometry is no longer realistically available |
+| `INVALIDATED` | The underlying trade thesis has failed structurally |
+| `NO_TRADE` | No valid setup survived the current analysis and gating path |
+
+These labels describe state, not certainty.
+
+## Recommended operator workflow
+
+Start with configuration validation:
+
+```bash
+apex config-check
+```
+
+Run broad discovery:
+
+```bash
+apex scan --results 10 --shortlist 30
+```
+
+Inspect one selected symbol in detail:
+
+```bash
+apex analyze BTCUSDT
+```
+
+Capture JSON when comparing or researching results:
+
+```bash
+apex analyze BTCUSDT --output json > /tmp/btc_analysis.json
+```
+
+Use focused replay to inspect how one historical decision behaved:
+
+```bash
+apex backtest BTCUSDT --output json
+```
+
+## Development smoke checks
+
+These commands verify imports and public CLI registration. They do not replace the full test suite.
 
 ```bash
 .venv/bin/python -c "import apex.cli_app"
@@ -73,9 +413,14 @@ Prints the installed Apex package version.
 .venv/bin/apex scan --help
 .venv/bin/apex analyze BTCUSDT --help
 .venv/bin/apex backtest BTCUSDT --help
-.venv/bin/pytest
-.venv/bin/mypy src
+.venv/bin/apex config-check --help
+.venv/bin/apex version
+```
+
+For a code-change validation batch, also run the appropriate Ruff formatting and safe fixes, scoped mypy, relevant pytest tests, and:
+
+```bash
 git diff --check
 ```
 
-Only report validation results from commands that actually ran.
+Only claim validation results from commands whose terminal output was actually observed.
