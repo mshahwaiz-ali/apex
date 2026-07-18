@@ -19,7 +19,7 @@ from apex.application import (
 from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
-from apex.presentation.methodology_evidence_quality_output import render_discovery_analysis
+from apex.presentation.methodology_expiry_ranking_output import render_discovery_analysis
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
