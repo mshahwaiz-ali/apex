@@ -24,6 +24,9 @@ from apex.application.methodology_contracts import (
     TargetRole,
 )
 from apex.application.methodology_market_state import adapt_market_state
+from apex.application.methodology_phase5_evidence import (
+    selected_candidate_methodology_evidence,
+)
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import ConfirmationPolicy, SetupMaturity
 from apex.strategies.entry_status import EntryStatus
@@ -52,8 +55,8 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
 
     usability = classify_market_usability(analysis.data_quality_by_timeframe)
     methodology = analysis.methodology
+    setup = analysis.assessment.setup
     if methodology is None:
-        setup = analysis.assessment.setup
         methodology = (
             MethodologySnapshot(market_usability=usability)
             if setup is None
@@ -65,6 +68,22 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
     fused_state = getattr(analysis, "market_state", None)
     if methodology.market_state is None and isinstance(fused_state, MarketStateSnapshot):
         methodology = replace(methodology, market_state=adapt_market_state(fused_state))
+
+    if setup is not None and not methodology.evidence:
+        evidence, contradictions = selected_candidate_methodology_evidence(
+            analysis.phase5_diagnostics,
+            candidate_id=setup.candidate_id,
+        )
+        if evidence or contradictions:
+            methodology = replace(
+                methodology,
+                evidence=evidence,
+                contradictions=(
+                    methodology.contradictions
+                    if methodology.contradictions
+                    else contradictions
+                ),
+            )
     return methodology
 
 
