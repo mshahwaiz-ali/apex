@@ -20,6 +20,10 @@ from apex.application.methodology_contracts import (
     StructuralInvalidation,
     TargetCandidate,
 )
+from apex.application.methodology_evidence_aggregation import (
+    aggregate_evidence_families,
+    evidence_family_aggregate_payload,
+)
 from apex.application.methodology_strategy_contracts import (
     ConfirmationPolicy,
     MarketStateClassification,
@@ -85,6 +89,7 @@ class MethodologySnapshot:
 def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any]:
     """Serialize a methodology snapshot without implying calibrated probability."""
 
+    evidence_summary = aggregate_evidence_families(snapshot.evidence)
     return {
         "market_usability": (
             None
@@ -118,6 +123,9 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
                 "reason": item.reason,
             }
             for item in snapshot.evidence
+        ],
+        "evidence_family_summary": [
+            evidence_family_aggregate_payload(item) for item in evidence_summary
         ],
         "contradictions": [
             {
