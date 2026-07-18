@@ -71,6 +71,10 @@ from apex.application.methodology_score_semantics import (
     derive_score_semantics,
     score_semantics_payload,
 )
+from apex.application.methodology_selected_entry_semantics import (
+    derive_selected_entry_semantics,
+    selected_entry_semantics_payload,
+)
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_fit_semantics import (
     derive_strategy_fit_semantics,
@@ -90,15 +94,16 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent evidence, expiry, ranking, and execution semantics.
+    """Return transparent evidence, entry, ranking, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, independent confirmation,
     calibrated probability, closed-candle confirmation, verified strategy
     eligibility, complete timeframe coverage, usable execution conditions,
-    proven elapsed-bar expiry, rank-authorized execution, canonical geometry,
-    authoritative actionability, hidden rejection, or a universal target horizon.
+    proven elapsed-bar expiry, authoritative selected-entry decisions,
+    rank-authorized execution, canonical geometry, authoritative actionability,
+    hidden rejection, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -130,6 +135,7 @@ def methodology_public_enrichment(
     ranking_integrity = derive_ranking_integrity_semantics(analysis, projected)
     rejections = derive_rejection_semantics(projected)
     score = derive_score_semantics(setup, projected)
+    selected_entry = derive_selected_entry_semantics(projected)
     strategy_fit = derive_strategy_fit_semantics(setup, projected)
     target_horizon = derive_target_horizon_semantics(projected)
     timeframe_coverage = derive_timeframe_coverage_semantics(analysis)
@@ -172,6 +178,9 @@ def methodology_public_enrichment(
         ),
         "methodology_rejection_semantics": rejection_semantics_payload(rejections),
         "methodology_score_semantics": score_semantics_payload(score),
+        "methodology_selected_entry_semantics": selected_entry_semantics_payload(
+            selected_entry
+        ),
         "methodology_strategy_fit_semantics": strategy_fit_semantics_payload(strategy_fit),
         "methodology_target_horizon_semantics": target_horizon_semantics_payload(
             target_horizon
