@@ -36,8 +36,14 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
             if setup is None
             else _project_setup(setup, market_usability=usability)
         )
-    elif methodology.market_usability is None:
-        methodology = replace(methodology, market_usability=usability)
+    else:
+        updates: dict[str, object] = {}
+        if methodology.market_usability is None:
+            updates["market_usability"] = usability
+        if methodology.direction is None and setup is not None:
+            updates["direction"] = setup.direction
+        if updates:
+            methodology = replace(methodology, **updates)
 
     fused_state = getattr(analysis, "market_state", None)
     if methodology.market_state is None and isinstance(fused_state, MarketStateSnapshot):
@@ -83,6 +89,7 @@ def _project_setup(
         for index, target in enumerate(setup.take_profits, start=1)
     )
     return MethodologySnapshot(
+        direction=setup.direction,
         market_usability=market_usability,
         setup_maturity=maturity.maturity,
         confirmation_policy=maturity.confirmation_policy,
