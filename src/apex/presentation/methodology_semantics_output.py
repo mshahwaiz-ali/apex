@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 
 from apex.presentation import humanize_code, render_bullets, render_fields, render_section
@@ -62,9 +63,40 @@ def render_discovery_analysis(
 
 
 def render_discovery_scan(payload: Mapping[str, object]) -> str:
-    """Render scan groups; per-result cards carry confidence and rejection semantics."""
+    """Render scan groups plus aggregate confidence and rejection semantics."""
 
-    return _render_methodology_scan(payload)
+    sections = [_render_methodology_scan(payload)]
+    results = _mappings(payload.get("results"))
+    basis_counts: Counter[str] = Counter()
+    probability_available = 0
+    execution_blocked = 0
+    quality_reduced = 0
+    hard_blockers = 0
+    soft_penalties = 0
+    for item in results:
+        confidence = _mapping(item.get("methodology_confidence_semantics"))
+        rejections = _mapping(item.get("methodology_rejection_semantics"))
+        basis = confidence.get("basis")
+        if basis is not None:
+            basis_counts[str(basis)] += 1
+        probability_available += confidence.get("probability_available") is True
+        execution_blocked += rejections.get("execution_blocked") is True
+        quality_reduced += rejections.get("quality_reduced") is True
+        hard_blockers += _integer(rejections.get("hard_blocker_count"))
+        soft_penalties += _integer(rejections.get("soft_penalty_count"))
+
+    fields = (
+        ("Confidence bases", dict(sorted(basis_counts.items()))),
+        ("Calibrated probabilities available", probability_available),
+        ("Results with hard execution blocks", execution_blocked),
+        ("Results with visible quality penalties", quality_reduced),
+        ("Explicit hard blockers", hard_blockers),
+        ("Explicit soft penalties", soft_penalties),
+        ("Interpretation", "scores describe analytical quality, not certainty"),
+    )
+    if results:
+        sections.append(render_section("Confidence and Rejection Summary", render_fields(fields)))
+    return "\n\n".join(section for section in sections if section)
 
 
 def _reason_lines(value: object) -> tuple[str, ...]:
@@ -86,10 +118,20 @@ def _mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _mappings(value: object) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
 def _strings(value: object) -> tuple[str, ...]:
     if not isinstance(value, Sequence) or isinstance(value, str | bytes):
         return ()
     return tuple(str(item) for item in value)
+
+
+def _integer(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
 def _yes_no(value: object) -> str:
