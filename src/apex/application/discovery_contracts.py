@@ -203,6 +203,7 @@ class SymbolAnalysis:
     phase5_diagnostics: Mapping[str, Any] | None = None
     candidate_ranking: CandidateRankingSnapshot | None = None
     methodology: MethodologySnapshot | None = None
+    methodology_gate: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
