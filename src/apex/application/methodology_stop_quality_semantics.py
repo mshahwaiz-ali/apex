@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from apex.application.discovery_contracts import DiscoverySetup
-from apex.application.methodology_contracts import EntryOpportunity, StructuralInvalidation
+from apex.application.methodology_contracts import EntryOpportunity
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.strategies.contracts import TradeDirection
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +17,7 @@ class StopQualitySemantics:
 
     canonical_available: bool
     selected_entry_available: bool
+    direction_available: bool
     geometry_available: bool
     geometry_authoritative: bool
     entry_reference_price: float | None
@@ -30,6 +32,8 @@ class StopQualitySemantics:
     legacy_quality_authoritative: bool
     normal_noise_clearance_proven: bool | None
     stop_inside_entry_zone: bool | None
+    directionally_validated: bool
+    stop_on_correct_side: bool | None
     interpretation: str
     limitations: tuple[str, ...]
 
@@ -55,10 +59,11 @@ def derive_stop_quality_semantics(
             distance - invalidation.volatility_buffer - invalidation.estimated_slippage,
         )
         inside_zone = selected.zone_low <= invalidation.price <= selected.zone_high
+        correct_side = _stop_on_correct_side(methodology, selected)
         interpretation = (
             "canonical selected-entry and structural-invalidation geometry are available; "
-            "distance, buffer, and execution allowance are reported without applying an "
-            "unconfigured universal stop-quality threshold"
+            "distance, buffer, execution allowance, and directional side are reported without "
+            "applying an unconfigured universal stop-quality threshold"
         )
     else:
         entry_reference = None
@@ -66,6 +71,7 @@ def derive_stop_quality_semantics(
         distance_percentage = None
         structural_distance = None
         inside_zone = None
+        correct_side = None
         interpretation = (
             "canonical stop-quality geometry is incomplete because an authoritative selected "
             "entry and structural invalidation are not both available"
@@ -73,35 +79,36 @@ def derive_stop_quality_semantics(
 
     legacy_score = None if setup is None else setup.stop_loss.quality_score
     legacy_band = None if setup is None else setup.stop_loss.quality_band.value
+    directionally_validated = methodology.direction is not None and correct_side is not None
 
     return StopQualitySemantics(
         canonical_available=invalidation is not None,
         selected_entry_available=methodology.selected_entry is not None,
+        direction_available=methodology.direction is not None,
         geometry_available=geometry_available,
-        geometry_authoritative=bool(native_methodology_available and geometry_available),
+        geometry_authoritative=bool(
+            native_methodology_available and geometry_available and directionally_validated
+        ),
         entry_reference_price=entry_reference,
         invalidation_price=None if invalidation is None else invalidation.price,
         invalidation_distance=distance,
         invalidation_distance_percentage=distance_percentage,
-        volatility_buffer=(
-            None if invalidation is None else invalidation.volatility_buffer
-        ),
-        estimated_slippage=(
-            None if invalidation is None else invalidation.estimated_slippage
-        ),
+        volatility_buffer=None if invalidation is None else invalidation.volatility_buffer,
+        estimated_slippage=None if invalidation is None else invalidation.estimated_slippage,
         structural_distance_before_buffer=structural_distance,
         legacy_quality_score=legacy_score,
         legacy_quality_band=legacy_band,
         legacy_quality_authoritative=False,
         normal_noise_clearance_proven=None,
         stop_inside_entry_zone=inside_zone,
+        directionally_validated=directionally_validated,
+        stop_on_correct_side=correct_side,
         interpretation=interpretation,
         limitations=(
             "ATR, realized-volatility, and normal-noise clearance evidence are not present in the canonical invalidation contract",
             "absolute distance alone cannot establish that a stop is structurally strong or outside normal noise",
             "legacy stop-quality scores remain compatibility metadata and are not canonical methodology authority",
             "position size, leverage, and acceptable monetary loss must not alter the structural invalidation level",
-            "directional wrong-side validation requires direction to be explicit in the canonical methodology state",
         ),
     )
 
@@ -114,6 +121,7 @@ def stop_quality_semantics_payload(
     return {
         "canonical_available": semantics.canonical_available,
         "selected_entry_available": semantics.selected_entry_available,
+        "direction_available": semantics.direction_available,
         "geometry_available": semantics.geometry_available,
         "geometry_authoritative": semantics.geometry_authoritative,
         "entry_reference_price": semantics.entry_reference_price,
@@ -128,6 +136,8 @@ def stop_quality_semantics_payload(
         "legacy_quality_authoritative": semantics.legacy_quality_authoritative,
         "normal_noise_clearance_proven": semantics.normal_noise_clearance_proven,
         "stop_inside_entry_zone": semantics.stop_inside_entry_zone,
+        "directionally_validated": semantics.directionally_validated,
+        "stop_on_correct_side": semantics.stop_on_correct_side,
         "interpretation": semantics.interpretation,
         "limitations": list(semantics.limitations),
     }
@@ -138,6 +148,17 @@ def _selected_opportunity(
 ) -> EntryOpportunity | None:
     decision = methodology.selected_entry
     return None if decision is None else decision.opportunity
+
+
+def _stop_on_correct_side(
+    methodology: MethodologySnapshot,
+    entry: EntryOpportunity,
+) -> bool | None:
+    if methodology.direction is None or methodology.invalidation is None:
+        return None
+    if methodology.direction is TradeDirection.LONG:
+        return methodology.invalidation.price < entry.zone_low
+    return methodology.invalidation.price > entry.zone_high
 
 
 __all__ = [
