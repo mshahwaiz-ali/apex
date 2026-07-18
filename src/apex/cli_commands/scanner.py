@@ -111,6 +111,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                     ),
                     candle_limit=candle_limit + 1,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    methodology_gate_mode=context.settings.methodology_gate_mode,
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
