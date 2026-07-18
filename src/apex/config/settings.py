@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,6 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from apex.config.futures_screener import FuturesScreenerSettings
 from apex.data.timeframes import timeframe_delta
 from apex.strategies import StrategyType
+
+MethodologyGateModeSetting = Literal["shadow", "enforce"]
 
 _VALID_TIMEFRAME_ROLES = {
     "long_term_macro",
@@ -96,6 +98,7 @@ class FileSettings(BaseModel):
     data_dir: Path = Path("data")
     log_dir: Path = Path("logs")
     cache_enabled: bool = True
+    methodology_gate_mode: MethodologyGateModeSetting = "shadow"
     futures_screener: FuturesScreenerSettings = Field(
         default_factory=FuturesScreenerSettings
     )
