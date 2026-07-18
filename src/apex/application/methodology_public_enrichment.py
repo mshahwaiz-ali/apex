@@ -13,9 +13,17 @@ from apex.application.methodology_confidence_semantics import (
     confidence_semantics_payload,
     derive_confidence_semantics,
 )
+from apex.application.methodology_confirmation_source_semantics import (
+    confirmation_source_semantics_payload,
+    derive_confirmation_source_semantics,
+)
 from apex.application.methodology_entry_opportunity_semantics import (
     derive_entry_opportunity_semantics,
     entry_opportunity_semantics_payload,
+)
+from apex.application.methodology_evidence_freshness_semantics import (
+    derive_evidence_freshness_semantics,
+    evidence_freshness_semantics_payload,
 )
 from apex.application.methodology_execution_geometry_semantics import (
     derive_execution_geometry_semantics,
@@ -50,13 +58,14 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent projection, actionability, and execution semantics.
+    """Return transparent projection, actionability, evidence, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, calibrated probability,
-    canonical execution geometry, authoritative actionability, hidden rejection,
-    score-authorized execution, or a universal target horizon.
+    closed-candle confirmation, canonical execution geometry, authoritative
+    actionability, hidden rejection, score-authorized execution, or a universal
+    target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -67,7 +76,9 @@ def methodology_public_enrichment(
     native_available = analysis.methodology is not None
     actionability = derive_actionability_semantics(setup, projected)
     confidence = derive_confidence_semantics(projected.confidence)
+    confirmation_source = derive_confirmation_source_semantics(projected)
     entry_opportunities = derive_entry_opportunity_semantics(projected)
+    evidence_freshness = derive_evidence_freshness_semantics(projected)
     execution_geometry = derive_execution_geometry_semantics(
         setup,
         projected,
@@ -91,8 +102,14 @@ def methodology_public_enrichment(
             actionability
         ),
         "methodology_confidence_semantics": confidence_semantics_payload(confidence),
+        "methodology_confirmation_source_semantics": (
+            confirmation_source_semantics_payload(confirmation_source)
+        ),
         "methodology_entry_opportunity_semantics": entry_opportunity_semantics_payload(
             entry_opportunities
+        ),
+        "methodology_evidence_freshness_semantics": evidence_freshness_semantics_payload(
+            evidence_freshness
         ),
         "methodology_execution_geometry_semantics": execution_geometry_semantics_payload(
             execution_geometry
