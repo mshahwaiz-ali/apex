@@ -26,14 +26,16 @@ def _analysis(*, methodology: MethodologySnapshot | None) -> SymbolAnalysis:
     )
 
 
-def test_public_output_preserves_absent_methodology_as_null() -> None:
+def test_public_output_projects_absent_methodology() -> None:
     payload = serialize_symbol_analysis(_analysis(methodology=None))
 
-    assert payload["methodology"] is None
+    assert payload["methodology"] is not None
+    assert payload["methodology"]["executable"] is False
+    assert payload["methodology"]["hard_blockers"] == []
     assert payload["decision_reason_code"] == "NO_TRADE"
 
 
-def test_public_output_serializes_methodology_snapshot() -> None:
+def test_public_output_serializes_stored_methodology_snapshot() -> None:
     payload = serialize_symbol_analysis(_analysis(methodology=MethodologySnapshot()))
 
     assert payload["methodology"] is not None
