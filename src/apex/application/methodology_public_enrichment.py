@@ -76,6 +76,10 @@ from apex.application.methodology_selected_entry_semantics import (
     selected_entry_semantics_payload,
 )
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.methodology_stop_quality_semantics import (
+    derive_stop_quality_semantics,
+    stop_quality_semantics_payload,
+)
 from apex.application.methodology_strategy_fit_semantics import (
     derive_strategy_fit_semantics,
     strategy_fit_semantics_payload,
@@ -136,6 +140,11 @@ def methodology_public_enrichment(
     rejections = derive_rejection_semantics(projected)
     score = derive_score_semantics(setup, projected)
     selected_entry = derive_selected_entry_semantics(projected)
+    stop_quality = derive_stop_quality_semantics(
+        setup,
+        projected,
+        native_methodology_available=native_available,
+    )
     strategy_fit = derive_strategy_fit_semantics(setup, projected)
     target_horizon = derive_target_horizon_semantics(projected)
     timeframe_coverage = derive_timeframe_coverage_semantics(analysis)
@@ -181,6 +190,7 @@ def methodology_public_enrichment(
         "methodology_selected_entry_semantics": selected_entry_semantics_payload(
             selected_entry
         ),
+        "methodology_stop_quality_semantics": stop_quality_semantics_payload(stop_quality),
         "methodology_strategy_fit_semantics": strategy_fit_semantics_payload(strategy_fit),
         "methodology_target_horizon_semantics": target_horizon_semantics_payload(
             target_horizon
