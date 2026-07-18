@@ -22,7 +22,7 @@ from apex.application import (
 )
 from apex.application.enriched_public_output import serialize_scan_result
 from apex.data.providers.errors import MarketDataProviderError
-from apex.presentation.discovery_output import render_discovery_scan
+from apex.presentation.methodology_discovery_output import render_discovery_scan
 
 ScanDirection = Literal["long", "short", "both"]
 
