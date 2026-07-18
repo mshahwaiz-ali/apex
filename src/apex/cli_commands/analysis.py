@@ -16,7 +16,7 @@ from apex.application import (
     write_analysis_record,
     write_analysis_record_sqlite,
 )
-from apex.application.public_output import serialize_symbol_analysis
+from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.discovery_output import render_discovery_analysis
