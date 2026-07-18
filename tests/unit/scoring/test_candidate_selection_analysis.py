@@ -144,6 +144,29 @@ def test_higher_timeframe_contradiction_is_penalized() -> None:
     assert scored.final_score == pytest.approx(82.0)
 
 
+def test_same_canonical_family_and_governing_structure_is_duplicate_thesis() -> None:
+    primary = _candidate(
+        strategy=StrategyType.TREND_PULLBACK,
+        quality=1.0,
+        metadata={"governing_structure": "pullback-swing-low"},
+    )
+    alias = _candidate(
+        strategy=StrategyType.VWAP_RECLAIM_REJECTION,
+        quality=1.0,
+        metadata={"governing_structure": "pullback-swing-low"},
+    )
+
+    result = analyze_candidate_selection(_phase4(primary, alias))
+
+    duplicate = [
+        item
+        for item in result.ranked_candidates
+        if item.outcome is CandidateOutcome.REJECTED_DUPLICATE
+    ]
+    assert len(duplicate) == 1
+    assert result.metadata["duplicate_cluster_count"] == 1
+
+
 def test_invalid_weights_are_rejected() -> None:
     with pytest.raises(ValueError, match="sum to one"):
         ScoringWeights(trend_alignment=0.15)
@@ -235,13 +258,16 @@ def test_equal_opposing_strength_retains_both_hypotheses_and_selects_determinist
     assert result.selected_candidate is not None
     assert result.selected_direction is TradeDirection.LONG
     assert result.no_trade_reason is None
-    assert len(
-        [
-            item
-            for item in result.ranked_candidates
-            if item.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
-        ]
-    ) == 2
+    assert (
+        len(
+            [
+                item
+                for item in result.ranked_candidates
+                if item.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
+            ]
+        )
+        == 2
+    )
 
 
 def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:

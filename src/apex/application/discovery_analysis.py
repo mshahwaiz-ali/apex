@@ -51,6 +51,7 @@ from apex.application.methodology_contracts import (
     TargetCandidate,
     TargetRole,
 )
+from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
 from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
 )
@@ -117,6 +118,7 @@ def analyze_symbol(
     candlestick_patterns = detect_contextual_candlesticks(context)
     candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
     phase5_diagnostics = {
+        "methodology_version": METHODOLOGY_VERSION,
         "candidate_count": len(selection.all_scored_candidates),
         "raw_candidate_count": len(strategy_analysis.candidates),
         "retained_candidate_count": len(eligible_routed.candidates),
@@ -181,6 +183,7 @@ def analyze_symbol(
             frame.timeframe: {
                 **frame_data_quality_payload(frame),
                 "role": frame.role.value,
+                "structure": _frame_structure_payload(frame),
                 "features": {
                     "atr": frame.features.atr,
                     "ema_fast": frame.features.ema_fast,
@@ -328,6 +331,8 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "symbol": analysis.symbol,
         "generated_at": analysis.generated_at.isoformat(),
+        "methodology_version": METHODOLOGY_VERSION,
+        "methodology_path": METHODOLOGY_PATH,
         "decision": setup.direction.value.upper() if setup is not None else "NO_TRADE",
         "entry_status": setup.entry_status.value if setup is not None else None,
         "strategy": setup.strategy.value if setup is not None else None,
@@ -339,6 +344,11 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "evaluated_timeframes": list(analysis.evaluated_timeframes),
         "regime_by_timeframe": dict(analysis.regime_by_timeframe),
         "data_quality_by_timeframe": dict(analysis.data_quality_by_timeframe),
+        "timeframe_alignment": _timeframe_alignment_payload(
+            analysis.data_quality_by_timeframe,
+            None if setup is None else setup.direction,
+        ),
+        "shared_structure_map": _shared_structure_map_payload(analysis.data_quality_by_timeframe),
         "strategy_routing": analysis.strategy_routing,
         "phase5_diagnostics": analysis.phase5_diagnostics,
         "candidate_ranking": (
@@ -471,6 +481,285 @@ def _target_context(setup: DiscoverySetup, target: TakeProfit) -> dict[str, Any]
             None if setup.setup_expiry_seconds is None else target.risk_reward <= 3.0
         ),
     }
+
+
+def _frame_structure_payload(frame: Any) -> dict[str, Any]:
+    structure = frame.structure
+    current = frame.current_price
+    supports = tuple(
+        level for level in structure.levels if getattr(level.role, "value", "") == "support"
+    )
+    resistances = tuple(
+        level for level in structure.levels if getattr(level.role, "value", "") == "resistance"
+    )
+    nearest_support = _nearest_level(current, supports, below=True)
+    nearest_resistance = _nearest_level(current, resistances, below=False)
+    latest_range = structure.ranges[-1] if structure.ranges else None
+    latest_break = structure.breaks[-1] if structure.breaks else None
+    return {
+        "timeframe": frame.timeframe,
+        "role": frame.role.value,
+        "trend_state": _methodology_trend_state(structure.trend.direction.value),
+        "trend_strength": structure.trend.strength,
+        "confirmed_swing_highs": [
+            swing.price
+            for swing in structure.swings
+            if swing.kind.value == "high" and swing.status.value == "confirmed"
+        ],
+        "confirmed_swing_lows": [
+            swing.price
+            for swing in structure.swings
+            if swing.kind.value == "low" and swing.status.value == "confirmed"
+        ],
+        "support_zones": [_level_payload(level) for level in supports],
+        "resistance_zones": [_level_payload(level) for level in resistances],
+        "range_boundaries": None
+        if latest_range is None
+        else {
+            "low": latest_range.low,
+            "high": latest_range.high,
+            "midpoint": latest_range.midpoint,
+            "quality": latest_range.quality,
+        },
+        "break_state": _methodology_break_state(latest_break, latest_range),
+        "retest_state": _retest_state(latest_break, current, frame.features.atr),
+        "reclaim_state": _reclaim_state(latest_range),
+        "failed_break_state": _failed_break_state(latest_range),
+        "liquidity_sweep_state": "present" if frame.liquidity.sweeps else "none",
+        "compression_or_expansion_state": _compression_state(frame.features.volatility_expansion),
+        "volatility_state": _volatility_state(frame.features.volatility_expansion),
+        "nearest_upside_obstacle": None
+        if nearest_resistance is None
+        else nearest_resistance.representative_price,
+        "nearest_downside_obstacle": None
+        if nearest_support is None
+        else nearest_support.representative_price,
+        "available_upside_room": None
+        if nearest_resistance is None
+        else max(0.0, nearest_resistance.representative_price - current),
+        "available_downside_room": None
+        if nearest_support is None
+        else max(0.0, current - nearest_support.representative_price),
+    }
+
+
+def _level_payload(level: Any) -> dict[str, Any]:
+    return {
+        "low": level.low,
+        "high": level.high,
+        "representative_price": level.representative_price,
+        "status": level.status.value,
+        "touches": level.touches,
+    }
+
+
+def _nearest_level(current: float, levels: tuple[Any, ...], *, below: bool) -> Any | None:
+    eligible = tuple(
+        level
+        for level in levels
+        if (
+            level.representative_price <= current
+            if below
+            else level.representative_price >= current
+        )
+    )
+    if not eligible:
+        return None
+    return min(eligible, key=lambda level: abs(level.representative_price - current))
+
+
+def _methodology_trend_state(direction: str) -> str:
+    return {
+        "strong_bullish": "strong_uptrend",
+        "bullish": "uptrend",
+        "weak_bullish": "transition_up",
+        "range": "range",
+        "weak_bearish": "transition_down",
+        "bearish": "downtrend",
+        "strong_bearish": "strong_downtrend",
+        "transition": "chaotic",
+        "uncertain": "chaotic",
+    }.get(direction, "chaotic")
+
+
+def _methodology_break_state(latest_break: Any | None, latest_range: Any | None) -> str:
+    if latest_range is not None:
+        if latest_range.breakout_state.value in {"false_bullish", "false_bearish"}:
+            return "FAILED_BREAK"
+        if latest_range.breakout_state.value in {"bullish", "bearish"}:
+            return "CLOSE_BREAK"
+    if latest_break is None:
+        return "NO_BREAK"
+    if latest_break.quality.value == "wick_only":
+        return "WICK_BREAK"
+    if latest_break.quality.value == "failed":
+        return "FAILED_BREAK"
+    if latest_break.confirmation.value == "confirmed":
+        return "ACCEPTED_BREAK"
+    if latest_break.confirmation.value == "developing":
+        return "ATTEMPTED_BREAK"
+    return "NO_BREAK"
+
+
+def _retest_state(latest_break: Any | None, current: float, atr: float) -> str:
+    if latest_break is None:
+        return "NO_BREAK"
+    distance = abs(current - latest_break.broken_level)
+    if distance <= atr * 0.35:
+        return "RETESTING"
+    if latest_break.confirmation.value == "confirmed":
+        return "HELD_RETEST"
+    return "NO_BREAK"
+
+
+def _reclaim_state(latest_range: Any | None) -> str:
+    if latest_range is None:
+        return "none"
+    if latest_range.breakout_state.value in {"false_bullish", "false_bearish"}:
+        return "reclaimed_range"
+    return "none"
+
+
+def _failed_break_state(latest_range: Any | None) -> str:
+    if latest_range is None:
+        return "none"
+    if latest_range.breakout_state.value in {"false_bullish", "false_bearish"}:
+        return str(latest_range.breakout_state.value)
+    return "none"
+
+
+def _compression_state(value: float | None) -> str:
+    if value is None:
+        return "unknown"
+    if value < 0.75:
+        return "compression"
+    if value > 1.15:
+        return "expansion"
+    return "normal"
+
+
+def _volatility_state(value: float | None) -> str:
+    if value is None:
+        return "unknown"
+    if value < 0.75:
+        return "compressed"
+    if value > 1.8:
+        return "extreme"
+    if value > 1.15:
+        return "expanding"
+    return "normal"
+
+
+def _timeframe_alignment_payload(
+    data_quality_by_timeframe: Mapping[str, Mapping[str, Any]],
+    direction: Any,
+) -> dict[str, Any]:
+    role_by_timeframe = {
+        timeframe: str(payload.get("role"))
+        for timeframe, payload in data_quality_by_timeframe.items()
+    }
+    structure_by_timeframe = {
+        timeframe: _mapping(payload.get("structure"))
+        for timeframe, payload in data_quality_by_timeframe.items()
+    }
+    higher_timeframes = tuple(
+        timeframe
+        for timeframe, role in role_by_timeframe.items()
+        if role in {"macro", "intermediate", "swing", "long_term_macro"}
+    )
+    state: str
+    reasons: tuple[str, ...]
+    if not higher_timeframes:
+        state = "INSUFFICIENT_DATA"
+        reasons = ("missing higher-timeframe structure lowers confidence",)
+    elif direction is None:
+        state = "INSUFFICIENT_DATA"
+        reasons = ("no selected trade direction is available for alignment",)
+    else:
+        bullish = getattr(direction, "value", direction) == "long"
+        opposed = _opposed_higher_timeframes(
+            higher_timeframes,
+            structure_by_timeframe,
+            bullish=bullish,
+        )
+        supportive = _supportive_higher_timeframes(
+            higher_timeframes,
+            structure_by_timeframe,
+            bullish=bullish,
+        )
+        if opposed:
+            state = "DIRECT_OPPOSITION"
+            reasons = tuple(
+                f"{timeframe} trend directly opposes selected direction" for timeframe in opposed
+            )
+        elif len(supportive) == len(higher_timeframes):
+            state = "FULL_ALIGNMENT"
+            reasons = ("all available higher timeframes support the selected direction",)
+        elif supportive:
+            state = "SUPPORTED"
+            reasons = ("at least one higher timeframe supports the selected direction",)
+        else:
+            state = "MIXED"
+            reasons = ("higher timeframes are available but do not clearly align",)
+    return {
+        "state": state,
+        "roles": role_by_timeframe,
+        "higher_timeframes": list(higher_timeframes),
+        "rules": {
+            "macro_context": ["4h", "1h"],
+            "setup_formation": ["30m", "15m"],
+            "activation": ["5m"],
+            "entry_refinement": ["3m"],
+            "immediate_timing_only": ["1m"],
+            "timing_override_allowed": False,
+        },
+        "reasons": list(reasons),
+    }
+
+
+def _opposed_higher_timeframes(
+    higher_timeframes: tuple[str, ...],
+    structure_by_timeframe: Mapping[str, Mapping[str, Any]],
+    *,
+    bullish: bool,
+) -> tuple[str, ...]:
+    opposed = {"strong_downtrend", "downtrend"} if bullish else {"strong_uptrend", "uptrend"}
+    return tuple(
+        timeframe
+        for timeframe in higher_timeframes
+        if structure_by_timeframe.get(timeframe, {}).get("trend_state") in opposed
+    )
+
+
+def _supportive_higher_timeframes(
+    higher_timeframes: tuple[str, ...],
+    structure_by_timeframe: Mapping[str, Mapping[str, Any]],
+    *,
+    bullish: bool,
+) -> tuple[str, ...]:
+    supportive = (
+        {"strong_uptrend", "uptrend", "transition_up"}
+        if bullish
+        else {"strong_downtrend", "downtrend", "transition_down"}
+    )
+    return tuple(
+        timeframe
+        for timeframe in higher_timeframes
+        if structure_by_timeframe.get(timeframe, {}).get("trend_state") in supportive
+    )
+
+
+def _shared_structure_map_payload(
+    data_quality_by_timeframe: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    return {
+        timeframe: _mapping(payload.get("structure"))
+        for timeframe, payload in data_quality_by_timeframe.items()
+    }
+
+
+def _mapping(value: object) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def _duration_label(seconds: int | None) -> str | None:

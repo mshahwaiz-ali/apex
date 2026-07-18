@@ -9,6 +9,7 @@ from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
 
+from apex.application.methodology_identity import METHODOLOGY_VERSION
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
@@ -180,10 +181,15 @@ class BacktestRequest:
     config: BacktestConfig = field(default_factory=BacktestConfig)
     dataset_id: str = "local"
     code_version: str = "local-worktree"
+    methodology_version: str = METHODOLOGY_VERSION
 
     def __post_init__(self) -> None:
-        if not self.dataset_id.strip() or not self.code_version.strip():
-            raise ValueError("dataset and code identifiers cannot be empty")
+        if (
+            not self.dataset_id.strip()
+            or not self.code_version.strip()
+            or not self.methodology_version.strip()
+        ):
+            raise ValueError("dataset, code, and methodology identifiers cannot be empty")
         expected = tuple(sorted(self.signals, key=lambda item: (item.generated_at, item.symbol)))
         if expected != self.signals:
             raise ValueError("backtest signals must be chronological")

@@ -2,7 +2,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from apex.backtesting import BacktestConfig, BacktestSignal, simulate_trade, summarize_trades
+from apex.application.methodology_identity import METHODOLOGY_VERSION
+from apex.backtesting import (
+    BacktestConfig,
+    BacktestRequest,
+    BacktestSignal,
+    HistoricalBacktestRunner,
+    simulate_trade,
+    summarize_trades,
+)
 from apex.cli_commands import backtesting as backtesting_cli
 from apex.cli_commands.backtesting import _calibration_record, _jsonable, _report_metrics
 from apex.domain.models import Candle
@@ -81,6 +89,18 @@ def test_campaign_report_exposes_fill_and_excursion_metrics() -> None:
     assert serialized_trade["metadata"]["maximum_favorable_excursion_r"] > 0
     assert metrics["trades"] == []
     assert metrics["metadata"]["entry_fill_rate"] == pytest.approx(0.5)
+
+
+def test_chronological_backtest_report_records_methodology_version() -> None:
+    request = BacktestRequest(
+        signals=(_signal(),),
+        candles_by_symbol={"BTCUSDT": (_candle(1, low=99.0, high=104.5, close=104.0),)},
+    )
+
+    study = HistoricalBacktestRunner().run(request)
+
+    assert request.methodology_version == METHODOLOGY_VERSION
+    assert study.report.metadata["methodology_version"] == METHODOLOGY_VERSION
 
 
 def test_calibration_record_preserves_zero_trade_and_methodology_fields(

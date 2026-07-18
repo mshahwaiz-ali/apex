@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from apex.backtesting.contracts import (
     BacktestConfig,
@@ -186,6 +186,9 @@ class HistoricalBacktestRunner:
             trades.append(simulate_trade(signal, future, config=request.config))
 
         report = summarize_trades(trades)
+        report_metadata = dict(report.metadata)
+        report_metadata.setdefault("methodology_version", request.methodology_version)
+        report = replace(report, metadata=report_metadata)
         return BacktestStudy(
             request=request,
             report=report,

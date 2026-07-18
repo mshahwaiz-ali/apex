@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
+
 ANALYSIS_RECORD_SCHEMA_VERSION = 1
 ANALYSIS_RECORD_DB_SCHEMA_VERSION = 1
 
@@ -50,6 +52,10 @@ def build_analysis_record(
         "provider": provider,
         "subject": subject,
         "configuration_id": configuration_id,
+        "methodology_version": str(
+            normalized_payload.get("methodology_version", METHODOLOGY_VERSION)
+        ),
+        "methodology_path": str(normalized_payload.get("methodology_path", METHODOLOGY_PATH)),
         "scanner_type": scanner_type,
         "content_hash": content_hash,
         "payload": normalized_payload,

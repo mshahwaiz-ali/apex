@@ -47,6 +47,8 @@ def are_duplicate_theses(
 
     if left.candidate.direction is not right.candidate.direction:
         return False
+    if _same_canonical_governing_structure(left, right):
+        return True
     if _entry_overlap(left, right) < config.duplicate_entry_overlap:
         return False
     if (
@@ -66,6 +68,29 @@ def are_duplicate_theses(
     ):
         return False
     return _shared_references(left, right)
+
+
+def _same_canonical_governing_structure(
+    left: RankedCandidate,
+    right: RankedCandidate,
+) -> bool:
+    if left.candidate.symbol != right.candidate.symbol:
+        return False
+    if left.candidate.strategy.canonical_family is not right.candidate.strategy.canonical_family:
+        return False
+    left_refs = _governing_structure_refs(left)
+    right_refs = _governing_structure_refs(right)
+    return bool(left_refs and right_refs and left_refs.intersection(right_refs))
+
+
+def _governing_structure_refs(item: RankedCandidate) -> set[str]:
+    evidence = item.candidate.evidence
+    metadata = item.candidate.metadata
+    refs = set(evidence.structure_references) | set(evidence.liquidity_references)
+    governing = metadata.get("governing_structure")
+    if isinstance(governing, str) and governing.strip():
+        refs.add(governing)
+    return refs
 
 
 def duplicate_groups(
