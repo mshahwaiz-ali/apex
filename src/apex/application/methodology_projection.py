@@ -4,13 +4,21 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from apex.application.discovery_contracts import DiscoverySetup, SymbolAnalysis
+from apex.application.discovery_contracts import (
+    DiscoverySetup,
+    ManagementPolicyType,
+    SymbolAnalysis,
+)
 from apex.application.market_state import MarketStateSnapshot
 from apex.application.market_usability import (
     MarketUsabilityAssessment,
     classify_market_usability,
 )
 from apex.application.methodology_contracts import TargetCandidate, TargetRole
+from apex.application.methodology_management_contracts import (
+    ManagementActionType,
+    ManagementStep,
+)
 from apex.application.methodology_market_state import adapt_market_state
 from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
@@ -42,6 +50,8 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
             updates["market_usability"] = usability
         if methodology.direction is None and setup is not None:
             updates["direction"] = setup.direction
+        if not methodology.management_steps and setup is not None:
+            updates["management_steps"] = _project_management_steps(setup)
         if updates:
             methodology = replace(methodology, **updates)
 
@@ -94,7 +104,36 @@ def _project_setup(
         setup_maturity=maturity.maturity,
         confirmation_policy=maturity.confirmation_policy,
         targets=targets,
+        management_steps=_project_management_steps(setup),
     )
+
+
+def _project_management_steps(setup: DiscoverySetup) -> tuple[ManagementStep, ...]:
+    partials = tuple(
+        ManagementStep(
+            kind=ManagementActionType.PARTIAL_EXIT,
+            trigger=f"{_target_role(index, len(setup.take_profits)).value} target is reached",
+            action=f"close {target.partial_close_pct:g}% of the open position",
+            rationale=target.rationale,
+            target_role=_target_role(index, len(setup.take_profits)),
+            close_percentage=target.partial_close_pct,
+        )
+        for index, target in enumerate(setup.take_profits, start=1)
+    )
+    policies = tuple(
+        ManagementStep(
+            kind=_management_action(policy.kind),
+            trigger=policy.trigger,
+            action=policy.action,
+            rationale=policy.rationale,
+        )
+        for policy in setup.management_policies
+    )
+    return partials + policies
+
+
+def _management_action(kind: ManagementPolicyType) -> ManagementActionType:
+    return ManagementActionType(kind.value)
 
 
 def _target_role(index: int, count: int) -> TargetRole:
