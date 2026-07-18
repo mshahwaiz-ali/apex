@@ -125,7 +125,10 @@ def methodology_public_enrichment(
     setup = analysis.assessment.setup
     native_available = analysis.methodology is not None
     actionability = derive_actionability_semantics(setup, projected)
-    confidence = derive_confidence_semantics(projected.confidence)
+    confidence = derive_confidence_semantics(
+        projected.confidence,
+        projected.calibration,
+    )
     confirmation_source = derive_confirmation_source_semantics(projected)
     contradictions = derive_contradiction_semantics(projected)
     entry_opportunities = derive_entry_opportunity_semantics(projected)
