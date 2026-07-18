@@ -204,9 +204,7 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
     lines = [f"{analysis.symbol} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
-        environment_tradeable = (
-            "yes" if environment is not None and environment.tradeable else "no"
-        )
+        environment_tradeable = "yes" if environment is not None and environment.tradeable else "no"
         lines.extend(
             (
                 f"Environment tradeable: {environment_tradeable}",

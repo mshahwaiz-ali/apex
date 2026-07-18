@@ -94,8 +94,7 @@ def derive_setup_maturity(
                 complete=True,
                 code="METHODOLOGY_INTRABAR_ENTRY_AVAILABLE",
                 reason=(
-                    "the strategy permits intrabar execution and the aggressive entry "
-                    "is available"
+                    "the strategy permits intrabar execution and the aggressive entry is available"
                 ),
             )
         return _assessment(
