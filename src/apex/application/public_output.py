@@ -62,7 +62,10 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         payload["entry_status"] = None
         payload["strategy"] = None
         payload["confidence_score"] = None
-        payload["decision_reason_code"] = "NO_TRADE"
+        payload["decision_reason_code"] = _no_trade_reason_code(analysis)
+        methodology_reason = _methodology_no_trade_reason(analysis)
+        if methodology_reason is not None:
+            payload["reasons"] = [methodology_reason]
         payload["result_group"] = "no_trade"
         return cast(dict[str, Any], payload)
 
@@ -135,6 +138,34 @@ def serialize_scan_result(
         "status_counts": dict(sorted(status_counts.items())),
         "failures": dict(result.failures),
     }
+
+
+def _no_trade_reason_code(analysis: SymbolAnalysis) -> str:
+    diagnostics = analysis.phase5_diagnostics or {}
+    methodology_routing = diagnostics.get("methodology_candidate_routing")
+    if isinstance(methodology_routing, Mapping) and methodology_routing.get(
+        "all_generated_candidates_suppressed"
+    ) is True:
+        return "METHODOLOGY_ALL_CANDIDATES_SUPPRESSED"
+    gate = analysis.methodology_gate
+    if isinstance(gate, Mapping) and gate.get("changed") is True:
+        return "METHODOLOGY_SELECTED_STRATEGY_SUPPRESSED"
+    return "NO_TRADE"
+
+
+def _methodology_no_trade_reason(analysis: SymbolAnalysis) -> str | None:
+    diagnostics = analysis.phase5_diagnostics or {}
+    methodology_routing = diagnostics.get("methodology_candidate_routing")
+    if not isinstance(methodology_routing, Mapping):
+        return None
+    if methodology_routing.get("all_generated_candidates_suppressed") is not True:
+        return None
+    strategies = methodology_routing.get("suppressed_strategies")
+    if isinstance(strategies, Sequence) and not isinstance(strategies, str | bytes):
+        strategy_names = ", ".join(str(item) for item in strategies) or "generated strategies"
+    else:
+        strategy_names = "generated strategies"
+    return f"methodology suppressed all generated candidates: {strategy_names}"
 
 
 def _result_group(status: object) -> str:
