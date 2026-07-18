@@ -9,6 +9,10 @@ from typing import Any, cast
 import apex.application.decision_analysis as _decision
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
+from apex.application.methodology_selected_strategy_verdict import (
+    derive_selected_strategy_verdict,
+    selected_strategy_verdict_payload,
+)
 from apex.application.methodology_snapshot import methodology_snapshot_payload
 from apex.application.methodology_strategy_enforcement import (
     derive_strategy_enforcement_registry,
@@ -18,6 +22,7 @@ from apex.application.methodology_strategy_evaluation import (
     evaluate_strategy_registry,
     strategy_eligibility_evaluation_payload,
 )
+from apex.strategies.strategy_types import StrategyType
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _ACTIONABLE_STATUSES = frozenset({"READY_NOW", "AGGRESSIVE_NOW"})
@@ -37,13 +42,24 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         ),
         evidence=methodology.evidence,
     )
+    enforcement = derive_strategy_enforcement_registry(eligibility)
     payload["methodology_strategy_eligibility"] = [
         strategy_eligibility_evaluation_payload(item) for item in eligibility
     ]
     payload["methodology_strategy_enforcement_shadow"] = [
-        strategy_enforcement_payload(item)
-        for item in derive_strategy_enforcement_registry(eligibility)
+        strategy_enforcement_payload(item) for item in enforcement
     ]
+    selected_strategy = (
+        None
+        if analysis.assessment.setup is None
+        else analysis.assessment.setup.strategy
+    )
+    payload["methodology_selected_strategy_verdict"] = selected_strategy_verdict_payload(
+        derive_selected_strategy_verdict(
+            selected_strategy=selected_strategy,
+            decisions=enforcement,
+        )
+    )
     setup = payload.get("setup")
     if not isinstance(setup, dict):
         payload["entry_status"] = None
