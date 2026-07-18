@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from apex.application.discovery_contracts import DiscoverySetup, SymbolAnalysis
-from apex.application.market_usability import classify_market_usability
+from apex.application.market_usability import (
+    MarketUsabilityAssessment,
+    classify_market_usability,
+)
 from apex.application.methodology_contracts import (
     ConfidenceAssessment,
     ConfidenceBasis,
@@ -18,10 +21,7 @@ from apex.application.methodology_contracts import (
     TargetRole,
 )
 from apex.application.methodology_snapshot import MethodologySnapshot
-from apex.application.methodology_strategy_contracts import (
-    ConfirmationPolicy,
-    SetupMaturity,
-)
+from apex.application.methodology_strategy_contracts import ConfirmationPolicy, SetupMaturity
 from apex.strategies.entry_status import EntryStatus
 
 _MATURITY_BY_STATUS: dict[EntryStatus, SetupMaturity] = {
@@ -45,7 +45,6 @@ _ENTRY_KIND_BY_STATUS: dict[EntryStatus, EntryOpportunityType] = {
 
 def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapshot:
     """Return stored methodology or a compatibility projection from the setup."""
-
     if analysis.methodology is not None:
         return analysis.methodology
     usability = classify_market_usability(analysis.data_quality_by_timeframe)
@@ -58,11 +57,11 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
 def _project_setup(
     setup: DiscoverySetup,
     *,
-    market_usability: object,
+    market_usability: MarketUsabilityAssessment,
 ) -> MethodologySnapshot:
     confidence = _confidence_label(setup.confidence_score)
     target_count = len(setup.take_profits)
-    expiry_bars = _expiry_bars(setup)
+    expiry_bars = max(1, len(setup.management_policies))
     return MethodologySnapshot(
         market_usability=market_usability,
         setup_maturity=_MATURITY_BY_STATUS[setup.entry_status],
@@ -140,10 +139,6 @@ def _confirmation_policy(status: EntryStatus) -> ConfirmationPolicy:
     if status is EntryStatus.AGGRESSIVE_NOW:
         return ConfirmationPolicy.INTRABAR_ALLOWED
     return ConfirmationPolicy.MIXED
-
-
-def _expiry_bars(setup: DiscoverySetup) -> int:
-    return max(1, len(setup.management_policies))
 
 
 def _target_role(index: int, count: int) -> TargetRole:
