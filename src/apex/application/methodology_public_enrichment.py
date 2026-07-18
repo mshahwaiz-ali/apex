@@ -9,6 +9,7 @@ from apex.application.methodology_actionability_semantics import (
     actionability_semantics_payload,
     derive_actionability_semantics,
 )
+from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_confidence_semantics import (
     confidence_semantics_payload,
     derive_confidence_semantics,
@@ -109,6 +110,7 @@ def methodology_public_enrichment(
     projected: MethodologySnapshot,
     source_bundle: MethodologySourceBundle | None = None,
     stop_noise_evidence: StopNoiseEvidence | None = None,
+    auxiliary_evidence: MethodologyAuxiliaryEvidence | None = None,
 ) -> dict[str, Any]:
     """Return transparent evidence, entry, ranking, and execution semantics.
 
@@ -122,14 +124,22 @@ def methodology_public_enrichment(
     hidden rejection, executed lifecycle actions, or a universal target horizon.
     """
 
-    if source_bundle is not None:
-        source_bundle.validate_for(projected)
-    source_candles = () if source_bundle is None else source_bundle.source_candles
+    effective_source_bundle, effective_stop_noise = _resolve_auxiliary_evidence(
+        projected,
+        source_bundle=source_bundle,
+        stop_noise_evidence=stop_noise_evidence,
+        auxiliary_evidence=auxiliary_evidence,
+    )
+    source_candles = (
+        () if effective_source_bundle is None else effective_source_bundle.source_candles
+    )
     source_references = (
-        () if source_bundle is None else source_bundle.evidence_references
+        ()
+        if effective_source_bundle is None
+        else effective_source_bundle.evidence_references
     )
     confirmation_candle = (
-        None if source_bundle is None else source_bundle.confirmation_source
+        None if effective_source_bundle is None else effective_source_bundle.confirmation_source
     )
 
     provenance = derive_methodology_provenance(
@@ -177,7 +187,7 @@ def methodology_public_enrichment(
         setup,
         projected,
         native_methodology_available=native_available,
-        noise_evidence=stop_noise_evidence,
+        noise_evidence=effective_stop_noise,
     )
     strategy_fit = derive_strategy_fit_semantics(setup, projected)
     target_feasibility = derive_target_feasibility_semantics(
@@ -245,6 +255,39 @@ def methodology_public_enrichment(
         "methodology_projection_authoritative": native_available,
         "methodology_projection_notice": _projection_notice(analysis),
     }
+
+
+def _resolve_auxiliary_evidence(
+    projected: MethodologySnapshot,
+    *,
+    source_bundle: MethodologySourceBundle | None,
+    stop_noise_evidence: StopNoiseEvidence | None,
+    auxiliary_evidence: MethodologyAuxiliaryEvidence | None,
+) -> tuple[MethodologySourceBundle | None, StopNoiseEvidence | None]:
+    if auxiliary_evidence is None:
+        if source_bundle is not None:
+            source_bundle.validate_for(projected)
+        return source_bundle, stop_noise_evidence
+
+    auxiliary_evidence.validate_for(projected)
+    if (
+        source_bundle is not None
+        and auxiliary_evidence.source_bundle is not None
+        and source_bundle != auxiliary_evidence.source_bundle
+    ):
+        raise ValueError("conflicting methodology source bundles were provided")
+    if (
+        stop_noise_evidence is not None
+        and auxiliary_evidence.stop_noise is not None
+        and stop_noise_evidence != auxiliary_evidence.stop_noise
+    ):
+        raise ValueError("conflicting methodology stop-noise evidence was provided")
+
+    effective_source = source_bundle or auxiliary_evidence.source_bundle
+    effective_noise = stop_noise_evidence or auxiliary_evidence.stop_noise
+    if effective_source is not None:
+        effective_source.validate_for(projected)
+    return effective_source, effective_noise
 
 
 def _projection_notice(analysis: SymbolAnalysis) -> str:
