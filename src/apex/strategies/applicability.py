@@ -77,7 +77,7 @@ def build_strategy_applicability(
     eligible: tuple[StrategyType, ...] | None = None,
     higher_timeframe_breakout: bool,
 ) -> Mapping[StrategyType, StrategyApplicability]:
-    """Score regime fit without preventing a strategy generator from running."""
+    """Score regime fit before candidate generation."""
 
     del eligible
     records: dict[StrategyType, StrategyApplicability] = {}
@@ -103,6 +103,19 @@ def build_strategy_applicability(
                 "higher-timeframe breakout evidence supports conditional "
                 f"{strategy.value} evaluation"
             )
+        elif regime in {MarketRegime.HIGH_VOLATILITY_CHAOS, MarketRegime.LOW_LIQUIDITY}:
+            state = StrategyApplicabilityState.NOT_APPLICABLE
+            score = 0.0
+            code = "UNUSABLE_REGIME"
+            reason = f"{regime.value} prohibits new {strategy.value} candidate generation"
+        elif regime is MarketRegime.LOW_VOLATILITY_STAGNATION and strategy not in {
+            StrategyType.COMPRESSION_EXPANSION,
+            StrategyType.RANGE_REVERSAL,
+        }:
+            state = StrategyApplicabilityState.NOT_APPLICABLE
+            score = 20.0
+            code = "STAGNANT_REGIME"
+            reason = f"{regime.value} lacks the movement required by {strategy.value}"
         elif regime in _UNSTABLE:
             state = StrategyApplicabilityState.CONDITIONAL
             score = 35.0

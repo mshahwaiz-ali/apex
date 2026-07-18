@@ -8,6 +8,7 @@ from apex.config import (
     DEFAULT_TIMEFRAME_ROLES,
     FileSettings,
     FuturesScreenerSettings,
+    load_settings,
 )
 
 
@@ -109,16 +110,16 @@ def test_default_futures_screener_settings_are_canonical() -> None:
     assert settings.futures_screener == FuturesScreenerSettings(
         minimum_quote_volume_24h=5_000_000.0,
         maximum_spread_percentage=0.25,
-        minimum_absolute_movement_percentage=1.0,
-        shortlist_size=30,
+        minimum_absolute_movement_percentage=0.0,
+        shortlist_size=36,
     )
 
     domain_config = settings.futures_screener.to_domain()
 
     assert domain_config.minimum_quote_volume_24h == 5_000_000.0
     assert domain_config.maximum_spread_percentage == 0.25
-    assert domain_config.minimum_absolute_movement_percentage == 1.0
-    assert domain_config.shortlist_size == 30
+    assert domain_config.minimum_absolute_movement_percentage == 0.0
+    assert domain_config.shortlist_size == 36
 
 
 def test_settings_accept_custom_futures_screener_values() -> None:
@@ -173,3 +174,17 @@ def test_settings_reject_unknown_futures_screener_fields() -> None:
                 "unknown": True,
             }
         )
+
+
+def test_load_settings_uses_market_environment_from_default_yaml(tmp_path) -> None:
+    (tmp_path / "default.yaml").write_text(
+        "market_environment:\n"
+        "  trend_strength_min: 0.6\n"
+        "  strong_trend_strength_min: 0.8\n",
+        encoding="utf-8",
+    )
+
+    settings = load_settings(tmp_path)
+
+    assert settings.market_environment.trend_strength_min == 0.6
+    assert settings.market_environment.strong_trend_strength_min == 0.8

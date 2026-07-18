@@ -39,7 +39,7 @@ def test_structural_invalidation_uses_larger_noise_buffer_once() -> None:
     assert "ATR" in geometry.buffer_reason
 
 
-def test_layered_targets_add_tp1_before_distant_primary_target() -> None:
+def test_layered_targets_do_not_invent_one_r_before_distant_structural_target() -> None:
     levels = build_layered_targets(
         direction=TradeDirection.LONG,
         preferred_entry=100.0,
@@ -54,9 +54,9 @@ def test_layered_targets_add_tp1_before_distant_primary_target() -> None:
         ),
     )
 
-    assert [level.label for level in levels] == ["TP1", "TP2"]
-    assert levels[0].price == pytest.approx(102.0)
-    assert levels[1].price == pytest.approx(106.0)
+    assert [level.label for level in levels] == ["TP1"]
+    assert levels[0].price == pytest.approx(106.0)
+    assert levels[0].kind is TargetType.STRUCTURAL
 
 
 def test_near_primary_target_is_not_split_artificially() -> None:

@@ -1,8 +1,0 @@
-strategies:
-  enabled:
-    - trend_pullback
-    - breakout_continuation
-    - liquidity_reversal
-    - range_reversal
-    - momentum_continuation
-minimum_score: 52.0

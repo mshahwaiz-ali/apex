@@ -9,6 +9,11 @@ from typing import Any
 from apex.data.providers.binance import BinanceMarketDataProvider
 from apex.data.providers.errors import ProviderResponseError
 from apex.data.providers.http import request_json
+from apex.domain.futures_evidence import (
+    FundingRateSnapshot,
+    OpenInterestSnapshot,
+    TakerFlowSnapshot,
+)
 from apex.domain.futures_screening import FuturesTickerSnapshot
 
 TickerRowParser = Callable[
@@ -27,6 +32,108 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
     TICKER_24H_PATH = "/fapi/v1/ticker/24hr"
     ORDER_BOOK_PATH = "/fapi/v1/depth"
     EXCHANGE_INFO_PATH = "/fapi/v1/exchangeInfo"
+    FUNDING_RATE_PATH = "/fapi/v1/fundingRate"
+    OPEN_INTEREST_HISTORY_PATH = "/futures/data/openInterestHist"
+    TAKER_FLOW_HISTORY_PATH = "/futures/data/takerlongshortRatio"
+
+    def fetch_funding_rates(
+        self, symbol: str, limit: int = 100
+    ) -> tuple[FundingRateSnapshot, ...]:
+        payload = self._fetch_evidence_rows(
+            self.FUNDING_RATE_PATH,
+            symbol,
+            limit,
+            operation="fetch funding rates",
+        )
+        return tuple(
+            FundingRateSnapshot(
+                symbol=symbol.upper(),
+                funding_rate=float(row["fundingRate"]),
+                funding_time=datetime.fromtimestamp(int(row["fundingTime"]) / 1000, tz=UTC),
+                source=self.name,
+            )
+            for row in payload
+        )
+
+    def fetch_open_interest_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[OpenInterestSnapshot, ...]:
+        payload = self._fetch_evidence_rows(
+            self.OPEN_INTEREST_HISTORY_PATH,
+            symbol,
+            limit,
+            period=period,
+            operation="fetch open-interest history",
+        )
+        return tuple(
+            OpenInterestSnapshot(
+                symbol=symbol.upper(),
+                period=period,
+                open_interest=float(row["sumOpenInterest"]),
+                open_interest_value=float(row["sumOpenInterestValue"]),
+                captured_at=datetime.fromtimestamp(int(row["timestamp"]) / 1000, tz=UTC),
+                source=self.name,
+            )
+            for row in payload
+        )
+
+    def fetch_taker_flow_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[TakerFlowSnapshot, ...]:
+        payload = self._fetch_evidence_rows(
+            self.TAKER_FLOW_HISTORY_PATH,
+            symbol,
+            limit,
+            period=period,
+            operation="fetch taker-flow history",
+        )
+        return tuple(
+            TakerFlowSnapshot(
+                symbol=symbol.upper(),
+                period=period,
+                buy_volume=float(row["buyVol"]),
+                sell_volume=float(row["sellVol"]),
+                buy_sell_ratio=float(row["buySellRatio"]),
+                captured_at=datetime.fromtimestamp(int(row["timestamp"]) / 1000, tz=UTC),
+                source=self.name,
+            )
+            for row in payload
+        )
+
+    def _fetch_evidence_rows(
+        self,
+        path: str,
+        symbol: str,
+        limit: int,
+        *,
+        operation: str,
+        period: str | None = None,
+    ) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 500:
+            raise ValueError("futures evidence limit must be between 1 and 500")
+        params: dict[str, str | int] = {
+            "symbol": self._normalize_symbol(symbol),
+            "limit": limit,
+        }
+        if period is not None:
+            params["period"] = period
+        payload = request_json(
+            self._client,
+            "GET",
+            path,
+            provider=self.name,
+            operation=operation,
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
+            params=params,
+        )
+        if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
+            raise ProviderResponseError(
+                f"Binance {operation} response must be a list of objects",
+                provider=self.name,
+                operation=operation,
+            )
+        return sorted(payload, key=lambda row: int(row.get("timestamp", row.get("fundingTime", 0))))
 
     def fetch_futures_tickers(self) -> tuple[FuturesTickerSnapshot, ...]:
         """Fetch and join Binance market-wide futures ticker batches."""

@@ -221,7 +221,7 @@ def test_clear_short_winner_is_selected() -> None:
     assert result.selected_direction is TradeDirection.SHORT
 
 
-def test_equal_opposing_strength_returns_no_trade() -> None:
+def test_equal_opposing_strength_retains_both_hypotheses_and_selects_deterministically() -> None:
     result = analyze_candidate_selection(
         _phase4(
             _candidate(quality=0.85),
@@ -232,9 +232,16 @@ def test_equal_opposing_strength_returns_no_trade() -> None:
             ),
         )
     )
-    assert result.selected_candidate is None
-    assert result.no_trade_reason is not None
-    assert "unresolved" in result.no_trade_reason
+    assert result.selected_candidate is not None
+    assert result.selected_direction is TradeDirection.LONG
+    assert result.no_trade_reason is None
+    assert len(
+        [
+            item
+            for item in result.ranked_candidates
+            if item.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
+        ]
+    ) == 2
 
 
 def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:

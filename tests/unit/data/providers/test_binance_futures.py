@@ -184,6 +184,60 @@ def test_futures_provider_identity_and_default_base_url() -> None:
     provider.close()
 
 
+def test_fetch_optional_futures_evidence_normalizes_chronological_rows() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["symbol"] == "BTCUSDT"
+        assert request.url.params["limit"] == "2"
+        if request.url.path == "/fapi/v1/fundingRate":
+            return httpx.Response(
+                200,
+                json=[
+                    {"fundingRate": "0.0002", "fundingTime": 1_700_000_600_000},
+                    {"fundingRate": "0.0001", "fundingTime": 1_700_000_000_000},
+                ],
+            )
+        assert request.url.params["period"] == "5m"
+        if request.url.path == "/futures/data/openInterestHist":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "sumOpenInterest": "1200",
+                        "sumOpenInterestValue": "240000",
+                        "timestamp": 1_700_000_000_000,
+                    }
+                ],
+            )
+        if request.url.path == "/futures/data/takerlongshortRatio":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "buyVol": "600",
+                        "sellVol": "400",
+                        "buySellRatio": "1.5",
+                        "timestamp": 1_700_000_000_000,
+                    }
+                ],
+            )
+        raise AssertionError(f"unexpected path: {request.url.path}")
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://fapi.binance.com",
+    )
+    provider = BinanceFuturesMarketDataProvider(client=client)
+
+    funding = provider.fetch_funding_rates("BTC/USDT", limit=2)
+    open_interest = provider.fetch_open_interest_history("BTC/USDT", limit=2)
+    taker = provider.fetch_taker_flow_history("BTC/USDT", limit=2)
+
+    assert [item.funding_rate for item in funding] == [0.0001, 0.0002]
+    assert open_interest[0].open_interest_value == 240_000
+    assert taker[0].buy_sell_ratio == 1.5
+    client.close()
+
+
 def test_fetch_futures_tickers_uses_two_batch_endpoints() -> None:
     requested_paths: list[str] = []
 

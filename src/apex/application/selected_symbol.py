@@ -8,6 +8,7 @@ from datetime import datetime
 from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
+from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
 
 def analyze_selected_symbol(
@@ -21,6 +22,7 @@ def analyze_selected_symbol(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     methodology_gate_mode: str = "shadow",
+    market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
 ) -> SymbolAnalysis:
     """Normalize a user-entered symbol and run the shared discovery pipeline."""
 
@@ -35,6 +37,7 @@ def analyze_selected_symbol(
         generated_at=generated_at,
         strategy_routing=strategy_routing,
         methodology_gate_mode=methodology_gate_mode,
+        market_environment_config=market_environment_config,
     )
 
 

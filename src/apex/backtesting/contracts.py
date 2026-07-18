@@ -26,6 +26,7 @@ class BacktestConfig:
 
     fee_pct: float = 0.04
     slippage_pct: float = 0.02
+    funding_pct: float = 0.0
     maximum_holding_candles: int = 24
     conservative_intrabar: bool = True
 
@@ -33,6 +34,7 @@ class BacktestConfig:
         for name, value in (
             ("fee percentage", self.fee_pct),
             ("slippage percentage", self.slippage_pct),
+            ("funding percentage", self.funding_pct),
         ):
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")

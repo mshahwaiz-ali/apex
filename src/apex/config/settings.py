@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from apex.config.futures_screener import FuturesScreenerSettings
 from apex.data.timeframes import timeframe_delta
+from apex.market_environment.config import MarketEnvironmentConfig
 from apex.strategies import StrategyType
 
 MethodologyGateModeSetting = Literal["shadow", "enforce"]
@@ -99,6 +100,8 @@ class FileSettings(BaseModel):
     log_dir: Path = Path("logs")
     cache_enabled: bool = True
     methodology_gate_mode: MethodologyGateModeSetting = "shadow"
+    market_environment: MarketEnvironmentConfig = Field(default_factory=MarketEnvironmentConfig)
+    futures_evidence_enabled: bool = False
     futures_screener: FuturesScreenerSettings = Field(default_factory=FuturesScreenerSettings)
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))

@@ -10,6 +10,7 @@ from types import MappingProxyType
 from apex.strategies.actionability import classify_candidate_actionability
 from apex.strategies.applicability import (
     StrategyApplicability,
+    StrategyApplicabilityState,
     build_strategy_applicability,
 )
 from apex.strategies.context import StrategyContext
@@ -131,14 +132,30 @@ def analyze_strategies(
     *,
     decision_time: datetime,
 ) -> StrategyAnalysisResult:
-    """Run every registered generator and retain all valid candidates."""
+    """Route registered strategies before generation and retain valid candidates."""
 
     evaluated = tuple(strategy for strategy, _generator in STRATEGY_REGISTRY)
     decision_regime = classify_market_regime(context.decision_frame.structure)
     higher_breakout = has_higher_timeframe_breakout(context)
+    applicability = build_strategy_applicability(
+        regime=decision_regime,
+        evaluated=evaluated,
+        higher_timeframe_breakout=higher_breakout,
+    )
+    eligible = tuple(
+        strategy
+        for strategy in evaluated
+        if applicability[strategy].state is not StrategyApplicabilityState.NOT_APPLICABLE
+    )
+    skipped = {
+        strategy: applicability[strategy].reasons[0]
+        for strategy in evaluated
+        if strategy not in eligible
+    }
     candidates = tuple(
         _normalize_candidate(candidate)
-        for _strategy, generator in STRATEGY_REGISTRY
+        for strategy, generator in STRATEGY_REGISTRY
+        if strategy in eligible
         for candidate in run_strategy_generator(
             generator,
             context,
@@ -148,15 +165,9 @@ def analyze_strategies(
     diagnostics = build_strategy_diagnostics(
         context,
         evaluated=evaluated,
-        eligible=evaluated,
-        skipped={},
+        eligible=eligible,
+        skipped=skipped,
         candidates=candidates,
-    )
-    applicability = build_strategy_applicability(
-        regime=decision_regime,
-        evaluated=evaluated,
-        eligible=evaluated,
-        higher_timeframe_breakout=higher_breakout,
     )
     actionability = tuple(
         CandidateActionability(
@@ -170,8 +181,8 @@ def analyze_strategies(
         decision_time=decision_time,
         candidates=candidates,
         evaluated_strategies=evaluated,
-        eligible_strategies=evaluated,
-        skipped_strategies={},
+        eligible_strategies=eligible,
+        skipped_strategies=skipped,
         strategy_diagnostics=diagnostics,
         decision_regime=decision_regime,
         higher_timeframe_breakout=higher_breakout,

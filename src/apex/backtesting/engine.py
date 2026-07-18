@@ -44,11 +44,21 @@ def simulate_trade(
     remaining_quantity = signal.quantity
     gross = 0.0
     exit_fee_notional = 0.0
+    maximum_favorable_excursion_r = 0.0
+    maximum_adverse_excursion_r = 0.0
     for index, candle in enumerate(candles[:max_candles], start=1):
         if not entered:
             entered = _entry_touched(signal, candle)
             if not entered:
                 continue
+        favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
+        maximum_favorable_excursion_r = max(maximum_favorable_excursion_r, favorable_r)
+        maximum_adverse_excursion_r = max(maximum_adverse_excursion_r, adverse_r)
+        runtime_metadata = _excursion_metadata(
+            metadata,
+            maximum_favorable_excursion_r,
+            maximum_adverse_excursion_r,
+        )
         stop_hit = _stop_hit(signal, candle, stop)
         hit_targets = _hit_target_indexes(signal, candle, targets, start=next_target_index)
         if stop_hit and hit_targets and config.conservative_intrabar:
@@ -68,7 +78,7 @@ def simulate_trade(
                 ),
                 exit_fee_notional + _slipped_exit(signal, stop, config) * remaining_quantity,
                 config,
-                metadata=metadata,
+                metadata=runtime_metadata,
                 partial_target_count=next_target_index,
             )
 
@@ -96,7 +106,7 @@ def simulate_trade(
                     gross,
                     exit_fee_notional,
                     config,
-                    metadata=metadata,
+                    metadata=runtime_metadata,
                     partial_target_count=next_target_index,
                 )
 
@@ -118,7 +128,7 @@ def simulate_trade(
                 ),
                 exit_fee_notional + stop_exit * remaining_quantity,
                 config,
-                metadata=metadata,
+                metadata=runtime_metadata,
                 partial_target_count=next_target_index,
             )
 
@@ -134,7 +144,7 @@ def simulate_trade(
             net_pnl=0.0,
             realized_r_multiple=0.0,
             holding_candles=max_candles,
-            metadata={} if metadata is None else metadata,
+            metadata=_excursion_metadata(metadata, 0.0, 0.0),
         )
     final_exit = _slipped_exit(signal, final.close, config)
     return _trade_from_components(
@@ -153,7 +163,11 @@ def simulate_trade(
         ),
         exit_fee_notional + final_exit * remaining_quantity,
         config,
-        metadata=metadata,
+        metadata=_excursion_metadata(
+            metadata,
+            maximum_favorable_excursion_r,
+            maximum_adverse_excursion_r,
+        ),
         partial_target_count=next_target_index,
     )
 
@@ -230,6 +244,33 @@ def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
                 trade.outcome is BacktestOutcome.MISSED_ENTRY for trade in trade_tuple
             ),
             "total_expired": sum(trade.outcome is BacktestOutcome.EXPIRED for trade in trade_tuple),
+            "entry_fill_rate": (
+                sum(trade.outcome is not BacktestOutcome.MISSED_ENTRY for trade in trade_tuple)
+                / total
+                if total
+                else 0.0
+            ),
+            "average_mfe_r": (
+                sum(
+                    float(trade.metadata.get("maximum_favorable_excursion_r", 0.0))
+                    for trade in trade_tuple
+                )
+                / total
+                if total
+                else 0.0
+            ),
+            "average_mae_r": (
+                sum(
+                    float(trade.metadata.get("maximum_adverse_excursion_r", 0.0))
+                    for trade in trade_tuple
+                )
+                / total
+                if total
+                else 0.0
+            ),
+            "tp1_touch_count": sum(
+                int(trade.metadata.get("partial_target_count", 0)) >= 1 for trade in trade_tuple
+            ),
         },
     )
 
@@ -246,6 +287,34 @@ def _target_hit(signal: BacktestSignal, candle: Candle, target: float) -> bool:
     return (
         candle.high >= target if signal.direction is TradeDirection.LONG else candle.low <= target
     )
+
+
+def _candle_excursions_r(
+    signal: BacktestSignal,
+    candle: Candle,
+    entry: float,
+) -> tuple[float, float]:
+    risk_per_unit = abs(entry - signal.stop_price)
+    if risk_per_unit <= 0.0:
+        return 0.0, 0.0
+    if signal.direction is TradeDirection.LONG:
+        favorable = max(0.0, candle.high - entry)
+        adverse = max(0.0, entry - candle.low)
+    else:
+        favorable = max(0.0, entry - candle.low)
+        adverse = max(0.0, candle.high - entry)
+    return favorable / risk_per_unit, adverse / risk_per_unit
+
+
+def _excursion_metadata(
+    metadata: Mapping[str, str | int | float | bool] | None,
+    maximum_favorable_excursion_r: float,
+    maximum_adverse_excursion_r: float,
+) -> dict[str, str | int | float | bool]:
+    result = {} if metadata is None else dict(metadata)
+    result["maximum_favorable_excursion_r"] = maximum_favorable_excursion_r
+    result["maximum_adverse_excursion_r"] = maximum_adverse_excursion_r
+    return result
 
 
 def _hit_target_indexes(
@@ -386,7 +455,8 @@ def _trade_from_components(
     partial_target_count: int = 0,
 ) -> SimulatedTrade:
     fees = (entry * signal.quantity + exit_fee_notional) * config.fee_pct / 100.0
-    net = gross - fees
+    funding = entry * signal.quantity * config.funding_pct / 100.0
+    net = gross - fees - funding
     output_metadata: dict[str, str | int | float | bool] = (
         {} if metadata is None else dict(metadata)
     )
@@ -440,6 +510,7 @@ def _trade_from_components(
     output_metadata.setdefault("expected_r", -expected_total_loss_at_stop / signal.risk_amount)
     output_metadata.setdefault("actual_simulated_fill_loss", max(0.0, -gross))
     output_metadata.setdefault("actual_fees", fees)
+    output_metadata.setdefault("actual_funding", funding)
     output_metadata.setdefault("actual_net_loss", max(0.0, -net))
     output_metadata.setdefault("realized_r", net / signal.risk_amount)
     output_metadata.setdefault("planned_entry_price", planned_entry)
@@ -448,6 +519,7 @@ def _trade_from_components(
     output_metadata.setdefault("modeled_stop_fill_price", modeled_stop_exit)
     output_metadata.setdefault("configured_fee_pct", config.fee_pct)
     output_metadata.setdefault("configured_slippage_pct", config.slippage_pct)
+    output_metadata.setdefault("configured_funding_pct", config.funding_pct)
 
     return SimulatedTrade(
         signal=signal,

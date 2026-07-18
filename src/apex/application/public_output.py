@@ -28,6 +28,7 @@ from apex.application.methodology_strategy_evaluation import (
     evaluate_strategy_registry,
     strategy_eligibility_evaluation_payload,
 )
+from apex.strategies.strategy_types import StrategyType
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _UNAVAILABLE_MATURITIES = frozenset(
@@ -44,6 +45,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     """Return one discovery result with methodology-aware actionability."""
 
     payload = _without_legacy_keys(_decision.serialize_symbol_analysis(analysis))
+    payload["schema_version"] = 2
     methodology = project_analysis_methodology(analysis)
     payload["methodology"] = methodology_snapshot_payload(methodology)
     eligibility = evaluate_strategy_registry(
@@ -85,8 +87,12 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload["execution_ready"] = (
         False if maturity is None else maturity.execution_conditions_complete
     )
+    payload["entry_state"] = None if maturity is None else maturity.public_entry_state.value
+    payload["quality_score"] = payload.get("confidence_score")
 
     setup = payload.get("setup")
+    _add_canonical_strategy_identity(setup)
+    _add_canonical_strategy_identity(payload.get("developing_setup"))
     if not isinstance(setup, dict):
         developing = payload.get("developing_setup")
         if isinstance(developing, dict):
@@ -94,12 +100,18 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
             payload["entry_status"] = status
             payload["strategy"] = developing.get("strategy")
             payload["confidence_score"] = developing.get("confidence_score")
+            payload["quality_score"] = developing.get("confidence_score")
+            payload["strategy_family"] = developing.get("strategy_family")
+            payload["strategy_subtype"] = developing.get("strategy_subtype")
             payload["decision_reason_code"] = _selected_reason_code(maturity, status)
             payload["result_group"] = _result_group(maturity)
             return cast(dict[str, Any], payload)
         payload["entry_status"] = None
         payload["strategy"] = None
         payload["confidence_score"] = None
+        payload["quality_score"] = None
+        payload["strategy_family"] = None
+        payload["strategy_subtype"] = None
         payload["decision_reason_code"] = _no_trade_reason_code(analysis)
         methodology_reason = _methodology_no_trade_reason(analysis)
         if methodology_reason is not None:
@@ -111,9 +123,26 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     payload["entry_status"] = status
     payload["strategy"] = setup.get("strategy")
     payload["confidence_score"] = setup.get("confidence_score")
+    payload["quality_score"] = setup.get("confidence_score")
+    payload["strategy_family"] = setup.get("strategy_family")
+    payload["strategy_subtype"] = setup.get("strategy_subtype")
     payload["decision_reason_code"] = _selected_reason_code(maturity, status)
     payload["result_group"] = _result_group(maturity)
     return cast(dict[str, Any], payload)
+
+
+def _add_canonical_strategy_identity(value: object) -> None:
+    if not isinstance(value, dict):
+        return
+    strategy_value = value.get("strategy")
+    if not isinstance(strategy_value, str):
+        return
+    try:
+        strategy = StrategyType(strategy_value)
+    except ValueError:
+        return
+    value["strategy_family"] = strategy.canonical_family.value
+    value["strategy_subtype"] = strategy.canonical_subtype
 
 
 def serialize_scan_result(
@@ -164,6 +193,7 @@ def serialize_scan_result(
     long_count = sum(_effective_direction(item) == "long" for item in valid)
     short_count = sum(_effective_direction(item) == "short" for item in valid)
     return {
+        "schema_version": 2,
         "generated_at": result.generated_at.isoformat(),
         "best_overall": selected[0] if selected else None,
         "best_actionable": actionable[0] if actionable else None,

@@ -63,7 +63,7 @@ from apex.strategies.momentum_breakout import generate_momentum_breakout_candida
 from apex.strategies.momentum_scalp import generate_momentum_scalp_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.registry import STRATEGY_REGISTRY, StrategyGenerator
-from apex.strategies.strategy_types import StrategyType
+from apex.strategies.strategy_types import CanonicalStrategyFamily, StrategyType
 from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 from apex.strategies.vwap_reclaim_rejection import (
     generate_vwap_reclaim_rejection_candidates,
@@ -75,6 +75,7 @@ __all__ = [
     "CandidateActionability",
     "CandidateLifecycle",
     "CandidateLifecycleStatus",
+    "CanonicalStrategyFamily",
     "EntryMode",
     "EntryReference",
     "EntrySelectionConfig",

@@ -60,11 +60,11 @@ class FuturesScreenerSettings(BaseModel):
         gt=0,
     )
     minimum_absolute_movement_percentage: float = Field(
-        default=1.0,
+        default=0.0,
         ge=0,
     )
-    shortlist_size: int = Field(default=30, gt=0)
-    ticker_prefilter_size: int = Field(default=90, gt=0)
+    shortlist_size: int = Field(default=36, gt=0)
+    ticker_prefilter_size: int = Field(default=120, gt=0)
     candle_timeframe: str = Field(default="5m", min_length=1)
     candle_limit: int = Field(default=49, ge=13, le=250)
     minimum_candle_count: int = Field(default=25, ge=13)

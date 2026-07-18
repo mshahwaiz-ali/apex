@@ -106,12 +106,13 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         entry=entry,
         stop_loss=stop,
         take_profits=targets,
-        management_policies=_management_policies(targets),
+        management_policies=_management_policies(targets, candidate.strategy),
         warnings=tuple(candidate.evidence.warnings),
         quality_dimensions=derive_quality_dimensions(candidate.quality),
         execution_allowed_now=is_entry_status_executable(entry_status),
         entry_opportunities=entry_opportunities,
         setup_expiry_seconds=expiry_seconds,
+        setup_expiry_bars=None if lifecycle is None else lifecycle.expires_after_bars,
         setup_expiry_reason=_expiry_reason(candidate),
         trader_headline=_trader_headline(entry_status),
     )
@@ -246,9 +247,31 @@ def _partial_close_percentages(count: int) -> tuple[float, ...]:
     return (40.0, 35.0, *(25.0 / (count - 2) for _ in range(count - 2)))
 
 
-def _management_policies(targets: tuple[TakeProfit, ...]) -> tuple[ManagementPolicy, ...]:
+def _management_policies(
+    targets: tuple[TakeProfit, ...],
+    strategy: object | None = None,
+) -> tuple[ManagementPolicy, ...]:
     first_target = targets[0]
     final_target = targets[-1]
+    family = getattr(getattr(strategy, "canonical_family", None), "value", "generic")
+    continuation = {
+        "trend_pullback": "the governing swing sequence remains intact",
+        "break_continuation": "price continues accepting beyond the broken level",
+        "break_retest": "the polarity retest remains held",
+        "compression_expansion": "range expansion persists outside compression",
+        "range_rejection": "price remains accepted inside the range",
+        "failed_break_reclaim": "the reclaimed boundary remains held",
+        "liquidity_sweep_reversal": "the sweep extreme remains rejected",
+    }.get(family, f"price accepts beyond {first_target.label}")
+    failure = {
+        "trend_pullback": "the governing swing sequence fails",
+        "break_continuation": "price accepts back through the broken level",
+        "break_retest": "the polarity retest fails",
+        "compression_expansion": "price closes back inside compression",
+        "range_rejection": "price accepts beyond the rejected range boundary",
+        "failed_break_reclaim": "price accepts beyond the failed-break extreme again",
+        "liquidity_sweep_reversal": "price accepts beyond the sweep extreme",
+    }.get(family, "strategy evidence fails before the final target")
     return (
         ManagementPolicy(
             kind=ManagementPolicyType.BREAKEVEN,
@@ -258,7 +281,7 @@ def _management_policies(targets: tuple[TakeProfit, ...]) -> tuple[ManagementPol
         ),
         ManagementPolicy(
             kind=ManagementPolicyType.TRAILING,
-            trigger=f"price accepts beyond {first_target.label}",
+            trigger=continuation,
             action="trail behind the latest valid structural swing",
             rationale=("retain continuation potential without abandoning structure",),
         ),
@@ -270,7 +293,7 @@ def _management_policies(targets: tuple[TakeProfit, ...]) -> tuple[ManagementPol
         ),
         ManagementPolicy(
             kind=ManagementPolicyType.MOMENTUM_FAILURE,
-            trigger=f"momentum contradicts before {final_target.label}",
+            trigger=f"{failure} before {final_target.label}",
             action="reduce or exit before structural invalidation",
             rationale=("respond when continuation evidence fails",),
         ),

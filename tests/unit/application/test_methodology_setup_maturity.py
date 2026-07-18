@@ -107,6 +107,7 @@ def test_setup_maturity_payload_is_public_safe() -> None:
         "strategy": "breakout_retest",
         "legacy_status": "PULLBACK_PREFERRED",
         "maturity": "retest_pending",
+        "entry_state": "WAIT_RETEST",
         "confirmation_policy": "retest_required",
         "execution_conditions_complete": False,
         "reason_codes": ["METHODOLOGY_BETTER_ENTRY_PENDING"],

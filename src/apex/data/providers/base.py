@@ -5,6 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
+from apex.domain.futures_evidence import (
+    FundingRateSnapshot,
+    OpenInterestSnapshot,
+    TakerFlowSnapshot,
+)
 from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.futures_screening import FuturesTickerSnapshot
 from apex.domain.models import (
@@ -86,3 +91,24 @@ class MarketMicrostructureProvider(Protocol):
 
     def fetch_exchange_filters(self, symbol: str) -> ExchangeFilterSnapshot:
         """Fetch normalized exchange precision and notional filters."""
+
+
+class FuturesEvidenceProvider(Protocol):
+    """Optional read-only derivatives participation contract."""
+
+    @property
+    def name(self) -> str:
+        """Return the provider identifier."""
+
+    def fetch_funding_rates(self, symbol: str, limit: int = 100) -> tuple[FundingRateSnapshot, ...]:
+        """Fetch chronological funding observations."""
+
+    def fetch_open_interest_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[OpenInterestSnapshot, ...]:
+        """Fetch chronological open-interest observations."""
+
+    def fetch_taker_flow_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[TakerFlowSnapshot, ...]:
+        """Fetch chronological taker buy/sell observations."""

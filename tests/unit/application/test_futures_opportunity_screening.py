@@ -9,6 +9,7 @@ from apex.application.futures_screening import (
     extract_opportunity_features,
     score_futures_opportunity,
     screen_futures_universe,
+    ticker_prefilter_symbols,
 )
 from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.futures_screening import (
@@ -212,6 +213,48 @@ def test_discovery_lanes_explain_shortlist_route() -> None:
         FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS,
     }
     assert all(item.reason for item in lanes)
+
+
+def test_relative_strength_lane_uses_benchmark_return_when_available() -> None:
+    config = FuturesScreenerConfig(shortlist_size=1, ticker_prefilter_size=1)
+    features = extract_opportunity_features(_candles("AAAUSDT", step=0.3))
+    opportunity = score_futures_opportunity(_ticker("AAAUSDT"), features, config)
+
+    aligned = classify_discovery_lanes(
+        _ticker("AAAUSDT"),
+        features,
+        opportunity,
+        benchmark_return_1h_pct=features.return_1h_pct - 0.25,
+    )
+    divergent = classify_discovery_lanes(
+        _ticker("AAAUSDT"),
+        features,
+        opportunity,
+        benchmark_return_1h_pct=0.0,
+    )
+
+    assert not any(item.lane is FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS for item in aligned)
+    assert any(item.lane is FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS for item in divergent)
+
+
+def test_ticker_prefilter_reserves_space_for_quiet_liquid_market() -> None:
+    contracts = tuple(_contract(f"C{index}USDT") for index in range(8))
+    tickers = tuple(
+        _ticker(
+            f"C{index}USDT",
+            movement=0.1 if index == 0 else float(index + 3),
+            volume=500_000_000.0 if index == 0 else 50_000_000.0,
+        )
+        for index in range(8)
+    )
+
+    selected = ticker_prefilter_symbols(
+        contracts,
+        tickers,
+        FuturesScreenerConfig(shortlist_size=3, ticker_prefilter_size=5),
+    )
+
+    assert "C0USDT" in selected
 
 
 def test_candle_aware_screening_records_fetch_failure() -> None:

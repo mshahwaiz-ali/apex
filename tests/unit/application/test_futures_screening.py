@@ -108,10 +108,6 @@ def test_screen_futures_universe_filters_and_ranks() -> None:
         for exclusion in result.exclusions
     } == {
         (
-            "CCCUSDT",
-            FuturesScreeningExclusionReason.INSUFFICIENT_MOVEMENT,
-        ),
-        (
             "DDDUSDT",
             FuturesScreeningExclusionReason.MISSING_TICKER,
         ),
@@ -120,6 +116,7 @@ def test_screen_futures_universe_filters_and_ranks() -> None:
             FuturesScreeningExclusionReason.OUTSIDE_UNIVERSE,
         ),
     }
+    assert result.hard_eligible_count == 3
 
     assert result.total_contracts == 4
     assert result.total_tickers == 4

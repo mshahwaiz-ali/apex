@@ -50,6 +50,21 @@ _ENTRY_MODE_EXPIRY_MULTIPLIER: dict[EntryMode, float] = {
     EntryMode.SWEEP_RECOVERY: 1.00,
 }
 
+_STRATEGY_EXPIRY_BARS: dict[StrategyType, int] = {
+    StrategyType.MOMENTUM_BREAKOUT: 3,
+    StrategyType.BREAKOUT_CONTINUATION: 3,
+    StrategyType.BREAKOUT_RETEST: 6,
+    StrategyType.FIRST_PULLBACK_CONTINUATION: 8,
+    StrategyType.TREND_PULLBACK: 8,
+    StrategyType.COMPRESSION_EXPANSION: 6,
+    StrategyType.RANGE_REVERSAL: 6,
+    StrategyType.FAILED_BREAKOUT_REVERSAL: 6,
+    StrategyType.LIQUIDITY_REJECTION_REVERSAL: 6,
+    StrategyType.VWAP_RECLAIM_REJECTION: 6,
+    StrategyType.MOMENTUM_SCALP: 3,
+    StrategyType.EXHAUSTION_REVERSAL: 6,
+}
+
 
 def candidate_expiry_seconds(
     *,
@@ -61,6 +76,12 @@ def candidate_expiry_seconds(
     base = _STRATEGY_BASE_EXPIRY_SECONDS.get(strategy, 900)
     multiplier = _ENTRY_MODE_EXPIRY_MULTIPLIER.get(entry_mode, 1.0)
     return max(180, round(base * multiplier))
+
+
+def candidate_expiry_bars(strategy: StrategyType) -> int:
+    """Return the canonical setup-frame expiry budget."""
+
+    return _STRATEGY_EXPIRY_BARS[strategy]
 
 
 class InvalidationType(StrEnum):
@@ -220,12 +241,15 @@ class CandidateLifecycle:
     status: CandidateLifecycleStatus = CandidateLifecycleStatus.ACTIVE
     cooldown_key: str = ""
     expires_after_seconds: int = 900
+    expires_after_bars: int = 6
     invalidation_price: float | None = None
     invalidation_reason: str = ""
 
     def __post_init__(self) -> None:
         if self.expires_after_seconds <= 0:
             raise ValueError("candidate expiry must be positive")
+        if self.expires_after_bars <= 0:
+            raise ValueError("candidate bar expiry must be positive")
         if self.invalidation_price is not None:
             _positive("candidate lifecycle invalidation price", self.invalidation_price)
         if self.status is CandidateLifecycleStatus.INVALIDATED and not self.invalidation_reason:
@@ -340,6 +364,7 @@ class TradeCandidate:
                             entry_mode=self.entry.mode,
                         )
                     ),
+                    expires_after_bars=candidate_expiry_bars(self.strategy),
                     invalidation_price=self.invalidation.price,
                     invalidation_reason="candidate invalidation price is breached",
                 ),

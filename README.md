@@ -143,8 +143,8 @@ In shadow mode, Apex computes and exposes methodology diagnostics without allowi
 `apex scan`:
 
 1. discovers active Binance USDT perpetual contracts;
-2. applies liquidity, spread, movement, volatility, freshness, and noise screening;
-3. shortlists the strongest symbols;
+2. applies tradability checks without requiring a minimum recent move;
+3. shortlists symbols through lane budgets rather than a raw-mover queue;
 4. runs the shared full analysis for each shortlisted symbol;
 5. filters the display by long, short, or both directions;
 6. returns ranked text or JSON results.
@@ -159,14 +159,14 @@ It supports text or JSON output plus optional append-only JSONL and SQLite analy
 
 ## Backtesting
 
-`apex backtest SYMBOL` performs a focused chronological prefix/holdout replay:
+`apex backtest SYMBOL` performs a chronological multi-decision replay campaign:
 
 - only closed historical candles are used for the decision prefix;
 - withheld candles are used for forward replay;
 - entry touch, stop, targets, partial closes, costs, expiry, and same-candle ambiguity are evaluated deterministically;
 - text or JSON output is supported.
 
-This command evaluates one historical decision and replay window. It is not a portfolio backtester and does not model wallet allocation, leverage, margin, liquidation, paper-account state, or exchange execution.
+The default campaign evaluates five non-overlapping decisions and reports costs, partials, fill/expiry rates, and MFE/MAE. It is not a portfolio backtester and does not model wallet allocation, leverage, margin, liquidation, paper-account state, or exchange execution.
 
 ## Installation
 

@@ -51,6 +51,7 @@ def test_selected_symbol_delegates_to_canonical_analysis_core(monkeypatch: Any) 
                 "generated_at": None,
                 "strategy_routing": None,
                 "methodology_gate_mode": "enforce",
+                "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
             },
         )
     ]

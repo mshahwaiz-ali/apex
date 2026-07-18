@@ -156,6 +156,7 @@ class DiscoverySetup:
     execution_allowed_now: bool = False
     entry_opportunities: tuple[ActionableEntry, ...] = ()
     setup_expiry_seconds: int | None = None
+    setup_expiry_bars: int | None = None
     setup_expiry_reason: str = ""
     trader_headline: str = ""
 
@@ -173,6 +174,8 @@ class DiscoverySetup:
             raise ValueError("discovery setup requires management policies")
         if self.setup_expiry_seconds is not None and self.setup_expiry_seconds <= 0:
             raise ValueError("setup expiry must be positive when provided")
+        if self.setup_expiry_bars is not None and self.setup_expiry_bars <= 0:
+            raise ValueError("setup bar expiry must be positive when provided")
         if self.setup_expiry_seconds is not None and not self.setup_expiry_reason.strip():
             raise ValueError("setup expiry reason is required when expiry is provided")
         partial_total = sum(target.partial_close_pct for target in self.take_profits)

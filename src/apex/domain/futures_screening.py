@@ -203,6 +203,7 @@ class FuturesOpportunityFeatures:
     wick_intensity: float
     directional_persistence: float
     current_participation: float
+    benchmark_relative_return_1h_pct: float | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -283,6 +284,7 @@ class FuturesDiscoveryLane(StrEnum):
     FAST_MOVER = "fast_mover"
     RANGE_LIQUIDITY_REJECTION = "range_liquidity_rejection"
     RELATIVE_STRENGTH_WEAKNESS = "relative_strength_weakness"
+    DEVELOPING = "developing"
 
 
 @dataclass(frozen=True, slots=True)

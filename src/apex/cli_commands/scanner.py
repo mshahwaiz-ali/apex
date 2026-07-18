@@ -53,7 +53,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
             help="Maximum ranked results to display after detailed analysis.",
         ),
         shortlist: int = typer.Option(
-            30,
+            36,
             "--shortlist",
             min=1,
             max=100,
@@ -112,6 +112,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                     candle_limit=candle_limit,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     methodology_gate_mode=context.settings.methodology_gate_mode,
+                    market_environment_config=context.settings.market_environment,
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

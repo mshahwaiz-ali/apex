@@ -160,8 +160,8 @@ def test_developing_setup_serializes_full_geometry() -> None:
     assert developing["entry"]["preferred"] == 99.5
     assert developing["stop_loss"]["price"] < 99.0
     targets = developing["take_profits"]
-    assert targets[0]["price"] == 102.0995
-    assert any(target["price"] == 104.0 for target in targets)
+    assert [target["price"] for target in targets] == [104.0]
+    assert targets[0]["target_type"] == "structural"
 
 
 def test_public_output_groups_pending_setup_as_developing() -> None:

@@ -300,7 +300,25 @@ def _projection_notice(analysis: SymbolAnalysis) -> str:
 def _candlestick_evidence(analysis: SymbolAnalysis) -> list[object]:
     diagnostics = analysis.phase5_diagnostics or {}
     value = diagnostics.get("candlestick_evidence")
-    return value if isinstance(value, list) else []
+    if not isinstance(value, list):
+        return []
+    deduplicated: list[object] = []
+    seen: set[tuple[object, ...]] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            deduplicated.append(item)
+            continue
+        key = (
+            item.get("timeframe"),
+            item.get("pattern_id"),
+            item.get("direction"),
+            item.get("completion_state"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(item)
+    return deduplicated
 
 
 __all__ = ["methodology_public_enrichment"]

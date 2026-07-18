@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from apex.application.discovery_analysis import analyze_symbol, scan_symbols
+from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.domain.models import Candle
 
 
@@ -91,3 +92,25 @@ def test_scan_and_analyze_share_candlestick_evidence() -> None:
     scanned_candles = scanned.phase5_diagnostics["candlestick_evidence"]
     assert selected_candles == scanned_candles
     assert any(item["pattern_id"] == "hammer" for item in selected_candles)
+
+
+def test_scan_and_analyze_serialize_the_same_full_methodology() -> None:
+    provider = FakeProvider(_candles())
+    generated_at = datetime(2026, 1, 2, tzinfo=UTC)
+
+    selected = analyze_symbol(
+        "BTCUSDT",
+        provider,
+        timeframes=("15m",),
+        candle_limit=220,
+        generated_at=generated_at,
+    )
+    scanned = scan_symbols(
+        ("BTCUSDT",),
+        provider,
+        timeframes=("15m",),
+        candle_limit=220,
+        generated_at=generated_at,
+    ).analyses[0]
+
+    assert serialize_symbol_analysis(selected) == serialize_symbol_analysis(scanned)

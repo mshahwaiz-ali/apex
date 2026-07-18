@@ -45,8 +45,8 @@ apex scan
 This is the broad discovery command. It:
 
 1. discovers active Binance USDT perpetual contracts;
-2. applies lightweight liquidity, spread, movement, volatility, freshness, and noise screening;
-3. shortlists the strongest symbols;
+2. applies hard liquidity, spread, freshness, history, and exchange-metadata checks;
+3. reserves coverage across trend, compression, fresh-break, fast-mover, range/rejection, benchmark-relative, and developing lanes;
 4. runs the shared full analysis pipeline on each shortlisted symbol;
 5. ranks and displays the strongest valid results.
 
@@ -154,7 +154,7 @@ apex scan \
 | `--record-db PATH` | none | Store normalized records in SQLite |
 | `--candles N` | `200` | Closed-candle analysis depth; accepted range is 40-999 |
 | `--results N` | `20` | Maximum displayed ranked results; accepted range is 1-50 |
-| `--shortlist N` | `30` | Symbols sent to detailed analysis; accepted range is 1-100 |
+| `--shortlist N` | `36` | Symbols sent to detailed analysis; accepted range is 1-100 |
 | `--direction VALUE` | `both` | Display `long`, `short`, or `both` |
 | `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
 
@@ -233,24 +233,24 @@ apex analyze BTCUSDT --config-dir config
 | `--record-db PATH` | none | Store the normalized result in SQLite |
 | `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
 
-## 3. Backtest one historical decision
+## 3. Backtest a chronological campaign
 
 ```bash
 apex backtest BTCUSDT
 ```
 
-This is a focused chronological prefix/holdout replay, not a portfolio-wide optimization command.
+This is a chronological multi-decision replay campaign, not a portfolio-wide optimization command.
 
 The command:
 
 1. downloads closed historical candles;
-2. withholds the final replay window;
-3. analyzes only the historical prefix at the decision timestamp;
-4. converts the selected discovery setup into a replay signal;
-5. simulates entry, stop, targets, partial exits, costs, expiry, and ambiguous candles on the withheld data;
-6. prints the resulting outcome and metrics.
+2. creates non-overlapping decision windows;
+3. analyzes only candles closed at each decision timestamp;
+4. converts each selected setup into a replay signal;
+5. simulates entry, stop, structural targets, partial exits, costs, optional funding, expiry, and ambiguous candles;
+6. reports campaign expectancy, drawdown, fill/expiry rates, and MFE/MAE.
 
-When the historical prefix produces no valid setup, the command returns `NO_TRADE` rather than manufacturing a signal.
+Decision points with no valid setup remain no-trade observations rather than manufactured signals.
 
 ### Common backtest examples
 
@@ -270,6 +270,12 @@ Use `5m` replay candles and hold out 24 candles:
 
 ```bash
 apex backtest BTCUSDT --replay-timeframe 5m --replay-candles 24
+```
+
+Use ten decision points and model funding drag:
+
+```bash
+apex backtest BTCUSDT --decision-points 10 --funding-pct 0.01
 ```
 
 Use a deeper historical decision prefix:
@@ -293,6 +299,8 @@ apex backtest ETHUSDT --replay-timeframe 15m --replay-candles 20
 | `--candles N` | `240` | Historical decision-prefix depth; accepted range is 80-900 |
 | `--replay-timeframe TF` | `5m` | Timeframe used for the withheld forward replay |
 | `--replay-candles N` | `24` | Number of withheld replay candles; accepted range is 1-100 |
+| `--decision-points N` | `5` | Non-overlapping chronological decisions; accepted range is 1-50 |
+| `--funding-pct N` | `0` | Optional funding drag applied to each filled trade |
 | `--config-dir PATH` | `config` | Configuration directory containing Apex YAML files |
 
 ### What this backtest does not model
@@ -322,6 +330,8 @@ apex config-check --help
 ```
 
 The primary runtime configuration is `config/default.yaml`. The current default methodology gate is configured in shadow mode, meaning methodology diagnostics are calculated and exposed without automatically replacing every established public decision.
+
+Analysis JSON uses schema version 2. Existing strategy and status keys remain for one compatibility cycle; canonical family, subtype, entry state, bar expiry, and rule-based quality fields are additive.
 
 ## 5. Show the installed version
 

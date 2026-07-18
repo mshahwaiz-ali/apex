@@ -18,6 +18,7 @@ from apex.data.providers.base import (
     MarketDataProvider,
 )
 from apex.domain.futures_screening import (
+    FuturesDiscoveryLane,
     FuturesScreenerConfig,
     FuturesScreeningResult,
 )
@@ -138,6 +139,13 @@ def serialize_futures_screening(
         "hard_eligible_count": result.hard_eligible_count,
         "candle_screened_count": result.candle_screened_count,
         "shortlisted_count": result.shortlisted_count,
+        "lane_coverage": {
+            lane.value: sum(
+                any(signal.lane is lane for signal in candidate.discovery_lanes)
+                for candidate in result.candidates
+            )
+            for lane in FuturesDiscoveryLane
+        },
         "candidates": [
             {
                 "rank": candidate.rank,
@@ -179,6 +187,9 @@ def serialize_futures_screening(
                     "wick_intensity": candidate.features.wick_intensity,
                     "directional_persistence": candidate.features.directional_persistence,
                     "current_participation": candidate.features.current_participation,
+                    "benchmark_relative_return_1h_pct": (
+                        candidate.features.benchmark_relative_return_1h_pct
+                    ),
                 },
                 "reasons": list(candidate.opportunity.reasons),
                 "cautions": list(candidate.opportunity.cautions),

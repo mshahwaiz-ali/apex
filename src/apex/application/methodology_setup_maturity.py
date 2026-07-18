@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from apex.application.methodology_strategy_contracts import (
     ConfirmationPolicy,
@@ -11,6 +12,21 @@ from apex.application.methodology_strategy_contracts import (
 from apex.application.methodology_strategy_registry import strategy_eligibility
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
+
+
+class PublicEntryState(StrEnum):
+    WAIT_CLOSE = "WAIT_CLOSE"
+    WAIT_BREAK = "WAIT_BREAK"
+    WAIT_RETEST = "WAIT_RETEST"
+    WAIT_RECLAIM = "WAIT_RECLAIM"
+    AVAILABLE = "AVAILABLE"
+    AGGRESSIVE = "AGGRESSIVE"
+    LATE = "LATE"
+    MISSED = "MISSED"
+    EXPIRED = "EXPIRED"
+    CANCELED = "CANCELED"
+    FAILED = "FAILED"
+    INVALIDATED = "INVALIDATED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +44,33 @@ class SetupMaturityAssessment:
             raise ValueError("setup maturity assessment requires reasons")
         if len(set(self.reason_codes)) != len(self.reason_codes):
             raise ValueError("setup maturity reason codes must be unique")
+
+    @property
+    def public_entry_state(self) -> PublicEntryState:
+        if self.maturity is SetupMaturity.INVALIDATED:
+            return PublicEntryState.INVALIDATED
+        if self.maturity is SetupMaturity.ENTRY_LATE:
+            return PublicEntryState.LATE
+        if self.maturity is SetupMaturity.ENTRY_MISSED:
+            return PublicEntryState.MISSED
+        if self.maturity is SetupMaturity.PATTERN_FAILED:
+            return PublicEntryState.FAILED
+        if self.maturity is SetupMaturity.RETEST_PENDING:
+            return PublicEntryState.WAIT_RETEST
+        if self.maturity is SetupMaturity.RECLAIM_PENDING:
+            return PublicEntryState.WAIT_RECLAIM
+        if self.maturity in {
+            SetupMaturity.CONFIRMATION_PENDING_CLOSE,
+            SetupMaturity.TRIGGER_PROVISIONAL,
+        }:
+            return PublicEntryState.WAIT_CLOSE
+        if self.maturity is SetupMaturity.ENTRY_AVAILABLE:
+            return (
+                PublicEntryState.AGGRESSIVE
+                if self.legacy_status is EntryStatus.AGGRESSIVE_NOW
+                else PublicEntryState.AVAILABLE
+            )
+        return PublicEntryState.WAIT_BREAK
 
 
 def derive_setup_maturity(
@@ -142,6 +185,7 @@ def setup_maturity_payload(assessment: SetupMaturityAssessment) -> dict[str, obj
         "strategy": assessment.strategy.value,
         "legacy_status": assessment.legacy_status.value,
         "maturity": assessment.maturity.value,
+        "entry_state": assessment.public_entry_state.value,
         "confirmation_policy": assessment.confirmation_policy.value,
         "execution_conditions_complete": assessment.execution_conditions_complete,
         "reason_codes": list(assessment.reason_codes),
@@ -185,6 +229,7 @@ def _assessment(
 
 
 __all__ = [
+    "PublicEntryState",
     "SetupMaturityAssessment",
     "derive_setup_maturity",
     "setup_maturity_payload",

@@ -69,7 +69,7 @@ def render_discovery_analysis(
                     ("Status", humanize_code(setup.get("entry_status"))),
                     ("Direction", direction),
                     ("Strategy", humanize_code(setup.get("strategy"))),
-                    ("Confidence", format_score(setup.get("confidence_score"))),
+                    ("Rule-based quality", _quality_score(setup.get("confidence_score"))),
                     ("Execution allowed now", _yes_no(setup.get("execution_allowed_now"))),
                     ("Setup validity", setup.get("setup_validity")),
                 )
@@ -101,7 +101,7 @@ def render_discovery_analysis(
         ("Current price", format_price(entry.get("current_price"))),
         (entry_label, entry_value),
         ("Preferred entry", format_price(entry.get("preferred"))),
-        ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
+        (_chase_label(setup), format_price(entry.get("maximum_chase_price"))),
         ("Structural stop", format_price(stop.get("price"))),
         ("Stop distance", f"{stop.get('distance_pct', 0):.2f}%"),
         ("Stop type", humanize_code(stop.get("stop_type"))),
@@ -322,7 +322,7 @@ def _render_scan_card(payload: Mapping[str, object]) -> str:
         ("Status", humanize_code(setup.get("entry_status"))),
         ("Direction", direction),
         ("Strategy", humanize_code(setup.get("strategy"))),
-        ("Confidence", format_score(setup.get("confidence_score"))),
+        ("Rule-based quality", _quality_score(setup.get("confidence_score"))),
         ("Current price", format_price(entry.get("current_price"))),
         ("Preferred entry", format_price(entry.get("preferred"))),
         ("Stop", format_price(stop.get("price"))),
@@ -417,6 +417,20 @@ def _entry_display(low: object, high: object) -> tuple[str, str]:
     if low is not None and high is not None and low == high:
         return "Entry price", format_price(low)
     return "Entry zone", _price_range(low, high)
+
+
+def _quality_score(value: object) -> str:
+    formatted = format_score(value)
+    return formatted if formatted == "Unavailable" else f"{formatted}/100"
+
+
+def _chase_label(setup: Mapping[str, object]) -> str:
+    direction = str(setup.get("direction") or "").lower()
+    if direction == "short":
+        return "Do not sell below"
+    if direction == "long":
+        return "Do not buy above"
+    return "Maximum chase"
 
 
 __all__ = ["render_discovery_analysis", "render_discovery_scan"]

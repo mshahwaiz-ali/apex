@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from apex.strategies.contracts import (
     InvalidationType,
     TargetLevel,
-    TargetType,
     TradeDirection,
 )
 
@@ -96,12 +95,11 @@ def build_layered_targets(
     stop_price: float,
     strategy_targets: tuple[TargetLevel, ...],
 ) -> tuple[TargetLevel, ...]:
-    "Add a risk-reduction TP1 without inventing unsupported extensions."
+    "Normalize strategy-supplied targets without inventing risk-multiple levels."
 
     if not strategy_targets:
         raise ValueError("at least one strategy target is required")
-    risk = abs(preferred_entry - stop_price)
-    if risk <= 0.0:
+    if abs(preferred_entry - stop_price) <= 0.0:
         raise ValueError("stop must differ from preferred entry")
 
     ordered = tuple(
@@ -110,24 +108,8 @@ def build_layered_targets(
             key=lambda level: abs(level.price - preferred_entry),
         )
     )
-    nearest = ordered[0]
-    one_r_price = (
-        preferred_entry + risk if direction is TradeDirection.LONG else preferred_entry - risk
-    )
-
-    nearest_reward = abs(nearest.price - preferred_entry)
     results: list[TargetLevel] = []
-    if nearest_reward > risk * 1.15:
-        results.append(
-            TargetLevel(
-                kind=TargetType.PARTIAL,
-                price=one_r_price,
-                label="TP1",
-                rationale=("1R risk-reduction objective before the primary structural target",),
-            )
-        )
-
-    for index, level in enumerate(ordered, start=1 if not results else 2):
+    for index, level in enumerate(ordered, start=1):
         results.append(
             TargetLevel(
                 kind=level.kind,

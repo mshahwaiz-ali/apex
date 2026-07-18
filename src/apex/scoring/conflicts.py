@@ -77,15 +77,10 @@ def resolve_conflicts(
             outcome = CandidateOutcome.REJECTED_CONTRADICTION
             reasons.append("major higher-timeframe contradiction invalidates selection")
         elif unresolved_directional_conflict:
-            direction_leader = (
-                best_long if item.candidate.direction is TradeDirection.LONG else best_short
+            outcome = CandidateOutcome.ACCEPTED_WITH_WARNING
+            reasons.append(
+                "opposing direction remains independently valid inside the conflict margin"
             )
-            if direction_leader is item:
-                outcome = CandidateOutcome.DOWNGRADED
-                reasons.append("equal-strength opposing direction prevents final acceptance")
-            else:
-                outcome = CandidateOutcome.REJECTED_CONTRADICTION
-                reasons.append("opposing direction leader outranks this conflicting candidate")
         elif item.final_score >= config.minimum_accept_score:
             if item.candidate.provisional or consensus is DirectionalConsensus.MIXED:
                 outcome = CandidateOutcome.ACCEPTED_WITH_WARNING

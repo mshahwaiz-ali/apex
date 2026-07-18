@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 from math import log10
 
 from apex.domain.futures_market import FuturesContractMetadata
@@ -40,16 +41,73 @@ def ticker_prefilter_symbols(
             continue
         eligible.append((exchange_symbol, ticker))
 
-    ranked = sorted(
-        eligible,
-        key=lambda item: (
-            -item[1].absolute_movement_percentage,
-            -item[1].quote_volume_24h,
-            item[1].spread_percentage,
-            item[0],
+    # Reserve ticker-only coverage for different opportunity shapes before candle data
+    # exists. This prevents raw movers from consuming the entire request budget.
+    buckets = (
+        sorted(
+            eligible,
+            key=lambda item: (
+                -item[1].quote_volume_24h,
+                item[1].spread_percentage,
+                item[0],
+            ),
+        ),
+        sorted(
+            eligible,
+            key=lambda item: (
+                -item[1].price_change_percentage_24h,
+                -item[1].quote_volume_24h,
+                item[0],
+            ),
+        ),
+        sorted(
+            eligible,
+            key=lambda item: (
+                item[1].price_change_percentage_24h,
+                -item[1].quote_volume_24h,
+                item[0],
+            ),
+        ),
+        sorted(
+            eligible,
+            key=lambda item: (
+                item[1].absolute_movement_percentage,
+                -item[1].quote_volume_24h,
+                item[0],
+            ),
+        ),
+        sorted(
+            eligible,
+            key=lambda item: (
+                -item[1].absolute_movement_percentage,
+                -item[1].quote_volume_24h,
+                item[0],
+            ),
         ),
     )
-    return tuple(exchange_symbol for exchange_symbol, _ in ranked[: config.ticker_prefilter_size])
+    selected: list[str] = []
+    selected_set: set[str] = set()
+    benchmark = next((symbol for symbol, _ in eligible if symbol == "BTCUSDT"), None)
+    if benchmark is not None:
+        selected.append(benchmark)
+        selected_set.add(benchmark)
+    bucket_indexes = [0] * len(buckets)
+    while len(selected) < min(config.ticker_prefilter_size, len(eligible)):
+        added = False
+        for index, bucket in enumerate(buckets):
+            while bucket_indexes[index] < len(bucket):
+                symbol = bucket[bucket_indexes[index]][0]
+                bucket_indexes[index] += 1
+                if symbol not in selected_set:
+                    selected.append(symbol)
+                    selected_set.add(symbol)
+                    added = True
+                    break
+            if len(selected) >= config.ticker_prefilter_size:
+                break
+        if not added:
+            break
+    return tuple(selected)
 
 
 def screen_futures_universe(
@@ -188,7 +246,26 @@ def screen_futures_universe(
             features,
             config,
         )
-        lanes = classify_discovery_lanes(ticker, features, opportunity)
+        benchmark = normalized_candles.get("BTCUSDT")
+        benchmark_return = None
+        if benchmark is not None and len(benchmark) >= config.minimum_candle_count:
+            try:
+                benchmark_return = extract_opportunity_features(
+                    tuple(candle for candle in benchmark if candle.is_closed)
+                ).return_1h_pct
+            except ValueError:
+                benchmark_return = None
+        if benchmark_return is not None:
+            features = replace(
+                features,
+                benchmark_relative_return_1h_pct=features.return_1h_pct - benchmark_return,
+            )
+        lanes = classify_discovery_lanes(
+            ticker,
+            features,
+            opportunity,
+            benchmark_return_1h_pct=benchmark_return,
+        )
         scored.append((contract, ticker, features, opportunity, lanes))
 
     ranked = sorted(
@@ -201,9 +278,12 @@ def screen_futures_universe(
             _normalize_symbol(item[0].exchange_symbol),
         ),
     )
-    selected = ranked[: config.shortlist_size]
+    selected = _select_lane_budgeted(ranked, config.shortlist_size)
+    selected_symbols = {_normalize_symbol(item[0].exchange_symbol) for item in selected}
 
-    for contract, _, _, opportunity, _ in ranked[config.shortlist_size :]:
+    for contract, _, _, opportunity, _ in ranked:
+        if _normalize_symbol(contract.exchange_symbol) in selected_symbols:
+            continue
         exclusions.append(
             FuturesScreeningExclusion(
                 exchange_symbol=_normalize_symbol(contract.exchange_symbol),
@@ -241,6 +321,66 @@ def screen_futures_universe(
         candidates=candidates,
         exclusions=tuple(exclusions),
     )
+
+
+def _select_lane_budgeted(
+    ranked: list[
+        tuple[
+            FuturesContractMetadata,
+            FuturesTickerSnapshot,
+            FuturesOpportunityFeatures,
+            FuturesOpportunityScore,
+            tuple[FuturesDiscoveryLaneSignal, ...],
+        ]
+    ],
+    limit: int,
+) -> list[
+    tuple[
+        FuturesContractMetadata,
+        FuturesTickerSnapshot,
+        FuturesOpportunityFeatures,
+        FuturesOpportunityScore,
+        tuple[FuturesDiscoveryLaneSignal, ...],
+    ]
+]:
+    """Reserve shortlist capacity per discovery lane, then fill by global quality."""
+
+    if len(ranked) <= limit:
+        return ranked
+    lane_order = tuple(FuturesDiscoveryLane)
+    quota = max(1, limit // len(lane_order))
+    selected_symbols: set[str] = set()
+    for lane in lane_order:
+        lane_ranked = sorted(
+            (
+                item
+                for item in ranked
+                if any(signal.lane is lane for signal in item[4])
+            ),
+            key=lambda item: (
+                -max(signal.score for signal in item[4] if signal.lane is lane),
+                -item[3].total,
+                _normalize_symbol(item[0].exchange_symbol),
+            ),
+        )
+        added = 0
+        for item in lane_ranked:
+            symbol = _normalize_symbol(item[0].exchange_symbol)
+            if symbol in selected_symbols:
+                continue
+            selected_symbols.add(symbol)
+            added += 1
+            if added >= quota or len(selected_symbols) >= limit:
+                break
+    for item in ranked:
+        if len(selected_symbols) >= limit:
+            break
+        selected_symbols.add(_normalize_symbol(item[0].exchange_symbol))
+    return [
+        item
+        for item in ranked
+        if _normalize_symbol(item[0].exchange_symbol) in selected_symbols
+    ]
 
 
 def _screen_tickers_only(
@@ -608,6 +748,8 @@ def classify_discovery_lanes(
     ticker: FuturesTickerSnapshot,
     features: FuturesOpportunityFeatures,
     opportunity: FuturesOpportunityScore,
+    *,
+    benchmark_return_1h_pct: float | None = None,
 ) -> tuple[FuturesDiscoveryLaneSignal, ...]:
     """Classify screening candidates into transparent discovery lanes."""
 
@@ -687,8 +829,13 @@ def classify_discovery_lanes(
                 reason="wick activity near structure suggests rejection or sweep potential",
             )
         )
+    relative_return = (
+        features.return_1h_pct - benchmark_return_1h_pct
+        if benchmark_return_1h_pct is not None
+        else features.return_1h_pct
+    )
     if (
-        abs(features.return_1h_pct) >= 1.5
+        abs(relative_return) >= 1.5
         and opportunity.relative_volume >= 45
         and opportunity.spread_quality >= 50
     ):
@@ -698,19 +845,23 @@ def classify_discovery_lanes(
                 score=round(
                     min(
                         100.0,
-                        abs(features.return_1h_pct) * 18.0 + opportunity.relative_volume * 0.35,
+                        abs(relative_return) * 18.0 + opportunity.relative_volume * 0.35,
                     ),
                     4,
                 ),
-                reason="recent relative movement is supported by participation and usable spread",
+                reason=(
+                    "one-hour return differs from BTC with participation and usable spread"
+                    if benchmark_return_1h_pct is not None
+                    else "recent movement is supported by participation and usable spread"
+                ),
             )
         )
     if not lanes:
         lanes.append(
             FuturesDiscoveryLaneSignal(
-                lane=FuturesDiscoveryLane.FAST_MOVER,
+                lane=FuturesDiscoveryLane.DEVELOPING,
                 score=round(max(1.0, opportunity.movement), 4),
-                reason="fallback lane for balanced movement and execution-quality screening",
+                reason="tradable market retained for developing-setup coverage",
             )
         )
     return tuple(sorted(lanes, key=lambda item: (-item.score, item.lane.value)))
@@ -734,15 +885,6 @@ def _hard_exclusion(
             (
                 f"Spread {ticker.spread_percentage} is above "
                 f"{config.maximum_spread_percentage} percent."
-            ),
-        )
-    if ticker.absolute_movement_percentage < config.minimum_absolute_movement_percentage:
-        return (
-            FuturesScreeningExclusionReason.INSUFFICIENT_MOVEMENT,
-            (
-                "Absolute 24h movement "
-                f"{ticker.absolute_movement_percentage} is below "
-                f"{config.minimum_absolute_movement_percentage} percent."
             ),
         )
     return None

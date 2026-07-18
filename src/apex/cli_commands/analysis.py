@@ -67,6 +67,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                     candle_limit=candle_limit,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     methodology_gate_mode=context.settings.methodology_gate_mode,
+                    market_environment_config=context.settings.market_environment,
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

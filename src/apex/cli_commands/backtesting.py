@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+import math
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -15,15 +17,16 @@ from apex.application import (
     create_market_data_services,
     normalize_market_symbol,
 )
-from apex.backtesting.contracts import BacktestConfig
+from apex.backtesting.contracts import BacktestConfig, BacktestRequest
 from apex.backtesting.discovery_signal import signal_from_discovery_setup
-from apex.backtesting.engine import simulate_trade, summarize_trades
+from apex.backtesting.engine import HistoricalBacktestRunner, summarize_trades
 from apex.backtesting.historical_signal_replay import (
     HistoricalCandleSeries,
     HistoricalCandleStore,
     HistoricalReplayProvider,
 )
 from apex.data.providers.errors import MarketDataProviderError
+from apex.data.timeframes import timeframe_delta
 from apex.presentation import OutputMode, normalize_cli_output_mode
 
 
@@ -52,6 +55,19 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             int,
             typer.Option("--replay-candles", min=1, max=100),
         ] = 24,
+        decision_points: Annotated[
+            int,
+            typer.Option(
+                "--decision-points",
+                min=1,
+                max=50,
+                help="Chronological non-overlapping decisions in the replay campaign.",
+            ),
+        ] = 5,
+        funding_pct: Annotated[
+            float,
+            typer.Option("--funding-pct", min=0.0, help="Optional modeled funding drag."),
+        ] = 0.0,
         config_dir: Annotated[
             Path,
             typer.Option(
@@ -62,7 +78,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             ),
         ] = Path("config"),
     ) -> None:
-        """Analyze a historical prefix and replay its setup on withheld candles."""
+        """Run a chronological multi-decision analysis and replay campaign."""
 
         try:
             output_mode = normalize_cli_output_mode(output)
@@ -70,7 +86,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             context = bootstrap(config_dir)
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             requested_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
-            source_limit = candle_limit + replay_candles
+            source_limit = candle_limit + replay_candles * decision_points
 
             with create_market_data_services(context.settings) as services:
                 series = tuple(
@@ -82,7 +98,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                             for candle in services.candles.fetch_candles(
                                 normalized_symbol,
                                 timeframe,
-                                limit=source_limit,
+                                limit=_campaign_source_limit(
+                                    timeframe=timeframe,
+                                    replay_timeframe=replay_timeframe,
+                                    candle_limit=candle_limit,
+                                    replay_candles=replay_candles,
+                                    decision_points=decision_points,
+                                ),
                             )
                             if candle.is_closed
                         ),
@@ -91,70 +113,120 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 )
 
             replay_series = next(item for item in series if item.timeframe == replay_timeframe)
-            if len(replay_series.candles) <= replay_candles:
+            if len(replay_series.candles) < source_limit:
                 raise ValueError(
-                    "backtest requires more closed source candles than the replay holdout"
+                    "backtest requires enough closed candles for analysis and every replay window"
                 )
-
-            decision_index = len(replay_series.candles) - replay_candles - 1
-            decision_time = replay_series.candles[decision_index].close_time
-            future_candles = tuple(
-                candle for candle in replay_series.candles if candle.open_time >= decision_time
-            )[:replay_candles]
-            if not future_candles:
-                raise ValueError("backtest replay holdout is empty")
-
-            replay_provider = HistoricalReplayProvider(
-                store=HistoricalCandleStore(series),
-                decision_time=decision_time,
+            store = HistoricalCandleStore(series)
+            decision_times = tuple(
+                replay_series.candles[
+                    len(replay_series.candles)
+                    - replay_candles * (decision_points - index)
+                    - 1
+                ].close_time
+                for index in range(decision_points)
             )
-            analysis = analyze_selected_symbol(
-                normalized_symbol,
-                replay_provider,
-                timeframes=analysis_timeframes,
-                timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                timeframe_max_staleness_seconds=getattr(
-                    context.settings,
-                    "timeframe_max_staleness_seconds",
-                    None,
-                ),
-                candle_limit=candle_limit,
-                generated_at=decision_time,
-                strategy_routing=getattr(context.settings, "strategy_routing", None),
-            )
+            signals = []
+            no_trade_decisions: list[dict[str, object]] = []
+            decision_partitions: list[dict[str, str]] = []
+            for decision_index, decision_time in enumerate(decision_times):
+                partition = _campaign_partition(decision_index, decision_points)
+                decision_partitions.append(
+                    {"decision_time": decision_time.isoformat(), "partition": partition}
+                )
+                replay_provider = HistoricalReplayProvider(
+                    store=store,
+                    decision_time=decision_time,
+                )
+                analysis = analyze_selected_symbol(
+                    normalized_symbol,
+                    replay_provider,
+                    timeframes=analysis_timeframes,
+                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                    timeframe_max_staleness_seconds=getattr(
+                        context.settings,
+                        "timeframe_max_staleness_seconds",
+                        None,
+                    ),
+                    candle_limit=candle_limit,
+                    generated_at=decision_time,
+                    strategy_routing=getattr(context.settings, "strategy_routing", None),
+                    market_environment_config=context.settings.market_environment,
+                )
+                setup = analysis.assessment.setup
+                if setup is None:
+                    no_trade_decisions.append(
+                        {
+                            "decision_time": decision_time.isoformat(),
+                            "partition": partition,
+                            "reasons": list(analysis.assessment.reasons),
+                        }
+                    )
+                    continue
+                signals.append(signal_from_discovery_setup(setup))
         except (StopIteration, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
             typer.echo(f"Backtest market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        setup = analysis.assessment.setup
-        if setup is None:
-            payload: dict[str, object] = {
-                "symbol": normalized_symbol,
-                "decision": "NO_TRADE",
-                "decision_time": decision_time.isoformat(),
-                "reasons": list(analysis.assessment.reasons),
-            }
-            _emit(payload, f"{normalized_symbol}: NO_TRADE", output_mode)
-            return
-
-        signal = signal_from_discovery_setup(setup)
-        config = BacktestConfig(maximum_holding_candles=replay_candles)
-        trade = simulate_trade(signal, future_candles, config=config)
-        report = summarize_trades((trade,))
-        payload = {
-            "symbol": normalized_symbol,
-            "decision_time": decision_time.isoformat(),
-            "replay_timeframe": replay_timeframe,
-            "replay_candles": len(future_candles),
-            "trade": _jsonable(asdict(trade)),
-            "metrics": _jsonable(asdict(report) | {"trades": []}),
+        config = BacktestConfig(
+            maximum_holding_candles=replay_candles,
+            funding_pct=funding_pct,
+        )
+        study = HistoricalBacktestRunner().run(
+            BacktestRequest(
+                signals=tuple(signals),
+                candles_by_symbol={normalized_symbol: replay_series.candles},
+                config=config,
+                dataset_id=f"{normalized_symbol}:{replay_timeframe}:campaign",
+            )
+        )
+        report = study.report
+        partition_by_time = {
+            item["decision_time"]: item["partition"] for item in decision_partitions
         }
+        partition_metrics = {
+            partition: _report_metrics(
+                summarize_trades(
+                    tuple(
+                        trade
+                        for trade in report.trades
+                        if partition_by_time.get(trade.signal.generated_at.isoformat())
+                        == partition
+                    )
+                )
+            )
+            for partition in ("training", "validation", "final_test")
+        }
+        payload = {
+            "schema_version": 2,
+            "symbol": normalized_symbol,
+            "replay_timeframe": replay_timeframe,
+            "replay_candles": replay_candles,
+            "decision_point_count": decision_points,
+            "generated_signal_count": study.generated_signal_count,
+            "no_trade_decision_count": len(no_trade_decisions),
+            "decision_times": [item.isoformat() for item in decision_times],
+            "decision_partitions": decision_partitions,
+            "no_trade_decisions": no_trade_decisions,
+            "trades": [_jsonable(trade) for trade in report.trades],
+            "metrics": _report_metrics(report),
+            "metrics_by_partition": partition_metrics,
+            "calibration_authoritative": False,
+            "study": {
+                "dataset_hash": study.dataset_hash,
+                "config_hash": study.config_hash,
+                "code_hash": study.code_hash,
+                "skipped_signal_count": study.skipped_signal_count,
+            },
+        }
+        if len(report.trades) == 1:
+            payload["trade"] = _jsonable(report.trades[0])
         text = (
-            f"{normalized_symbol}: {trade.outcome.value.upper()} "
-            f"| net_pnl={trade.net_pnl:.6f} "
-            f"| r={trade.realized_r_multiple:.2f}"
+            f"{normalized_symbol}: CAMPAIGN | decisions={decision_points} "
+            f"| signals={study.generated_signal_count} | trades={report.total_trades} "
+            f"| expectancy={report.expectancy:.6f} | net_pnl={report.net_profit:.6f}"
         )
         _emit(payload, text, output_mode)
 
@@ -166,8 +238,41 @@ def _emit(payload: object, text: str, output_mode: OutputMode) -> None:
     typer.echo(text)
 
 
+def _campaign_partition(index: int, total: int) -> str:
+    """Assign frozen chronological evaluation partitions without shuffling."""
+
+    if total <= 1:
+        return "final_test"
+    training_end = min(max(1, int(total * 0.6)), total - 1)
+    validation_end = min(max(training_end + 1, int(total * 0.8)), total - 1)
+    if index < training_end:
+        return "training"
+    if index < validation_end:
+        return "validation"
+    return "final_test"
+
+
+def _campaign_source_limit(
+    *,
+    timeframe: str,
+    replay_timeframe: str,
+    candle_limit: int,
+    replay_candles: int,
+    decision_points: int,
+) -> int:
+    """Retain a full analysis prefix at the earliest replay decision."""
+
+    horizon = timeframe_delta(replay_timeframe) * replay_candles * decision_points
+    displaced_bars = math.ceil(horizon / timeframe_delta(timeframe))
+    # Cover the active provider candle, interval-boundary alignment, and the
+    # analysis core's closed-prefix/provisional-candle lookback.
+    return candle_limit + displaced_bars + 4
+
+
 def _jsonable(value: object) -> object:
-    if isinstance(value, dict):
+    if is_dataclass(value) and not isinstance(value, type):
+        return {field.name: _jsonable(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
@@ -176,6 +281,14 @@ def _jsonable(value: object) -> object:
     if hasattr(value, "value"):
         return value.value
     return value
+
+
+def _report_metrics(report: object) -> dict[str, object]:
+    payload = _jsonable(report)
+    if not isinstance(payload, dict):
+        raise TypeError("backtest report must serialize to an object")
+    payload["trades"] = []
+    return payload
 
 
 __all__ = ["register_backtesting_commands"]
