@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from apex.application.discovery_contracts import DiscoverySetup, SymbolAnalysis
+from apex.application.market_state import MarketStateSnapshot
 from apex.application.market_usability import (
     MarketUsabilityAssessment,
     classify_market_usability,
@@ -20,6 +23,7 @@ from apex.application.methodology_contracts import (
     TargetCandidate,
     TargetRole,
 )
+from apex.application.methodology_market_state import adapt_market_state
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import ConfirmationPolicy, SetupMaturity
 from apex.strategies.entry_status import EntryStatus
@@ -45,13 +49,23 @@ _ENTRY_KIND_BY_STATUS: dict[EntryStatus, EntryOpportunityType] = {
 
 def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapshot:
     """Return stored methodology or a compatibility projection from the setup."""
-    if analysis.methodology is not None:
-        return analysis.methodology
+
     usability = classify_market_usability(analysis.data_quality_by_timeframe)
-    setup = analysis.assessment.setup
-    if setup is None:
-        return MethodologySnapshot(market_usability=usability)
-    return _project_setup(setup, market_usability=usability)
+    methodology = analysis.methodology
+    if methodology is None:
+        setup = analysis.assessment.setup
+        methodology = (
+            MethodologySnapshot(market_usability=usability)
+            if setup is None
+            else _project_setup(setup, market_usability=usability)
+        )
+    elif methodology.market_usability is None:
+        methodology = replace(methodology, market_usability=usability)
+
+    fused_state = getattr(analysis, "market_state", None)
+    if methodology.market_state is None and isinstance(fused_state, MarketStateSnapshot):
+        methodology = replace(methodology, market_state=adapt_market_state(fused_state))
+    return methodology
 
 
 def _project_setup(
