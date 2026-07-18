@@ -47,9 +47,7 @@ def derive_contradiction_semantics(
             "contradictory evidence accompanies explicit structural invalidation or pattern failure"
         )
     elif execution_blocked:
-        interpretation = (
-            "contradictions are present alongside a separate methodology hard blocker"
-        )
+        interpretation = "contradictions are present alongside a separate methodology hard blocker"
     elif high_count:
         interpretation = (
             "high-severity contradictions materially reduce analytical quality but do not "
@@ -57,7 +55,8 @@ def derive_contradiction_semantics(
         )
     else:
         interpretation = (
-            "contradictions weaken confidence and ranking while remaining distinct from hard rejection"
+            "contradictions weaken confidence and ranking while remaining distinct from "
+            "hard rejection"
         )
 
     return ContradictionSemantics(

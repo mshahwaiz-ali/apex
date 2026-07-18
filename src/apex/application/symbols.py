@@ -20,9 +20,7 @@ def load_symbol_file(path: str | Path) -> tuple[str, ...]:
         raise ValueError("symbol configuration must contain a symbols list")
 
     symbols = tuple(
-        normalize_market_symbol(str(symbol))
-        for symbol in raw["symbols"]
-        if str(symbol).strip()
+        normalize_market_symbol(str(symbol)) for symbol in raw["symbols"] if str(symbol).strip()
     )
     if not symbols:
         raise ValueError("symbol configuration must contain at least one symbol")

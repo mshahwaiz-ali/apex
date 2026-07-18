@@ -9,7 +9,6 @@ from apex.application.methodology_selected_entry_contracts import SelectedEntryD
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import SetupMaturity
 
-
 _BLOCKED_MATURITIES = {
     SetupMaturity.ENTRY_MISSED,
     SetupMaturity.PATTERN_FAILED,

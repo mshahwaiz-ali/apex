@@ -82,9 +82,7 @@ def derive_target_feasibility_semantics(
     opportunity = None if decision is None else decision.opportunity
     entry = None if opportunity is None else opportunity.ideal_entry
     risk_distance = (
-        None
-        if entry is None or invalidation is None
-        else abs(entry - invalidation.price)
+        None if entry is None or invalidation is None else abs(entry - invalidation.price)
     )
     gross_available = risk_distance is not None and risk_distance > 0.0
     items = tuple(
@@ -106,9 +104,7 @@ def derive_target_feasibility_semantics(
     room_results = tuple(
         item.clear_room_proven for item in items if item.clear_room_proven is not None
     )
-    obstacle_room_proven = (
-        all(room_results) if items and len(room_results) == len(items) else None
-    )
+    obstacle_room_proven = all(room_results) if items and len(room_results) == len(items) else None
     net_available = bool(execution_costs is not None and gross_available)
 
     if not methodology.targets:
@@ -135,13 +131,16 @@ def derive_target_feasibility_semantics(
         )
 
     limitations = [
-        "strategy-specific expectancy is required before judging whether any R multiple is sufficient",
-        "declared and derived R multiples may differ because upstream calculations may use different entry or cost assumptions",
+        "strategy-specific expectancy is required before judging whether any R "
+        "multiple is sufficient",
+        "declared and derived R multiples may differ because upstream calculations "
+        "may use different entry or cost assumptions",
     ]
     if execution_costs is None:
         limitations.insert(
             0,
-            "fees, funding, spread, and target-exit slippage are unavailable, so net reward geometry is not claimed",
+            "fees, funding, spread, and target-exit slippage are unavailable, so net "
+            "reward geometry is not claimed",
         )
     if obstacle_room_proven is None:
         limitations.insert(
@@ -223,9 +222,7 @@ def target_feasibility_semantics_payload(
         "obstacle_room_proven": semantics.obstacle_room_proven,
         "directionally_validated": semantics.directionally_validated,
         "all_targets_on_correct_side": semantics.all_targets_on_correct_side,
-        "universal_minimum_risk_reward_applied": (
-            semantics.universal_minimum_risk_reward_applied
-        ),
+        "universal_minimum_risk_reward_applied": (semantics.universal_minimum_risk_reward_applied),
         "interpretation": semantics.interpretation,
         "limitations": list(semantics.limitations),
     }
@@ -241,7 +238,9 @@ def _target_item(
     obstacle: TargetObstacleEvidence | None,
 ) -> TargetFeasibilityItem:
     gross_distance = None if entry is None else abs(target.price - entry)
-    derived_move = None if gross_distance is None else gross_distance / entry * 100.0
+    derived_move = (
+        None if gross_distance is None or entry is None else gross_distance / entry * 100.0
+    )
     derived_r = (
         None
         if gross_distance is None or risk_distance is None or risk_distance <= 0.0

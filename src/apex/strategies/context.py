@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from apex.domain.models import Candle
 from apex.liquidity.analysis import LiquidityAnalysisResult
 from apex.structure.contracts import StructureAnalysisResult, TrendDirection
 
@@ -126,6 +127,7 @@ class TimeframeContext:
     is_stale: bool = False
     data_confidence: float = 1.0
     current_price_source: str = "latest_closed_price"
+    recent_candles: tuple[Candle, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.timeframe.strip():

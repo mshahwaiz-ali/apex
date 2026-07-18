@@ -14,8 +14,8 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    StrategyAnalysisResult,
     RawQualityMetrics,
+    StrategyAnalysisResult,
     StrategyEvidence,
     StrategyType,
     TargetConcept,
@@ -24,7 +24,6 @@ from apex.strategies import (
     TradeCandidate,
     TradeDirection,
 )
-
 
 NOW = datetime(2026, 7, 17, tzinfo=UTC)
 

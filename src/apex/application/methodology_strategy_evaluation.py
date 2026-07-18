@@ -33,9 +33,7 @@ class StrategyEligibilityEvaluation:
             raise ValueError("strategy eligibility evaluation requires reasons")
         if len(set(self.present_evidence)) != len(self.present_evidence):
             raise ValueError("present evidence families must be unique")
-        if len(set(self.missing_mandatory_evidence)) != len(
-            self.missing_mandatory_evidence
-        ):
+        if len(set(self.missing_mandatory_evidence)) != len(self.missing_mandatory_evidence):
             raise ValueError("missing evidence families must be unique")
 
 
@@ -49,9 +47,7 @@ def evaluate_strategy_eligibility(
 
     declaration = strategy_eligibility(strategy)
     present = tuple(dict.fromkeys(item.family for item in evidence))
-    missing = tuple(
-        family for family in declaration.mandatory_evidence if family not in present
-    )
+    missing = tuple(family for family in declaration.mandatory_evidence if family not in present)
 
     if market_state is None:
         return StrategyEligibilityEvaluation(
@@ -69,9 +65,7 @@ def evaluate_strategy_eligibility(
             market_state=market_state,
             present_evidence=present,
             missing_mandatory_evidence=missing,
-            reasons=(
-                f"{strategy.value} prohibits market state {market_state.value}",
-            ),
+            reasons=(f"{strategy.value} prohibits market state {market_state.value}",),
         )
     if market_state not in declaration.compatible_states:
         return StrategyEligibilityEvaluation(
@@ -80,10 +74,7 @@ def evaluate_strategy_eligibility(
             market_state=market_state,
             present_evidence=present,
             missing_mandatory_evidence=missing,
-            reasons=(
-                f"{strategy.value} is not declared for market state "
-                f"{market_state.value}",
-            ),
+            reasons=(f"{strategy.value} is not declared for market state {market_state.value}",),
         )
     if missing:
         return StrategyEligibilityEvaluation(

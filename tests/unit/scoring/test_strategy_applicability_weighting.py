@@ -24,7 +24,6 @@ from apex.strategies import (
     TradeDirection,
 )
 
-
 NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 
@@ -130,16 +129,9 @@ def test_conditional_candidate_receives_transparent_penalty() -> None:
         },
     )
 
-    assert adjusted[0].final_score == pytest.approx(
-        scored[0].final_score - 7.0
-    )
-    assert adjusted[0].breakdown.penalty_points[
-        "strategy_applicability"
-    ] == pytest.approx(7.0)
-    assert (
-        "conditional strategy applicability penalty applied"
-        in adjusted[0].notes
-    )
+    assert adjusted[0].final_score == pytest.approx(scored[0].final_score - 7.0)
+    assert adjusted[0].breakdown.penalty_points["strategy_applicability"] == pytest.approx(7.0)
+    assert "conditional strategy applicability penalty applied" in adjusted[0].notes
 
 
 def test_not_applicable_candidate_is_rejected_before_ranking() -> None:

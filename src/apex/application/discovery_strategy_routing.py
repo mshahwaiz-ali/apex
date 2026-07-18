@@ -42,9 +42,7 @@ def apply_strategy_routing(
         SuppressedStrategyCandidate(
             candidate=candidate,
             reason_codes=("STRATEGY_EXPLICITLY_DISABLED",),
-            reasons=(
-                f"{candidate.strategy.value} is disabled by explicit strategy configuration",
-            ),
+            reasons=(f"{candidate.strategy.value} is disabled by explicit strategy configuration",),
         )
         for candidate in strategy_analysis.candidates
         if candidate.strategy not in enabled
@@ -66,9 +64,7 @@ def apply_strategy_routing(
         higher_timeframe_breakout=strategy_analysis.higher_timeframe_breakout,
         strategy_applicability=strategy_analysis.strategy_applicability,
         candidate_actionability=candidate_actionability,
-        suppressed_candidates=(
-            strategy_analysis.suppressed_candidates + newly_suppressed
-        ),
+        suppressed_candidates=(strategy_analysis.suppressed_candidates + newly_suppressed),
     )
 
 
@@ -96,14 +92,10 @@ def build_strategy_routing_payload(
         "selected_strategy": selected.value if selected is not None else None,
         "selected_strategy_enabled": selected in enabled if selected is not None else False,
         "decision_regime": (
-            strategy_analysis.decision_regime.value
-            if strategy_analysis is not None
-            else None
+            strategy_analysis.decision_regime.value if strategy_analysis is not None else None
         ),
         "higher_timeframe_breakout": (
-            strategy_analysis.higher_timeframe_breakout
-            if strategy_analysis is not None
-            else False
+            strategy_analysis.higher_timeframe_breakout if strategy_analysis is not None else False
         ),
         "routed_eligible_strategies": [strategy.value for strategy in enabled],
         "skipped_strategies": (
@@ -111,8 +103,7 @@ def build_strategy_routing_payload(
                 strategy.value: reason
                 for strategy, reason in strategy_analysis.skipped_strategies.items()
             }
-            if strategy_analysis is not None
-            and strategy_analysis.skipped_strategies is not None
+            if strategy_analysis is not None and strategy_analysis.skipped_strategies is not None
             else {}
         ),
         "strategy_diagnostics": diagnostics,
@@ -215,22 +206,16 @@ def _candidate_payloads(
                 "direction": None,
                 "generated": False,
                 "entry_status": (
-                    diagnostic.near_miss_state.value
-                    if diagnostic is not None
-                    else None
+                    diagnostic.near_miss_state.value if diagnostic is not None else None
                 ),
                 "rejection_codes": (
                     [code.value for code in diagnostic.rejection_codes]
                     if diagnostic is not None
                     else []
                 ),
-                "rejection_reasons": (
-                    list(diagnostic.reasons) if diagnostic is not None else []
-                ),
+                "rejection_reasons": (list(diagnostic.reasons) if diagnostic is not None else []),
                 "near_miss_state": (
-                    diagnostic.near_miss_state.value
-                    if diagnostic is not None
-                    else None
+                    diagnostic.near_miss_state.value if diagnostic is not None else None
                 ),
             }
         )

@@ -57,9 +57,7 @@ def test_market_usability_marks_missing_data_incomplete() -> None:
 
 
 def test_missing_execution_metadata_is_caution_not_hard_rejection() -> None:
-    assessment = classify_market_usability(
-        {"15m": _quality(spread=None, filters=False)}
-    )
+    assessment = classify_market_usability({"15m": _quality(spread=None, filters=False)})
 
     assert assessment.state is MarketUsabilityState.USABLE_WITH_CAUTION
     assert "15m:spread" in assessment.missing_inputs

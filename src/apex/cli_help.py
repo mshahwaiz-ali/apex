@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typer
 
-
 _COMMAND_HELP: dict[str, tuple[str, str]] = {
     "scan": (
         "Trade discovery",

@@ -188,9 +188,7 @@ def test_fetch_futures_contracts_rejects_invalid_top_level_payload(
     payload: object,
 ) -> None:
     client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json=payload)
-        ),
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload)),
         base_url="https://fapi.binance.com",
     )
     provider = BinanceFuturesUniverseProvider(client=client)

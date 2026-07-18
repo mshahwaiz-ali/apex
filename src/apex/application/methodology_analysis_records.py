@@ -54,15 +54,9 @@ def _scan_methodology_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
         "methodology_authoritative_result_count": payload.get(
             "methodology_authoritative_result_count"
         ),
-        "methodology_projected_result_count": payload.get(
-            "methodology_projected_result_count"
-        ),
-        "methodology_unavailable_field_counts": payload.get(
-            "methodology_unavailable_field_counts"
-        ),
-        "methodology_coverage_interpretation": payload.get(
-            "methodology_coverage_interpretation"
-        ),
+        "methodology_projected_result_count": payload.get("methodology_projected_result_count"),
+        "methodology_unavailable_field_counts": payload.get("methodology_unavailable_field_counts"),
+        "methodology_coverage_interpretation": payload.get("methodology_coverage_interpretation"),
     }
 
 

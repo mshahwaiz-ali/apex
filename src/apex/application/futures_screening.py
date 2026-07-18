@@ -7,6 +7,8 @@ from math import log10
 
 from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.futures_screening import (
+    FuturesDiscoveryLane,
+    FuturesDiscoveryLaneSignal,
     FuturesOpportunityFeatures,
     FuturesOpportunityScore,
     FuturesScreenerConfig,
@@ -27,8 +29,7 @@ def ticker_prefilter_symbols(
     """Return symbols worth one limited candle request."""
 
     contracts_by_symbol = {
-        _normalize_symbol(contract.exchange_symbol): contract
-        for contract in contracts
+        _normalize_symbol(contract.exchange_symbol): contract for contract in contracts
     }
     eligible: list[tuple[str, FuturesTickerSnapshot]] = []
     for ticker in tickers:
@@ -48,18 +49,13 @@ def ticker_prefilter_symbols(
             item[0],
         ),
     )
-    return tuple(
-        exchange_symbol
-        for exchange_symbol, _ in ranked[: config.ticker_prefilter_size]
-    )
+    return tuple(exchange_symbol for exchange_symbol, _ in ranked[: config.ticker_prefilter_size])
 
 
 def screen_futures_universe(
     contracts: Iterable[FuturesContractMetadata],
     tickers: Iterable[FuturesTickerSnapshot],
-    candle_sets_or_config: (
-        Mapping[str, Sequence[Candle]] | FuturesScreenerConfig
-    ),
+    candle_sets_or_config: (Mapping[str, Sequence[Candle]] | FuturesScreenerConfig),
     config: FuturesScreenerConfig | None = None,
     *,
     candle_failures: Mapping[str, str] | None = None,
@@ -68,9 +64,7 @@ def screen_futures_universe(
 
     if isinstance(candle_sets_or_config, FuturesScreenerConfig):
         if config is not None:
-            raise ValueError(
-                "config must be omitted for ticker-only screening"
-            )
+            raise ValueError("config must be omitted for ticker-only screening")
         return _screen_tickers_only(
             contracts,
             tickers,
@@ -78,43 +72,28 @@ def screen_futures_universe(
         )
 
     if config is None:
-        raise ValueError(
-            "config is required when candle sets are supplied"
-        )
+        raise ValueError("config is required when candle sets are supplied")
     candle_sets = candle_sets_or_config
 
     contracts_by_symbol = {
-        _normalize_symbol(contract.exchange_symbol): contract
-        for contract in contracts
+        _normalize_symbol(contract.exchange_symbol): contract for contract in contracts
     }
-    tickers_by_symbol = {
-        _normalize_symbol(ticker.exchange_symbol): ticker
-        for ticker in tickers
-    }
+    tickers_by_symbol = {_normalize_symbol(ticker.exchange_symbol): ticker for ticker in tickers}
     normalized_candles = {
-        _normalize_symbol(symbol): candles
-        for symbol, candles in candle_sets.items()
+        _normalize_symbol(symbol): candles for symbol, candles in candle_sets.items()
     }
     failures = {
-        _normalize_symbol(symbol): detail
-        for symbol, detail in (candle_failures or {}).items()
+        _normalize_symbol(symbol): detail for symbol, detail in (candle_failures or {}).items()
     }
     exclusions: list[FuturesScreeningExclusion] = []
-    hard_eligible: list[
-        tuple[FuturesContractMetadata, FuturesTickerSnapshot]
-    ] = []
+    hard_eligible: list[tuple[FuturesContractMetadata, FuturesTickerSnapshot]] = []
 
-    for exchange_symbol in sorted(
-        tickers_by_symbol.keys() - contracts_by_symbol.keys()
-    ):
+    for exchange_symbol in sorted(tickers_by_symbol.keys() - contracts_by_symbol.keys()):
         exclusions.append(
             FuturesScreeningExclusion(
                 exchange_symbol=exchange_symbol,
                 reason=FuturesScreeningExclusionReason.OUTSIDE_UNIVERSE,
-                detail=(
-                    "Ticker is not part of the selected futures "
-                    "contract universe."
-                ),
+                detail=("Ticker is not part of the selected futures contract universe."),
             )
         )
 
@@ -126,10 +105,7 @@ def screen_futures_universe(
                 FuturesScreeningExclusion(
                     exchange_symbol=exchange_symbol,
                     reason=FuturesScreeningExclusionReason.MISSING_TICKER,
-                    detail=(
-                        "No valid batch ticker was available for "
-                        "this contract."
-                    ),
+                    detail=("No valid batch ticker was available for this contract."),
                 )
             )
             continue
@@ -160,6 +136,7 @@ def screen_futures_universe(
             FuturesTickerSnapshot,
             FuturesOpportunityFeatures,
             FuturesOpportunityScore,
+            tuple[FuturesDiscoveryLaneSignal, ...],
         ]
     ] = []
 
@@ -172,27 +149,20 @@ def screen_futures_universe(
             exclusions.append(
                 FuturesScreeningExclusion(
                     exchange_symbol=exchange_symbol,
-                    reason=(
-                        FuturesScreeningExclusionReason.CANDLE_FETCH_FAILED
-                    ),
+                    reason=(FuturesScreeningExclusionReason.CANDLE_FETCH_FAILED),
                     detail=failure,
                 )
             )
             continue
 
         candles = tuple(
-            candle
-            for candle in normalized_candles.get(exchange_symbol, ())
-            if candle.is_closed
+            candle for candle in normalized_candles.get(exchange_symbol, ()) if candle.is_closed
         )
         if len(candles) < config.minimum_candle_count:
             exclusions.append(
                 FuturesScreeningExclusion(
                     exchange_symbol=exchange_symbol,
-                    reason=(
-                        FuturesScreeningExclusionReason
-                        .INSUFFICIENT_CANDLE_HISTORY
-                    ),
+                    reason=(FuturesScreeningExclusionReason.INSUFFICIENT_CANDLE_HISTORY),
                     detail=(
                         f"Received {len(candles)} closed candles; "
                         f"{config.minimum_candle_count} required."
@@ -207,9 +177,7 @@ def screen_futures_universe(
             exclusions.append(
                 FuturesScreeningExclusion(
                     exchange_symbol=exchange_symbol,
-                    reason=(
-                        FuturesScreeningExclusionReason.INVALID_CANDLE_DATA
-                    ),
+                    reason=(FuturesScreeningExclusionReason.INVALID_CANDLE_DATA),
                     detail=str(exc),
                 )
             )
@@ -220,7 +188,8 @@ def screen_futures_universe(
             features,
             config,
         )
-        scored.append((contract, ticker, features, opportunity))
+        lanes = classify_discovery_lanes(ticker, features, opportunity)
+        scored.append((contract, ticker, features, opportunity, lanes))
 
     ranked = sorted(
         scored,
@@ -234,12 +203,10 @@ def screen_futures_universe(
     )
     selected = ranked[: config.shortlist_size]
 
-    for contract, _, _, opportunity in ranked[config.shortlist_size :]:
+    for contract, _, _, opportunity, _ in ranked[config.shortlist_size :]:
         exclusions.append(
             FuturesScreeningExclusion(
-                exchange_symbol=_normalize_symbol(
-                    contract.exchange_symbol
-                ),
+                exchange_symbol=_normalize_symbol(contract.exchange_symbol),
                 reason=FuturesScreeningExclusionReason.BELOW_SHORTLIST,
                 detail=(
                     f"Opportunity score {opportunity.total:.2f} "
@@ -255,12 +222,14 @@ def screen_futures_universe(
             ticker=ticker,
             features=features,
             opportunity=opportunity,
+            discovery_lanes=lanes,
         )
         for rank, (
             contract,
             ticker,
             features,
             opportunity,
+            lanes,
         ) in enumerate(selected, start=1)
     )
 
@@ -274,7 +243,6 @@ def screen_futures_universe(
     )
 
 
-
 def _screen_tickers_only(
     contracts: Iterable[FuturesContractMetadata],
     tickers: Iterable[FuturesTickerSnapshot],
@@ -283,29 +251,18 @@ def _screen_tickers_only(
     """Preserve the original cheap ticker-only screening contract."""
 
     contracts_by_symbol = {
-        _normalize_symbol(contract.exchange_symbol): contract
-        for contract in contracts
+        _normalize_symbol(contract.exchange_symbol): contract for contract in contracts
     }
-    tickers_by_symbol = {
-        _normalize_symbol(ticker.exchange_symbol): ticker
-        for ticker in tickers
-    }
+    tickers_by_symbol = {_normalize_symbol(ticker.exchange_symbol): ticker for ticker in tickers}
     exclusions: list[FuturesScreeningExclusion] = []
-    eligible: list[
-        tuple[FuturesContractMetadata, FuturesTickerSnapshot]
-    ] = []
+    eligible: list[tuple[FuturesContractMetadata, FuturesTickerSnapshot]] = []
 
-    for exchange_symbol in sorted(
-        tickers_by_symbol.keys() - contracts_by_symbol.keys()
-    ):
+    for exchange_symbol in sorted(tickers_by_symbol.keys() - contracts_by_symbol.keys()):
         exclusions.append(
             FuturesScreeningExclusion(
                 exchange_symbol=exchange_symbol,
                 reason=FuturesScreeningExclusionReason.OUTSIDE_UNIVERSE,
-                detail=(
-                    "Ticker is not part of the selected futures "
-                    "contract universe."
-                ),
+                detail=("Ticker is not part of the selected futures contract universe."),
             )
         )
 
@@ -317,10 +274,7 @@ def _screen_tickers_only(
                 FuturesScreeningExclusion(
                     exchange_symbol=exchange_symbol,
                     reason=FuturesScreeningExclusionReason.MISSING_TICKER,
-                    detail=(
-                        "No valid batch ticker was available for "
-                        "this contract."
-                    ),
+                    detail=("No valid batch ticker was available for this contract."),
                 )
             )
             continue
@@ -397,6 +351,13 @@ def _screen_tickers_only(
                 reasons=("ticker-only compatibility screening",),
                 cautions=(),
             ),
+            discovery_lanes=(
+                FuturesDiscoveryLaneSignal(
+                    lane=FuturesDiscoveryLane.FAST_MOVER,
+                    score=round(min(100.0, ticker.absolute_movement_percentage), 4),
+                    reason="ticker-only compatibility screening used absolute movement",
+                ),
+            ),
         )
         for rank, (contract, ticker) in enumerate(ranked, start=1)
     )
@@ -409,14 +370,13 @@ def _screen_tickers_only(
         exclusions=tuple(exclusions),
     )
 
+
 def extract_opportunity_features(
     candles: Sequence[Candle],
 ) -> FuturesOpportunityFeatures:
     """Derive 5m through 1h features from one closed 5m series."""
 
-    ordered = tuple(
-        sorted(candles, key=lambda candle: candle.open_time)
-    )
+    ordered = tuple(sorted(candles, key=lambda candle: candle.open_time))
     if len(ordered) < 13:
         raise ValueError("at least 13 closed candles are required")
 
@@ -482,9 +442,7 @@ def extract_opportunity_features(
             recent_range,
             baseline_range,
         ),
-        trend_slope_percentage=(
-            _return_pct(closes[-13], closes[-1]) / 12
-        ),
+        trend_slope_percentage=(_return_pct(closes[-13], closes[-1]) / 12),
         breakout_proximity=_clamp01(
             1.0
             - _safe_ratio(
@@ -496,9 +454,7 @@ def extract_opportunity_features(
             abs(latest.close - ema),
             atr,
         ),
-        wick_intensity=_clamp01(
-            _safe_ratio(total_wick, total_range)
-        ),
+        wick_intensity=_clamp01(_safe_ratio(total_wick, total_range)),
         directional_persistence=directional / 6,
         current_participation=_safe_ratio(
             latest.volume,
@@ -549,9 +505,7 @@ def score_futures_opportunity(
         maximum=config.maximum_usable_atr_percentage,
     )
     entry_freshness = 100.0 * _clamp01(
-        1.0
-        - features.ema_distance_atr
-        / config.maximum_extension_atr
+        1.0 - features.ema_distance_atr / config.maximum_extension_atr
     )
     structure_proximity = features.breakout_proximity * 100
     directional_clarity = 100.0 * _clamp01(
@@ -563,17 +517,10 @@ def score_futures_opportunity(
         * 0.35
     )
     spread_quality = 100.0 * _clamp01(
-        1.0
-        - ticker.spread_percentage
-        / config.maximum_spread_percentage
+        1.0 - ticker.spread_percentage / config.maximum_spread_percentage
     )
     noise_quality = 100.0 * _clamp01(
-        1.0
-        - (
-            features.wick_intensity * 0.6
-            + max(0.0, features.range_expansion - 2.0)
-            / 4.0
-        )
+        1.0 - (features.wick_intensity * 0.6 + max(0.0, features.range_expansion - 2.0) / 4.0)
     )
 
     components = {
@@ -588,10 +535,7 @@ def score_futures_opportunity(
         "spread_quality": spread_quality,
         "noise_quality": noise_quality,
     }
-    total = sum(
-        components[name] * weight
-        for name, weight in config.weights.as_dict().items()
-    )
+    total = sum(components[name] * weight for name, weight in config.weights.as_dict().items())
 
     reasons: list[str] = []
     cautions: list[str] = []
@@ -600,39 +544,22 @@ def score_futures_opportunity(
     if relative_volume >= 70:
         reasons.append("recent participation is above baseline")
     if structure_proximity >= 70:
-        reasons.append(
-            "price is near a recent structural boundary"
-        )
+        reasons.append("price is near a recent structural boundary")
     if directional_clarity >= 70:
-        reasons.append(
-            "recent candles show directional persistence"
-        )
+        reasons.append("recent candles show directional persistence")
     if not reasons:
-        reasons.append(
-            "balanced movement, liquidity, and entry-quality profile"
-        )
+        reasons.append("balanced movement, liquidity, and entry-quality profile")
 
     if entry_freshness < 45:
-        cautions.append(
-            "price is extended from the short EMA"
-        )
+        cautions.append("price is extended from the short EMA")
     if noise_quality < 45:
-        cautions.append(
-            "recent candles contain elevated wick or range noise"
-        )
+        cautions.append("recent candles contain elevated wick or range noise")
     if volatility_usability < 45:
-        cautions.append(
-            "recent volatility is outside the preferred usable band"
-        )
+        cautions.append("recent volatility is outside the preferred usable band")
     if spread_quality < 50:
-        cautions.append(
-            "spread reduces execution quality"
-        )
+        cautions.append("spread reduces execution quality")
 
-    rounded = {
-        name: round(value, 4)
-        for name, value in components.items()
-    }
+    rounded = {name: round(value, 4) for name, value in components.items()}
     return FuturesOpportunityScore(
         total=round(_clamp(total, 0.0, 100.0), 4),
         liquidity=rounded["liquidity"],
@@ -648,6 +575,118 @@ def score_futures_opportunity(
         reasons=tuple(reasons),
         cautions=tuple(cautions),
     )
+
+
+def classify_discovery_lanes(
+    ticker: FuturesTickerSnapshot,
+    features: FuturesOpportunityFeatures,
+    opportunity: FuturesOpportunityScore,
+) -> tuple[FuturesDiscoveryLaneSignal, ...]:
+    """Classify screening candidates into transparent discovery lanes."""
+
+    lanes: list[FuturesDiscoveryLaneSignal] = []
+    if features.directional_persistence >= 0.67 and opportunity.entry_freshness >= 45:
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.TREND_CONTINUATION,
+                score=round(
+                    min(
+                        100.0,
+                        opportunity.directional_clarity * 0.65 + opportunity.entry_freshness * 0.35,
+                    ),
+                    4,
+                ),
+                reason="directional persistence remains usable without excessive EMA extension",
+            )
+        )
+    if features.range_expansion <= 0.85 or (
+        features.atr_percentage > 0
+        and features.atr_percentage <= max(0.01, opportunity.volatility_usability / 100 * 2.5)
+    ):
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.COMPRESSION_EXPANSION,
+                score=round(
+                    min(
+                        100.0,
+                        (1.0 - min(features.range_expansion, 1.0)) * 70.0
+                        + opportunity.structure_proximity * 0.3,
+                    ),
+                    4,
+                ),
+                reason="recent range is compressed near a potential expansion area",
+            )
+        )
+    if opportunity.structure_proximity >= 65 and opportunity.relative_volume >= 45:
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.FRESH_BREAK,
+                score=round(
+                    min(
+                        100.0,
+                        opportunity.structure_proximity * 0.55 + opportunity.relative_volume * 0.45,
+                    ),
+                    4,
+                ),
+                reason="price is near a recent boundary with participation evidence",
+            )
+        )
+    if opportunity.acceleration >= 65 or ticker.absolute_movement_percentage >= 8:
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.FAST_MOVER,
+                score=round(
+                    min(
+                        100.0,
+                        opportunity.acceleration * 0.7
+                        + min(100.0, ticker.absolute_movement_percentage * 8.0) * 0.3,
+                    ),
+                    4,
+                ),
+                reason="recent return acceleration or 24h movement is elevated",
+            )
+        )
+    if features.wick_intensity >= 0.45 and opportunity.structure_proximity >= 45:
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.RANGE_LIQUIDITY_REJECTION,
+                score=round(
+                    min(
+                        100.0,
+                        features.wick_intensity * 55.0 + opportunity.structure_proximity * 0.45,
+                    ),
+                    4,
+                ),
+                reason="wick activity near structure suggests rejection or sweep potential",
+            )
+        )
+    if (
+        abs(features.return_1h_pct) >= 1.5
+        and opportunity.relative_volume >= 45
+        and opportunity.spread_quality >= 50
+    ):
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS,
+                score=round(
+                    min(
+                        100.0,
+                        abs(features.return_1h_pct) * 18.0 + opportunity.relative_volume * 0.35,
+                    ),
+                    4,
+                ),
+                reason="recent relative movement is supported by participation and usable spread",
+            )
+        )
+    if not lanes:
+        lanes.append(
+            FuturesDiscoveryLaneSignal(
+                lane=FuturesDiscoveryLane.FAST_MOVER,
+                score=round(max(1.0, opportunity.movement), 4),
+                reason="fallback lane for balanced movement and execution-quality screening",
+            )
+        )
+    return tuple(sorted(lanes, key=lambda item: (-item.score, item.lane.value)))
 
 
 def _hard_exclusion(
@@ -670,10 +709,7 @@ def _hard_exclusion(
                 f"{config.maximum_spread_percentage} percent."
             ),
         )
-    if (
-        ticker.absolute_movement_percentage
-        < config.minimum_absolute_movement_percentage
-    ):
+    if ticker.absolute_movement_percentage < config.minimum_absolute_movement_percentage:
         return (
             FuturesScreeningExclusionReason.INSUFFICIENT_MOVEMENT,
             (
@@ -728,9 +764,7 @@ def _score_log_scale(
         return 100.0
     shifted_value = value - floor + 1.0
     shifted_target = target - floor + 1.0
-    return 100.0 * _clamp01(
-        log10(shifted_value) / log10(shifted_target)
-    )
+    return 100.0 * _clamp01(log10(shifted_value) / log10(shifted_target))
 
 
 def _band_score(
@@ -759,12 +793,7 @@ def _clamp(
 
 
 def _normalize_symbol(value: str) -> str:
-    normalized = (
-        value.strip()
-        .upper()
-        .replace("/", "")
-        .replace("-", "")
-    )
+    normalized = value.strip().upper().replace("/", "").replace("-", "")
     if not normalized:
         raise ValueError("symbol cannot be empty")
     return normalized

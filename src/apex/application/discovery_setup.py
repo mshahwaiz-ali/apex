@@ -31,7 +31,9 @@ def build_discovery_assessment(
             symbol=candidate_selection.symbol,
             decision_time=candidate_selection.decision_time,
             setup=None,
-            reasons=(candidate_selection.no_trade_reason or "candidate selection produced no setup",),
+            reasons=(
+                candidate_selection.no_trade_reason or "candidate selection produced no setup",
+            ),
         )
 
     candidate = selected.candidate
@@ -92,8 +94,7 @@ def _stop(candidate: TradeCandidate) -> StopLoss:
         0.0,
         min(
             1.0,
-            candidate.quality.structure_quality * 0.65
-            + candidate.quality.entry_quality * 0.35,
+            candidate.quality.structure_quality * 0.65 + candidate.quality.entry_quality * 0.35,
         ),
     )
     quality_band = (

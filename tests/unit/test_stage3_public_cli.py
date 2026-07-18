@@ -33,11 +33,7 @@ def test_scan_exposes_stage3_operator_controls() -> None:
     command = get_command(app)
     scan = command.commands["scan"]
 
-    option_names = {
-        name
-        for parameter in scan.params
-        for name in parameter.opts
-    }
+    option_names = {name for parameter in scan.params for name in parameter.opts}
 
     assert {
         "--results",
@@ -52,8 +48,6 @@ def test_analyze_and_backtest_accept_config_dir() -> None:
 
     for command_name in ("analyze", "backtest"):
         option_names = {
-            name
-            for parameter in command.commands[command_name].params
-            for name in parameter.opts
+            name for parameter in command.commands[command_name].params for name in parameter.opts
         }
         assert "--config-dir" in option_names

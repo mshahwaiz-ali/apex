@@ -99,9 +99,7 @@ class FileSettings(BaseModel):
     log_dir: Path = Path("logs")
     cache_enabled: bool = True
     methodology_gate_mode: MethodologyGateModeSetting = "shadow"
-    futures_screener: FuturesScreenerSettings = Field(
-        default_factory=FuturesScreenerSettings
-    )
+    futures_screener: FuturesScreenerSettings = Field(default_factory=FuturesScreenerSettings)
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))
     timeframe_resampling_sources: dict[str, str] = Field(

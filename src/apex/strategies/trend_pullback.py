@@ -17,13 +17,13 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
     select_entry_zone,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import LevelRole, LevelStatus, TrendDirection
 
 _BULLISH_TRENDS = {
@@ -113,9 +113,7 @@ def _candidate_for_direction(
     if context.provisional:
         warnings.append("active-candle evidence is provisional")
     if higher_timeframe_conflict:
-        warnings.append(
-            "higher-timeframe trend conflicts with the decision-frame pullback thesis"
-        )
+        warnings.append("higher-timeframe trend conflicts with the decision-frame pullback thesis")
     features = frame.features
     feature_refs = tuple(
         name

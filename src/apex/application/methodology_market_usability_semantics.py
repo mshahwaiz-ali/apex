@@ -69,7 +69,8 @@ def derive_market_usability_semantics(
         interpretation = "market execution quality is unusable and should block execution"
     else:
         interpretation = (
-            "market usability cannot be established because required execution-quality data is incomplete"
+            "market usability cannot be established because required execution-quality "
+            "data is incomplete"
         )
 
     return MarketUsabilitySemantics(

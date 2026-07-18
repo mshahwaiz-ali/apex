@@ -13,14 +13,22 @@ from apex.application.methodology_strategy_contracts import (
     SecondaryMarketCondition,
 )
 
-
 _PRIMARY_BY_TAG_AND_DIRECTION: dict[
     tuple[MarketStateTag, MarketStateDirection], PrimaryMarketState
 ] = {
     (MarketStateTag.DIRECTIONAL_TREND, MarketStateDirection.LONG): PrimaryMarketState.TRENDING_UP,
-    (MarketStateTag.DIRECTIONAL_TREND, MarketStateDirection.SHORT): PrimaryMarketState.TRENDING_DOWN,
-    (MarketStateTag.MOMENTUM_EXPANSION, MarketStateDirection.LONG): PrimaryMarketState.POST_BREAKOUT,
-    (MarketStateTag.MOMENTUM_EXPANSION, MarketStateDirection.SHORT): PrimaryMarketState.POST_BREAKDOWN,
+    (
+        MarketStateTag.DIRECTIONAL_TREND,
+        MarketStateDirection.SHORT,
+    ): PrimaryMarketState.TRENDING_DOWN,
+    (
+        MarketStateTag.MOMENTUM_EXPANSION,
+        MarketStateDirection.LONG,
+    ): PrimaryMarketState.POST_BREAKOUT,
+    (
+        MarketStateTag.MOMENTUM_EXPANSION,
+        MarketStateDirection.SHORT,
+    ): PrimaryMarketState.POST_BREAKDOWN,
     (MarketStateTag.BREAKOUT, MarketStateDirection.LONG): PrimaryMarketState.BREAKOUT_ATTEMPT,
     (MarketStateTag.BREAKOUT, MarketStateDirection.SHORT): PrimaryMarketState.BREAKDOWN_ATTEMPT,
     (MarketStateTag.BREAKOUT_RETEST, MarketStateDirection.LONG): PrimaryMarketState.POST_BREAKOUT,

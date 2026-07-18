@@ -18,13 +18,13 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
     select_entry_zone,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -73,9 +73,7 @@ def _candidate_for_direction(
     maximum_extension_atr: float,
 ) -> TradeCandidate | None:
     bullish = direction is TradeDirection.LONG
-    higher_timeframe_conflict = context.higher_timeframe_contradiction(
-        bullish=bullish
-    )
+    higher_timeframe_conflict = context.higher_timeframe_contradiction(bullish=bullish)
 
     frame = context.decision_frame
     break_event = _latest_confirmed_break(frame.structure.breaks, bullish=bullish)
@@ -99,9 +97,7 @@ def _candidate_for_direction(
         return None
 
     invalidation_price = (
-        break_event.broken_level - atr * 0.15
-        if bullish
-        else break_event.broken_level + atr * 0.15
+        break_event.broken_level - atr * 0.15 if bullish else break_event.broken_level + atr * 0.15
     )
     target_price = _target_price(context, bullish=bullish)
     if not _valid_geometry(
@@ -122,9 +118,7 @@ def _candidate_for_direction(
             EntryReference(
                 price=break_event.broken_level,
                 mode=EntryMode.RETEST,
-                rationale=(
-                    "nearby broken-level retest improves breakout entry quality",
-                ),
+                rationale=("nearby broken-level retest improves breakout entry quality",),
             ),
         ),
         config=entry_config,
@@ -133,13 +127,9 @@ def _candidate_for_direction(
     if context.provisional:
         warnings.append("active-candle evidence is provisional")
     if higher_timeframe_conflict:
-        warnings.append(
-            "higher-timeframe trend conflicts with the decision-frame breakout thesis"
-        )
+        warnings.append("higher-timeframe trend conflicts with the decision-frame breakout thesis")
     volume_quality = (
-        0.5
-        if features.relative_volume is None
-        else min(1.0, features.relative_volume / 2.0)
+        0.5 if features.relative_volume is None else min(1.0, features.relative_volume / 2.0)
     )
     breakout_quality = 1.0 if break_event.quality is BreakQuality.STRONG else 0.8
     return TradeCandidate(
@@ -159,9 +149,7 @@ def _candidate_for_direction(
                     kind=TargetType.LIQUIDITY,
                     price=target_price,
                     label="primary",
-                    rationale=(
-                        "nearest opposing liquidity or structural objective",
-                    ),
+                    rationale=("nearest opposing liquidity or structural objective",),
                 ),
             )
         ),
@@ -238,11 +226,7 @@ def _momentum_supports_breakout(context: StrategyContext, *, bullish: bool) -> b
     )
     if not signals:
         return True
-    return (
-        any(value >= 0 for value in signals)
-        if bullish
-        else any(value <= 0 for value in signals)
-    )
+    return any(value >= 0 for value in signals) if bullish else any(value <= 0 for value in signals)
 
 
 def _momentum_quality(context: StrategyContext, *, bullish: bool) -> float:

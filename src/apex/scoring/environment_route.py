@@ -61,7 +61,9 @@ def _adjust_candidate(
     *,
     route: EnvironmentRoute,
 ) -> ScoredCandidate:
-    preferred_direction = str(getattr(route.preferred_direction, "value", route.preferred_direction))
+    preferred_direction = str(
+        getattr(route.preferred_direction, "value", route.preferred_direction)
+    )
     route_priority = _priority(route.strategy_priority, item.candidate.strategy)
     reason_codes: list[str] = []
     reasons: list[str] = []
@@ -91,11 +93,14 @@ def _adjust_candidate(
 
         if _direction_conflicts(preferred_direction, item.candidate.direction):
             state = EnvironmentRouteAlignmentState.DIRECTION_CONFLICT
-            direction_penalty = _MAX_DIRECTION_PENALTY * max(0.0, min(100.0, route.routing_score)) / 100.0
+            direction_penalty = (
+                _MAX_DIRECTION_PENALTY * max(0.0, min(100.0, route.routing_score)) / 100.0
+            )
             penalty += direction_penalty
             reason_codes.append("PREFERRED_DIRECTION_CONFLICT")
             reasons.append(
-                f"Candidate direction conflicts with preferred {preferred_direction} environment direction"
+                "Candidate direction conflicts with preferred "
+                f"{preferred_direction} environment direction"
             )
 
         warning_penalty = _warning_penalty(route.reason_codes)

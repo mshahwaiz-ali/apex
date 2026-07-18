@@ -35,9 +35,7 @@ def derive_management_semantics(
 
     steps = methodology.management_steps
     kinds = {step.kind for step in steps}
-    partials = tuple(
-        step for step in steps if step.kind is ManagementActionType.PARTIAL_EXIT
-    )
+    partials = tuple(step for step in steps if step.kind is ManagementActionType.PARTIAL_EXIT)
     partial_total = sum(step.close_percentage or 0.0 for step in partials)
     allocation_complete = bool(partials) and math.isclose(
         partial_total,
@@ -68,15 +66,15 @@ def derive_management_semantics(
         breakeven_available=ManagementActionType.BREAKEVEN in kinds,
         trailing_available=ManagementActionType.TRAILING in kinds,
         time_exit_available=ManagementActionType.TIME_EXIT in kinds,
-        momentum_failure_exit_available=(
-            ManagementActionType.MOMENTUM_FAILURE in kinds
-        ),
+        momentum_failure_exit_available=(ManagementActionType.MOMENTUM_FAILURE in kinds),
         lifecycle_execution_state_available=False,
         interpretation=interpretation,
         limitations=(
             "management instructions describe policy and do not prove that any trigger has fired",
-            "open quantity, fills, realized partials, and current stop state are not part of the methodology snapshot",
-            "breakeven and trailing actions require explicit trigger evaluation during paper or live lifecycle processing",
+            "open quantity, fills, realized partials, and current stop state are not "
+            "part of the methodology snapshot",
+            "breakeven and trailing actions require explicit trigger evaluation during "
+            "paper or live lifecycle processing",
         ),
     )
 
@@ -94,9 +92,7 @@ def management_semantics_payload(semantics: ManagementSemantics) -> dict[str, An
         "trailing_available": semantics.trailing_available,
         "time_exit_available": semantics.time_exit_available,
         "momentum_failure_exit_available": semantics.momentum_failure_exit_available,
-        "lifecycle_execution_state_available": (
-            semantics.lifecycle_execution_state_available
-        ),
+        "lifecycle_execution_state_available": (semantics.lifecycle_execution_state_available),
         "interpretation": semantics.interpretation,
         "limitations": list(semantics.limitations),
     }

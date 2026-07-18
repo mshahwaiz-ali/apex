@@ -80,9 +80,7 @@ def derive_stop_quality_semantics(
         correct_side = None
 
     distance_in_noise = (
-        None
-        if distance is None or noise_evidence is None
-        else distance / noise_evidence.value
+        None if distance is None or noise_evidence is None else distance / noise_evidence.value
     )
     noise_clearance = (
         None
@@ -115,18 +113,23 @@ def derive_stop_quality_semantics(
     legacy_band = None if setup is None else setup.stop_loss.quality_band.value
     directionally_validated = methodology.direction is not None and correct_side is not None
     limitations = [
-        "absolute distance alone cannot establish that a stop is structurally strong or outside normal noise",
-        "legacy stop-quality scores remain compatibility metadata and are not canonical methodology authority",
-        "position size, leverage, and acceptable monetary loss must not alter the structural invalidation level",
+        "absolute distance alone cannot establish that a stop is structurally strong "
+        "or outside normal noise",
+        "legacy stop-quality scores remain compatibility metadata and are not "
+        "canonical methodology authority",
+        "position size, leverage, and acceptable monetary loss must not alter the "
+        "structural invalidation level",
     ]
     if noise_evidence is None:
         limitations.insert(
             0,
-            "ATR, realized-range, or realized-volatility evidence is unavailable, so normal-noise clearance is not claimed",
+            "ATR, realized-range, or realized-volatility evidence is unavailable, so "
+            "normal-noise clearance is not claimed",
         )
     else:
         limitations.append(
-            "the configured clearance multiplier is strategy-specific evidence, not a universal market threshold"
+            "the configured clearance multiplier is strategy-specific evidence, not "
+            "a universal market threshold"
         )
 
     return StopQualitySemantics(

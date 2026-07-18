@@ -55,10 +55,7 @@ def apply_selected_strategy_gate(
             reasons=("methodology enforcement is running in shadow mode",),
         )
 
-    if (
-        assessment.setup is not None
-        and verdict.state is SelectedStrategyVerdictState.SUPPRESSED
-    ):
+    if assessment.setup is not None and verdict.state is SelectedStrategyVerdictState.SUPPRESSED:
         reasons = tuple(verdict.reasons) or (
             "selected strategy conflicts with methodology eligibility",
         )
@@ -80,9 +77,7 @@ def apply_selected_strategy_gate(
         mode=mode,
         changed=False,
         reason_codes=("METHODOLOGY_GATE_NO_CHANGE",),
-        reasons=(
-            "selected setup is not explicitly suppressed by methodology",
-        ),
+        reasons=("selected setup is not explicitly suppressed by methodology",),
     )
 
 

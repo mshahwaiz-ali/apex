@@ -94,27 +94,18 @@ def create_market_data_services(
     if futures_universe_provider_builder is None:
         live_futures_universe_provider: ManagedFuturesUniverseProvider = (
             BinanceFuturesUniverseProvider(
-                metadata_cache_ttl_seconds=(
-                    settings.futures_screener.metadata_cache_ttl_seconds
-                )
+                metadata_cache_ttl_seconds=(settings.futures_screener.metadata_cache_ttl_seconds)
             )
         )
     else:
         live_futures_universe_provider = futures_universe_provider_builder()
 
-    futures_universe_provider: FuturesUniverseProvider = (
-        live_futures_universe_provider
-    )
+    futures_universe_provider: FuturesUniverseProvider = live_futures_universe_provider
     if settings.cache_enabled:
         futures_universe_provider = CachedFuturesUniverseProvider(
             live_futures_universe_provider,
-            settings.data_dir
-            / "cache"
-            / "futures_universe"
-            / "contracts.json",
-            time_to_live=timedelta(
-                seconds=settings.futures_screener.metadata_cache_ttl_seconds
-            ),
+            settings.data_dir / "cache" / "futures_universe" / "contracts.json",
+            time_to_live=timedelta(seconds=settings.futures_screener.metadata_cache_ttl_seconds),
         )
 
     candle_provider: MarketDataProvider = live_provider

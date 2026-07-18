@@ -44,7 +44,9 @@ def derive_strategy_fit_semantics(
         interpretation = "an explicit wrong-strategy-for-state hard blocker is present"
     elif direct:
         fit_status = "structurally_opposed"
-        interpretation = "direct structural opposition prevents the selected strategy from executing"
+        interpretation = (
+            "direct structural opposition prevents the selected strategy from executing"
+        )
     elif state is None:
         fit_status = "unverified"
         interpretation = (
@@ -53,7 +55,8 @@ def derive_strategy_fit_semantics(
     elif mild:
         fit_status = "compatible_with_penalty"
         interpretation = (
-            "no explicit incompatibility blocker is present, but mild higher-timeframe conflict reduces quality"
+            "no explicit incompatibility blocker is present, but mild higher-timeframe "
+            "conflict reduces quality"
         )
     else:
         fit_status = "no_explicit_conflict"

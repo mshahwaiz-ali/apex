@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_usability_output import (
     render_discovery_analysis as _render_usability_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_usability_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus evidence quality truth."""
 
@@ -25,7 +31,7 @@ def render_discovery_analysis(
     contradiction = _mapping(payload.get("methodology_contradiction_semantics"))
 
     if independence:
-        fields = (
+        independence_fields: tuple[tuple[str, object], ...] = (
             ("Evidence observations", independence.get("evidence_count")),
             ("Evidence families", independence.get("family_count")),
             ("Independence groups", independence.get("independence_group_count")),
@@ -42,13 +48,13 @@ def render_discovery_analysis(
             ),
             ("Interpretation", independence.get("interpretation")),
         )
-        sections.append(render_section("Evidence Independence", render_fields(fields)))
+        sections.append(render_section("Evidence Independence", render_fields(independence_fields)))
         limitations = _strings(independence.get("limitations"))
         if limitations:
             sections.append(render_section("Independence Limitations", render_bullets(limitations)))
 
     if contradiction:
-        fields = (
+        contradiction_fields: tuple[tuple[str, object], ...] = (
             ("Contradiction count", contradiction.get("contradiction_count")),
             ("Maximum severity", contradiction.get("maximum_severity")),
             ("Average severity", contradiction.get("average_severity")),
@@ -58,10 +64,12 @@ def render_discovery_analysis(
             ("Invalidation present", _yes_no(contradiction.get("invalidation_present"))),
             ("Interpretation", contradiction.get("interpretation")),
         )
-        sections.append(render_section("Contradictions", render_fields(fields)))
+        sections.append(render_section("Contradictions", render_fields(contradiction_fields)))
         limitations = _strings(contradiction.get("limitations"))
         if limitations:
-            sections.append(render_section("Contradiction Limitations", render_bullets(limitations)))
+            sections.append(
+                render_section("Contradiction Limitations", render_bullets(limitations))
+            )
 
     return "\n\n".join(section for section in sections if section)
 
@@ -88,7 +96,8 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ("Results with explicit invalidation", invalidated),
             (
                 "Interpretation",
-                "correlated signals are capped and contradictions remain distinct from hard invalidation",
+                "correlated signals are capped and contradictions remain distinct "
+                "from hard invalidation",
             ),
         )
         sections.append(render_section("Evidence Quality Summary", render_fields(fields)))

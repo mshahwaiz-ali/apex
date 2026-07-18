@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from apex.application.futures_screening import (
+    classify_discovery_lanes,
     extract_opportunity_features,
-    screen_futures_universe,
     score_futures_opportunity,
+    screen_futures_universe,
 )
 from apex.domain.futures_market import FuturesContractMetadata
 from apex.domain.futures_screening import (
+    FuturesDiscoveryLane,
     FuturesScreenerConfig,
     FuturesScreeningExclusionReason,
     FuturesTickerSnapshot,
@@ -181,8 +183,35 @@ def test_candle_aware_screening_ranks_by_opportunity_score() -> None:
         "BBBUSDT",
     ]
     assert result.candidates[0].opportunity.total > result.candidates[1].opportunity.total
+    assert result.candidates[0].discovery_lanes
     assert result.hard_eligible_count == 2
     assert result.candle_screened_count == 2
+
+
+def test_discovery_lanes_explain_shortlist_route() -> None:
+    config = FuturesScreenerConfig(shortlist_size=1, ticker_prefilter_size=1)
+    features = extract_opportunity_features(
+        _candles(
+            "AAAUSDT",
+            step=0.6,
+            volume_step=150.0,
+            wick=0.02,
+        )
+    )
+    opportunity = score_futures_opportunity(
+        _ticker("AAAUSDT", movement=9.0),
+        features,
+        config,
+    )
+
+    lanes = classify_discovery_lanes(_ticker("AAAUSDT", movement=9.0), features, opportunity)
+
+    assert {item.lane for item in lanes} & {
+        FuturesDiscoveryLane.TREND_CONTINUATION,
+        FuturesDiscoveryLane.FAST_MOVER,
+        FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS,
+    }
+    assert all(item.reason for item in lanes)
 
 
 def test_candle_aware_screening_records_fetch_failure() -> None:
@@ -199,9 +228,7 @@ def test_candle_aware_screening_records_fetch_failure() -> None:
 
     assert result.candidates == ()
     assert result.candle_screened_count == 0
-    assert result.exclusions[0].reason == (
-        FuturesScreeningExclusionReason.CANDLE_FETCH_FAILED
-    )
+    assert result.exclusions[0].reason == (FuturesScreeningExclusionReason.CANDLE_FETCH_FAILED)
     assert "provider unavailable" in result.exclusions[0].detail
 
 
@@ -233,10 +260,7 @@ def test_candle_aware_screening_uses_symbol_as_final_tiebreaker() -> None:
         tickers,
         {
             "AAAUSDT": same,
-            "BBBUSDT": tuple(
-                candle.model_copy(update={"symbol": "BBBUSDT"})
-                for candle in same
-            ),
+            "BBBUSDT": tuple(candle.model_copy(update={"symbol": "BBBUSDT"}) for candle in same),
         },
         FuturesScreenerConfig(
             shortlist_size=2,

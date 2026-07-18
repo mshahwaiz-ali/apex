@@ -88,7 +88,4 @@ def test_untradeable_state_maps_to_chaotic_with_direct_opposition() -> None:
     )
 
     assert classification.primary is PrimaryMarketState.CHAOTIC
-    assert (
-        SecondaryMarketCondition.DIRECT_STRUCTURAL_OPPOSITION
-        in classification.secondary
-    )
+    assert SecondaryMarketCondition.DIRECT_STRUCTURAL_OPPOSITION in classification.secondary

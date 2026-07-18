@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_discovery_output import (
     render_discovery_analysis as _render_methodology_analysis,
 )
@@ -17,7 +23,7 @@ from apex.presentation.methodology_discovery_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render methodology status plus confidence and rejection interpretation."""
 
@@ -38,9 +44,7 @@ def render_discovery_analysis(
         sections.append(render_section("Confidence Semantics", render_fields(confidence_fields)))
         missing = _strings(confidence.get("missing_evidence"))
         if missing:
-            sections.append(
-                render_section("Missing Confidence Evidence", render_bullets(missing))
-            )
+            sections.append(render_section("Missing Confidence Evidence", render_bullets(missing)))
 
     if rejections:
         rejection_fields = (

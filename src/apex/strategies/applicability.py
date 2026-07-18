@@ -108,8 +108,7 @@ def build_strategy_applicability(
             score = 35.0
             code = "UNSTABLE_REGIME_PENALTY"
             reason = (
-                f"{regime.value} reduces confidence but does not block "
-                f"{strategy.value} evaluation"
+                f"{regime.value} reduces confidence but does not block {strategy.value} evaluation"
             )
         else:
             state = StrategyApplicabilityState.CONDITIONAL

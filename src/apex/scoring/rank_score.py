@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from apex.scoring.contracts import ScoredCandidate
 
-
 RANK_SCORE_WEIGHTS = {
     "opportunity_score": 0.25,
     "setup_score": 0.40,

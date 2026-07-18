@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_strategy_state_output import (
     render_discovery_analysis as _render_strategy_state_analysis,
 )
@@ -17,7 +23,7 @@ from apex.presentation.methodology_strategy_state_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus usability and coverage truth."""
 
@@ -26,7 +32,7 @@ def render_discovery_analysis(
     coverage = _mapping(payload.get("methodology_timeframe_coverage_semantics"))
 
     if usability:
-        fields = (
+        usability_fields: tuple[tuple[str, object], ...] = (
             ("Usability state", humanize_code(usability.get("state"))),
             ("Usability score", usability.get("score")),
             ("Execution usable", _yes_no(usability.get("execution_usable"))),
@@ -35,7 +41,7 @@ def render_discovery_analysis(
             ("Missing inputs", usability.get("missing_inputs")),
             ("Interpretation", usability.get("interpretation")),
         )
-        sections.append(render_section("Market Usability", render_fields(fields)))
+        sections.append(render_section("Market Usability", render_fields(usability_fields)))
         reasons = _strings(usability.get("reasons"))
         warnings = _strings(usability.get("warnings"))
         limitations = _strings(usability.get("limitations"))
@@ -47,7 +53,7 @@ def render_discovery_analysis(
             sections.append(render_section("Usability Limitations", render_bullets(limitations)))
 
     if coverage:
-        fields = (
+        coverage_fields: tuple[tuple[str, object], ...] = (
             ("Evaluated timeframes", coverage.get("evaluated_timeframes")),
             ("Regime timeframes", coverage.get("regime_timeframes")),
             ("Quality timeframes", coverage.get("quality_timeframes")),
@@ -59,7 +65,7 @@ def render_discovery_analysis(
             ("Degraded coverage", _yes_no(coverage.get("degraded_coverage"))),
             ("Interpretation", coverage.get("interpretation")),
         )
-        sections.append(render_section("Timeframe Coverage", render_fields(fields)))
+        sections.append(render_section("Timeframe Coverage", render_fields(coverage_fields)))
         limitations = _strings(coverage.get("limitations"))
         if limitations:
             sections.append(render_section("Coverage Limitations", render_bullets(limitations)))

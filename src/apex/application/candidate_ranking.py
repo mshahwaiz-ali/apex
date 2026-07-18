@@ -90,9 +90,7 @@ class CandidateRankingSnapshot:
 
     def __post_init__(self) -> None:
         records = (
-            (() if self.primary is None else (self.primary,))
-            + self.alternatives
-            + self.rejected
+            (() if self.primary is None else (self.primary,)) + self.alternatives + self.rejected
         )
         if self.ranked_count != len(records):
             raise ValueError("candidate ranking count must match preserved records")
@@ -101,10 +99,7 @@ class CandidateRankingSnapshot:
             raise ValueError("candidate ranking records must have unique identities")
         if self.primary is not None and self.primary.role is not CandidateRankingRole.PRIMARY:
             raise ValueError("primary candidate must use the primary role")
-        if any(
-            item.role is not CandidateRankingRole.ALTERNATIVE
-            for item in self.alternatives
-        ):
+        if any(item.role is not CandidateRankingRole.ALTERNATIVE for item in self.alternatives):
             raise ValueError("alternative candidates must use the alternative role")
         if any(item.role is not CandidateRankingRole.REJECTED for item in self.rejected):
             raise ValueError("rejected candidates must use the rejected role")

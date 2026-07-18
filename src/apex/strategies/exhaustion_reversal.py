@@ -63,9 +63,7 @@ def _as_exhaustion_reversal(candidate: TradeCandidate, *, rsi: float) -> TradeCa
             ),
             contradictions=evidence.contradictions,
             warnings=evidence.warnings,
-            feature_references=tuple(
-                dict.fromkeys((*evidence.feature_references, "rsi"))
-            ),
+            feature_references=tuple(dict.fromkeys((*evidence.feature_references, "rsi"))),
             structure_references=evidence.structure_references,
             liquidity_references=evidence.liquidity_references,
         ),

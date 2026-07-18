@@ -43,7 +43,9 @@ def derive_ranking_integrity_semantics(
     blocker_count = len(methodology.hard_blockers)
 
     if ranking is None:
-        interpretation = "candidate ranking is unavailable; relative opportunity order must not be inferred"
+        interpretation = (
+            "candidate ranking is unavailable; relative opportunity order must not be inferred"
+        )
     elif primary is None:
         interpretation = "candidates were ranked, but no primary candidate was selected"
     elif blocker_count:

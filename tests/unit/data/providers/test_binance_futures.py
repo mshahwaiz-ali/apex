@@ -183,6 +183,7 @@ def test_futures_provider_identity_and_default_base_url() -> None:
 
     provider.close()
 
+
 def test_fetch_futures_tickers_uses_two_batch_endpoints() -> None:
     requested_paths: list[str] = []
 
@@ -229,17 +230,13 @@ def test_fetch_futures_tickers_uses_two_batch_endpoints() -> None:
                 ],
             )
 
-        raise AssertionError(
-            f"unexpected path: {request.url.path}"
-        )
+        raise AssertionError(f"unexpected path: {request.url.path}")
 
     client = httpx.Client(
         transport=httpx.MockTransport(handler),
         base_url="https://fapi.binance.com",
     )
-    provider = BinanceFuturesMarketDataProvider(
-        client=client
-    )
+    provider = BinanceFuturesMarketDataProvider(client=client)
 
     tickers = provider.fetch_futures_tickers()
 
@@ -247,9 +244,7 @@ def test_fetch_futures_tickers_uses_two_batch_endpoints() -> None:
         "/fapi/v1/ticker/bookTicker",
         "/fapi/v1/ticker/24hr",
     ]
-    assert [
-        ticker.exchange_symbol for ticker in tickers
-    ] == [
+    assert [ticker.exchange_symbol for ticker in tickers] == [
         "BTCUSDT",
         "ETHUSDT",
     ]
@@ -318,23 +313,17 @@ def test_fetch_futures_tickers_skips_invalid_and_unmatched_rows() -> None:
                 ],
             )
 
-        raise AssertionError(
-            f"unexpected path: {request.url.path}"
-        )
+        raise AssertionError(f"unexpected path: {request.url.path}")
 
     client = httpx.Client(
         transport=httpx.MockTransport(handler),
         base_url="https://fapi.binance.com",
     )
-    provider = BinanceFuturesMarketDataProvider(
-        client=client
-    )
+    provider = BinanceFuturesMarketDataProvider(client=client)
 
     tickers = provider.fetch_futures_tickers()
 
-    assert [
-        ticker.exchange_symbol for ticker in tickers
-    ] == ["BTCUSDT"]
+    assert [ticker.exchange_symbol for ticker in tickers] == ["BTCUSDT"]
 
     client.close()
 
@@ -366,17 +355,13 @@ def test_fetch_futures_tickers_skips_invalid_joined_snapshot() -> None:
                 ],
             )
 
-        raise AssertionError(
-            f"unexpected path: {request.url.path}"
-        )
+        raise AssertionError(f"unexpected path: {request.url.path}")
 
     client = httpx.Client(
         transport=httpx.MockTransport(handler),
         base_url="https://fapi.binance.com",
     )
-    provider = BinanceFuturesMarketDataProvider(
-        client=client
-    )
+    provider = BinanceFuturesMarketDataProvider(client=client)
 
     assert provider.fetch_futures_tickers() == ()
 
@@ -397,13 +382,11 @@ def test_fetch_futures_tickers_rejects_invalid_book_payload() -> None:
         transport=httpx.MockTransport(handler),
         base_url="https://fapi.binance.com",
     )
-    provider = BinanceFuturesMarketDataProvider(
-        client=client
-    )
-
-    from apex.data.providers.errors import ProviderResponseError
+    provider = BinanceFuturesMarketDataProvider(client=client)
 
     import pytest
+
+    from apex.data.providers.errors import ProviderResponseError
 
     with pytest.raises(
         ProviderResponseError,
@@ -428,13 +411,11 @@ def test_fetch_futures_tickers_rejects_invalid_24h_payload() -> None:
         transport=httpx.MockTransport(handler),
         base_url="https://fapi.binance.com",
     )
-    provider = BinanceFuturesMarketDataProvider(
-        client=client
-    )
-
-    from apex.data.providers.errors import ProviderResponseError
+    provider = BinanceFuturesMarketDataProvider(client=client)
 
     import pytest
+
+    from apex.data.providers.errors import ProviderResponseError
 
     with pytest.raises(
         ProviderResponseError,

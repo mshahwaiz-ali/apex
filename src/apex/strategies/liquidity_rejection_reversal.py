@@ -50,9 +50,7 @@ def _as_liquidity_rejection(candidate: TradeCandidate) -> TradeCandidate:
             feature_references=evidence.feature_references,
             structure_references=evidence.structure_references,
             liquidity_references=tuple(
-                dict.fromkeys(
-                    (*evidence.liquidity_references, "liquidity_rejection_reversal")
-                )
+                dict.fromkeys((*evidence.liquidity_references, "liquidity_rejection_reversal"))
             ),
         ),
         metadata=metadata,

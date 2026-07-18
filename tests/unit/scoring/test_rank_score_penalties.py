@@ -14,8 +14,8 @@ from apex.strategies import (
     EntryZone,
     InvalidationConcept,
     InvalidationType,
-    StrategyAnalysisResult,
     RawQualityMetrics,
+    StrategyAnalysisResult,
     StrategyEvidence,
     StrategyType,
     TargetConcept,
@@ -24,7 +24,6 @@ from apex.strategies import (
     TradeCandidate,
     TradeDirection,
 )
-
 
 NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
@@ -111,9 +110,7 @@ def test_unpenalized_candidate_keeps_full_rank_score() -> None:
 
 
 def test_payload_exposes_rank_penalty_diagnostics() -> None:
-    payload = candidate_ranking_payload(
-        _snapshot(provisional=True, contradiction=0.50)
-    )
+    payload = candidate_ranking_payload(_snapshot(provisional=True, contradiction=0.50))
     primary = payload["primary"]
 
     assert primary["unpenalized_rank_score"] == 80.0  # type: ignore[index]

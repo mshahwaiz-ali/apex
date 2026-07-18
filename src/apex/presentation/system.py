@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from apex.presentation import (
-    OutputMode,
     UNAVAILABLE,
+    OutputMode,
     format_amount,
     format_percentage,
     format_price,
@@ -172,7 +172,9 @@ def render_version(version: str) -> str:
 
 
 def _mapping_fields(payload: Mapping[str, object]) -> str:
-    return render_fields((humanize_code(key), _display(value)) for key, value in sorted(payload.items()))
+    return render_fields(
+        (humanize_code(key), _display(value)) for key, value in sorted(payload.items())
+    )
 
 
 def _display(value: object) -> object:

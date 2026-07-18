@@ -46,9 +46,7 @@ def derive_evidence_freshness_semantics(
         item.code.value == "stale_or_incomplete_data" for item in methodology.hard_blockers
     )
     linked_source_ids = {item.source_id for item in source_references}
-    linked_sources = tuple(
-        item for item in source_candles if item.source_id in linked_source_ids
-    )
+    linked_sources = tuple(item for item in source_candles if item.source_id in linked_source_ids)
     source_ages = tuple(item.age_seconds for item in linked_sources)
     interval_ages = tuple(
         item.age_intervals for item in linked_sources if item.age_intervals is not None
@@ -79,9 +77,7 @@ def derive_evidence_freshness_semantics(
         "physical candle closure and source age are separate from normalized freshness scores",
     ]
     if not linked_sources:
-        limitations.append(
-            "missing evidence-to-source links prevent timestamp-based recency proof"
-        )
+        limitations.append("missing evidence-to-source links prevent timestamp-based recency proof")
     if not interval_ages:
         limitations.append(
             "source age cannot be normalized by timeframe without explicit interval duration"

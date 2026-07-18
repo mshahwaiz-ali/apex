@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_fields, render_section
+from apex.presentation import OutputMode, humanize_code, render_fields, render_section
 from apex.presentation.methodology_evidence_output import (
     render_discovery_analysis as _render_evidence_analysis,
 )
@@ -17,7 +17,7 @@ from apex.presentation.methodology_evidence_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus market-state and strategy-fit truth."""
 
@@ -26,7 +26,7 @@ def render_discovery_analysis(
     fit = _mapping(payload.get("methodology_strategy_fit_semantics"))
 
     if state:
-        fields = (
+        state_fields: tuple[tuple[str, object], ...] = (
             ("Primary market state", humanize_code(state.get("primary_state"))),
             ("Secondary conditions", state.get("secondary_conditions")),
             ("State evidence count", state.get("evidence_count")),
@@ -43,10 +43,10 @@ def render_discovery_analysis(
             ),
             ("Interpretation", state.get("interpretation")),
         )
-        sections.append(render_section("Market State", render_fields(fields)))
+        sections.append(render_section("Market State", render_fields(state_fields)))
 
     if fit:
-        fields = (
+        fit_fields: tuple[tuple[str, object], ...] = (
             ("Selected strategy", humanize_code(fit.get("selected_strategy"))),
             ("Primary state", humanize_code(fit.get("primary_state"))),
             ("Strategy-fit status", humanize_code(fit.get("fit_status"))),
@@ -65,7 +65,7 @@ def render_discovery_analysis(
             ),
             ("Interpretation", fit.get("interpretation")),
         )
-        sections.append(render_section("Strategy Fit", render_fields(fields)))
+        sections.append(render_section("Strategy Fit", render_fields(fit_fields)))
 
     return "\n\n".join(section for section in sections if section)
 
@@ -99,7 +99,9 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
                 "absence of an explicit mismatch is not proof of full strategy eligibility",
             ),
         )
-        sections.append(render_section("Market State and Strategy Fit Summary", render_fields(fields)))
+        sections.append(
+            render_section("Market State and Strategy Fit Summary", render_fields(fields))
+        )
     return "\n\n".join(section for section in sections if section)
 
 

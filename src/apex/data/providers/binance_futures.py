@@ -11,7 +11,6 @@ from apex.data.providers.errors import ProviderResponseError
 from apex.data.providers.http import request_json
 from apex.domain.futures_screening import FuturesTickerSnapshot
 
-
 TickerRowParser = Callable[
     [Any],
     tuple[str, dict[str, float | int]] | None,
@@ -77,9 +76,7 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
 
         snapshots: list[FuturesTickerSnapshot] = []
 
-        for exchange_symbol in sorted(
-            books.keys() & statistics.keys()
-        ):
+        for exchange_symbol in sorted(books.keys() & statistics.keys()):
             book = books[exchange_symbol]
             statistic = statistics[exchange_symbol]
 
@@ -90,23 +87,11 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
                     last_price=float(statistic["last_price"]),
                     bid_price=float(book["bid_price"]),
                     ask_price=float(book["ask_price"]),
-                    quote_volume_24h=float(
-                        statistic["quote_volume_24h"]
-                    ),
-                    price_change_percentage_24h=float(
-                        statistic[
-                            "price_change_percentage_24h"
-                        ]
-                    ),
-                    high_price_24h=self._optional_float(
-                        statistic.get("high_price_24h")
-                    ),
-                    low_price_24h=self._optional_float(
-                        statistic.get("low_price_24h")
-                    ),
-                    trade_count_24h=self._optional_int(
-                        statistic.get("trade_count_24h")
-                    ),
+                    quote_volume_24h=float(statistic["quote_volume_24h"]),
+                    price_change_percentage_24h=float(statistic["price_change_percentage_24h"]),
+                    high_price_24h=self._optional_float(statistic.get("high_price_24h")),
+                    low_price_24h=self._optional_float(statistic.get("low_price_24h")),
+                    trade_count_24h=self._optional_int(statistic.get("trade_count_24h")),
                     captured_at=captured_at,
                     source=self.name,
                 )
@@ -143,9 +128,7 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
             return None
 
         try:
-            exchange_symbol = cls._normalize_symbol(
-                str(value["symbol"])
-            )
+            exchange_symbol = cls._normalize_symbol(str(value["symbol"]))
             bid_price = float(value["bidPrice"])
             ask_price = float(value["askPrice"])
         except (KeyError, TypeError, ValueError):
@@ -168,28 +151,16 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
             return None
 
         try:
-            exchange_symbol = cls._normalize_symbol(
-                str(value["symbol"])
-            )
+            exchange_symbol = cls._normalize_symbol(str(value["symbol"]))
             parsed: dict[str, float | int] = {
                 "last_price": float(value["lastPrice"]),
-                "quote_volume_24h": float(
-                    value["quoteVolume"]
-                ),
-                "price_change_percentage_24h": float(
-                    value["priceChangePercent"]
-                ),
+                "quote_volume_24h": float(value["quoteVolume"]),
+                "price_change_percentage_24h": float(value["priceChangePercent"]),
             }
 
-            high_price = cls._optional_float(
-                value.get("highPrice")
-            )
-            low_price = cls._optional_float(
-                value.get("lowPrice")
-            )
-            trade_count = cls._optional_int(
-                value.get("count")
-            )
+            high_price = cls._optional_float(value.get("highPrice"))
+            low_price = cls._optional_float(value.get("lowPrice"))
+            trade_count = cls._optional_int(value.get("count"))
         except (KeyError, TypeError, ValueError):
             return None
 

@@ -31,9 +31,7 @@ def derive_target_horizon_semantics(
 ) -> TargetHorizonSemantics:
     """Describe structure-derived targets and setup-derived holding expectations."""
 
-    projected_moves = tuple(
-        target.expected_move_percentage for target in methodology.targets
-    )
+    projected_moves = tuple(target.expected_move_percentage for target in methodology.targets)
     maximum_move = max(projected_moves) if projected_moves else None
     has_double_digit_target = maximum_move is not None and maximum_move >= 10.0
     if not projected_moves:

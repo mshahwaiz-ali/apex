@@ -97,9 +97,7 @@ class CachedFuturesUniverseProvider:
                 )
             ],
         }
-        temporary = self._cache_path.with_suffix(
-            f"{self._cache_path.suffix}.tmp"
-        )
+        temporary = self._cache_path.with_suffix(f"{self._cache_path.suffix}.tmp")
         temporary.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",

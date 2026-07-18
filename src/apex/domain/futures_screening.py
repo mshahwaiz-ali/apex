@@ -92,11 +92,7 @@ class FuturesTickerSnapshot:
 
         if self.high_price_24h is None or self.low_price_24h is None:
             return None
-        return (
-            (self.high_price_24h - self.low_price_24h)
-            / self.low_price_24h
-            * 100
-        )
+        return (self.high_price_24h - self.low_price_24h) / self.low_price_24h * 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,47 +158,31 @@ class FuturesScreenerConfig:
         if self.minimum_quote_volume_24h < 0:
             raise ValueError("minimum_quote_volume_24h cannot be negative")
         if self.maximum_spread_percentage < 0:
-            raise ValueError(
-                "maximum_spread_percentage cannot be negative"
-            )
+            raise ValueError("maximum_spread_percentage cannot be negative")
         if self.minimum_absolute_movement_percentage < 0:
-            raise ValueError(
-                "minimum_absolute_movement_percentage cannot be negative"
-            )
+            raise ValueError("minimum_absolute_movement_percentage cannot be negative")
         if self.shortlist_size <= 0:
             raise ValueError("shortlist_size must be positive")
         if self.ticker_prefilter_size < self.shortlist_size:
-            raise ValueError(
-                "ticker_prefilter_size cannot be below shortlist_size"
-            )
+            raise ValueError("ticker_prefilter_size cannot be below shortlist_size")
         _require_text("candle_timeframe", self.candle_timeframe)
         if self.candle_limit < 13:
             raise ValueError("candle_limit must be at least 13")
         if not 13 <= self.minimum_candle_count <= self.candle_limit:
-            raise ValueError(
-                "minimum_candle_count must be between 13 and candle_limit"
-            )
+            raise ValueError("minimum_candle_count must be between 13 and candle_limit")
         positive_values = {
             "target_quote_volume_24h": self.target_quote_volume_24h,
             "target_movement_percentage": self.target_movement_percentage,
             "target_relative_volume": self.target_relative_volume,
             "target_atr_percentage": self.target_atr_percentage,
-            "maximum_usable_atr_percentage": (
-                self.maximum_usable_atr_percentage
-            ),
+            "maximum_usable_atr_percentage": (self.maximum_usable_atr_percentage),
             "maximum_extension_atr": self.maximum_extension_atr,
         }
         for field_name, value in positive_values.items():
             if value <= 0:
                 raise ValueError(f"{field_name} must be positive")
-        if (
-            self.maximum_usable_atr_percentage
-            <= self.target_atr_percentage
-        ):
-            raise ValueError(
-                "maximum_usable_atr_percentage must exceed "
-                "target_atr_percentage"
-            )
+        if self.maximum_usable_atr_percentage <= self.target_atr_percentage:
+            raise ValueError("maximum_usable_atr_percentage must exceed target_atr_percentage")
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,9 +212,7 @@ class FuturesOpportunityFeatures:
         ):
             value = getattr(self, field_name)
             if not 0.0 <= value <= 1.0:
-                raise ValueError(
-                    f"{field_name} must be between 0 and 1"
-                )
+                raise ValueError(f"{field_name} must be between 0 and 1")
         for field_name in (
             "relative_volume",
             "volume_acceleration",
@@ -296,6 +274,30 @@ class FuturesScreeningExclusionReason(StrEnum):
     BELOW_SHORTLIST = "below_shortlist"
 
 
+class FuturesDiscoveryLane(StrEnum):
+    """Research-derived shortlist lanes used before full trade approval."""
+
+    TREND_CONTINUATION = "trend_continuation"
+    COMPRESSION_EXPANSION = "compression_expansion"
+    FRESH_BREAK = "fresh_break"
+    FAST_MOVER = "fast_mover"
+    RANGE_LIQUIDITY_REJECTION = "range_liquidity_rejection"
+    RELATIVE_STRENGTH_WEAKNESS = "relative_strength_weakness"
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesDiscoveryLaneSignal:
+    """One transparent reason a symbol entered the expensive-analysis shortlist."""
+
+    lane: FuturesDiscoveryLane
+    score: float
+    reason: str
+
+    def __post_init__(self) -> None:
+        _require_percentage("discovery lane score", self.score)
+        _require_text("discovery lane reason", self.reason)
+
+
 @dataclass(frozen=True, slots=True)
 class FuturesScreeningExclusion:
     """One explicit lightweight-screening exclusion."""
@@ -318,6 +320,7 @@ class FuturesScreeningCandidate:
     ticker: FuturesTickerSnapshot
     features: FuturesOpportunityFeatures
     opportunity: FuturesOpportunityScore
+    discovery_lanes: tuple[FuturesDiscoveryLaneSignal, ...] = ()
 
     def __post_init__(self) -> None:
         if self.rank <= 0:

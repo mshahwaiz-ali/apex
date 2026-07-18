@@ -49,6 +49,4 @@ def test_opportunity_summary_exposes_label_rank_score_and_dimensions() -> None:
 
 
 def test_opportunity_summary_handles_symbol_without_ranked_candidate() -> None:
-    assert _opportunity_summary_lines(_analysis(None)) == (
-        "Best opportunity: none",
-    )
+    assert _opportunity_summary_lines(_analysis(None)) == ("Best opportunity: none",)

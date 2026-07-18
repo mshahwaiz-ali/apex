@@ -22,9 +22,6 @@ from apex.market_environment.contracts import (
 from apex.strategies.context import StrategyContext, TimeframeContext
 from apex.structure.contracts import (
     BreakDirection,
-    BreakQuality,
-    ConfirmationStatus,
-    RangeBreakoutState,
     SwingType,
     TrendDirection,
 )
@@ -102,19 +99,14 @@ def snapshot_from_timeframe(frame: TimeframeContext) -> TimeframeMarketSnapshot:
         rsi=frame.features.rsi,
         macd_histogram=frame.features.macd_histogram,
         recent_high_break=(
-            latest_break.direction is BreakDirection.BULLISH
-            if latest_break is not None
-            else None
+            latest_break.direction is BreakDirection.BULLISH if latest_break is not None else None
         ),
         recent_low_break=(
-            latest_break.direction is BreakDirection.BEARISH
-            if latest_break is not None
-            else None
+            latest_break.direction is BreakDirection.BEARISH if latest_break is not None else None
         ),
         consolidation=latest_range is not None,
         compression=(
-            frame.features.volatility_expansion
-            is not None
+            frame.features.volatility_expansion is not None
             and frame.features.volatility_expansion <= 0.75
         ),
         range_position=frame.features.range_position,
@@ -189,7 +181,9 @@ def build_market_environment(
         if frame.timeframe in config.required_timeframes
     }
     available = set(results)
-    missing = tuple(timeframe for timeframe in config.required_timeframes if timeframe not in available)
+    missing = tuple(
+        timeframe for timeframe in config.required_timeframes if timeframe not in available
+    )
     completeness = _completeness(len(results), len(missing), config)
     execution_timeframe = _select_timeframe(config.execution_priority, available, context)
     entry_timeframe = _select_timeframe(config.entry_priority, available, context)
@@ -303,11 +297,19 @@ def _classify_structural_regime(
             return MarketRegime.BREAKOUT_EXPANSION_DOWN
         return MarketRegime.BREAKOUT_RETEST_DOWN
     if trend in _BULLISH_TRENDS:
-        if snapshot.rsi is not None and snapshot.rsi >= 75 and extension is not ExtensionState.NORMAL:
+        if (
+            snapshot.rsi is not None
+            and snapshot.rsi >= 75
+            and extension is not ExtensionState.NORMAL
+        ):
             return MarketRegime.EXHAUSTION_UP
         return MarketRegime.TREND_UP
     if trend in _BEARISH_TRENDS:
-        if snapshot.rsi is not None and snapshot.rsi <= 25 and extension is not ExtensionState.NORMAL:
+        if (
+            snapshot.rsi is not None
+            and snapshot.rsi <= 25
+            and extension is not ExtensionState.NORMAL
+        ):
             return MarketRegime.EXHAUSTION_DOWN
         return MarketRegime.TREND_DOWN
     if trend is TrendDirection.RANGE or snapshot.consolidation:
@@ -421,14 +423,20 @@ def _suitability_scores(
     available_weight = sum(config.timeframe_weights[item] for item in results)
     if available_weight <= 0:
         return 0.0, 0.0
-    long_score = sum(
-        result.bullish_score * config.timeframe_weights[timeframe]
-        for timeframe, result in results.items()
-    ) / available_weight
-    short_score = sum(
-        result.bearish_score * config.timeframe_weights[timeframe]
-        for timeframe, result in results.items()
-    ) / available_weight
+    long_score = (
+        sum(
+            result.bullish_score * config.timeframe_weights[timeframe]
+            for timeframe, result in results.items()
+        )
+        / available_weight
+    )
+    short_score = (
+        sum(
+            result.bearish_score * config.timeframe_weights[timeframe]
+            for timeframe, result in results.items()
+        )
+        / available_weight
+    )
     return long_score, short_score
 
 
@@ -471,7 +479,11 @@ def _primary_regime(
     execution_timeframe: str,
     config: MarketEnvironmentConfig,
 ) -> MarketRegime:
-    for timeframe in (*config.structure_timeframes, execution_timeframe, *config.execution_priority):
+    for timeframe in (
+        *config.structure_timeframes,
+        execution_timeframe,
+        *config.execution_priority,
+    ):
         result = results.get(timeframe)
         if result is not None and result.regime is not MarketRegime.UNKNOWN:
             return result.regime

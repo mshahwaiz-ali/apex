@@ -48,13 +48,9 @@ def derive_score_semantics(
     elif blocked:
         interpretation = "a displayed score cannot override explicit hard blockers"
     elif not execution_complete:
-        interpretation = (
-            "the score may rank a developing setup but cannot authorize execution"
-        )
+        interpretation = "the score may rank a developing setup but cannot authorize execution"
     else:
-        interpretation = (
-            "the score ranks analytical quality after required execution conditions"
-        )
+        interpretation = "the score ranks analytical quality after required execution conditions"
     return ScoreSemantics(
         available=score is not None,
         displayed_score=score,

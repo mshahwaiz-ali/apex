@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -104,12 +105,30 @@ def _family_for_record(*, kind: str, detail: str) -> EvidenceFamily:
         (EvidenceFamily.MOMENTUM, ("rsi", "macd", "momentum", "roc", "stochastic")),
         (EvidenceFamily.CANDLE, ("candle", "wick", "engulf", "close", "rejection")),
         (EvidenceFamily.BROAD_CONTEXT, ("higher timeframe", "htf", "market context")),
-        (EvidenceFamily.STRUCTURE, ("breakout", "breakdown", "range", "support", "resistance", "swing", "retest", "reclaim")),
+        (
+            EvidenceFamily.STRUCTURE,
+            (
+                "breakout",
+                "breakdown",
+                "range",
+                "support",
+                "resistance",
+                "swing",
+                "retest",
+                "reclaim",
+            ),
+        ),
     )
     for family, keywords in keyword_groups:
-        if any(keyword in normalized for keyword in keywords):
+        if any(_contains_keyword(normalized, keyword) for keyword in keywords):
             return family
     return EvidenceFamily.STRUCTURE
+
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    if " " in keyword:
+        return keyword in text
+    return re.search(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])", text) is not None
 
 
 def _independence_group(family: EvidenceFamily, detail: str) -> str:

@@ -139,9 +139,7 @@ def methodology_public_enrichment(
         () if effective_source_bundle is None else effective_source_bundle.source_candles
     )
     source_references = (
-        ()
-        if effective_source_bundle is None
-        else effective_source_bundle.evidence_references
+        () if effective_source_bundle is None else effective_source_bundle.evidence_references
     )
     confirmation_candle = (
         None if effective_source_bundle is None else effective_source_bundle.confirmation_source
@@ -209,16 +207,12 @@ def methodology_public_enrichment(
         "methodology_compatibility_geometry": (
             None if setup is None else project_setup_geometry(setup)
         ),
-        "methodology_actionability_semantics": actionability_semantics_payload(
-            actionability
-        ),
+        "methodology_actionability_semantics": actionability_semantics_payload(actionability),
         "methodology_confidence_semantics": confidence_semantics_payload(confidence),
         "methodology_confirmation_source_semantics": (
             confirmation_source_semantics_payload(confirmation_source)
         ),
-        "methodology_contradiction_semantics": contradiction_semantics_payload(
-            contradictions
-        ),
+        "methodology_contradiction_semantics": contradiction_semantics_payload(contradictions),
         "methodology_entry_opportunity_semantics": entry_opportunity_semantics_payload(
             entry_opportunities
         ),
@@ -243,20 +237,17 @@ def methodology_public_enrichment(
         ),
         "methodology_rejection_semantics": rejection_semantics_payload(rejections),
         "methodology_score_semantics": score_semantics_payload(score),
-        "methodology_selected_entry_semantics": selected_entry_semantics_payload(
-            selected_entry
-        ),
+        "methodology_selected_entry_semantics": selected_entry_semantics_payload(selected_entry),
         "methodology_stop_quality_semantics": stop_quality_semantics_payload(stop_quality),
         "methodology_strategy_fit_semantics": strategy_fit_semantics_payload(strategy_fit),
         "methodology_target_feasibility_semantics": target_feasibility_semantics_payload(
             target_feasibility
         ),
-        "methodology_target_horizon_semantics": target_horizon_semantics_payload(
-            target_horizon
-        ),
+        "methodology_target_horizon_semantics": target_horizon_semantics_payload(target_horizon),
         "methodology_timeframe_coverage_semantics": timeframe_coverage_semantics_payload(
             timeframe_coverage
         ),
+        "methodology_candlestick_evidence": _candlestick_evidence(analysis),
         "methodology_projection_authoritative": native_available,
         "methodology_projection_notice": _projection_notice(analysis),
     }
@@ -304,6 +295,12 @@ def _projection_notice(analysis: SymbolAnalysis) -> str:
         "compatibility values were projected from the selected legacy setup; "
         "unavailable fields were not fabricated"
     )
+
+
+def _candlestick_evidence(analysis: SymbolAnalysis) -> list[object]:
+    diagnostics = analysis.phase5_diagnostics or {}
+    value = diagnostics.get("candlestick_evidence")
+    return value if isinstance(value, list) else []
 
 
 __all__ = ["methodology_public_enrichment"]

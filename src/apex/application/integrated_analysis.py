@@ -10,10 +10,13 @@ from typing import Any
 from apex.application import discovery_analysis as _analysis
 from apex.application.discovery_analysis import (
     format_symbol_text as format_discovery_symbol_text,
+)
+from apex.application.discovery_analysis import (
     serialize_symbol_analysis as serialize_discovery_symbol_analysis,
 )
 from apex.application.discovery_context import build_strategy_context
-from apex.application.discovery_contracts import ScanResult, SymbolAnalysis as DiscoverySymbolAnalysis
+from apex.application.discovery_contracts import ScanResult
+from apex.application.discovery_contracts import SymbolAnalysis as DiscoverySymbolAnalysis
 from apex.application.market_state import (
     MarketStateSnapshot,
     classify_market_state,
@@ -184,7 +187,9 @@ def serialize_symbol_analysis(analysis: DiscoverySymbolAnalysis) -> dict[str, An
     environment = getattr(analysis, "market_environment", None)
     state = getattr(analysis, "market_state", None)
     payload["market_environment"] = (
-        market_environment_payload(environment) if isinstance(environment, MarketEnvironment) else None
+        market_environment_payload(environment)
+        if isinstance(environment, MarketEnvironment)
+        else None
     )
     payload["market_state"] = (
         market_state_payload(state) if isinstance(state, MarketStateSnapshot) else None
@@ -197,14 +202,12 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
     longs = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None
-        and item.assessment.setup.direction.value == "long"
+        if item.assessment.setup is not None and item.assessment.setup.direction.value == "long"
     )
     shorts = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None
-        and item.assessment.setup.direction.value == "short"
+        if item.assessment.setup is not None and item.assessment.setup.direction.value == "short"
     )
     return {
         "generated_at": result.generated_at.isoformat(),
@@ -227,8 +230,11 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
             base,
             f"Regime: {environment.primary_regime.value}",
             f"HTF bias: {environment.higher_timeframe_bias.value}",
-            f"Alignment / conflict: {environment.alignment_score:.1f} / {environment.conflict_score:.1f}",
-            f"Long / short suitability: {environment.long_suitability_score:.1f} / {environment.short_suitability_score:.1f}",
+            "Alignment / conflict: "
+            f"{environment.alignment_score:.1f} / {environment.conflict_score:.1f}",
+            "Long / short suitability: "
+            f"{environment.long_suitability_score:.1f} / "
+            f"{environment.short_suitability_score:.1f}",
             f"Tradeable: {'yes' if environment.tradeable else 'no'}",
             f"Warnings: {warnings}",
         )

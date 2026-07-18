@@ -36,11 +36,7 @@ def apply_strategy_applicability(
             adjusted.append(item)
             continue
 
-        penalty = (
-            (100.0 - record.score)
-            / 100.0
-            * _MAX_APPLICABILITY_PENALTY
-        )
+        penalty = (100.0 - record.score) / 100.0 * _MAX_APPLICABILITY_PENALTY
         penalty_points = dict(item.breakdown.penalty_points)
         penalty_points["strategy_applicability"] = penalty
         total_penalty = item.breakdown.total_penalty + penalty

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from enum import StrEnum
 from math import isfinite
-from typing import Iterable, Mapping
 
 UNAVAILABLE = "Unavailable"
 DEFAULT_SEPARATOR_WIDTH = 40
@@ -198,9 +198,7 @@ def render_fields(
         return ""
     label_width = max(len(label) for label, _ in normalized)
     prefix = " " * max(indent, 0)
-    return "\n".join(
-        f"{prefix}{label.ljust(label_width)}: {value}" for label, value in normalized
-    )
+    return "\n".join(f"{prefix}{label.ljust(label_width)}: {value}" for label, value in normalized)
 
 
 def render_bullets(values: Iterable[object], *, indent: int = 2) -> str:
@@ -212,8 +210,8 @@ def render_bullets(values: Iterable[object], *, indent: int = 2) -> str:
 
 __all__ = [
     "DEFAULT_SEPARATOR_WIDTH",
-    "OutputMode",
     "UNAVAILABLE",
+    "OutputMode",
     "format_amount",
     "format_percentage",
     "format_price",

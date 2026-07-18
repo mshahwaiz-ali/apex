@@ -10,6 +10,8 @@ from typing import Any, cast
 from apex.application import integrated_analysis as _integrated
 from apex.application.discovery_contracts import (
     ScanResult as DiscoveryScanResult,
+)
+from apex.application.discovery_contracts import (
     SymbolAnalysis as DiscoverySymbolAnalysis,
 )
 from apex.application.market_strategy_router import (
@@ -171,14 +173,12 @@ def serialize_scan_result(result: DiscoveryScanResult) -> dict[str, Any]:
     long_setups = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None
-        and item.assessment.setup.direction.value == "long"
+        if item.assessment.setup is not None and item.assessment.setup.direction.value == "long"
     )
     short_setups = tuple(
         item
         for item in approved
-        if item.assessment.setup is not None
-        and item.assessment.setup.direction.value == "short"
+        if item.assessment.setup is not None and item.assessment.setup.direction.value == "short"
     )
     return {
         "generated_at": result.generated_at.isoformat(),
@@ -204,9 +204,12 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
     lines = [f"{analysis.symbol} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
+        environment_tradeable = (
+            "yes" if environment is not None and environment.tradeable else "no"
+        )
         lines.extend(
             (
-                f"Environment tradeable: {'yes' if environment is not None and environment.tradeable else 'no'}",
+                f"Environment tradeable: {environment_tradeable}",
                 f"Strategy routed: {strategies}",
                 f"Preferred direction: {route.preferred_direction.value}",
                 f"Routing score: {route.routing_score:.1f}",
@@ -217,7 +220,8 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
     lines.extend(
         (
             f"Raw candidates: {analysis.candidate_count}",
-            f"Candidate selection accepted: {'yes' if candidate_diagnostics.get('selected') else 'no'}",
+            "Candidate selection accepted: "
+            f"{'yes' if candidate_diagnostics.get('selected') else 'no'}",
             f"Decision reason: {_decision_reason_code(analysis)}",
         )
     )

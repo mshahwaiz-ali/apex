@@ -41,7 +41,9 @@ def derive_expiry_semantics(methodology: MethodologySnapshot) -> ExpirySemantics
     }
 
     if structurally_failed:
-        interpretation = "the setup has structurally failed; expiry is no longer the governing issue"
+        interpretation = (
+            "the setup has structurally failed; expiry is no longer the governing issue"
+        )
     elif late_or_missed:
         interpretation = "canonical maturity marks the original opportunity as late or missed"
     elif duration is None and not entry_expiry_values:

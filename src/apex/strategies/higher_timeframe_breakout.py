@@ -53,7 +53,9 @@ def _promote_candidate(candidate: TradeCandidate) -> TradeCandidate:
             warnings=candidate.evidence.warnings,
             feature_references=candidate.evidence.feature_references,
             structure_references=tuple(
-                dict.fromkeys((*candidate.evidence.structure_references, "higher_timeframe_breakout"))
+                dict.fromkeys(
+                    (*candidate.evidence.structure_references, "higher_timeframe_breakout")
+                )
             ),
             liquidity_references=candidate.evidence.liquidity_references,
         ),

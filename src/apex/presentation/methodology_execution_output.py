@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_score_target_output import (
     render_discovery_analysis as _render_score_target_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_score_target_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus execution and invalidation truth."""
 
@@ -74,9 +80,7 @@ def render_discovery_analysis(
         )
         limitations = _strings(invalidation.get("limitations"))
         if limitations:
-            sections.append(
-                render_section("Invalidation Limitations", render_bullets(limitations))
-            )
+            sections.append(render_section("Invalidation Limitations", render_bullets(limitations)))
 
     return "\n\n".join(section for section in sections if section)
 
@@ -97,9 +101,8 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
         has_invalidation = geometry.get("canonical_invalidation_available") is True
         canonical_entry += has_entry
         canonical_invalidation += has_invalidation
-        compatibility_only += (
-            geometry.get("compatibility_entry_available") is True
-            and not (has_entry and has_invalidation)
+        compatibility_only += geometry.get("compatibility_entry_available") is True and not (
+            has_entry and has_invalidation
         )
         execution_ready += geometry.get("execution_ready") is True
         authoritative_geometry += geometry.get("geometry_authoritative") is True

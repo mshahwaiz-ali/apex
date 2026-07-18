@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_actionability_output import (
     render_discovery_analysis as _render_actionability_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_actionability_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus evidence and confirmation truth."""
 
@@ -82,7 +88,8 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ("Results with closed-candle proof", closed_proven),
             (
                 "Interpretation",
-                "active-candle evidence remains provisional unless canonical policy explicitly allows it",
+                "active-candle evidence remains provisional unless canonical policy "
+                "explicitly allows it",
             ),
         )
         sections.append(render_section("Evidence and Confirmation Summary", render_fields(fields)))

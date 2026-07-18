@@ -114,8 +114,7 @@ class TimeframeMarketSnapshot:
         if not math.isfinite(self.atr) or self.atr <= 0:
             raise ValueError("ATR must be positive and finite")
         if self.candle_timestamp is not None and (
-            self.candle_timestamp.tzinfo is None
-            or self.candle_timestamp.utcoffset() is None
+            self.candle_timestamp.tzinfo is None or self.candle_timestamp.utcoffset() is None
         ):
             raise ValueError("candle timestamp must be timezone-aware")
         for name in (

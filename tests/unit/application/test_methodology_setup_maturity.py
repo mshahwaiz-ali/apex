@@ -110,7 +110,5 @@ def test_setup_maturity_payload_is_public_safe() -> None:
         "confirmation_policy": "retest_required",
         "execution_conditions_complete": False,
         "reason_codes": ["METHODOLOGY_BETTER_ENTRY_PENDING"],
-        "reasons": [
-            "a preferred nearby entry or strategy-specific confirmation remains pending"
-        ],
+        "reasons": ["a preferred nearby entry or strategy-specific confirmation remains pending"],
     }

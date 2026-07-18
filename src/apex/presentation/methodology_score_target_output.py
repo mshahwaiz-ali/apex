@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_semantics_output import (
     render_discovery_analysis as _render_semantics_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_semantics_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus score and horizon interpretation."""
 
@@ -41,7 +47,10 @@ def render_discovery_analysis(
     if horizon:
         horizon_fields = (
             ("Canonical targets", horizon.get("target_count")),
-            ("Maximum projected move", _percentage(horizon.get("maximum_projected_move_percentage"))),
+            (
+                "Maximum projected move",
+                _percentage(horizon.get("maximum_projected_move_percentage")),
+            ),
             ("10%+ target supported", _yes_no(horizon.get("has_double_digit_target"))),
             ("Universal target applied", _yes_no(horizon.get("universal_target_applied"))),
             ("Target interpretation", horizon.get("target_interpretation")),
@@ -51,7 +60,9 @@ def render_discovery_analysis(
             ("Setup expiry bars", horizon.get("setup_expiry_bars")),
             ("Duration interpretation", horizon.get("duration_interpretation")),
         )
-        sections.append(render_section("Target and Horizon Semantics", render_fields(horizon_fields)))
+        sections.append(
+            render_section("Target and Horizon Semantics", render_fields(horizon_fields))
+        )
 
     return "\n\n".join(section for section in sections if section)
 

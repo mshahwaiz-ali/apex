@@ -37,9 +37,7 @@ class FuturesOpportunityWeightSettings(BaseModel):
         self,
     ) -> FuturesOpportunityWeightSettings:
         if abs(sum(self.model_dump().values()) - 1.0) > 1e-9:
-            raise ValueError(
-                "futures opportunity weights must sum to 1.0"
-            )
+            raise ValueError("futures opportunity weights must sum to 1.0")
         return self
 
     def to_domain(self) -> FuturesOpportunityWeights:
@@ -85,9 +83,7 @@ class FuturesScreenerSettings(BaseModel):
         gt=0,
     )
     maximum_extension_atr: float = Field(default=3.0, gt=0)
-    weights: FuturesOpportunityWeightSettings = (
-        FuturesOpportunityWeightSettings()
-    )
+    weights: FuturesOpportunityWeightSettings = FuturesOpportunityWeightSettings()
     quote_asset: str = Field(default="USDT", min_length=1)
     blacklist: tuple[str, ...] = ()
     allowlist: tuple[str, ...] | None = None
@@ -99,21 +95,11 @@ class FuturesScreenerSettings(BaseModel):
     @model_validator(mode="after")
     def _validate_geometry(self) -> FuturesScreenerSettings:
         if self.ticker_prefilter_size < self.shortlist_size:
-            raise ValueError(
-                "ticker_prefilter_size cannot be below shortlist_size"
-            )
+            raise ValueError("ticker_prefilter_size cannot be below shortlist_size")
         if self.minimum_candle_count > self.candle_limit:
-            raise ValueError(
-                "minimum_candle_count cannot exceed candle_limit"
-            )
-        if (
-            self.maximum_usable_atr_percentage
-            <= self.target_atr_percentage
-        ):
-            raise ValueError(
-                "maximum_usable_atr_percentage must exceed "
-                "target_atr_percentage"
-            )
+            raise ValueError("minimum_candle_count cannot exceed candle_limit")
+        if self.maximum_usable_atr_percentage <= self.target_atr_percentage:
+            raise ValueError("maximum_usable_atr_percentage must exceed target_atr_percentage")
         return self
 
     @field_validator("quote_asset")
@@ -121,9 +107,7 @@ class FuturesScreenerSettings(BaseModel):
     def _normalize_quote_asset(cls, value: str) -> str:
         normalized = value.strip().upper()
         if not normalized:
-            raise ValueError(
-                "futures screener quote asset cannot be empty"
-            )
+            raise ValueError("futures screener quote asset cannot be empty")
         return normalized
 
     @field_validator("candle_timeframe")
@@ -131,9 +115,7 @@ class FuturesScreenerSettings(BaseModel):
     def _normalize_timeframe(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError(
-                "futures screener candle timeframe cannot be empty"
-            )
+            raise ValueError("futures screener candle timeframe cannot be empty")
         return normalized
 
     @field_validator("blacklist")
@@ -158,31 +140,19 @@ class FuturesScreenerSettings(BaseModel):
         """Convert file settings into the domain screening contract."""
 
         return FuturesScreenerConfig(
-            minimum_quote_volume_24h=(
-                self.minimum_quote_volume_24h
-            ),
-            maximum_spread_percentage=(
-                self.maximum_spread_percentage
-            ),
-            minimum_absolute_movement_percentage=(
-                self.minimum_absolute_movement_percentage
-            ),
+            minimum_quote_volume_24h=(self.minimum_quote_volume_24h),
+            maximum_spread_percentage=(self.maximum_spread_percentage),
+            minimum_absolute_movement_percentage=(self.minimum_absolute_movement_percentage),
             shortlist_size=self.shortlist_size,
             ticker_prefilter_size=self.ticker_prefilter_size,
             candle_timeframe=self.candle_timeframe,
             candle_limit=self.candle_limit,
             minimum_candle_count=self.minimum_candle_count,
-            target_quote_volume_24h=(
-                self.target_quote_volume_24h
-            ),
-            target_movement_percentage=(
-                self.target_movement_percentage
-            ),
+            target_quote_volume_24h=(self.target_quote_volume_24h),
+            target_movement_percentage=(self.target_movement_percentage),
             target_relative_volume=self.target_relative_volume,
             target_atr_percentage=self.target_atr_percentage,
-            maximum_usable_atr_percentage=(
-                self.maximum_usable_atr_percentage
-            ),
+            maximum_usable_atr_percentage=(self.maximum_usable_atr_percentage),
             maximum_extension_atr=self.maximum_extension_atr,
             weights=self.weights.to_domain(),
         )
@@ -192,17 +162,9 @@ def _normalize_symbols(
     values: tuple[str, ...],
     label: str,
 ) -> tuple[str, ...]:
-    normalized = tuple(
-        value.strip().upper()
-        for value in values
-        if value.strip()
-    )
+    normalized = tuple(value.strip().upper() for value in values if value.strip())
     if len(normalized) != len(values):
-        raise ValueError(
-            f"futures screener {label} cannot contain empty symbols"
-        )
+        raise ValueError(f"futures screener {label} cannot contain empty symbols")
     if len(set(normalized)) != len(normalized):
-        raise ValueError(
-            f"futures screener {label} cannot contain duplicates"
-        )
+        raise ValueError(f"futures screener {label} cannot contain duplicates")
     return normalized

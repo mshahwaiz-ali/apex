@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_expiry_ranking_output import (
     render_discovery_analysis as _render_expiry_ranking_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_expiry_ranking_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior sections plus selected-entry decision truth."""
 
@@ -72,7 +78,9 @@ def render_discovery_analysis(
                 ("Expiry bars", opportunity.get("expiry_bars")),
                 ("Reason", opportunity.get("reason")),
             )
-            sections.append(render_section("Selected Entry Geometry", render_fields(opportunity_fields)))
+            sections.append(
+                render_section("Selected Entry Geometry", render_fields(opportunity_fields))
+            )
         limitations = _strings(selection.get("selection_limitations"))
         if limitations:
             sections.append(render_section("Selection Limitations", render_bullets(limitations)))
@@ -103,7 +111,8 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ("Results with ambiguous multiple entries", ambiguous),
             (
                 "Interpretation",
-                "multiple opportunities remain unselected unless the canonical model identifies one explicitly",
+                "multiple opportunities remain unselected unless the canonical model "
+                "identifies one explicitly",
             ),
         )
         sections.append(render_section("Selected Entry Summary", render_fields(fields)))

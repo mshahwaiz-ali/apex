@@ -49,9 +49,7 @@ def _as_breakout_retest(candidate: TradeCandidate) -> TradeCandidate:
             warnings=candidate.evidence.warnings,
             feature_references=candidate.evidence.feature_references,
             structure_references=tuple(
-                dict.fromkeys(
-                    (*candidate.evidence.structure_references, "breakout_retest")
-                )
+                dict.fromkeys((*candidate.evidence.structure_references, "breakout_retest"))
             ),
             liquidity_references=candidate.evidence.liquidity_references,
         ),

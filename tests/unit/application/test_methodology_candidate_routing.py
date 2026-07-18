@@ -118,7 +118,9 @@ def test_enforce_mode_removes_explicit_conflict_and_keeps_audit_record() -> None
     )
     assert len(result.analysis.candidate_actionability) == 1
     assert len(result.analysis.suppressed_candidates) == 1
-    assert result.analysis.suppressed_candidates[0].candidate.strategy is StrategyType.RANGE_REVERSAL
+    assert (
+        result.analysis.suppressed_candidates[0].candidate.strategy is StrategyType.RANGE_REVERSAL
+    )
     assert result.suppressed_candidate_count == 1
     assert result.suppressed_strategies == (StrategyType.RANGE_REVERSAL,)
     payload = methodology_candidate_routing_payload(result)
@@ -157,9 +159,7 @@ def test_all_candidates_suppressed_is_explicit() -> None:
 def test_deferred_or_missing_decision_remains_eligible() -> None:
     result = apply_methodology_candidate_routing(
         _analysis(),
-        (
-            _decision(StrategyType.TREND_PULLBACK, StrategyEnforcementAction.DEFER),
-        ),
+        (_decision(StrategyType.TREND_PULLBACK, StrategyEnforcementAction.DEFER),),
         mode=MethodologyGateMode.ENFORCE,
     )
 

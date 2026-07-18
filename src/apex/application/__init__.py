@@ -9,13 +9,13 @@ from apex.application.analysis_records import (
 )
 from apex.application.bootstrap import bootstrap
 from apex.application.configuration_identity import configuration_metadata
-from apex.application.discovery_contracts import ScanResult
 from apex.application.decision_analysis import (
     SymbolAnalysis,
     analyze_symbol,
     scan_symbols,
     write_json_report,
 )
+from apex.application.discovery_contracts import ScanResult
 from apex.application.enriched_public_output import (
     serialize_scan_result,
     serialize_symbol_analysis,

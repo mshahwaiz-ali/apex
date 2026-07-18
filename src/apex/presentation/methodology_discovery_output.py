@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.discovery_output import (
     render_discovery_analysis as _render_base_analysis,
 )
@@ -14,7 +20,7 @@ from apex.presentation.discovery_output import render_discovery_scan as _render_
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render the base trade plan plus methodology maturity and projection status."""
 
@@ -52,7 +58,11 @@ def render_discovery_analysis(
         fields.append(
             (
                 "Methodology authority",
-                "Native" if payload.get("methodology_projection_authoritative") is True else "Projected",
+                (
+                    "Native"
+                    if payload.get("methodology_projection_authoritative") is True
+                    else "Projected"
+                ),
             )
         )
     if projection_notice:

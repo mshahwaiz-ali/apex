@@ -209,9 +209,7 @@ def _references_are_too_far(context: StrategyContext) -> bool:
     levels = context.decision_frame.structure.levels
     if not levels:
         return False
-    nearest = min(
-        abs(level.representative_price - context.current_price) for level in levels
-    )
+    nearest = min(abs(level.representative_price - context.current_price) for level in levels)
     return nearest > context.atr * _MAX_REFERENCE_DISTANCE_ATR
 
 

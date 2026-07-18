@@ -17,13 +17,13 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
     select_entry_zone,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -83,9 +83,7 @@ def _candidate_for_direction(
     has_break = _has_recent_continuation_break(context, bullish=bullish)
     if not has_trend and not has_break:
         return None
-    higher_timeframe_conflict = context.higher_timeframe_contradiction(
-        bullish=bullish
-    )
+    higher_timeframe_conflict = context.higher_timeframe_contradiction(bullish=bullish)
 
     aligned, total = _momentum_alignment(context, bullish=bullish)
     if total == 0 or aligned == 0:
@@ -123,9 +121,7 @@ def _candidate_for_direction(
     if context.provisional:
         warnings.append("active-candle evidence is provisional")
     if higher_timeframe_conflict:
-        warnings.append(
-            "higher-timeframe trend conflicts with the decision-frame momentum thesis"
-        )
+        warnings.append("higher-timeframe trend conflicts with the decision-frame momentum thesis")
     return TradeCandidate(
         symbol=context.symbol,
         strategy=StrategyType.MOMENTUM_BREAKOUT,

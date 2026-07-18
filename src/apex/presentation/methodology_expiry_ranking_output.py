@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_evidence_quality_output import (
     render_discovery_analysis as _render_evidence_quality_analysis,
 )
@@ -16,7 +22,7 @@ from apex.presentation.methodology_evidence_quality_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior sections plus expiry and ranking-integrity truth."""
 
@@ -25,7 +31,7 @@ def render_discovery_analysis(
     ranking = _mapping(payload.get("methodology_ranking_integrity_semantics"))
 
     if expiry:
-        fields = (
+        expiry_fields: tuple[tuple[str, object], ...] = (
             ("Setup expiry bars", expiry.get("setup_expiry_bars")),
             ("Minimum entry expiry bars", expiry.get("minimum_entry_expiry_bars")),
             ("Maximum entry expiry bars", expiry.get("maximum_entry_expiry_bars")),
@@ -36,13 +42,13 @@ def render_discovery_analysis(
             ("Expired proven", _yes_no(expiry.get("expired_proven"))),
             ("Interpretation", expiry.get("interpretation")),
         )
-        sections.append(render_section("Setup Expiry", render_fields(fields)))
+        sections.append(render_section("Setup Expiry", render_fields(expiry_fields)))
         limitations = _strings(expiry.get("limitations"))
         if limitations:
             sections.append(render_section("Expiry Limitations", render_bullets(limitations)))
 
     if ranking:
-        fields = (
+        ranking_fields: tuple[tuple[str, object], ...] = (
             ("Ranking available", _yes_no(ranking.get("ranking_available"))),
             ("Ranked candidates", ranking.get("ranked_count")),
             ("Primary available", _yes_no(ranking.get("primary_available"))),
@@ -57,7 +63,7 @@ def render_discovery_analysis(
             ("Rank authorizes execution", _yes_no(ranking.get("rank_authorizes_execution"))),
             ("Interpretation", ranking.get("interpretation")),
         )
-        sections.append(render_section("Ranking Integrity", render_fields(fields)))
+        sections.append(render_section("Ranking Integrity", render_fields(ranking_fields)))
         limitations = _strings(ranking.get("limitations"))
         if limitations:
             sections.append(render_section("Ranking Limitations", render_bullets(limitations)))
@@ -90,7 +96,8 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ("Results where blockers outrank score", blocker_over_rank),
             (
                 "Interpretation",
-                "rank orders candidates but never overrides expiry, hard blockers, or missing geometry",
+                "rank orders candidates but never overrides expiry, hard blockers, "
+                "or missing geometry",
             ),
         )
         sections.append(render_section("Expiry and Ranking Summary", render_fields(fields)))

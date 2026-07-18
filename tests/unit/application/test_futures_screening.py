@@ -94,16 +94,11 @@ def test_screen_futures_universe_filters_and_ranks() -> None:
         ),
     )
 
-    assert [
-        candidate.contract.exchange_symbol
-        for candidate in result.candidates
-    ] == [
+    assert [candidate.contract.exchange_symbol for candidate in result.candidates] == [
         "BBBUSDT",
         "AAAUSDT",
     ]
-    assert [
-        candidate.rank for candidate in result.candidates
-    ] == [1, 2]
+    assert [candidate.rank for candidate in result.candidates] == [1, 2]
 
     assert {
         (
@@ -114,8 +109,7 @@ def test_screen_futures_universe_filters_and_ranks() -> None:
     } == {
         (
             "CCCUSDT",
-            FuturesScreeningExclusionReason
-            .INSUFFICIENT_MOVEMENT,
+            FuturesScreeningExclusionReason.INSUFFICIENT_MOVEMENT,
         ),
         (
             "DDDUSDT",
@@ -173,9 +167,7 @@ def test_screen_futures_universe_excludes_low_liquidity() -> None:
     )
 
     assert result.candidates == ()
-    assert result.exclusions[0].reason == (
-        FuturesScreeningExclusionReason.INSUFFICIENT_LIQUIDITY
-    )
+    assert result.exclusions[0].reason == (FuturesScreeningExclusionReason.INSUFFICIENT_LIQUIDITY)
 
 
 def test_screen_futures_universe_excludes_wide_spread() -> None:
@@ -197,9 +189,7 @@ def test_screen_futures_universe_excludes_wide_spread() -> None:
     )
 
     assert result.candidates == ()
-    assert result.exclusions[0].reason == (
-        FuturesScreeningExclusionReason.SPREAD_TOO_WIDE
-    )
+    assert result.exclusions[0].reason == (FuturesScreeningExclusionReason.SPREAD_TOO_WIDE)
 
 
 def test_screen_futures_universe_ranks_negative_and_positive_moves_equally() -> None:
@@ -223,10 +213,7 @@ def test_screen_futures_universe_ranks_negative_and_positive_moves_equally() -> 
         FuturesScreenerConfig(shortlist_size=2),
     )
 
-    assert [
-        candidate.contract.exchange_symbol
-        for candidate in result.candidates
-    ] == [
+    assert [candidate.contract.exchange_symbol for candidate in result.candidates] == [
         "AAAUSDT",
         "BBBUSDT",
     ]
@@ -253,10 +240,7 @@ def test_screen_futures_universe_uses_volume_as_first_tiebreaker() -> None:
         FuturesScreenerConfig(shortlist_size=2),
     )
 
-    assert [
-        candidate.contract.exchange_symbol
-        for candidate in result.candidates
-    ] == [
+    assert [candidate.contract.exchange_symbol for candidate in result.candidates] == [
         "BBBUSDT",
         "AAAUSDT",
     ]
@@ -295,10 +279,7 @@ def test_screen_futures_universe_uses_spread_then_symbol_for_ties() -> None:
         FuturesScreenerConfig(shortlist_size=3),
     )
 
-    assert [
-        candidate.contract.exchange_symbol
-        for candidate in result.candidates
-    ] == [
+    assert [candidate.contract.exchange_symbol for candidate in result.candidates] == [
         "AAAUSDT",
         "BBBUSDT",
         "CCCUSDT",

@@ -85,10 +85,76 @@ def render_discovery_analysis(
         )
     sections.append(render_section("Trade Plan", render_fields(trade_fields)))
 
+    reasons = _strings(payload.get("reasons"))
+    if reasons:
+        sections.append(render_section("Why This Direction", render_bullets(reasons[:4])))
+
+    entry_semantics = _mapping(payload.get("methodology_selected_entry_semantics"))
+    if entry_semantics:
+        sections.append(
+            render_section(
+                "Why This Entry",
+                render_fields(
+                    (
+                        ("Selected kind", humanize_code(entry_semantics.get("selected_kind"))),
+                        ("Executable now", _yes_no(entry_semantics.get("currently_executable"))),
+                        ("Future trigger", _yes_no(entry_semantics.get("future_trigger_required"))),
+                        ("Reason", entry_semantics.get("selection_reason")),
+                    )
+                ),
+            )
+        )
+
+    invalidation = _mapping(payload.get("methodology_invalidation_semantics"))
+    failure_event = invalidation.get("failure_event")
+    if failure_event is not None:
+        sections.append(
+            render_section(
+                "What Invalidates It",
+                render_fields(
+                    (
+                        ("Failure event", failure_event),
+                        ("Rule", humanize_code(invalidation.get("rule"))),
+                        ("Structure", invalidation.get("structure")),
+                    )
+                ),
+            )
+        )
+
+    target_semantics = _mapping(payload.get("methodology_target_feasibility_semantics"))
+    if target_semantics:
+        sections.append(
+            render_section(
+                "Why These Targets",
+                render_fields(
+                    (
+                        ("Interpretation", target_semantics.get("interpretation")),
+                        (
+                            "Gross geometry",
+                            _yes_no(target_semantics.get("gross_geometry_available")),
+                        ),
+                        ("Costs included", _yes_no(target_semantics.get("costs_available"))),
+                    )
+                ),
+            )
+        )
+
+    candles = _mappings(payload.get("methodology_candlestick_evidence"))
+    if candles:
+        lines = [
+            (
+                f"{humanize_code(item.get('pattern_id'))}: "
+                f"{humanize_code(item.get('pattern_direction'))} | "
+                f"{humanize_code(item.get('completion_state'))} | "
+                f"{item.get('context_note')}"
+            )
+            for item in candles[:3]
+        ]
+        sections.append(render_section("Candlestick Evidence", render_bullets(lines)))
+
     if policies:
         policy_lines = [
-            f"{humanize_code(item.get('kind'))}: {item.get('action')} "
-            f"when {item.get('trigger')}"
+            f"{humanize_code(item.get('kind'))}: {item.get('action')} when {item.get('trigger')}"
             for item in policies
         ]
         sections.append(render_section("Trade Management", render_bullets(policy_lines)))
@@ -126,6 +192,10 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             ),
         )
     )
+    screening = _mapping(payload.get("screening"))
+    lane_lines = _screening_lane_lines(screening)
+    if lane_lines:
+        sections.append(render_section("Discovery Lanes", render_bullets(lane_lines)))
     sections.extend(
         section
         for section in (
@@ -163,6 +233,29 @@ def _strings(value: object) -> tuple[str, ...]:
     return tuple(str(item) for item in value)
 
 
+def _screening_lane_lines(screening: Mapping[str, object]) -> tuple[str, ...]:
+    candidates = _mappings(screening.get("candidates"))
+    lines: list[str] = []
+    for candidate in candidates[:5]:
+        lanes = _mappings(candidate.get("discovery_lanes"))
+        if not lanes:
+            continue
+        primary = lanes[0]
+        lines.append(
+            f"{candidate.get('symbol')}: {humanize_code(primary.get('lane'))} "
+            f"({format_score(primary.get('score'))}) — {primary.get('reason')}"
+        )
+    return tuple(lines)
+
+
+def _yes_no(value: object) -> str:
+    if value is True:
+        return "Yes"
+    if value is False:
+        return "No"
+    return "Unavailable"
+
+
 def _price_range(low: object, high: object) -> str:
     if low is None and high is None:
         return "Unavailable"
@@ -170,7 +263,7 @@ def _price_range(low: object, high: object) -> str:
         return format_price(high)
     if high is None:
         return format_price(low)
-    return f"{format_price(low)} – {format_price(high)}"
+    return f"{format_price(low)} - {format_price(high)}"
 
 
 __all__ = ["render_discovery_analysis", "render_discovery_scan"]

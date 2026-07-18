@@ -12,7 +12,5 @@ def remove_registered_commands(app: typer.Typer, names: Collection[str]) -> None
 
     blocked = frozenset(names)
     app.registered_commands[:] = [
-        command
-        for command in app.registered_commands
-        if command.name not in blocked
+        command for command in app.registered_commands if command.name not in blocked
     ]

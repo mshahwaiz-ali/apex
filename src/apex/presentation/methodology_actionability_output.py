@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 
-from apex.presentation import humanize_code, render_bullets, render_fields, render_section
+from apex.presentation import (
+    OutputMode,
+    humanize_code,
+    render_bullets,
+    render_fields,
+    render_section,
+)
 from apex.presentation.methodology_execution_output import (
     render_discovery_analysis as _render_execution_analysis,
 )
@@ -17,7 +23,7 @@ from apex.presentation.methodology_execution_output import (
 def render_discovery_analysis(
     payload: Mapping[str, object],
     *,
-    mode: object = "text",
+    mode: str | OutputMode = "text",
 ) -> str:
     """Render prior methodology sections plus authoritative actionability."""
 
@@ -26,7 +32,7 @@ def render_discovery_analysis(
     opportunities = _mapping(payload.get("methodology_entry_opportunity_semantics"))
 
     if actionability:
-        fields = (
+        actionability_fields: tuple[tuple[str, object], ...] = (
             ("Legacy status", humanize_code(actionability.get("legacy_status"))),
             ("Canonical maturity", humanize_code(actionability.get("canonical_maturity"))),
             ("Authoritative actionability", humanize_code(actionability.get("actionability"))),
@@ -37,10 +43,10 @@ def render_discovery_analysis(
             ),
             ("Interpretation", actionability.get("interpretation")),
         )
-        sections.append(render_section("Actionability", render_fields(fields)))
+        sections.append(render_section("Actionability", render_fields(actionability_fields)))
 
     if opportunities:
-        fields = (
+        opportunity_fields: tuple[tuple[str, object], ...] = (
             ("Canonical opportunities", opportunities.get("opportunity_count")),
             ("Primary opportunity", humanize_code(opportunities.get("primary_kind"))),
             ("Available kinds", opportunities.get("available_kinds")),
@@ -53,7 +59,7 @@ def render_discovery_analysis(
             ),
             ("Interpretation", opportunities.get("interpretation")),
         )
-        sections.append(render_section("Entry Opportunities", render_fields(fields)))
+        sections.append(render_section("Entry Opportunities", render_fields(opportunity_fields)))
         lines = _opportunity_lines(opportunities.get("opportunities"))
         if lines:
             sections.append(render_section("Opportunity Geometry", render_bullets(lines)))

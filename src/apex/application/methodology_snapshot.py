@@ -72,11 +72,11 @@ class MethodologySnapshot:
             raise ValueError("methodology contradictions must not contain duplicates")
         if len(set(self.entry_opportunities)) != len(self.entry_opportunities):
             raise ValueError("entry opportunities must not contain duplicates")
-        if self.selected_entry is not None:
-            if self.selected_entry.opportunity not in self.entry_opportunities:
-                raise ValueError(
-                    "selected entry must reference an opportunity in the canonical set"
-                )
+        if (
+            self.selected_entry is not None
+            and self.selected_entry.opportunity not in self.entry_opportunities
+        ):
+            raise ValueError("selected entry must reference an opportunity in the canonical set")
         if len(set(self.targets)) != len(self.targets):
             raise ValueError("target candidates must not contain duplicates")
         if len(set(self.target_obstacles)) != len(self.target_obstacles):
@@ -95,9 +95,7 @@ class MethodologySnapshot:
         if len(set(obstacle_roles)) != len(obstacle_roles):
             raise ValueError("target obstacle roles must be unique")
         if any(role not in target_roles for role in obstacle_roles):
-            raise ValueError(
-                "target obstacle evidence must reference a canonical target role"
-            )
+            raise ValueError("target obstacle evidence must reference a canonical target role")
 
     def _validate_management_steps(self) -> None:
         target_roles = {target.role for target in self.targets}
@@ -106,9 +104,7 @@ class MethodologySnapshot:
             if step.kind is not ManagementActionType.PARTIAL_EXIT:
                 continue
             if step.target_role not in target_roles:
-                raise ValueError(
-                    "partial-exit management must reference a canonical target role"
-                )
+                raise ValueError("partial-exit management must reference a canonical target role")
             partial_total += step.close_percentage or 0.0
         if partial_total > 100.0:
             raise ValueError("partial-exit close percentages cannot exceed 100")
@@ -120,7 +116,10 @@ class MethodologySnapshot:
         if self.invalidation is not None:
             if self.direction is TradeDirection.LONG and self.invalidation.price >= entry.zone_low:
                 raise ValueError("long invalidation must be below the selected entry zone")
-            if self.direction is TradeDirection.SHORT and self.invalidation.price <= entry.zone_high:
+            if (
+                self.direction is TradeDirection.SHORT
+                and self.invalidation.price <= entry.zone_high
+            ):
                 raise ValueError("short invalidation must be above the selected entry zone")
         if self.direction is TradeDirection.LONG:
             if any(target.price <= entry.zone_high for target in self.targets):
@@ -146,10 +145,10 @@ class MethodologySnapshot:
 
     @property
     def executable(self) -> bool:
+        entry_available = self.selected_entry is not None or len(self.entry_opportunities) == 1
         return (
             not self.hard_blockers
-            and self.direction is not None
-            and self.selected_entry is not None
+            and entry_available
             and self.invalidation is not None
             and bool(self.targets)
         )
@@ -177,9 +176,7 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
             None if snapshot.setup_maturity is None else snapshot.setup_maturity.value
         ),
         "confirmation_policy": (
-            None
-            if snapshot.confirmation_policy is None
-            else snapshot.confirmation_policy.value
+            None if snapshot.confirmation_policy is None else snapshot.confirmation_policy.value
         ),
         "evidence": [
             {
@@ -252,9 +249,7 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
             "entry_fee_percentage": snapshot.execution_costs.entry_fee_percentage,
             "exit_fee_percentage": snapshot.execution_costs.exit_fee_percentage,
             "spread_percentage": snapshot.execution_costs.spread_percentage,
-            "entry_slippage_percentage": (
-                snapshot.execution_costs.entry_slippage_percentage
-            ),
+            "entry_slippage_percentage": (snapshot.execution_costs.entry_slippage_percentage),
             "exit_slippage_percentage": snapshot.execution_costs.exit_slippage_percentage,
             "funding_percentage": snapshot.execution_costs.funding_percentage,
             "total_percentage": snapshot.execution_costs.total_percentage,
@@ -266,9 +261,7 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
                 "trigger": item.trigger,
                 "action": item.action,
                 "rationale": list(item.rationale),
-                "target_role": (
-                    None if item.target_role is None else item.target_role.value
-                ),
+                "target_role": (None if item.target_role is None else item.target_role.value),
                 "close_percentage": item.close_percentage,
             }
             for item in snapshot.management_steps

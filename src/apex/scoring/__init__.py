@@ -26,6 +26,7 @@ from apex.scoring.rank_score import (
     score_dimensions,
     unpenalized_rank_score,
 )
+
 __all__ = [
     "DEFAULT_SCORING_CONFIG",
     "RANK_SCORE_WEIGHTS",

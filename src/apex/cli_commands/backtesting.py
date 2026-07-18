@@ -90,9 +90,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     for timeframe in requested_timeframes
                 )
 
-            replay_series = next(
-                item for item in series if item.timeframe == replay_timeframe
-            )
+            replay_series = next(item for item in series if item.timeframe == replay_timeframe)
             if len(replay_series.candles) <= replay_candles:
                 raise ValueError(
                     "backtest requires more closed source candles than the replay holdout"
@@ -101,9 +99,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             decision_index = len(replay_series.candles) - replay_candles - 1
             decision_time = replay_series.candles[decision_index].close_time
             future_candles = tuple(
-                candle
-                for candle in replay_series.candles
-                if candle.open_time >= decision_time
+                candle for candle in replay_series.candles if candle.open_time >= decision_time
             )[:replay_candles]
             if not future_candles:
                 raise ValueError("backtest replay holdout is empty")

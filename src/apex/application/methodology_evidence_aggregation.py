@@ -86,13 +86,18 @@ def aggregate_evidence_families(
             family_observations,
             EvidenceEffect.CONTRADICTS,
         )
+        rounded_support = round(support, 10)
+        rounded_contradiction = round(contradiction, 10)
         aggregates.append(
             EvidenceFamilyAggregate(
                 family=family,
-                support_score=support,
-                contradiction_score=contradiction,
-                neutral_score=neutral,
-                net_score=max(-1.0, min(1.0, support - contradiction)),
+                support_score=rounded_support,
+                contradiction_score=rounded_contradiction,
+                neutral_score=round(neutral, 10),
+                net_score=max(
+                    -1.0,
+                    min(1.0, rounded_support - rounded_contradiction),
+                ),
                 independence_groups=tuple(sorted(groups)),
                 observation_count=sum(
                     1 for observation in observations if observation.family is family

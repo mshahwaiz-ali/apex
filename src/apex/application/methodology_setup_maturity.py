@@ -93,7 +93,10 @@ def derive_setup_maturity(
                 policy,
                 complete=True,
                 code="METHODOLOGY_INTRABAR_ENTRY_AVAILABLE",
-                reason="the strategy permits intrabar execution and the aggressive entry is available",
+                reason=(
+                    "the strategy permits intrabar execution and the aggressive entry "
+                    "is available"
+                ),
             )
         return _assessment(
             strategy,
@@ -102,7 +105,10 @@ def derive_setup_maturity(
             policy,
             complete=False,
             code="METHODOLOGY_AGGRESSIVE_TRIGGER_PROVISIONAL",
-            reason="the aggressive legacy trigger is provisional under this strategy confirmation policy",
+            reason=(
+                "the aggressive legacy trigger is provisional under this strategy "
+                "confirmation policy"
+            ),
         )
 
     if policy in {

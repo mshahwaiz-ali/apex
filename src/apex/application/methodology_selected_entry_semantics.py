@@ -9,7 +9,6 @@ from apex.application.methodology_contracts import EntryOpportunity, EntryOpport
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import SetupMaturity
 
-
 _IMMEDIATE_TYPES = {
     EntryOpportunityType.IMMEDIATE,
     EntryOpportunityType.AGGRESSIVE,
@@ -71,9 +70,7 @@ def derive_selected_entry_semantics(
         and methodology.executable
     )
     future_trigger_required = bool(
-        selected is not None
-        and selected.kind in _CONDITIONAL_TYPES
-        and not currently_executable
+        selected is not None and selected.kind in _CONDITIONAL_TYPES and not currently_executable
     )
     aggressive_available = any(
         item.kind is EntryOpportunityType.AGGRESSIVE for item in opportunities
@@ -110,7 +107,8 @@ def derive_selected_entry_semantics(
 
     limitations = [
         "current-price and direction geometry are unavailable for independent chase validation",
-        "entry selection cannot override hard blockers, maturity, or incomplete methodology geometry",
+        "entry selection cannot override hard blockers, maturity, or incomplete "
+        "methodology geometry",
     ]
     if not authoritative:
         limitations.insert(

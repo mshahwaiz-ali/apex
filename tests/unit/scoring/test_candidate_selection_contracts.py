@@ -5,9 +5,9 @@ import pytest
 
 from apex.scoring import (
     CandidateOutcome,
+    CandidateSelectionResult,
     ConflictSummary,
     DirectionalConsensus,
-    CandidateSelectionResult,
     RankedCandidate,
     ScoreBreakdown,
     ScoredCandidate,

@@ -99,8 +99,7 @@ def classify_market_usability(
             state=MarketUsabilityState.UNUSABLE,
             score=0.0,
             reasons=(
-                f"spread {worst_spread:.4f}% exceeds maximum "
-                f"{maximum_spread_percentage:.4f}%",
+                f"spread {worst_spread:.4f}% exceeds maximum {maximum_spread_percentage:.4f}%",
             ),
             missing_inputs=tuple(sorted(set(missing))),
         )
@@ -115,11 +114,7 @@ def classify_market_usability(
     if missing:
         warnings.append("some execution-quality metadata is unavailable")
 
-    state = (
-        MarketUsabilityState.USABLE_WITH_CAUTION
-        if warnings
-        else MarketUsabilityState.USABLE
-    )
+    state = MarketUsabilityState.USABLE_WITH_CAUTION if warnings else MarketUsabilityState.USABLE
     score = max(0.0, min(1.0, average_confidence - min(worst_spread, 1.0) * 0.25))
     reason = (
         "market data is current and execution quality is acceptable"

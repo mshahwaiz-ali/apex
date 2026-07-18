@@ -25,12 +25,18 @@ def classify_candidate_actionability(candidate: TradeCandidate) -> EntryStatus:
     if candidate.direction is TradeDirection.LONG:
         if current <= candidate.invalidation.price:
             return EntryStatus.INVALIDATED
-        if candidate.entry.max_chase_price is not None and current > candidate.entry.max_chase_price:
+        if (
+            candidate.entry.max_chase_price is not None
+            and current > candidate.entry.max_chase_price
+        ):
             return EntryStatus.LATE_OR_CHASING
     else:
         if current >= candidate.invalidation.price:
             return EntryStatus.INVALIDATED
-        if candidate.entry.max_chase_price is not None and current < candidate.entry.max_chase_price:
+        if (
+            candidate.entry.max_chase_price is not None
+            and current < candidate.entry.max_chase_price
+        ):
             return EntryStatus.LATE_OR_CHASING
 
     if candidate.entry.lower <= current <= candidate.entry.upper:

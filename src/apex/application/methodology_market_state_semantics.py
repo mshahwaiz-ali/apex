@@ -58,7 +58,8 @@ def derive_market_state_semantics(
     elif mild:
         conflict_level = "mild"
         interpretation = (
-            "mild higher-timeframe conflict is visible as a quality reduction, not a hidden rejection"
+            "mild higher-timeframe conflict is visible as a quality reduction, not a "
+            "hidden rejection"
         )
     else:
         conflict_level = "none"

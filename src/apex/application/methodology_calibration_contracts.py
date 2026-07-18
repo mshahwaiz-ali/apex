@@ -33,20 +33,20 @@ class CalibrationProvenance:
     calibration_error: float | None = None
 
     def __post_init__(self) -> None:
-        for name, value in (
+        for field_name, text in (
             ("segment key", self.segment_key),
             ("strategy version", self.strategy_version),
             ("dataset id", self.dataset_id),
         ):
-            if not value.strip():
-                raise ValueError(f"{name} cannot be empty")
-        for name, value in (
+            if not text.strip():
+                raise ValueError(f"{field_name} cannot be empty")
+        for field_name, timestamp in (
             ("training start", self.training_start),
             ("training end", self.training_end),
             ("validation start", self.validation_start),
             ("validation end", self.validation_end),
         ):
-            _aware(name, value)
+            _aware(field_name, timestamp)
         if self.training_end <= self.training_start:
             raise ValueError("training end must be after training start")
         if self.validation_end <= self.validation_start:

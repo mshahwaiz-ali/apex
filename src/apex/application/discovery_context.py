@@ -40,15 +40,11 @@ def build_strategy_context(
     """Fetch market data and build deterministic strategy context."""
 
     role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
-    staleness_config = (
-        timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
-    )
+    staleness_config = timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
     timestamp = received_at or datetime.now(UTC)
     ticker_snapshot = _fetch_ticker_snapshot(provider, symbol)
     ticker_price = ticker_snapshot.last_price if ticker_snapshot is not None else None
-    spread_percentage = (
-        ticker_snapshot.spread_percentage if ticker_snapshot is not None else None
-    )
+    spread_percentage = ticker_snapshot.spread_percentage if ticker_snapshot is not None else None
     order_book_snapshot = _fetch_order_book_snapshot(provider, symbol)
     exchange_filter_snapshot = _fetch_exchange_filter_snapshot(provider, symbol)
     frames: list[TimeframeContext] = []
@@ -80,9 +76,7 @@ def build_strategy_context(
     return (
         StrategyContext(
             symbol=symbol,
-            frames=tuple(
-                sorted(frames, key=lambda frame: timeframe_role_sort_key(frame.role))
-            ),
+            frames=tuple(sorted(frames, key=lambda frame: timeframe_role_sort_key(frame.role))),
         ),
         regimes,
     )
@@ -104,9 +98,7 @@ def frame_data_quality_payload(frame: TimeframeContext) -> dict[str, Any]:
         "mark_price": frame.mark_price,
         "index_price": frame.index_price,
         "analysis_price": frame.analysis_price,
-        "last_closed_at": (
-            frame.last_closed_at.isoformat() if frame.last_closed_at else None
-        ),
+        "last_closed_at": (frame.last_closed_at.isoformat() if frame.last_closed_at else None),
         "last_received_at": (
             frame.last_received_at.isoformat() if frame.last_received_at else None
         ),
@@ -166,12 +158,8 @@ def _frame_from_candles(
         rate_of_change=_latest(features_by_name["roc_12"][0]),
         relative_volume=_latest(features_by_name["relative_volume_20"][0]),
         trend_strength=market_analysis.structure.trend.strength,
-        range_position=_unit_or_none(
-            _latest(features_by_name["recent_range_position_20"][0])
-        ),
-        volatility_expansion=_unit_or_none(
-            _latest(features_by_name["candle_range_ratio_20"][0])
-        ),
+        range_position=_unit_or_none(_latest(features_by_name["recent_range_position_20"][0])),
+        volatility_expansion=_unit_or_none(_latest(features_by_name["candle_range_ratio_20"][0])),
     )
     return (
         TimeframeContext(
@@ -183,24 +171,16 @@ def _frame_from_candles(
             ticker_price=ticker_price,
             spread_percentage=spread_percentage,
             order_book_spread_percentage=(
-                order_book_snapshot.spread_percentage
-                if order_book_snapshot is not None
-                else None
+                order_book_snapshot.spread_percentage if order_book_snapshot is not None else None
             ),
             order_book_depth_imbalance=(
-                order_book_snapshot.depth_imbalance
-                if order_book_snapshot is not None
-                else None
+                order_book_snapshot.depth_imbalance if order_book_snapshot is not None else None
             ),
             exchange_tick_size=(
-                exchange_filter_snapshot.tick_size
-                if exchange_filter_snapshot is not None
-                else None
+                exchange_filter_snapshot.tick_size if exchange_filter_snapshot is not None else None
             ),
             exchange_step_size=(
-                exchange_filter_snapshot.step_size
-                if exchange_filter_snapshot is not None
-                else None
+                exchange_filter_snapshot.step_size if exchange_filter_snapshot is not None else None
             ),
             exchange_min_notional=(
                 exchange_filter_snapshot.min_notional
@@ -218,6 +198,7 @@ def _frame_from_candles(
             structure=market_analysis.structure,
             liquidity=market_analysis.liquidity,
             active_candle=not candles[-1].is_closed,
+            recent_candles=tuple(candles),
         ),
         market_analysis.regime.value,
     )

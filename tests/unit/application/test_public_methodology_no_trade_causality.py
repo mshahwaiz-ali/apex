@@ -38,8 +38,7 @@ def test_all_methodology_suppressed_candidates_have_explicit_reason_code() -> No
 
     assert _no_trade_reason_code(analysis) == "METHODOLOGY_ALL_CANDIDATES_SUPPRESSED"
     assert _methodology_no_trade_reason(analysis) == (
-        "methodology suppressed all generated candidates: "
-        "trend_pullback, range_reversal"
+        "methodology suppressed all generated candidates: trend_pullback, range_reversal"
     )
 
 

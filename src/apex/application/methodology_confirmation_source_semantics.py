@@ -114,12 +114,8 @@ def derive_confirmation_source_semantics(
         source_symbol=None if source_candle is None else source_candle.symbol,
         source_timeframe=None if source_candle is None else source_candle.timeframe,
         source_provider=None if source_candle is None else source_candle.provider,
-        source_opened_at=(
-            None if source_candle is None else source_candle.opened_at.isoformat()
-        ),
-        source_closes_at=(
-            None if source_candle is None else source_candle.closes_at.isoformat()
-        ),
+        source_opened_at=(None if source_candle is None else source_candle.opened_at.isoformat()),
+        source_closes_at=(None if source_candle is None else source_candle.closes_at.isoformat()),
         source_observed_at=(
             None if source_candle is None else source_candle.observed_at.isoformat()
         ),

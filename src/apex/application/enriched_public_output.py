@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 from apex.application import public_output as _base
+from apex.application.decision_analysis import DEFAULT_SCAN_DISPLAY_LIMIT
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_public_enrichment import methodology_public_enrichment
@@ -24,7 +25,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
 def serialize_scan_result(
     result: ScanResult,
     *,
-    display_limit: int = _base._decision.DEFAULT_SCAN_DISPLAY_LIMIT,
+    display_limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
     direction: str = "both",
 ) -> dict[str, Any]:
     """Serialize a scan while preserving base ranking and grouping behavior."""
@@ -54,7 +55,7 @@ def serialize_scan_result(
             methodology = project_analysis_methodology(analysis)
             item.update(methodology_public_enrichment(analysis, methodology))
 
-    completeness_counts = Counter()
+    completeness_counts: Counter[str] = Counter()
     authoritative_count = 0
     projected_count = 0
     for item in serialized if isinstance(serialized, list) else ():
@@ -72,13 +73,11 @@ def serialize_scan_result(
 
     payload["methodology_authoritative_result_count"] = authoritative_count
     payload["methodology_projected_result_count"] = projected_count
-    payload["methodology_unavailable_field_counts"] = dict(
-        sorted(completeness_counts.items())
-    )
+    payload["methodology_unavailable_field_counts"] = dict(sorted(completeness_counts.items()))
     payload["methodology_coverage_interpretation"] = (
         "metadata coverage only; not ranking, trade quality, or win probability"
     )
-    return cast(dict[str, Any], payload)
+    return payload
 
 
 __all__ = ["serialize_scan_result", "serialize_symbol_analysis"]

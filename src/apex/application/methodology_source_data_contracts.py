@@ -27,20 +27,20 @@ class SourceCandleMetadata:
     expected_interval_seconds: float | None = None
 
     def __post_init__(self) -> None:
-        for name, value in (
+        for field_name, text in (
             ("source id", self.source_id),
             ("symbol", self.symbol),
             ("timeframe", self.timeframe),
             ("provider", self.provider),
         ):
-            if not value.strip():
-                raise ValueError(f"{name} cannot be empty")
-        for name, value in (
+            if not text.strip():
+                raise ValueError(f"{field_name} cannot be empty")
+        for field_name, timestamp in (
             ("opened at", self.opened_at),
             ("closes at", self.closes_at),
             ("observed at", self.observed_at),
         ):
-            _aware(name, value)
+            _aware(field_name, timestamp)
         if self.closes_at <= self.opened_at:
             raise ValueError("source candle close must be after open")
         if self.is_closed and self.observed_at < self.closes_at:

@@ -102,7 +102,9 @@ def methodology_completeness_payload(
 ) -> dict[str, Any]:
     """Summarize coverage without presenting it as strategy quality or probability."""
 
-    available = tuple(item for item in items if item.source is not MethodologyValueSource.UNAVAILABLE)
+    available = tuple(
+        item for item in items if item.source is not MethodologyValueSource.UNAVAILABLE
+    )
     native = tuple(item for item in items if item.source is MethodologyValueSource.NATIVE)
     unavailable = tuple(item for item in items if item.source is MethodologyValueSource.UNAVAILABLE)
     return {

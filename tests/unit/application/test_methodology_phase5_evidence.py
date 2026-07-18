@@ -80,9 +80,10 @@ def test_missing_candidate_or_diagnostics_returns_empty_evidence() -> None:
         (),
         (),
     )
-    assert selected_candidate_methodology_evidence(
-        _diagnostics(), candidate_id="missing"
-    ) == ((), ())
+    assert selected_candidate_methodology_evidence(_diagnostics(), candidate_id="missing") == (
+        (),
+        (),
+    )
 
 
 def test_warning_is_data_quality_neutral_evidence() -> None:

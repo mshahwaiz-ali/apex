@@ -9,7 +9,6 @@ from apex.application.methodology_contracts import (
 )
 from apex.strategies.contracts import StrategyEvidence
 
-
 _DEFAULT_STRENGTH = 0.5
 _DEFAULT_FRESHNESS = 1.0
 

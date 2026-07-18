@@ -24,13 +24,13 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.strategy_types import StrategyType
 from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
     select_entry_zone,
 )
+from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import ConfirmationStatus, LevelRole, LevelStatus
 
 

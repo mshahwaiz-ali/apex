@@ -150,9 +150,7 @@ def test_direction_conflict_receives_larger_explicit_penalty() -> None:
         adjusted[0].environment_route_alignment.state
         is EnvironmentRouteAlignmentState.DIRECTION_CONFLICT
     )
-    assert "PREFERRED_DIRECTION_CONFLICT" in (
-        adjusted[0].environment_route_alignment.reason_codes
-    )
+    assert "PREFERRED_DIRECTION_CONFLICT" in (adjusted[0].environment_route_alignment.reason_codes)
 
 
 def test_explicitly_blocked_environment_is_terminal_and_diagnostic() -> None:
@@ -175,6 +173,4 @@ def test_explicitly_blocked_environment_is_terminal_and_diagnostic() -> None:
     assert adjusted[0].final_score == 0.0
     assert adjusted[0].environment_route_alignment is not None
     assert adjusted[0].environment_route_alignment.state is EnvironmentRouteAlignmentState.BLOCKED
-    assert "CANDIDATE_ENVIRONMENT_BLOCKED" in (
-        adjusted[0].environment_route_alignment.reason_codes
-    )
+    assert "CANDIDATE_ENVIRONMENT_BLOCKED" in (adjusted[0].environment_route_alignment.reason_codes)

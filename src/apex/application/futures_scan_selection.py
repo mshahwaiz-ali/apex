@@ -107,7 +107,7 @@ def select_futures_scan_symbols(
             )
         except Exception as exc:
             failures[exchange_symbol] = (
-                "Limited candle request failed: " f"{type(exc).__name__}: {exc}"
+                f"Limited candle request failed: {type(exc).__name__}: {exc}"
             )
 
     screening = screen_futures_universe(
@@ -144,6 +144,14 @@ def serialize_futures_screening(
                 "symbol": candidate.contract.symbol,
                 "exchange_symbol": candidate.contract.exchange_symbol,
                 "opportunity_score": candidate.opportunity.total,
+                "discovery_lanes": [
+                    {
+                        "lane": signal.lane.value,
+                        "score": signal.score,
+                        "reason": signal.reason,
+                    }
+                    for signal in candidate.discovery_lanes
+                ],
                 "opportunity_components": {
                     "liquidity": candidate.opportunity.liquidity,
                     "movement": candidate.opportunity.movement,
@@ -175,9 +183,7 @@ def serialize_futures_screening(
                 "reasons": list(candidate.opportunity.reasons),
                 "cautions": list(candidate.opportunity.cautions),
                 "quote_volume_24h": candidate.ticker.quote_volume_24h,
-                "price_change_percentage_24h": (
-                    candidate.ticker.price_change_percentage_24h
-                ),
+                "price_change_percentage_24h": (candidate.ticker.price_change_percentage_24h),
                 "spread_percentage": candidate.ticker.spread_percentage,
             }
             for candidate in result.candidates

@@ -143,9 +143,7 @@ def serialize_scan_result(
         and maturity.get("maturity") is not None
     )
     status_counts = Counter(
-        str(item["entry_status"])
-        for item in selected
-        if item.get("entry_status") is not None
+        str(item["entry_status"]) for item in selected if item.get("entry_status") is not None
     )
     long_count = sum(item.get("decision") == "LONG" for item in selected)
     short_count = sum(item.get("decision") == "SHORT" for item in selected)
@@ -201,9 +199,10 @@ def _result_group(maturity: SetupMaturityAssessment | None) -> str:
 def _no_trade_reason_code(analysis: SymbolAnalysis) -> str:
     diagnostics = analysis.phase5_diagnostics or {}
     methodology_routing = diagnostics.get("methodology_candidate_routing")
-    if isinstance(methodology_routing, Mapping) and methodology_routing.get(
-        "all_generated_candidates_suppressed"
-    ) is True:
+    if (
+        isinstance(methodology_routing, Mapping)
+        and methodology_routing.get("all_generated_candidates_suppressed") is True
+    ):
         return "METHODOLOGY_ALL_CANDIDATES_SUPPRESSED"
     gate = analysis.methodology_gate
     if isinstance(gate, Mapping) and gate.get("changed") is True:

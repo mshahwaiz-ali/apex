@@ -50,9 +50,7 @@ def test_breakout_retest_prefers_long_continuation() -> None:
 
 
 def test_overextension_blocks_momentum_chase_strategies() -> None:
-    route = route_market_strategies(
-        _environment(extension_state=ExtensionState.OVEREXTENDED)
-    )
+    route = route_market_strategies(_environment(extension_state=ExtensionState.OVEREXTENDED))
 
     assert StrategyType.MOMENTUM_BREAKOUT not in route.allowed_strategies
     assert StrategyType.MOMENTUM_SCALP not in route.allowed_strategies
@@ -68,10 +66,9 @@ def test_untradeable_environment_blocks_all_routes() -> None:
     assert route.preferred_direction is PreferredDirection.NONE
     assert route.routing_score == 0.0
 
+
 def test_failed_breakout_keeps_trend_pullback_fallback() -> None:
-    route = route_market_strategies(
-        _environment(primary_regime=MarketRegime.FAILED_BREAKOUT_UP)
-    )
+    route = route_market_strategies(_environment(primary_regime=MarketRegime.FAILED_BREAKOUT_UP))
 
     assert route.strategy_priority[:2] == (
         StrategyType.LIQUIDITY_REJECTION_REVERSAL,
@@ -81,8 +78,6 @@ def test_failed_breakout_keeps_trend_pullback_fallback() -> None:
 
 
 def test_exhaustion_keeps_trend_pullback_fallback() -> None:
-    route = route_market_strategies(
-        _environment(primary_regime=MarketRegime.EXHAUSTION_DOWN)
-    )
+    route = route_market_strategies(_environment(primary_regime=MarketRegime.EXHAUSTION_DOWN))
 
     assert StrategyType.TREND_PULLBACK in route.allowed_strategies

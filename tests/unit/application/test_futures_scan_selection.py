@@ -170,9 +170,7 @@ def test_dynamic_selection_serializes_screening_diagnostics() -> None:
 
     assert selection.screening is not None
 
-    payload = serialize_futures_screening(
-        selection.screening
-    )
+    payload = serialize_futures_screening(selection.screening)
 
     assert payload["total_contracts"] == 2
     assert payload["total_tickers"] == 3

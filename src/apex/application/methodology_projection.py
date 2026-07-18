@@ -46,15 +46,15 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
             else _project_setup(setup, market_usability=usability)
         )
     else:
-        updates: dict[str, object] = {}
         if methodology.market_usability is None:
-            updates["market_usability"] = usability
+            methodology = replace(methodology, market_usability=usability)
         if methodology.direction is None and setup is not None:
-            updates["direction"] = setup.direction
+            methodology = replace(methodology, direction=setup.direction)
         if not methodology.management_steps and setup is not None:
-            updates["management_steps"] = _project_management_steps(setup)
-        if updates:
-            methodology = replace(methodology, **updates)
+            methodology = replace(
+                methodology,
+                management_steps=_project_management_steps(setup),
+            )
 
     fused_state = getattr(analysis, "market_state", None)
     if methodology.market_state is None and isinstance(fused_state, MarketStateSnapshot):
@@ -70,9 +70,7 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
                 methodology,
                 evidence=evidence,
                 contradictions=(
-                    methodology.contradictions
-                    if methodology.contradictions
-                    else contradictions
+                    methodology.contradictions if methodology.contradictions else contradictions
                 ),
             )
 
@@ -95,9 +93,7 @@ def _project_setup(
             price=target.price,
             source="; ".join(target.rationale) or "existing discovery target",
             expected_move_percentage=(
-                abs(target.price - setup.entry.preferred)
-                / setup.entry.preferred
-                * 100.0
+                abs(target.price - setup.entry.preferred) / setup.entry.preferred * 100.0
             ),
             risk_multiple=target.risk_reward,
             conditional=index > 2,

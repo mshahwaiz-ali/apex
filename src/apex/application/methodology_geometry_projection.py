@@ -265,12 +265,8 @@ def _target_payload(target: ProjectedTargetGeometry) -> dict[str, Any]:
 def _duration_payload(duration: ProjectedDurationGeometry) -> dict[str, Any]:
     return {
         "hold_category": _projected_value_payload(duration.hold_category),
-        "expected_hold_min_seconds": _projected_value_payload(
-            duration.expected_hold_min_seconds
-        ),
-        "expected_hold_max_seconds": _projected_value_payload(
-            duration.expected_hold_max_seconds
-        ),
+        "expected_hold_min_seconds": _projected_value_payload(duration.expected_hold_min_seconds),
+        "expected_hold_max_seconds": _projected_value_payload(duration.expected_hold_max_seconds),
         "expected_bars": _projected_value_payload(duration.expected_bars),
         "setup_expiry_bars": _projected_value_payload(duration.setup_expiry_bars),
         "expiry_reason": duration.expiry_reason,

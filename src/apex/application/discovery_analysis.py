@@ -12,11 +12,16 @@ from apex.application.candidate_ranking import (
     build_candidate_ranking_snapshot,
     candidate_ranking_payload,
 )
+from apex.application.candlestick_evidence import (
+    candlestick_evidence_observations,
+    candlestick_evidence_payload,
+    detect_contextual_candlesticks,
+)
 from apex.application.discovery_context import (
     build_strategy_context,
     frame_data_quality_payload,
 )
-from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
+from apex.application.discovery_contracts import DiscoverySetup, ScanResult, SymbolAnalysis
 from apex.application.discovery_setup import build_discovery_assessment
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.market_strategy_router import MarketStrategyRoute
@@ -24,6 +29,28 @@ from apex.application.methodology_candidate_routing import (
     evaluate_methodology_candidate_routing,
     methodology_candidate_routing_payload,
 )
+from apex.application.methodology_contracts import (
+    ConfidenceAssessment,
+    ConfidenceBasis,
+    ConfidenceLabel,
+    DurationExpectation,
+    EntryOpportunity,
+    EntryOpportunityType,
+    HoldCategory,
+    InvalidationRule,
+    RejectionCode,
+    RejectionReason,
+    RejectionSeverity,
+    StructuralInvalidation,
+    TargetCandidate,
+    TargetRole,
+)
+from apex.application.methodology_phase5_evidence import (
+    selected_candidate_methodology_evidence,
+)
+from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
+from apex.application.methodology_setup_maturity import derive_setup_maturity
+from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.strategy_routing import (
     apply_strategy_routing,
@@ -31,10 +58,12 @@ from apex.application.strategy_routing import (
 )
 from apex.data.providers.base import MarketDataProvider
 from apex.strategies import (
+    StrategyContext,
     analyze_strategies,
     strategy_evidence_payload,
     strategy_evidence_summary,
 )
+from apex.strategies.entry_status import EntryStatus
 
 
 def analyze_symbol(
@@ -79,6 +108,52 @@ def analyze_symbol(
     )
     assessment = build_discovery_assessment(selection)
     ranking = build_candidate_ranking_snapshot(selection)
+    candlestick_patterns = detect_contextual_candlesticks(context)
+    candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
+    phase5_diagnostics = {
+        "candidate_count": len(selection.all_scored_candidates),
+        "ranked_count": len(selection.ranked_candidates),
+        "rejected_count": len(selection.rejected_candidates),
+        "selected": selection.selected_candidate is not None,
+        "selected_candidate_id": (
+            selection.selected_candidate.scored.candidate_id
+            if selection.selected_candidate is not None
+            else None
+        ),
+        "no_trade_reason": selection.no_trade_reason,
+        "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
+        "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
+        "candidates": [
+            {
+                "candidate_id": item.scored.candidate_id,
+                "strategy": item.candidate.strategy.value,
+                "direction": item.candidate.direction.value,
+                "outcome": item.outcome.value,
+                "final_score": item.final_score,
+                "evidence": strategy_evidence_payload(item.candidate.evidence),
+                "evidence_summary": strategy_evidence_summary(item.candidate.evidence),
+                "metadata": dict(item.candidate.metadata),
+                "reasons": list(item.reasons),
+            }
+            for item in selection.ranked_candidates
+        ],
+    }
+    selected_candidate_id = None if assessment.setup is None else assessment.setup.candidate_id
+    phase5_observations, contradictions = (
+        ((), ())
+        if selected_candidate_id is None
+        else selected_candidate_methodology_evidence(
+            phase5_diagnostics,
+            candidate_id=selected_candidate_id,
+        )
+    )
+    methodology = _build_native_methodology_snapshot(
+        assessment.setup,
+        context=context,
+        evidence=tuple((*phase5_observations, *candlestick_observations)),
+        contradictions=contradictions,
+        no_trade_reason=selection.no_trade_reason,
+    )
     return SymbolAnalysis(
         symbol=symbol,
         generated_at=decision_time,
@@ -117,35 +192,8 @@ def analyze_symbol(
             )
         ),
         candidate_ranking=ranking,
-        phase5_diagnostics={
-            "candidate_count": len(selection.all_scored_candidates),
-            "ranked_count": len(selection.ranked_candidates),
-            "rejected_count": len(selection.rejected_candidates),
-            "selected": selection.selected_candidate is not None,
-            "selected_candidate_id": (
-                selection.selected_candidate.scored.candidate_id
-                if selection.selected_candidate is not None
-                else None
-            ),
-            "no_trade_reason": selection.no_trade_reason,
-            "methodology_candidate_routing": methodology_candidate_routing_payload(
-                methodology_routing
-            ),
-            "candidates": [
-                {
-                    "candidate_id": item.scored.candidate_id,
-                    "strategy": item.candidate.strategy.value,
-                    "direction": item.candidate.direction.value,
-                    "outcome": item.outcome.value,
-                    "final_score": item.final_score,
-                    "evidence": strategy_evidence_payload(item.candidate.evidence),
-                    "evidence_summary": strategy_evidence_summary(item.candidate.evidence),
-                    "metadata": dict(item.candidate.metadata),
-                    "reasons": list(item.reasons),
-                }
-                for item in selection.ranked_candidates
-            ],
-        },
+        phase5_diagnostics=phase5_diagnostics,
+        methodology=methodology,
     )
 
 
@@ -264,10 +312,7 @@ def serialize_scan_result(result: ScanResult) -> dict[str, Any]:
 def format_symbol_text(analysis: SymbolAnalysis) -> str:
     setup = analysis.assessment.setup
     if setup is None:
-        return (
-            f"{analysis.symbol} | NO_TRADE | "
-            f"{'; '.join(analysis.assessment.reasons)}"
-        )
+        return f"{analysis.symbol} | NO_TRADE | {'; '.join(analysis.assessment.reasons)}"
     targets = ", ".join(
         f"{target.label} {target.price:.8g} ({target.risk_reward:.2f}R)"
         for target in setup.take_profits
@@ -279,8 +324,7 @@ def format_symbol_text(analysis: SymbolAnalysis) -> str:
             f"Score: {setup.confidence_score:.1f}",
             f"Entry: {setup.entry.lower:.8g}-{setup.entry.upper:.8g} | "
             f"preferred {setup.entry.preferred:.8g}",
-            f"Stop: {setup.stop_loss.price:.8g} "
-            f"({setup.stop_loss.distance_pct:.2f}%)",
+            f"Stop: {setup.stop_loss.price:.8g} ({setup.stop_loss.distance_pct:.2f}%)",
             f"Targets: {targets}",
         )
     )
@@ -289,10 +333,7 @@ def format_symbol_text(analysis: SymbolAnalysis) -> str:
 def format_scan_text(result: ScanResult) -> str:
     lines = [f"Scan generated at {result.generated_at.isoformat()}"]
     lines.extend(format_symbol_text(item) for item in result.analyses)
-    lines.extend(
-        f"{symbol}: FAILED | {reason}"
-        for symbol, reason in result.failures.items()
-    )
+    lines.extend(f"{symbol}: FAILED | {reason}" for symbol, reason in result.failures.items())
     return "\n".join(lines)
 
 
@@ -311,3 +352,263 @@ def _scan_sort_key(
         return (1, 0.0, 0.0, analysis.symbol)
     best_rr = max(target.risk_reward for target in setup.take_profits)
     return (0, -setup.confidence_score, -best_rr, analysis.symbol)
+
+
+def _build_native_methodology_snapshot(
+    setup: DiscoverySetup | None,
+    *,
+    context: StrategyContext,
+    evidence: tuple[Any, ...],
+    contradictions: tuple[Any, ...],
+    no_trade_reason: str | None,
+) -> MethodologySnapshot:
+    if setup is None:
+        return MethodologySnapshot(
+            evidence=evidence,
+            contradictions=contradictions,
+            rejections=(_no_trade_rejection(no_trade_reason),),
+        )
+
+    maturity = derive_setup_maturity(setup.strategy, setup.entry_status)
+    entry_opportunity = _entry_opportunity(setup, context)
+    selected_entry = SelectedEntryDecision(
+        opportunity=entry_opportunity,
+        reason="selected setup entry geometry passed Phase 5 candidate selection",
+    )
+    invalidation = StructuralInvalidation(
+        price=setup.stop_loss.price,
+        rule=InvalidationRule.CLOSE,
+        structure="; ".join(setup.stop_loss.rationale),
+        failure_event=f"{setup.strategy.value} thesis fails at the structural stop",
+        volatility_buffer=max(
+            0.0,
+            setup.stop_loss.distance - abs(setup.entry.preferred - setup.stop_loss.price),
+        ),
+        estimated_slippage=0.0,
+    )
+    targets = tuple(
+        TargetCandidate(
+            role=_target_role(index, len(setup.take_profits)),
+            price=target.price,
+            source="; ".join(target.rationale),
+            expected_move_percentage=abs(target.price - setup.entry.preferred)
+            / setup.entry.preferred
+            * 100.0,
+            risk_multiple=target.risk_reward,
+            conditional=index > 3,
+        )
+        for index, target in enumerate(setup.take_profits, start=1)
+    )
+    confidence = ConfidenceAssessment(
+        setup=_confidence_label(setup.confidence_score),
+        execution=_confidence_label(entry_opportunity.quality * 100.0),
+        target=_confidence_label(max(target.risk_reward for target in setup.take_profits) * 25.0),
+        data=ConfidenceLabel.HIGH
+        if all(not frame.is_stale for frame in context.frames)
+        else ConfidenceLabel.LOW,
+        historical=ConfidenceLabel.VERY_LOW,
+        overall=_confidence_label(setup.confidence_score),
+        basis=ConfidenceBasis.RULE_BASED,
+        strongest_support=_strongest_support(evidence, setup),
+        strongest_contradiction=(
+            None if not contradictions else str(getattr(contradictions[0], "reason", ""))
+        ),
+        missing_evidence=(
+            "historical calibration",
+            "out-of-sample probability",
+            "execution cost provenance",
+        ),
+    )
+    return MethodologySnapshot(
+        direction=setup.direction,
+        setup_maturity=maturity.maturity,
+        confirmation_policy=maturity.confirmation_policy,
+        evidence=evidence,
+        contradictions=contradictions,
+        entry_opportunities=(entry_opportunity,),
+        selected_entry=selected_entry,
+        invalidation=invalidation,
+        targets=targets,
+        duration=_duration_expectation(context),
+        confidence=confidence,
+        rejections=_soft_rejections(setup),
+    )
+
+
+def _entry_opportunity(
+    setup: DiscoverySetup,
+    context: StrategyContext,
+) -> EntryOpportunity:
+    current = setup.entry.current_price
+    if setup.entry.lower <= current <= setup.entry.upper:
+        distance = 0.0
+    else:
+        distance = min(abs(current - setup.entry.lower), abs(current - setup.entry.upper))
+    return EntryOpportunity(
+        kind=_entry_kind(setup.entry_status),
+        zone_low=setup.entry.lower,
+        zone_high=setup.entry.upper,
+        ideal_entry=setup.entry.preferred,
+        confirmation_level=_confirmation_level(setup),
+        maximum_chase=setup.entry.maximum_chase_price,
+        current_distance_percentage=distance / current * 100.0,
+        current_distance_atr=distance / context.atr,
+        quality=_entry_quality(setup.entry_status),
+        reason=(
+            f"{setup.entry_status.value} entry derived from selected {setup.strategy.value} setup"
+        ),
+        expiry_bars=_expiry_bars(setup.entry_status),
+    )
+
+
+def _entry_kind(status: EntryStatus) -> EntryOpportunityType:
+    if status is EntryStatus.READY_NOW:
+        return EntryOpportunityType.IMMEDIATE
+    if status is EntryStatus.AGGRESSIVE_NOW:
+        return EntryOpportunityType.AGGRESSIVE
+    if status is EntryStatus.PULLBACK_PREFERRED:
+        return EntryOpportunityType.PULLBACK
+    if status is EntryStatus.WATCH_NEAR_ENTRY:
+        return EntryOpportunityType.DEVELOPING_FUTURE
+    if status is EntryStatus.LATE_OR_CHASING:
+        return EntryOpportunityType.RETEST
+    return EntryOpportunityType.DEVELOPING_FUTURE
+
+
+def _entry_quality(status: EntryStatus) -> float:
+    return {
+        EntryStatus.READY_NOW: 0.9,
+        EntryStatus.AGGRESSIVE_NOW: 0.75,
+        EntryStatus.PULLBACK_PREFERRED: 0.7,
+        EntryStatus.WATCH_NEAR_ENTRY: 0.55,
+        EntryStatus.LATE_OR_CHASING: 0.25,
+        EntryStatus.INVALIDATED: 0.05,
+    }[status]
+
+
+def _confirmation_level(setup: DiscoverySetup) -> float | None:
+    if setup.entry_status is EntryStatus.READY_NOW:
+        return None
+    return setup.entry.upper if setup.direction.value == "long" else setup.entry.lower
+
+
+def _expiry_bars(status: EntryStatus) -> int:
+    if status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}:
+        return 3
+    if status is EntryStatus.PULLBACK_PREFERRED:
+        return 8
+    if status is EntryStatus.WATCH_NEAR_ENTRY:
+        return 12
+    return 2
+
+
+def _duration_expectation(context: StrategyContext) -> DurationExpectation:
+    seconds = _timeframe_seconds(context.decision_frame.timeframe)
+    expected_bars = 12
+    expiry_bars = 8
+    return DurationExpectation(
+        category=_hold_category(seconds),
+        expected_hold_min_seconds=max(seconds, seconds * 3),
+        expected_hold_max_seconds=seconds * expected_bars,
+        expected_bars=expected_bars,
+        setup_expiry_bars=expiry_bars,
+        expiry_reason="derived from selected setup timeframe and methodology expiry policy",
+    )
+
+
+def _timeframe_seconds(timeframe: str) -> int:
+    unit = timeframe[-1].lower()
+    value = int(timeframe[:-1])
+    if unit == "m":
+        return value * 60
+    if unit == "h":
+        return value * 60 * 60
+    if unit == "d":
+        return value * 24 * 60 * 60
+    if unit == "w":
+        return value * 7 * 24 * 60 * 60
+    return 15 * 60
+
+
+def _hold_category(seconds: int) -> HoldCategory:
+    if seconds <= 60:
+        return HoldCategory.MICRO_SCALP
+    if seconds <= 5 * 60:
+        return HoldCategory.SCALP
+    if seconds <= 60 * 60:
+        return HoldCategory.INTRADAY
+    if seconds <= 4 * 60 * 60:
+        return HoldCategory.MULTI_SESSION
+    return HoldCategory.SWING
+
+
+def _target_role(index: int, count: int) -> TargetRole:
+    if index == 1:
+        return TargetRole.TP1
+    if index == 2:
+        return TargetRole.TP2
+    if index == 3 and count == 3:
+        return TargetRole.TP3
+    return TargetRole.RUNNER
+
+
+def _confidence_label(score: float) -> ConfidenceLabel:
+    if score >= 85:
+        return ConfidenceLabel.VERY_HIGH
+    if score >= 70:
+        return ConfidenceLabel.HIGH
+    if score >= 55:
+        return ConfidenceLabel.MODERATE
+    if score >= 35:
+        return ConfidenceLabel.LOW
+    return ConfidenceLabel.VERY_LOW
+
+
+def _strongest_support(evidence: tuple[Any, ...], setup: DiscoverySetup) -> str:
+    for item in evidence:
+        reason = getattr(item, "reason", "")
+        effect = getattr(item, "effect", None)
+        if reason and getattr(effect, "value", None) == "supports":
+            return str(reason)
+    return f"{setup.strategy.value} selected with rule-based score {setup.confidence_score:.1f}"
+
+
+def _soft_rejections(setup: DiscoverySetup) -> tuple[RejectionReason, ...]:
+    if setup.entry_status not in {EntryStatus.LATE_OR_CHASING, EntryStatus.INVALIDATED}:
+        return ()
+    code = (
+        RejectionCode.CLEARLY_MISSED_ENTRY
+        if setup.entry_status is EntryStatus.LATE_OR_CHASING
+        else RejectionCode.STRUCTURALLY_INVALIDATED
+    )
+    severity = (
+        RejectionSeverity.SOFT_PENALTY
+        if setup.entry_status is EntryStatus.LATE_OR_CHASING
+        else RejectionSeverity.HARD_BLOCKER
+    )
+    return (
+        RejectionReason(
+            code=code,
+            severity=severity,
+            reason=f"selected setup status is {setup.entry_status.value}",
+            penalty=0.25 if severity is RejectionSeverity.SOFT_PENALTY else 0.0,
+        ),
+    )
+
+
+def _no_trade_rejection(reason: str | None) -> RejectionReason:
+    text = reason or "candidate selection produced no setup"
+    normalized = text.lower()
+    if "target" in normalized:
+        code = RejectionCode.NO_REALISTIC_TARGET_ROOM
+    elif "invalid" in normalized:
+        code = RejectionCode.STRUCTURALLY_INVALIDATED
+    elif "entry" in normalized and "miss" in normalized:
+        code = RejectionCode.CLEARLY_MISSED_ENTRY
+    else:
+        code = RejectionCode.WRONG_STRATEGY_FOR_STATE
+    return RejectionReason(
+        code=code,
+        severity=RejectionSeverity.HARD_BLOCKER,
+        reason=text,
+    )

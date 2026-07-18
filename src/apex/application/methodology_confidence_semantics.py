@@ -113,9 +113,7 @@ def derive_confidence_semantics(
         historically_labeled=historically_labeled,
         calibration_provenance_available=calibration is not None,
         out_of_sample_validated=bool(calibration is not None and calibration.out_of_sample),
-        leakage_checks_passed=bool(
-            calibration is not None and calibration.leakage_checks_passed
-        ),
+        leakage_checks_passed=bool(calibration is not None and calibration.leakage_checks_passed),
         costs_included=bool(calibration is not None and calibration.costs_included),
         regime_stability_checked=bool(
             calibration is not None and calibration.regime_stability_checked

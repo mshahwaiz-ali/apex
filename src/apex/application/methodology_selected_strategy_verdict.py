@@ -63,10 +63,7 @@ def derive_selected_strategy_verdict(
             state=SelectedStrategyVerdictState.UNAVAILABLE,
             strategy=selected_strategy,
             reason_codes=("SELECTED_STRATEGY_DECISION_UNAVAILABLE",),
-            reasons=(
-                f"no methodology enforcement decision exists for "
-                f"{selected_strategy.value}",
-            ),
+            reasons=(f"no methodology enforcement decision exists for {selected_strategy.value}",),
         )
 
     state = {

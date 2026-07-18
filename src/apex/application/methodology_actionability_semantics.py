@@ -44,7 +44,9 @@ def derive_actionability_semantics(
         interpretation = "the original entry opportunity is late or already missed"
     elif execution_ready and maturity is SetupMaturity.ENTRY_AVAILABLE:
         actionability = "entry_available"
-        interpretation = "canonical entry, invalidation, targets, and required conditions are complete"
+        interpretation = (
+            "canonical entry, invalidation, targets, and required conditions are complete"
+        )
     elif maturity in {
         SetupMaturity.RETEST_PENDING,
         SetupMaturity.RECLAIM_PENDING,
@@ -62,7 +64,9 @@ def derive_actionability_semantics(
         interpretation = "no selected setup exists"
     else:
         actionability = "not_executable"
-        interpretation = "legacy setup information exists without complete canonical execution state"
+        interpretation = (
+            "legacy setup information exists without complete canonical execution state"
+        )
 
     return ActionabilitySemantics(
         legacy_status=legacy_status,

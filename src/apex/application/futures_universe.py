@@ -21,11 +21,7 @@ def filter_futures_universe(
         raise ValueError("quote_asset cannot be empty")
 
     blocked = {_normalize_symbol(value) for value in blacklist}
-    allowed = (
-        {_normalize_symbol(value) for value in allowlist}
-        if allowlist is not None
-        else None
-    )
+    allowed = {_normalize_symbol(value) for value in allowlist} if allowlist is not None else None
 
     eligible = sorted(
         (

@@ -41,7 +41,6 @@ class MethodologyCandidateRoutingResult:
             raise ValueError("methodology candidate routing requires reason codes")
 
 
-
 def evaluate_methodology_candidate_routing(
     analysis: StrategyAnalysisResult,
     *,
@@ -72,7 +71,6 @@ def evaluate_methodology_candidate_routing(
         tuple(decisions),
         mode=mode,
     )
-
 
 
 def apply_methodology_candidate_routing(
@@ -145,15 +143,16 @@ def apply_methodology_candidate_routing(
     )
 
 
-
 def methodology_candidate_routing_payload(
     result: MethodologyCandidateRoutingResult,
 ) -> dict[str, object]:
     """Serialize routing decisions and suppressed candidates for audit."""
 
-    newly_suppressed = result.analysis.suppressed_candidates[
-        -result.suppressed_candidate_count :
-    ] if result.suppressed_candidate_count else ()
+    newly_suppressed = (
+        result.analysis.suppressed_candidates[-result.suppressed_candidate_count :]
+        if result.suppressed_candidate_count
+        else ()
+    )
     return {
         "mode": result.mode.value,
         "retained_candidate_count": len(result.analysis.candidates),
@@ -163,9 +162,7 @@ def methodology_candidate_routing_payload(
         ),
         "suppressed_strategies": [item.value for item in result.suppressed_strategies],
         "reason_codes": list(result.reason_codes),
-        "strategy_decisions": [
-            strategy_enforcement_payload(item) for item in result.decisions
-        ],
+        "strategy_decisions": [strategy_enforcement_payload(item) for item in result.decisions],
         "suppressed_candidates": [
             {
                 "strategy": item.candidate.strategy.value,

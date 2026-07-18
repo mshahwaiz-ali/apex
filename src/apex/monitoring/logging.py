@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-
 _THIRD_PARTY_LOG_LEVELS: dict[str, int] = {
     "httpcore": logging.WARNING,
     "httpx": logging.WARNING,

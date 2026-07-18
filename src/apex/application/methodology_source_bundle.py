@@ -30,23 +30,18 @@ class MethodologySourceBundle:
             raise ValueError("evidence source references must be unique")
         known_ids = set(source_ids)
         if any(item.source_id not in known_ids for item in self.evidence_references):
-            raise ValueError(
-                "evidence source reference must identify a recorded source candle"
-            )
+            raise ValueError("evidence source reference must identify a recorded source candle")
         if self.confirmation_source_id is not None:
             if not self.confirmation_source_id.strip():
                 raise ValueError("confirmation source id cannot be empty")
             if self.confirmation_source_id not in known_ids:
-                raise ValueError(
-                    "confirmation source id must identify a recorded source candle"
-                )
+                raise ValueError("confirmation source id must identify a recorded source candle")
 
     def validate_for(self, methodology: MethodologySnapshot) -> None:
         """Validate evidence indexes against the associated canonical snapshot."""
 
         if any(
-            item.evidence_index >= len(methodology.evidence)
-            for item in self.evidence_references
+            item.evidence_index >= len(methodology.evidence) for item in self.evidence_references
         ):
             raise ValueError("evidence source reference index is outside canonical evidence")
 
@@ -57,9 +52,7 @@ class MethodologySourceBundle:
         if self.confirmation_source_id is None:
             return None
         return next(
-            item
-            for item in self.source_candles
-            if item.source_id == self.confirmation_source_id
+            item for item in self.source_candles if item.source_id == self.confirmation_source_id
         )
 
 

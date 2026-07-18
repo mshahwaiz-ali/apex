@@ -7,7 +7,6 @@ from apex.strategies import (
 )
 from apex.structure.regime import MarketRegime
 
-
 ALL_STRATEGIES = tuple(StrategyType)
 
 
@@ -26,14 +25,8 @@ def test_trend_regime_marks_continuation_strategies_applicable() -> None:
     )
 
     assert set(matrix) == set(ALL_STRATEGIES)
-    assert (
-        matrix[StrategyType.TREND_PULLBACK].state
-        is StrategyApplicabilityState.APPLICABLE
-    )
-    assert (
-        matrix[StrategyType.RANGE_REVERSAL].state
-        is StrategyApplicabilityState.CONDITIONAL
-    )
+    assert matrix[StrategyType.TREND_PULLBACK].state is StrategyApplicabilityState.APPLICABLE
+    assert matrix[StrategyType.RANGE_REVERSAL].state is StrategyApplicabilityState.CONDITIONAL
 
 
 def test_higher_timeframe_breakout_creates_conditional_applicability() -> None:
@@ -50,17 +43,10 @@ def test_higher_timeframe_breakout_creates_conditional_applicability() -> None:
     )
 
     assert (
-        matrix[StrategyType.BREAKOUT_CONTINUATION].state
-        is StrategyApplicabilityState.CONDITIONAL
+        matrix[StrategyType.BREAKOUT_CONTINUATION].state is StrategyApplicabilityState.CONDITIONAL
     )
-    assert (
-        matrix[StrategyType.MOMENTUM_BREAKOUT].state
-        is StrategyApplicabilityState.CONDITIONAL
-    )
-    assert (
-        matrix[StrategyType.TREND_PULLBACK].state
-        is StrategyApplicabilityState.CONDITIONAL
-    )
+    assert matrix[StrategyType.MOMENTUM_BREAKOUT].state is StrategyApplicabilityState.CONDITIONAL
+    assert matrix[StrategyType.TREND_PULLBACK].state is StrategyApplicabilityState.CONDITIONAL
 
 
 def test_applicability_scores_are_normalized() -> None:
