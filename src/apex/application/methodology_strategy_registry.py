@@ -68,7 +68,10 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.FIRST_PULLBACK_CONTINUATION: _eligibility(
         StrategyType.FIRST_PULLBACK_CONTINUATION,
-        (PrimaryMarketState.PULLBACK_IN_UPTREND, PrimaryMarketState.RALLY_IN_DOWNTREND),
+        (
+            PrimaryMarketState.PULLBACK_IN_UPTREND,
+            PrimaryMarketState.RALLY_IN_DOWNTREND,
+        ),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.TREND),
         (EvidenceFamily.PARTICIPATION, EvidenceFamily.MOMENTUM),
         ConfirmationPolicy.LOWER_TIMEFRAME_CONFIRMATION_ALLOWED,
@@ -77,7 +80,10 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.TREND_PULLBACK: _eligibility(
         StrategyType.TREND_PULLBACK,
-        (PrimaryMarketState.PULLBACK_IN_UPTREND, PrimaryMarketState.RALLY_IN_DOWNTREND),
+        (
+            PrimaryMarketState.PULLBACK_IN_UPTREND,
+            PrimaryMarketState.RALLY_IN_DOWNTREND,
+        ),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.TREND),
         (EvidenceFamily.MOMENTUM, EvidenceFamily.PARTICIPATION),
         ConfirmationPolicy.LOWER_TIMEFRAME_CONFIRMATION_ALLOWED,
@@ -86,7 +92,11 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.COMPRESSION_EXPANSION: _eligibility(
         StrategyType.COMPRESSION_EXPANSION,
-        (PrimaryMarketState.COMPRESSING, PrimaryMarketState.BREAKOUT_ATTEMPT, PrimaryMarketState.BREAKDOWN_ATTEMPT),
+        (
+            PrimaryMarketState.COMPRESSING,
+            PrimaryMarketState.BREAKOUT_ATTEMPT,
+            PrimaryMarketState.BREAKDOWN_ATTEMPT,
+        ),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.VOLATILITY),
         (EvidenceFamily.PARTICIPATION, EvidenceFamily.MOMENTUM),
         ConfirmationPolicy.CLOSE_REQUIRED,
@@ -98,13 +108,17 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
         (PrimaryMarketState.RANGING,),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.LIQUIDITY),
         (EvidenceFamily.CANDLE, EvidenceFamily.MOMENTUM),
-        ConfirmationPolicy.REJECTION_REQUIRED if hasattr(ConfirmationPolicy, "REJECTION_REQUIRED") else ConfirmationPolicy.MIXED,
+        ConfirmationPolicy.MIXED,
         ("rejection_entry", "reclaim_entry"),
         ("range_midpoint", "opposite_range_boundary"),
     ),
     StrategyType.FAILED_BREAKOUT_REVERSAL: _eligibility(
         StrategyType.FAILED_BREAKOUT_REVERSAL,
-        (PrimaryMarketState.REVERSAL_ATTEMPT_UP, PrimaryMarketState.REVERSAL_ATTEMPT_DOWN, PrimaryMarketState.TRANSITIONAL),
+        (
+            PrimaryMarketState.REVERSAL_ATTEMPT_UP,
+            PrimaryMarketState.REVERSAL_ATTEMPT_DOWN,
+            PrimaryMarketState.TRANSITIONAL,
+        ),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.LIQUIDITY),
         (EvidenceFamily.CANDLE, EvidenceFamily.PARTICIPATION),
         ConfirmationPolicy.RECLAIM_REQUIRED,
@@ -113,7 +127,11 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.LIQUIDITY_REJECTION_REVERSAL: _eligibility(
         StrategyType.LIQUIDITY_REJECTION_REVERSAL,
-        (PrimaryMarketState.RANGING, PrimaryMarketState.REVERSAL_ATTEMPT_UP, PrimaryMarketState.REVERSAL_ATTEMPT_DOWN),
+        (
+            PrimaryMarketState.RANGING,
+            PrimaryMarketState.REVERSAL_ATTEMPT_UP,
+            PrimaryMarketState.REVERSAL_ATTEMPT_DOWN,
+        ),
         (EvidenceFamily.LIQUIDITY, EvidenceFamily.STRUCTURE),
         (EvidenceFamily.CANDLE, EvidenceFamily.PARTICIPATION),
         ConfirmationPolicy.RECLAIM_REQUIRED,
@@ -122,7 +140,11 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.VWAP_RECLAIM_REJECTION: _eligibility(
         StrategyType.VWAP_RECLAIM_REJECTION,
-        (PrimaryMarketState.TRENDING_UP, PrimaryMarketState.TRENDING_DOWN, PrimaryMarketState.TRANSITIONAL),
+        (
+            PrimaryMarketState.TRENDING_UP,
+            PrimaryMarketState.TRENDING_DOWN,
+            PrimaryMarketState.TRANSITIONAL,
+        ),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.TREND),
         (EvidenceFamily.PARTICIPATION, EvidenceFamily.MOMENTUM),
         ConfirmationPolicy.RECLAIM_REQUIRED,
@@ -131,7 +153,12 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
     ),
     StrategyType.MOMENTUM_SCALP: _eligibility(
         StrategyType.MOMENTUM_SCALP,
-        (PrimaryMarketState.TRENDING_UP, PrimaryMarketState.TRENDING_DOWN, PrimaryMarketState.POST_BREAKOUT, PrimaryMarketState.POST_BREAKDOWN),
+        (
+            PrimaryMarketState.TRENDING_UP,
+            PrimaryMarketState.TRENDING_DOWN,
+            PrimaryMarketState.POST_BREAKOUT,
+            PrimaryMarketState.POST_BREAKDOWN,
+        ),
         (EvidenceFamily.MOMENTUM, EvidenceFamily.PARTICIPATION),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.VOLATILITY),
         ConfirmationPolicy.INTRABAR_ALLOWED,
@@ -142,7 +169,11 @@ METHODOLOGY_STRATEGY_REGISTRY: dict[StrategyType, StrategyEligibility] = {
         StrategyType.EXHAUSTION_REVERSAL,
         (PrimaryMarketState.EXHAUSTED_UP, PrimaryMarketState.EXHAUSTED_DOWN),
         (EvidenceFamily.STRUCTURE, EvidenceFamily.MOMENTUM),
-        (EvidenceFamily.CANDLE, EvidenceFamily.PARTICIPATION, EvidenceFamily.DERIVATIVES),
+        (
+            EvidenceFamily.CANDLE,
+            EvidenceFamily.PARTICIPATION,
+            EvidenceFamily.DERIVATIVES,
+        ),
         ConfirmationPolicy.CLOSE_REQUIRED,
         ("rejection_entry", "reclaim_entry"),
         ("mean_reversion_level", "prior_structure"),
