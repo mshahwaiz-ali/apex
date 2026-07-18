@@ -34,6 +34,10 @@ from apex.application.methodology_invalidation_semantics import (
     derive_invalidation_semantics,
     invalidation_semantics_payload,
 )
+from apex.application.methodology_market_state_semantics import (
+    derive_market_state_semantics,
+    market_state_semantics_payload,
+)
 from apex.application.methodology_provenance import (
     derive_methodology_provenance,
     methodology_completeness_payload,
@@ -48,6 +52,10 @@ from apex.application.methodology_score_semantics import (
     score_semantics_payload,
 )
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.methodology_strategy_fit_semantics import (
+    derive_strategy_fit_semantics,
+    strategy_fit_semantics_payload,
+)
 from apex.application.methodology_target_horizon_semantics import (
     derive_target_horizon_semantics,
     target_horizon_semantics_payload,
@@ -58,14 +66,14 @@ def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return transparent projection, actionability, evidence, and execution semantics.
+    """Return transparent projection, state, evidence, and execution semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, calibrated probability,
-    closed-candle confirmation, canonical execution geometry, authoritative
-    actionability, hidden rejection, score-authorized execution, or a universal
-    target horizon.
+    closed-candle confirmation, verified strategy eligibility, canonical execution
+    geometry, authoritative actionability, hidden rejection, score-authorized
+    execution, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
@@ -89,8 +97,10 @@ def methodology_public_enrichment(
         projected,
         native_methodology_available=native_available,
     )
+    market_state = derive_market_state_semantics(projected)
     rejections = derive_rejection_semantics(projected)
     score = derive_score_semantics(setup, projected)
+    strategy_fit = derive_strategy_fit_semantics(setup, projected)
     target_horizon = derive_target_horizon_semantics(projected)
     return {
         "methodology_provenance": methodology_provenance_payload(provenance),
@@ -115,8 +125,10 @@ def methodology_public_enrichment(
             execution_geometry
         ),
         "methodology_invalidation_semantics": invalidation_semantics_payload(invalidation),
+        "methodology_market_state_semantics": market_state_semantics_payload(market_state),
         "methodology_rejection_semantics": rejection_semantics_payload(rejections),
         "methodology_score_semantics": score_semantics_payload(score),
+        "methodology_strategy_fit_semantics": strategy_fit_semantics_payload(strategy_fit),
         "methodology_target_horizon_semantics": target_horizon_semantics_payload(
             target_horizon
         ),
