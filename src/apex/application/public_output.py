@@ -22,7 +22,6 @@ from apex.application.methodology_strategy_evaluation import (
     evaluate_strategy_registry,
     strategy_eligibility_evaluation_payload,
 )
-from apex.strategies.strategy_types import StrategyType
 
 _LEGACY_PUBLIC_KEYS = frozenset({"near_miss_state"})
 _ACTIONABLE_STATUSES = frozenset({"READY_NOW", "AGGRESSIVE_NOW"})
@@ -50,9 +49,7 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         strategy_enforcement_payload(item) for item in enforcement
     ]
     selected_strategy = (
-        None
-        if analysis.assessment.setup is None
-        else analysis.assessment.setup.strategy
+        None if analysis.assessment.setup is None else analysis.assessment.setup.strategy
     )
     payload["methodology_selected_strategy_verdict"] = selected_strategy_verdict_payload(
         derive_selected_strategy_verdict(
