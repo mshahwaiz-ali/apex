@@ -24,6 +24,7 @@ from apex.application.methodology_evidence_aggregation import (
     aggregate_evidence_families,
     evidence_family_aggregate_payload,
 )
+from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
 from apex.application.methodology_strategy_contracts import (
     ConfirmationPolicy,
     MarketStateClassification,
@@ -42,6 +43,7 @@ class MethodologySnapshot:
     evidence: tuple[EvidenceObservation, ...] = ()
     contradictions: tuple[Contradiction, ...] = ()
     entry_opportunities: tuple[EntryOpportunity, ...] = ()
+    selected_entry: SelectedEntryDecision | None = None
     invalidation: StructuralInvalidation | None = None
     targets: tuple[TargetCandidate, ...] = ()
     duration: DurationExpectation | None = None
@@ -55,6 +57,11 @@ class MethodologySnapshot:
             raise ValueError("methodology contradictions must not contain duplicates")
         if len(set(self.entry_opportunities)) != len(self.entry_opportunities):
             raise ValueError("entry opportunities must not contain duplicates")
+        if self.selected_entry is not None:
+            if self.selected_entry.opportunity not in self.entry_opportunities:
+                raise ValueError(
+                    "selected entry must reference an opportunity in the canonical set"
+                )
         if len(set(self.targets)) != len(self.targets):
             raise ValueError("target candidates must not contain duplicates")
         if len(set(self.rejections)) != len(self.rejections):
@@ -80,15 +87,14 @@ class MethodologySnapshot:
     def executable(self) -> bool:
         return (
             not self.hard_blockers
+            and self.selected_entry is not None
             and self.invalidation is not None
-            and bool(self.entry_opportunities)
             and bool(self.targets)
         )
 
 
 def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any]:
     """Serialize a methodology snapshot without implying calibrated probability."""
-
     evidence_summary = aggregate_evidence_families(snapshot.evidence)
     return {
         "market_usability": (
@@ -137,21 +143,16 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
             for item in snapshot.contradictions
         ],
         "entry_opportunities": [
-            {
-                "kind": item.kind.value,
-                "zone_low": item.zone_low,
-                "zone_high": item.zone_high,
-                "ideal_entry": item.ideal_entry,
-                "confirmation_level": item.confirmation_level,
-                "maximum_chase": item.maximum_chase,
-                "current_distance_percentage": item.current_distance_percentage,
-                "current_distance_atr": item.current_distance_atr,
-                "quality": item.quality,
-                "reason": item.reason,
-                "expiry_bars": item.expiry_bars,
-            }
-            for item in snapshot.entry_opportunities
+            _entry_opportunity_payload(item) for item in snapshot.entry_opportunities
         ],
+        "selected_entry": None
+        if snapshot.selected_entry is None
+        else {
+            "opportunity": _entry_opportunity_payload(
+                snapshot.selected_entry.opportunity
+            ),
+            "reason": snapshot.selected_entry.reason,
+        },
         "invalidation": None
         if snapshot.invalidation is None
         else {
@@ -211,6 +212,22 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
         "hard_blockers": [item.code.value for item in snapshot.hard_blockers],
         "soft_penalties": [item.code.value for item in snapshot.soft_penalties],
         "executable": snapshot.executable,
+    }
+
+
+def _entry_opportunity_payload(opportunity: EntryOpportunity) -> dict[str, Any]:
+    return {
+        "kind": opportunity.kind.value,
+        "zone_low": opportunity.zone_low,
+        "zone_high": opportunity.zone_high,
+        "ideal_entry": opportunity.ideal_entry,
+        "confirmation_level": opportunity.confirmation_level,
+        "maximum_chase": opportunity.maximum_chase,
+        "current_distance_percentage": opportunity.current_distance_percentage,
+        "current_distance_atr": opportunity.current_distance_atr,
+        "quality": opportunity.quality,
+        "reason": opportunity.reason,
+        "expiry_bars": opportunity.expiry_bars,
     }
 
 
