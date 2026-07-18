@@ -13,6 +13,10 @@ from apex.application.methodology_selected_strategy_verdict import (
     derive_selected_strategy_verdict,
     selected_strategy_verdict_payload,
 )
+from apex.application.methodology_setup_maturity import (
+    derive_setup_maturity,
+    setup_maturity_payload,
+)
 from apex.application.methodology_snapshot import methodology_snapshot_payload
 from apex.application.methodology_strategy_enforcement import (
     derive_strategy_enforcement_registry,
@@ -55,6 +59,17 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         derive_selected_strategy_verdict(
             selected_strategy=selected_strategy,
             decisions=enforcement,
+        )
+    )
+    selected_setup = analysis.assessment.setup
+    payload["methodology_setup_maturity"] = (
+        None
+        if selected_setup is None
+        else setup_maturity_payload(
+            derive_setup_maturity(
+                selected_setup.strategy,
+                selected_setup.entry_status,
+            )
         )
     )
     setup = payload.get("setup")
