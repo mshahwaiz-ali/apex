@@ -19,28 +19,38 @@ from apex.application.methodology_rejection_semantics import (
     derive_rejection_semantics,
     rejection_semantics_payload,
 )
+from apex.application.methodology_score_semantics import (
+    derive_score_semantics,
+    score_semantics_payload,
+)
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.methodology_target_horizon_semantics import (
+    derive_target_horizon_semantics,
+    target_horizon_semantics_payload,
+)
 
 
 def methodology_public_enrichment(
     analysis: SymbolAnalysis,
     projected: MethodologySnapshot,
 ) -> dict[str, Any]:
-    """Return metadata explaining projection, confidence, and rejection semantics.
+    """Return transparent projection, score, target, and rejection semantics.
 
     The enrichment remains separate from the canonical methodology snapshot. It
     reports field origin and compatibility geometry without allowing projected or
     unavailable values to masquerade as native evidence, calibrated probability,
-    or hidden rejection.
+    hidden rejection, score-authorized execution, or a universal target horizon.
     """
 
     provenance = derive_methodology_provenance(
         stored_methodology=analysis.methodology,
         projected=projected,
     )
+    setup = analysis.assessment.setup
     confidence = derive_confidence_semantics(projected.confidence)
     rejections = derive_rejection_semantics(projected)
-    setup = analysis.assessment.setup
+    score = derive_score_semantics(setup, projected)
+    target_horizon = derive_target_horizon_semantics(projected)
     return {
         "methodology_provenance": methodology_provenance_payload(provenance),
         "methodology_completeness": methodology_completeness_payload(provenance),
@@ -49,6 +59,10 @@ def methodology_public_enrichment(
         ),
         "methodology_confidence_semantics": confidence_semantics_payload(confidence),
         "methodology_rejection_semantics": rejection_semantics_payload(rejections),
+        "methodology_score_semantics": score_semantics_payload(score),
+        "methodology_target_horizon_semantics": target_horizon_semantics_payload(
+            target_horizon
+        ),
         "methodology_projection_authoritative": analysis.methodology is not None,
         "methodology_projection_notice": _projection_notice(analysis),
     }
