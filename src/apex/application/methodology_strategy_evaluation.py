@@ -13,4 +13,139 @@ from apex.strategies.strategy_types import StrategyType
 
 
 class StrategyEligibilityState(StrEnum):
-    COMPATIBLE = "compatible
+    COMPATIBLE = "compatible"
+    INCOMPATIBLE_STATE = "incompatible_state"
+    PROHIBITED_STATE = "prohibited_state"
+    INSUFFICIENT_EVIDENCE_METADATA = "insufficient_evidence_metadata"
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyEligibilityEvaluation:
+    strategy: StrategyType
+    state: StrategyEligibilityState
+    market_state: PrimaryMarketState | None
+    present_evidence: tuple[EvidenceFamily, ...]
+    missing_mandatory_evidence: tuple[EvidenceFamily, ...]
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.reasons:
+            raise ValueError("strategy eligibility evaluation requires reasons")
+        if len(set(self.present_evidence)) != len(self.present_evidence):
+            raise ValueError("present evidence families must be unique")
+        if len(set(self.missing_mandatory_evidence)) != len(
+            self.missing_mandatory_evidence
+        ):
+            raise ValueError("missing evidence families must be unique")
+
+
+def evaluate_strategy_eligibility(
+    strategy: StrategyType,
+    *,
+    market_state: PrimaryMarketState | None,
+    evidence: tuple[EvidenceObservation, ...] = (),
+) -> StrategyEligibilityEvaluation:
+    """Evaluate one strategy without changing live routing or candidate approval."""
+
+    declaration = strategy_eligibility(strategy)
+    present = tuple(dict.fromkeys(item.family for item in evidence))
+    missing = tuple(
+        family for family in declaration.mandatory_evidence if family not in present
+    )
+
+    if market_state is None:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+            market_state=None,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=("canonical market state is unavailable",),
+        )
+    if market_state in declaration.prohibited_states:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.PROHIBITED_STATE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=(
+                f"{strategy.value} prohibits market state {market_state.value}",
+            ),
+        )
+    if market_state not in declaration.compatible_states:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INCOMPATIBLE_STATE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=(
+                f"{strategy.value} is not declared for market state "
+                f"{market_state.value}",
+            ),
+        )
+    if missing:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=(
+                "canonical evidence metadata is missing mandatory families: "
+                + ", ".join(item.value for item in missing),
+            ),
+        )
+    return StrategyEligibilityEvaluation(
+        strategy=strategy,
+        state=StrategyEligibilityState.COMPATIBLE,
+        market_state=market_state,
+        present_evidence=present,
+        missing_mandatory_evidence=(),
+        reasons=(
+            f"{strategy.value} is compatible with {market_state.value} and has "
+            "all mandatory evidence families",
+        ),
+    )
+
+
+def evaluate_strategy_registry(
+    *,
+    market_state: PrimaryMarketState | None,
+    evidence: tuple[EvidenceObservation, ...] = (),
+) -> tuple[StrategyEligibilityEvaluation, ...]:
+    return tuple(
+        evaluate_strategy_eligibility(
+            strategy,
+            market_state=market_state,
+            evidence=evidence,
+        )
+        for strategy in StrategyType
+    )
+
+
+def strategy_eligibility_evaluation_payload(
+    evaluation: StrategyEligibilityEvaluation,
+) -> dict[str, Any]:
+    return {
+        "strategy": evaluation.strategy.value,
+        "state": evaluation.state.value,
+        "market_state": (
+            None if evaluation.market_state is None else evaluation.market_state.value
+        ),
+        "present_evidence": [item.value for item in evaluation.present_evidence],
+        "missing_mandatory_evidence": [
+            item.value for item in evaluation.missing_mandatory_evidence
+        ],
+        "reasons": list(evaluation.reasons),
+    }
+
+
+__all__ = [
+    "StrategyEligibilityEvaluation",
+    "StrategyEligibilityState",
+    "evaluate_strategy_eligibility",
+    "evaluate_strategy_registry",
+    "strategy_eligibility_evaluation_payload",
+]
