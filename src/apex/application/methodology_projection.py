@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from apex.application.discovery_contracts import DiscoverySetup, SymbolAnalysis
+from apex.application.market_usability import classify_market_usability
 from apex.application.methodology_contracts import (
     ConfidenceAssessment,
     ConfidenceBasis,
@@ -47,17 +48,23 @@ def project_analysis_methodology(analysis: SymbolAnalysis) -> MethodologySnapsho
 
     if analysis.methodology is not None:
         return analysis.methodology
+    usability = classify_market_usability(analysis.data_quality_by_timeframe)
     setup = analysis.assessment.setup
     if setup is None:
-        return MethodologySnapshot()
-    return _project_setup(setup)
+        return MethodologySnapshot(market_usability=usability)
+    return _project_setup(setup, market_usability=usability)
 
 
-def _project_setup(setup: DiscoverySetup) -> MethodologySnapshot:
+def _project_setup(
+    setup: DiscoverySetup,
+    *,
+    market_usability: object,
+) -> MethodologySnapshot:
     confidence = _confidence_label(setup.confidence_score)
     target_count = len(setup.take_profits)
     expiry_bars = _expiry_bars(setup)
     return MethodologySnapshot(
+        market_usability=market_usability,
         setup_maturity=_MATURITY_BY_STATUS[setup.entry_status],
         confirmation_policy=_confirmation_policy(setup.entry_status),
         entry_opportunities=(
