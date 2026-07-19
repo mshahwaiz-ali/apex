@@ -28,7 +28,10 @@ from apex.application.discovery_contracts import (
     SymbolAnalysis,
     TakeProfit,
 )
-from apex.application.discovery_setup import build_discovery_assessment
+from apex.application.discovery_setup import (
+    build_discovery_assessment,
+    build_opportunity_portfolio,
+)
 from apex.application.futures_quality import analyze_futures_phase5
 from apex.application.historical_edge_runtime import (
     apply_runtime_edge_ranking,
@@ -64,6 +67,10 @@ from apex.application.methodology_selected_entry_contracts import SelectedEntryD
 from apex.application.methodology_setup_maturity import derive_setup_maturity
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
+from apex.application.opportunity_portfolio import (
+    AnalysisMode,
+    opportunity_portfolio_payload,
+)
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
@@ -92,6 +99,7 @@ def analyze_symbol(
     methodology_market_state: PrimaryMarketState | None = None,
     methodology_gate_mode: str = "shadow",
     futures_evidence_enabled: bool = True,
+    analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
     """Run candidate discovery from market evidence and trade geometry."""
 
@@ -131,6 +139,18 @@ def analyze_symbol(
     )
     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
     assessment = build_discovery_assessment(selection)
+    portfolio_cmp = (
+        assessment.setup.entry.current_price
+        if assessment.setup is not None
+        else assessment.developing_setup.entry.current_price
+        if assessment.developing_setup is not None
+        else context.decision_frame.recent_candles[-1].close
+    )
+    opportunity_portfolio = build_opportunity_portfolio(
+        selection,
+        cmp=portfolio_cmp,
+        analysis_mode=analysis_mode,
+    )
     ranking = build_candidate_ranking_snapshot(selection)
     candlestick_patterns = detect_contextual_candlesticks(context)
     candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
@@ -233,6 +253,7 @@ def analyze_symbol(
         market_intelligence=market_intelligence,
         historical_edge=historical_edge,
         outcome_candles=context.decision_frame.recent_candles,
+        opportunity_portfolio=opportunity_portfolio,
     )
 
 
@@ -358,6 +379,11 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "strategy": setup.strategy.value if setup is not None else None,
         "strategy_family": setup.strategy.canonical_family.value if setup is not None else None,
         "strategy_subtype": setup.strategy.canonical_subtype if setup is not None else None,
+        "opportunity_portfolio": (
+            opportunity_portfolio_payload(analysis.opportunity_portfolio)
+            if analysis.opportunity_portfolio is not None
+            else None
+        ),
         "confidence_score": setup.confidence_score if setup is not None else None,
         "reasons": list(analysis.assessment.reasons),
         "candidate_count": analysis.candidate_count,

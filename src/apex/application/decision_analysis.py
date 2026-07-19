@@ -24,6 +24,7 @@ from apex.application.methodology_gate_orchestration import (
 )
 from apex.application.methodology_setup_maturity import derive_setup_maturity
 from apex.application.methodology_strategy_contracts import SetupMaturity
+from apex.application.opportunity_portfolio import AnalysisMode
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -62,6 +63,7 @@ def analyze_symbol(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
     futures_evidence_enabled: bool = True,
+    analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
     """Run integrated discovery analysis, routing, and the shared methodology gate."""
 
@@ -77,6 +79,7 @@ def analyze_symbol(
         market_environment_config=market_environment_config,
         methodology_gate_mode=methodology_gate_mode,
         futures_evidence_enabled=futures_evidence_enabled,
+        analysis_mode=analysis_mode,
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
@@ -96,6 +99,7 @@ def analyze_symbol(
         market_intelligence=base.market_intelligence,
         historical_edge=base.historical_edge,
         outcome_candles=base.outcome_candles,
+        opportunity_portfolio=base.opportunity_portfolio,
         market_environment=environment,
         market_state=base.market_state,
         market_strategy_route=route,
@@ -139,6 +143,7 @@ def scan_symbols(
                 "strategy_routing": strategy_routing,
                 "market_environment_config": market_environment_config,
                 "methodology_gate_mode": methodology_gate_mode,
+                "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             }
             if not futures_evidence_enabled:
                 analysis_kwargs["futures_evidence_enabled"] = False
@@ -191,17 +196,88 @@ def serialize_scan_result(result: DiscoveryScanResult) -> dict[str, Any]:
         for item in approved
         if item.assessment.setup is not None and item.assessment.setup.direction.value == "short"
     )
+    serialized_results = [serialize_symbol_analysis(item) for item in displayed]
+    opportunity_records = _scan_opportunity_records(displayed)
     return {
         "generated_at": result.generated_at.isoformat(),
+        "opportunity_count": len(opportunity_records),
+        "opportunities": opportunity_records,
         "best_overall": serialize_symbol_analysis(approved[0]) if approved else None,
         "top_long_setups": [serialize_symbol_analysis(item) for item in long_setups],
         "top_short_setups": [serialize_symbol_analysis(item) for item in short_setups],
-        "results": [serialize_symbol_analysis(item) for item in displayed],
+        "results": serialized_results,
         "total_analysis_count": len(result.analyses),
         "displayed_analysis_count": len(displayed),
         "display_limit": DEFAULT_SCAN_DISPLAY_LIMIT,
         "failures": dict(result.failures),
     }
+
+
+def _scan_opportunity_records(
+    analyses: Sequence[DiscoverySymbolAnalysis],
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for analysis in analyses:
+        portfolio = getattr(analysis, "opportunity_portfolio", None)
+        if portfolio is None:
+            continue
+        for opportunity in portfolio.all_opportunities:
+            records.append(
+                {
+                    "symbol": analysis.symbol,
+                    "opportunity_id": opportunity.opportunity_id,
+                    "sequence_role": opportunity.sequence_role.value,
+                    "direction": opportunity.setup.direction.value,
+                    "strategy": opportunity.setup.strategy.value,
+                    "entry_status": opportunity.setup.entry_status.value,
+                    "execution_allowed_now": opportunity.setup.execution_allowed_now,
+                }
+            )
+    return records
+
+
+def _format_portfolio_slot(label: str, opportunity: Any | None) -> str:
+    if opportunity is None:
+        return f"{label}: none"
+
+    setup = opportunity.setup
+    return (
+        f"{label}: {setup.direction.value.upper()} | "
+        f"{setup.strategy.value} | {setup.entry_status.value} | "
+        f"entry {setup.entry.lower:g}-{setup.entry.upper:g} | "
+        f"ideal {setup.entry.preferred:g} | stop {setup.stop_loss.price:g}"
+    )
+
+
+def _portfolio_summary_lines(
+    analysis: DiscoverySymbolAnalysis,
+) -> tuple[str, ...]:
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    if portfolio is None:
+        return ()
+
+    lines = [
+        f"Opportunity portfolio: {len(portfolio.all_opportunities)}",
+        _format_portfolio_slot("Current long", portfolio.current_long),
+        _format_portfolio_slot("Current short", portfolio.current_short),
+        _format_portfolio_slot("Nearby long", portfolio.nearby_long),
+        _format_portfolio_slot("Nearby short", portfolio.nearby_short),
+    ]
+    if portfolio.follow_up_opportunities:
+        lines.append(
+            "Follow-ups: "
+            + ", ".join(
+                (
+                    f"{item.setup.direction.value.upper()} "
+                    f"{item.setup.strategy.value} "
+                    f"{item.setup.entry_status.value}"
+                )
+                for item in portfolio.follow_up_opportunities
+            )
+        )
+    else:
+        lines.append("Follow-ups: none")
+    return tuple(lines)
 
 
 def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
@@ -225,6 +301,7 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
             )
         )
     candidate_diagnostics = analysis.phase5_diagnostics or {}
+    lines.extend(_portfolio_summary_lines(analysis))
     lines.extend(_opportunity_summary_lines(analysis))
     lines.extend(
         (
@@ -328,7 +405,28 @@ def _scan_sort_key(analysis: DiscoverySymbolAnalysis) -> tuple[int, float, int, 
 
 
 def _scan_maturity_class(analysis: DiscoverySymbolAnalysis) -> int:
-    """Return actionable, developing, unavailable, or no-trade scan priority."""
+    """Return portfolio-aware actionable, developing, unavailable, or empty priority."""
+
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    if portfolio is not None:
+        if portfolio.current_long is not None or portfolio.current_short is not None:
+            return 0
+        if portfolio.nearby_long is not None or portfolio.nearby_short is not None:
+            return 1
+        if portfolio.follow_up_opportunities:
+            maturities = tuple(
+                derive_setup_maturity(
+                    opportunity.setup.strategy,
+                    opportunity.setup.entry_status,
+                )
+                for opportunity in portfolio.follow_up_opportunities
+            )
+            if any(item.execution_conditions_complete for item in maturities):
+                return 0
+            if any(item.maturity not in _UNAVAILABLE_MATURITIES for item in maturities):
+                return 1
+            return 2
+        return 3
 
     assessment = analysis.assessment
     setup = assessment.setup or getattr(assessment, "developing_setup", None)

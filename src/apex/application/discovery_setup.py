@@ -12,6 +12,11 @@ from apex.application.discovery_contracts import (
     StopQualityBand,
     TakeProfit,
 )
+from apex.application.opportunity_portfolio import (
+    AnalysisMode,
+    SymbolOpportunityPortfolio,
+    portfolio_from_setups,
+)
 from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
 from apex.scoring.contracts import (
     CandidateOutcome,
@@ -62,6 +67,33 @@ def build_discovery_assessment(
         decision_time=candidate_selection.decision_time,
         setup=_build_setup(selected),
         developing_setup=None if developing is None else _build_setup(developing),
+    )
+
+
+def build_opportunity_portfolio(
+    candidate_selection: CandidateSelectionResult,
+    *,
+    cmp: float,
+    analysis_mode: AnalysisMode,
+) -> SymbolOpportunityPortfolio:
+    """Build a diagnostic portfolio from accepted ranked candidates.
+
+    The legacy selected/developing assessment remains authoritative during the
+    compatibility phase. Every accepted ranked candidate that can be represented
+    by DiscoverySetup is retained in deterministic portfolio order.
+    """
+
+    setups = tuple(
+        _build_setup(item)
+        for item in candidate_selection.ranked_candidates
+        if item.outcome in _VALID_DEVELOPING_OUTCOMES
+    )
+    return portfolio_from_setups(
+        setups,
+        symbol=candidate_selection.symbol,
+        cmp=cmp,
+        analysis_timestamp=candidate_selection.decision_time,
+        analysis_mode=analysis_mode,
     )
 
 
@@ -298,3 +330,9 @@ def _management_policies(
             rationale=("respond when continuation evidence fails",),
         ),
     )
+
+
+__all__ = [
+    "build_discovery_assessment",
+    "build_opportunity_portfolio",
+]

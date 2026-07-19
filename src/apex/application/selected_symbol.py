@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
+from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import normalize_market_symbol
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
@@ -38,6 +39,7 @@ def analyze_selected_symbol(
         "strategy_routing": strategy_routing,
         "methodology_gate_mode": methodology_gate_mode,
         "market_environment_config": market_environment_config,
+        "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }
     if not futures_evidence_enabled:
         kwargs["futures_evidence_enabled"] = False

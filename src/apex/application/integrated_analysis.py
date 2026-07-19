@@ -24,6 +24,7 @@ from apex.application.market_state import (
 )
 from apex.application.market_strategy_router import route_market_strategies
 from apex.application.methodology_market_state import adapt_market_state
+from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import load_symbol_file
 from apex.data.providers.base import FuturesEvidenceProvider, MarketDataProvider
 from apex.domain.futures_evidence import (
@@ -157,6 +158,7 @@ def analyze_symbol(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
     futures_evidence_enabled: bool = True,
+    analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
     """Run discovery and attach fused market environment."""
 
@@ -193,6 +195,7 @@ def analyze_symbol(
         methodology_market_state=methodology_state.primary,
         methodology_gate_mode=methodology_gate_mode,
         futures_evidence_enabled=futures_evidence_enabled,
+        analysis_mode=analysis_mode,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -210,6 +213,7 @@ def analyze_symbol(
         market_intelligence=base.market_intelligence,
         historical_edge=base.historical_edge,
         outcome_candles=base.outcome_candles,
+        opportunity_portfolio=base.opportunity_portfolio,
         market_environment=environment,
         market_state=market_state,
     )

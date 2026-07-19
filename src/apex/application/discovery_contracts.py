@@ -7,7 +7,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from apex.application.opportunity_portfolio import SymbolOpportunityPortfolio
 
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
@@ -245,6 +248,7 @@ class SymbolAnalysis:
     market_intelligence: Mapping[str, Any] | None = None
     historical_edge: Mapping[str, Any] | None = None
     outcome_candles: tuple[Candle, ...] = ()
+    opportunity_portfolio: SymbolOpportunityPortfolio | None = None
 
 
 @dataclass(frozen=True, slots=True)
