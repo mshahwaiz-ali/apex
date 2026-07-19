@@ -15,6 +15,7 @@ from typing import Any
 
 from apex.application.discovery_contracts import DiscoveryAssessment, DiscoverySetup
 from apex.strategies.contracts import TradeDirection
+from apex.strategies.entry_status import EntryStatus
 
 
 class AnalysisMode(StrEnum):
@@ -31,6 +32,160 @@ class SequenceRole(StrEnum):
     NEARBY = "nearby"
     FOLLOW_UP = "follow_up"
     RUNNER = "runner"
+
+
+def classify_setup_sequence_role(setup: DiscoverySetup) -> SequenceRole:
+    """Classify a setup as current or nearby from canonical execution validity.
+
+    This classifier intentionally preserves the existing validity decision. It does
+    not reinterpret entry status, score, distance, or geometry. Later CMP-first work
+    can evolve the canonical validity source without duplicating slot logic.
+    """
+
+    return SequenceRole.CURRENT if setup.execution_allowed_now else SequenceRole.NEARBY
+
+
+class CmpZonePosition(StrEnum):
+    """Raw CMP position relative to a setup's existing entry zone."""
+
+    BELOW_ENTRY_ZONE = "below_entry_zone"
+    INSIDE_ENTRY_ZONE = "inside_entry_zone"
+    ABOVE_ENTRY_ZONE = "above_entry_zone"
+
+
+class CmpLocationState(StrEnum):
+    """Normalized CMP location for diagnostics and presentation only."""
+
+    BELOW_ENTRY_ZONE = "below_entry_zone"
+    INSIDE_ENTRY_ZONE = "inside_entry_zone"
+    ABOVE_ENTRY_ZONE = "above_entry_zone"
+    BEYOND_MAXIMUM_CHASE = "beyond_maximum_chase"
+
+
+class CmpActionabilityState(StrEnum):
+    """Diagnostic interpretation of existing CMP execution facts."""
+
+    EXECUTABLE_AT_CMP = "executable_at_cmp"
+    EXECUTION_GEOMETRY_CONFLICT = "execution_geometry_conflict"
+    NEARBY_SETUP = "nearby_setup"
+    CHASE_BREACHED = "chase_breached"
+    INVALIDATED = "invalidated"
+
+
+@dataclass(frozen=True, slots=True)
+class CmpActionabilityDiagnostics:
+    """Additive actionability facts that never alter canonical setup validity."""
+
+    state: CmpActionabilityState
+    source_entry_status: EntryStatus
+    execution_allowed_now: bool
+    location_state: CmpLocationState
+
+
+@dataclass(frozen=True, slots=True)
+class CmpDistanceDiagnostics:
+    """Additive CMP-distance facts derived from existing setup geometry.
+
+    These diagnostics do not classify validity, change sequence role, or apply any
+    threshold. They expose the current geometry for later CMP-first actionability work.
+    """
+
+    zone_position: CmpZonePosition
+    location_state: CmpLocationState
+    distance_to_entry_zone: float
+    distance_to_entry_zone_pct: float
+    distance_to_ideal_entry: float
+    distance_to_ideal_entry_pct: float
+    distance_to_maximum_chase: float
+    distance_to_maximum_chase_pct: float
+    beyond_maximum_chase: bool
+
+
+def classify_cmp_location_state(
+    *,
+    zone_position: CmpZonePosition,
+    beyond_maximum_chase: bool,
+) -> CmpLocationState:
+    """Normalize existing CMP facts without changing actionability or validity."""
+
+    if beyond_maximum_chase:
+        return CmpLocationState.BEYOND_MAXIMUM_CHASE
+    return CmpLocationState(zone_position.value)
+
+
+def build_cmp_actionability_diagnostics(
+    setup: DiscoverySetup,
+    *,
+    location_state: CmpLocationState | None = None,
+) -> CmpActionabilityDiagnostics:
+    """Interpret existing actionability facts without promoting or rejecting a setup."""
+
+    resolved_location = (
+        build_cmp_distance_diagnostics(setup).location_state
+        if location_state is None
+        else location_state
+    )
+    if setup.entry_status is EntryStatus.INVALIDATED:
+        state = CmpActionabilityState.INVALIDATED
+    elif (
+        resolved_location is CmpLocationState.BEYOND_MAXIMUM_CHASE
+        or setup.entry_status is EntryStatus.LATE_OR_CHASING
+    ):
+        state = CmpActionabilityState.CHASE_BREACHED
+    elif setup.execution_allowed_now:
+        state = (
+            CmpActionabilityState.EXECUTABLE_AT_CMP
+            if resolved_location is CmpLocationState.INSIDE_ENTRY_ZONE
+            else CmpActionabilityState.EXECUTION_GEOMETRY_CONFLICT
+        )
+    else:
+        state = CmpActionabilityState.NEARBY_SETUP
+
+    return CmpActionabilityDiagnostics(
+        state=state,
+        source_entry_status=setup.entry_status,
+        execution_allowed_now=setup.execution_allowed_now,
+        location_state=resolved_location,
+    )
+
+
+def build_cmp_distance_diagnostics(setup: DiscoverySetup) -> CmpDistanceDiagnostics:
+    """Describe CMP distance without changing the setup's canonical validity."""
+
+    entry = setup.entry
+    cmp = entry.current_price
+    if cmp < entry.lower:
+        position = CmpZonePosition.BELOW_ENTRY_ZONE
+        zone_distance = entry.lower - cmp
+    elif cmp > entry.upper:
+        position = CmpZonePosition.ABOVE_ENTRY_ZONE
+        zone_distance = cmp - entry.upper
+    else:
+        position = CmpZonePosition.INSIDE_ENTRY_ZONE
+        zone_distance = 0.0
+
+    ideal_distance = abs(cmp - entry.preferred)
+    chase_distance = abs(cmp - entry.maximum_chase_price)
+    beyond_chase = (
+        cmp > entry.maximum_chase_price
+        if setup.direction is TradeDirection.LONG
+        else cmp < entry.maximum_chase_price
+    )
+
+    return CmpDistanceDiagnostics(
+        zone_position=position,
+        location_state=classify_cmp_location_state(
+            zone_position=position,
+            beyond_maximum_chase=beyond_chase,
+        ),
+        distance_to_entry_zone=zone_distance,
+        distance_to_entry_zone_pct=zone_distance / cmp * 100.0,
+        distance_to_ideal_entry=ideal_distance,
+        distance_to_ideal_entry_pct=ideal_distance / cmp * 100.0,
+        distance_to_maximum_chase=chase_distance,
+        distance_to_maximum_chase_pct=chase_distance / cmp * 100.0,
+        beyond_maximum_chase=beyond_chase,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,8 +335,9 @@ def portfolio_from_setups(
         seen_candidate_ids.add(setup.candidate_id)
         seen_semantic_setups.add(semantic_identity)
 
-        if setup.execution_allowed_now:
-            opportunity = TradeOpportunity(setup.candidate_id, setup, SequenceRole.CURRENT)
+        role = classify_setup_sequence_role(setup)
+        opportunity = TradeOpportunity(setup.candidate_id, setup, role)
+        if role is SequenceRole.CURRENT:
             if setup.direction is TradeDirection.LONG and current_long is None:
                 current_long = opportunity
                 continue
@@ -189,7 +345,6 @@ def portfolio_from_setups(
                 current_short = opportunity
                 continue
         else:
-            opportunity = TradeOpportunity(setup.candidate_id, setup, SequenceRole.NEARBY)
             if setup.direction is TradeDirection.LONG and nearby_long is None:
                 nearby_long = opportunity
                 continue
@@ -243,11 +398,7 @@ def portfolio_from_legacy_assessment(
     def place(setup: DiscoverySetup, *, developing: bool) -> None:
         nonlocal current_long, current_short, nearby_long, nearby_short
 
-        role = (
-            SequenceRole.CURRENT
-            if setup.execution_allowed_now and not developing
-            else SequenceRole.NEARBY
-        )
+        role = SequenceRole.NEARBY if developing else classify_setup_sequence_role(setup)
         opportunity = TradeOpportunity(setup.candidate_id, setup, role)
         if role is SequenceRole.CURRENT:
             if setup.direction is TradeDirection.LONG:
@@ -296,6 +447,11 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
         if opportunity is None:
             return None
         setup = opportunity.setup
+        cmp_distance = build_cmp_distance_diagnostics(setup)
+        cmp_actionability = build_cmp_actionability_diagnostics(
+            setup,
+            location_state=cmp_distance.location_state,
+        )
         return {
             "opportunity_id": opportunity.opportunity_id,
             "sequence_role": opportunity.sequence_role.value,
@@ -305,6 +461,23 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
             "entry_status": setup.entry_status.value,
             "execution_allowed_now": setup.execution_allowed_now,
             "cmp": setup.entry.current_price,
+            "cmp_actionability": {
+                "state": cmp_actionability.state.value,
+                "source_entry_status": cmp_actionability.source_entry_status.value,
+                "execution_allowed_now": cmp_actionability.execution_allowed_now,
+                "location_state": cmp_actionability.location_state.value,
+            },
+            "cmp_distance": {
+                "zone_position": cmp_distance.zone_position.value,
+                "location_state": cmp_distance.location_state.value,
+                "distance_to_entry_zone": cmp_distance.distance_to_entry_zone,
+                "distance_to_entry_zone_pct": cmp_distance.distance_to_entry_zone_pct,
+                "distance_to_ideal_entry": cmp_distance.distance_to_ideal_entry,
+                "distance_to_ideal_entry_pct": cmp_distance.distance_to_ideal_entry_pct,
+                "distance_to_maximum_chase": cmp_distance.distance_to_maximum_chase,
+                "distance_to_maximum_chase_pct": cmp_distance.distance_to_maximum_chase_pct,
+                "beyond_maximum_chase": cmp_distance.beyond_maximum_chase,
+            },
             "entry_zone": {
                 "lower": setup.entry.lower,
                 "upper": setup.entry.upper,
@@ -341,9 +514,18 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
 
 __all__ = [
     "AnalysisMode",
+    "CmpActionabilityDiagnostics",
+    "CmpActionabilityState",
+    "CmpDistanceDiagnostics",
+    "CmpLocationState",
+    "CmpZonePosition",
     "SequenceRole",
     "SymbolOpportunityPortfolio",
     "TradeOpportunity",
+    "build_cmp_actionability_diagnostics",
+    "build_cmp_distance_diagnostics",
+    "classify_cmp_location_state",
+    "classify_setup_sequence_role",
     "opportunity_portfolio_payload",
     "portfolio_from_legacy_assessment",
     "portfolio_from_setups",

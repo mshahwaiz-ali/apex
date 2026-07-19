@@ -69,6 +69,23 @@ def test_legacy_portfolio_payload_is_additive_and_deterministic() -> None:
         "entry_status": EntryStatus.READY_NOW.value,
         "execution_allowed_now": True,
         "cmp": 100.0,
+        "cmp_actionability": {
+            "state": "executable_at_cmp",
+            "source_entry_status": "READY_NOW",
+            "execution_allowed_now": True,
+            "location_state": "inside_entry_zone",
+        },
+        "cmp_distance": {
+            "zone_position": "inside_entry_zone",
+            "location_state": "inside_entry_zone",
+            "distance_to_entry_zone": 0.0,
+            "distance_to_entry_zone_pct": 0.0,
+            "distance_to_ideal_entry": 0.0,
+            "distance_to_ideal_entry_pct": 0.0,
+            "distance_to_maximum_chase": 2.0,
+            "distance_to_maximum_chase_pct": 2.0,
+            "beyond_maximum_chase": False,
+        },
         "entry_zone": {
             "lower": 99.0,
             "upper": 101.0,
