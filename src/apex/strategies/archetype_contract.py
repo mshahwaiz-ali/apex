@@ -10,6 +10,7 @@ from apex.strategies.contracts import (
     InvalidationType,
     TargetType,
     TradeCandidate,
+    TradeDirection,
 )
 from apex.strategies.strategy_types import StrategyType
 
@@ -322,6 +323,242 @@ def liquidity_sweep_archetype_profile(
     )
 
 
+def exhaustion_reversal_archetype_profile(
+    candidate: TradeCandidate,
+) -> StrategyArchetypeProfile:
+    """Adapt exhaustion-reversal evidence into the common contract."""
+
+    if candidate.strategy is not StrategyType.EXHAUSTION_REVERSAL:
+        raise ValueError("exhaustion-reversal profile requires an exhaustion-reversal candidate")
+
+    metadata = candidate.metadata
+    source_strategy = str(metadata.get("source_strategy", ""))
+    family = str(metadata.get("strategy_family", ""))
+    raw_exhaustion_rsi = metadata.get("exhaustion_rsi")
+    exhaustion_rsi = (
+        float(raw_exhaustion_rsi) if isinstance(raw_exhaustion_rsi, int | float) else None
+    )
+    directionally_exhausted = exhaustion_rsi is not None and (
+        (candidate.direction is TradeDirection.LONG and exhaustion_rsi <= 35.0)
+        or (candidate.direction is TradeDirection.SHORT and exhaustion_rsi >= 65.0)
+    )
+    has_rsi_evidence = any(
+        item.startswith("RSI exhaustion is confirmed at ") for item in candidate.evidence.supporting
+    )
+    has_liquidity_trigger = any(
+        "liquidity rejection provides the reversal trigger" in item
+        for item in candidate.evidence.supporting
+    )
+    has_rsi_reference = "rsi" in candidate.evidence.feature_references
+    has_liquidity_reference = bool(candidate.evidence.liquidity_references)
+
+    entry_modes = tuple(dict.fromkeys(item.mode for item in candidate.entry_opportunities))
+    target_types = tuple(dict.fromkeys(item.kind for item in candidate.targets.levels))
+    regime_eligible = (
+        directionally_exhausted
+        and has_rsi_evidence
+        and has_liquidity_trigger
+        and has_rsi_reference
+        and has_liquidity_reference
+    )
+    confirmation_complete = regime_eligible and not candidate.provisional
+
+    optional_evidence = tuple(
+        label
+        for label, present in (
+            ("source strategy lineage", bool(source_strategy)),
+            (
+                "explicit exhaustion-reversal family metadata",
+                family == StrategyType.EXHAUSTION_REVERSAL.value,
+            ),
+            (
+                "structure evidence",
+                bool(candidate.evidence.structure_references),
+            ),
+            (
+                "additional momentum evidence",
+                any(item != "rsi" for item in candidate.evidence.feature_references),
+            ),
+        )
+        if present
+    )
+
+    return StrategyArchetypeProfile(
+        archetype=ArchetypeFamily.EXHAUSTION_REVERSAL,
+        strategy=candidate.strategy,
+        required_evidence=(
+            "directional RSI exhaustion",
+            "explicit RSI exhaustion evidence",
+            "liquidity rejection reversal trigger",
+            "RSI feature reference",
+            "liquidity reference",
+        ),
+        optional_evidence=optional_evidence,
+        contradictions=(candidate.evidence.contradictions + candidate.evidence.warnings),
+        entry_modes=entry_modes,
+        invalidation_type=candidate.invalidation.kind,
+        target_types=target_types,
+        confirmation_complete=confirmation_complete,
+        provisional=candidate.provisional,
+        regime_eligible=regime_eligible,
+        explanation_labels=(
+            "exhaustion reversal",
+            (f"RSI {exhaustion_rsi:.2f}" if exhaustion_rsi is not None else "missing RSI"),
+            ("confirmation complete" if confirmation_complete else "confirmation incomplete"),
+            ("provisional evidence" if candidate.provisional else "closed evidence"),
+        ),
+    )
+
+
+def compression_expansion_archetype_profile(
+    candidate: TradeCandidate,
+) -> StrategyArchetypeProfile:
+    """Adapt compression-expansion evidence into the common contract."""
+
+    if candidate.strategy is not StrategyType.COMPRESSION_EXPANSION:
+        raise ValueError("compression-expansion profile requires a compression-expansion candidate")
+
+    metadata = candidate.metadata
+    source_strategy = str(metadata.get("source_strategy", ""))
+    family = str(metadata.get("strategy_family", ""))
+    regime = str(metadata.get("compression_expansion_regime", ""))
+    has_supported_regime = regime in {"compression", "breakout_expansion"}
+    has_regime_evidence = any(
+        item == f"{regime} context supports directional expansion"
+        for item in candidate.evidence.supporting
+    )
+    has_release_evidence = any(
+        "confirmed breakout provides release from the prior volatility state" in item
+        for item in candidate.evidence.supporting
+    )
+    has_structure_reference = "compression_expansion" in candidate.evidence.structure_references
+
+    entry_modes = tuple(dict.fromkeys(item.mode for item in candidate.entry_opportunities))
+    target_types = tuple(dict.fromkeys(item.kind for item in candidate.targets.levels))
+    regime_eligible = (
+        has_supported_regime
+        and has_regime_evidence
+        and has_release_evidence
+        and has_structure_reference
+    )
+    confirmation_complete = regime_eligible and not candidate.provisional
+
+    optional_evidence = tuple(
+        label
+        for label, present in (
+            ("source strategy lineage", bool(source_strategy)),
+            (
+                "explicit compression-expansion family metadata",
+                family == StrategyType.COMPRESSION_EXPANSION.value,
+            ),
+            ("momentum evidence", bool(candidate.evidence.feature_references)),
+            ("liquidity evidence", bool(candidate.evidence.liquidity_references)),
+        )
+        if present
+    )
+
+    return StrategyArchetypeProfile(
+        archetype=ArchetypeFamily.COMPRESSION_EXPANSION,
+        strategy=candidate.strategy,
+        required_evidence=(
+            "supported compression or breakout-expansion regime",
+            "directional expansion context",
+            "confirmed breakout release",
+            "explicit compression-expansion structure reference",
+        ),
+        optional_evidence=optional_evidence,
+        contradictions=candidate.evidence.contradictions + candidate.evidence.warnings,
+        entry_modes=entry_modes,
+        invalidation_type=candidate.invalidation.kind,
+        target_types=target_types,
+        confirmation_complete=confirmation_complete,
+        provisional=candidate.provisional,
+        regime_eligible=regime_eligible,
+        explanation_labels=(
+            "compression expansion",
+            regime or "missing regime",
+            "confirmation complete" if confirmation_complete else "confirmation incomplete",
+            "provisional evidence" if candidate.provisional else "closed evidence",
+        ),
+    )
+
+
+def failed_breakout_archetype_profile(
+    candidate: TradeCandidate,
+) -> StrategyArchetypeProfile:
+    """Adapt a failed-breakout reversal into the common contract."""
+
+    if candidate.strategy is not StrategyType.FAILED_BREAKOUT_REVERSAL:
+        raise ValueError("failed-breakout profile requires a failed-breakout-reversal candidate")
+
+    metadata = candidate.metadata
+    source_strategy = str(metadata.get("source_strategy", ""))
+    family = str(metadata.get("strategy_family", ""))
+    confirmed_failed_breakout = metadata.get("confirmed_failed_breakout") is True
+    rejected_beyond_boundary = any(
+        "failed breakout rejected beyond the range boundary" in item
+        for item in candidate.evidence.supporting
+    )
+    returned_inside_range = any(
+        "returned into the prior range before entry selection" in item
+        for item in candidate.evidence.supporting
+    )
+    has_failed_breakout_structure = "failed_breakout" in candidate.evidence.structure_references
+
+    entry_modes = tuple(dict.fromkeys(item.mode for item in candidate.entry_opportunities))
+    target_types = tuple(dict.fromkeys(item.kind for item in candidate.targets.levels))
+    confirmation_complete = (
+        confirmed_failed_breakout
+        and rejected_beyond_boundary
+        and returned_inside_range
+        and has_failed_breakout_structure
+        and not candidate.provisional
+    )
+
+    optional_evidence = tuple(
+        item
+        for item, present in (
+            ("source strategy lineage", bool(source_strategy)),
+            (
+                "explicit failed-breakout family metadata",
+                family == StrategyType.FAILED_BREAKOUT_REVERSAL.value,
+            ),
+            ("momentum evidence", bool(candidate.evidence.feature_references)),
+            ("liquidity evidence", bool(candidate.evidence.liquidity_references)),
+        )
+        if present
+    )
+
+    return StrategyArchetypeProfile(
+        archetype=ArchetypeFamily.FAILED_BREAKOUT,
+        strategy=candidate.strategy,
+        required_evidence=(
+            "confirmed failed-breakout state",
+            "rejection beyond the attempted range boundary",
+            "return inside the prior range before entry",
+            "explicit failed-breakout structure reference",
+        ),
+        optional_evidence=optional_evidence,
+        contradictions=candidate.evidence.contradictions + candidate.evidence.warnings,
+        entry_modes=entry_modes,
+        invalidation_type=candidate.invalidation.kind,
+        target_types=target_types,
+        confirmation_complete=confirmation_complete,
+        provisional=candidate.provisional,
+        regime_eligible=(
+            confirmed_failed_breakout
+            and rejected_beyond_boundary
+            and returned_inside_range
+            and has_failed_breakout_structure
+        ),
+        explanation_labels=(
+            "failed breakout reversal",
+            "confirmation complete" if confirmation_complete else "confirmation incomplete",
+            "provisional evidence" if candidate.provisional else "closed evidence",
+        ),
+    )
+
+
 def momentum_continuation_archetype_profile(
     candidate: TradeCandidate,
 ) -> StrategyArchetypeProfile:
@@ -393,6 +630,9 @@ __all__ = [
     "ArchetypeFamily",
     "StrategyArchetypeProfile",
     "breakout_retest_archetype_profile",
+    "compression_expansion_archetype_profile",
+    "exhaustion_reversal_archetype_profile",
+    "failed_breakout_archetype_profile",
     "first_pullback_archetype_profile",
     "liquidity_sweep_archetype_profile",
     "momentum_continuation_archetype_profile",
