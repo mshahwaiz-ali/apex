@@ -72,6 +72,164 @@ class CmpActionabilityState(StrEnum):
     INVALIDATED = "invalidated"
 
 
+class TriggerFreshnessState(StrEnum):
+    NOT_CONFIGURED = "not_configured"
+    FRESH = "fresh"
+    STALE = "stale"
+    BAR_EXPIRY_UNEVALUATED = "bar_expiry_unevaluated"
+    CLOCK_SKEW = "clock_skew"
+
+
+class StaleTriggerDiagnosticCode(StrEnum):
+    EXPIRED_BY_SECONDS = "expired_by_seconds"
+    EXECUTION_AUTHORIZED_AFTER_EXPIRY = "execution_authorized_after_expiry"
+    BAR_EXPIRY_REQUIRES_CONTEXT = "bar_expiry_requires_context"
+    EVALUATED_BEFORE_DECISION_TIME = "evaluated_before_decision_time"
+
+
+@dataclass(frozen=True, slots=True)
+class StaleTriggerDiagnostics:
+    state: TriggerFreshnessState
+    codes: tuple[StaleTriggerDiagnosticCode, ...]
+    evaluated_at: datetime
+    decision_time: datetime
+    age_seconds: float
+    setup_expiry_seconds: int | None
+    setup_expiry_bars: int | None
+    setup_expiry_reason: str
+    execution_allowed_now: bool
+
+    @property
+    def is_stale(self) -> bool:
+        return self.state is TriggerFreshnessState.STALE
+
+
+class EntryBoundaryConsistencyCode(StrEnum):
+    MAXIMUM_CHASE_EQUALS_IDEAL_ENTRY = "maximum_chase_equals_ideal_entry"
+    CHASE_BREACHED_WITHOUT_LATE_STATUS = "chase_breached_without_late_status"
+    LATE_STATUS_WITHOUT_CHASE_BREACH = "late_status_without_chase_breach"
+
+
+@dataclass(frozen=True, slots=True)
+class EntryBoundaryConsistencyAudit:
+    codes: tuple[EntryBoundaryConsistencyCode, ...]
+    ideal_entry_inside_zone: bool
+    maximum_chase_directionally_valid: bool
+    maximum_chase_equals_ideal_entry: bool
+    beyond_maximum_chase: bool
+    source_entry_status: EntryStatus
+
+    @property
+    def is_consistent(self) -> bool:
+        return not self.codes
+
+
+class SetupExistenceState(StrEnum):
+    STRUCTURALLY_VALID = "structurally_valid"
+    INVALIDATED = "invalidated"
+
+
+class CmpEntryAssessmentState(StrEnum):
+    AVAILABLE_NOW = "available_now"
+    AVAILABLE_BUT_POOR_LOCATION = "available_but_poor_location"
+    NOT_AVAILABLE_NEARBY_SETUP = "not_available_nearby_setup"
+    MISSED_OR_CHASING = "missed_or_chasing"
+    SETUP_INVALIDATED = "setup_invalidated"
+
+
+@dataclass(frozen=True, slots=True)
+class SetupExistenceAssessment:
+    state: SetupExistenceState
+    source_entry_status: EntryStatus
+    setup_exists: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CmpEntryAssessment:
+    state: CmpEntryAssessmentState
+    execution_allowed_now: bool
+    location_state: CmpLocationState
+    beyond_maximum_chase: bool
+    setup_existence_state: SetupExistenceState
+
+
+class ActionabilityState(StrEnum):
+    # Planned CMP-first states; additive until legacy behavior is replaced.
+    EXECUTE_NOW = "execute_now"
+    AGGRESSIVE_NOW = "aggressive_now"
+    EXECUTE_ON_MICRO_CONFIRMATION = "execute_on_micro_confirmation"
+    PLACE_LIMIT = "place_limit"
+    PLACE_LIMIT_WITH_ACTIVATION = "place_limit_with_activation"
+    CMP_AVAILABLE_BUT_POOR_LOCATION = "cmp_available_but_poor_location"
+    RETEST_PREFERRED = "retest_preferred"
+    RECLAIM_REQUIRED = "reclaim_required"
+    MISSED_OR_CHASING = "missed_or_chasing"
+    DEVELOPING = "developing"
+    INVALIDATED = "invalidated"
+
+
+class ActionabilityClassificationBasis(StrEnum):
+    LEGACY_INVALIDATION = "legacy_invalidation"
+    MAXIMUM_CHASE = "maximum_chase"
+    LEGACY_LATE_STATUS = "legacy_late_status"
+    EXECUTABLE_INSIDE_ZONE = "executable_inside_zone"
+    EXECUTABLE_POOR_LOCATION = "executable_poor_location"
+    LEGACY_PULLBACK = "legacy_pullback"
+    LEGACY_WATCH = "legacy_watch"
+    CONTRADICTORY_LEGACY_FACTS = "contradictory_legacy_facts"
+
+
+class ActionabilityProjectionIssue(StrEnum):
+    ACTIONABILITY_CONTRADICTION = "actionability_contradiction"
+    STALE_TRIGGER = "stale_trigger"
+    CLOCK_SKEW = "clock_skew"
+    BAR_EXPIRY_UNEVALUATED = "bar_expiry_unevaluated"
+    ENTRY_BOUNDARY_CONTRADICTION = "entry_boundary_contradiction"
+
+
+@dataclass(frozen=True, slots=True)
+class ActionabilityStateAssessment:
+    state: ActionabilityState
+    basis: ActionabilityClassificationBasis
+    source_entry_status: EntryStatus
+    execution_allowed_now: bool
+    location_state: CmpLocationState
+    sequence_role: SequenceRole
+    issues: tuple[ActionabilityProjectionIssue, ...] = ()
+    has_blocking_issue: bool = False
+    is_legacy_projection: bool = True
+
+
+class ActionabilityConsistencyCode(StrEnum):
+    """Machine-readable contradictions among existing actionability facts."""
+
+    INVALIDATED_EXECUTION_AUTHORIZED = "invalidated_execution_authorized"
+    CHASE_BREACHED_EXECUTION_AUTHORIZED = "chase_breached_execution_authorized"
+    READY_NOW_OUTSIDE_ENTRY_ZONE = "ready_now_outside_entry_zone"
+    IMMEDIATE_STATUS_EXECUTION_DISABLED = "immediate_status_execution_disabled"
+    NON_IMMEDIATE_STATUS_EXECUTION_AUTHORIZED = "non_immediate_status_execution_authorized"
+    NEARBY_ROLE_EXECUTION_AUTHORIZED = "nearby_role_execution_authorized"
+    CURRENT_ROLE_EXECUTION_DISABLED = "current_role_execution_disabled"
+
+
+@dataclass(frozen=True, slots=True)
+class ActionabilityConsistencyAudit:
+    """Additive consistency findings that preserve all canonical decisions."""
+
+    codes: tuple[ActionabilityConsistencyCode, ...]
+    source_entry_status: EntryStatus
+    execution_allowed_now: bool
+    location_state: CmpLocationState
+    beyond_maximum_chase: bool
+    sequence_role: SequenceRole
+
+    @property
+    def is_consistent(self) -> bool:
+        """Return whether no known contradiction was observed."""
+
+        return not self.codes
+
+
 @dataclass(frozen=True, slots=True)
 class CmpActionabilityDiagnostics:
     """Additive actionability facts that never alter canonical setup validity."""
@@ -146,6 +304,272 @@ def build_cmp_actionability_diagnostics(
         source_entry_status=setup.entry_status,
         execution_allowed_now=setup.execution_allowed_now,
         location_state=resolved_location,
+    )
+
+
+def build_stale_trigger_diagnostics(
+    setup: DiscoverySetup,
+    *,
+    evaluated_at: datetime,
+) -> StaleTriggerDiagnostics:
+    # Time expiry can be evaluated exactly. Bar expiry requires candle context and
+    # is therefore exposed as unevaluated rather than guessed.
+    if evaluated_at.tzinfo is None or evaluated_at.utcoffset() is None:
+        raise ValueError("stale-trigger evaluation time must be timezone-aware")
+
+    age_seconds = (evaluated_at - setup.decision_time).total_seconds()
+    codes: list[StaleTriggerDiagnosticCode] = []
+
+    if age_seconds < 0.0:
+        state = TriggerFreshnessState.CLOCK_SKEW
+        codes.append(StaleTriggerDiagnosticCode.EVALUATED_BEFORE_DECISION_TIME)
+    elif setup.setup_expiry_seconds is not None and age_seconds >= setup.setup_expiry_seconds:
+        state = TriggerFreshnessState.STALE
+        codes.append(StaleTriggerDiagnosticCode.EXPIRED_BY_SECONDS)
+        if setup.execution_allowed_now:
+            codes.append(StaleTriggerDiagnosticCode.EXECUTION_AUTHORIZED_AFTER_EXPIRY)
+    elif setup.setup_expiry_seconds is not None:
+        state = TriggerFreshnessState.FRESH
+    elif setup.setup_expiry_bars is not None:
+        state = TriggerFreshnessState.BAR_EXPIRY_UNEVALUATED
+        codes.append(StaleTriggerDiagnosticCode.BAR_EXPIRY_REQUIRES_CONTEXT)
+    else:
+        state = TriggerFreshnessState.NOT_CONFIGURED
+
+    return StaleTriggerDiagnostics(
+        state=state,
+        codes=tuple(codes),
+        evaluated_at=evaluated_at,
+        decision_time=setup.decision_time,
+        age_seconds=age_seconds,
+        setup_expiry_seconds=setup.setup_expiry_seconds,
+        setup_expiry_bars=setup.setup_expiry_bars,
+        setup_expiry_reason=setup.setup_expiry_reason,
+        execution_allowed_now=setup.execution_allowed_now,
+    )
+
+
+def build_entry_boundary_consistency_audit(
+    setup: DiscoverySetup,
+    *,
+    cmp_distance: CmpDistanceDiagnostics | None = None,
+) -> EntryBoundaryConsistencyAudit:
+    # Audit existing entry geometry without changing any boundary.
+    distance = build_cmp_distance_diagnostics(setup) if cmp_distance is None else cmp_distance
+    entry = setup.entry
+    codes: list[EntryBoundaryConsistencyCode] = []
+
+    ideal_entry_inside_zone = entry.lower <= entry.preferred <= entry.upper
+    chase_valid = (
+        entry.maximum_chase_price >= entry.upper
+        if setup.direction is TradeDirection.LONG
+        else entry.maximum_chase_price <= entry.lower
+    )
+
+    same_boundary = entry.maximum_chase_price == entry.preferred
+    if same_boundary:
+        codes.append(EntryBoundaryConsistencyCode.MAXIMUM_CHASE_EQUALS_IDEAL_ENTRY)
+
+    if distance.beyond_maximum_chase and setup.entry_status is not EntryStatus.LATE_OR_CHASING:
+        codes.append(EntryBoundaryConsistencyCode.CHASE_BREACHED_WITHOUT_LATE_STATUS)
+
+    if setup.entry_status is EntryStatus.LATE_OR_CHASING and not distance.beyond_maximum_chase:
+        codes.append(EntryBoundaryConsistencyCode.LATE_STATUS_WITHOUT_CHASE_BREACH)
+
+    return EntryBoundaryConsistencyAudit(
+        codes=tuple(codes),
+        ideal_entry_inside_zone=ideal_entry_inside_zone,
+        maximum_chase_directionally_valid=chase_valid,
+        maximum_chase_equals_ideal_entry=same_boundary,
+        beyond_maximum_chase=distance.beyond_maximum_chase,
+        source_entry_status=setup.entry_status,
+    )
+
+
+def build_setup_existence_assessment(
+    setup: DiscoverySetup,
+) -> SetupExistenceAssessment:
+    # Setup existence is intentionally independent from current CMP availability.
+    invalidated = setup.entry_status is EntryStatus.INVALIDATED
+    return SetupExistenceAssessment(
+        state=(
+            SetupExistenceState.INVALIDATED
+            if invalidated
+            else SetupExistenceState.STRUCTURALLY_VALID
+        ),
+        source_entry_status=setup.entry_status,
+        setup_exists=not invalidated,
+    )
+
+
+def build_cmp_entry_assessment(
+    setup: DiscoverySetup,
+    *,
+    cmp_distance: CmpDistanceDiagnostics | None = None,
+    setup_existence: SetupExistenceAssessment | None = None,
+) -> CmpEntryAssessment:
+    # Describe only CMP availability; do not replace the underlying setup state.
+    distance = build_cmp_distance_diagnostics(setup) if cmp_distance is None else cmp_distance
+    existence = (
+        build_setup_existence_assessment(setup) if setup_existence is None else setup_existence
+    )
+
+    if existence.state is SetupExistenceState.INVALIDATED:
+        state = CmpEntryAssessmentState.SETUP_INVALIDATED
+    elif distance.beyond_maximum_chase or setup.entry_status is EntryStatus.LATE_OR_CHASING:
+        state = CmpEntryAssessmentState.MISSED_OR_CHASING
+    elif setup.execution_allowed_now:
+        state = (
+            CmpEntryAssessmentState.AVAILABLE_NOW
+            if distance.location_state is CmpLocationState.INSIDE_ENTRY_ZONE
+            else CmpEntryAssessmentState.AVAILABLE_BUT_POOR_LOCATION
+        )
+    else:
+        state = CmpEntryAssessmentState.NOT_AVAILABLE_NEARBY_SETUP
+
+    return CmpEntryAssessment(
+        state=state,
+        execution_allowed_now=setup.execution_allowed_now,
+        location_state=distance.location_state,
+        beyond_maximum_chase=distance.beyond_maximum_chase,
+        setup_existence_state=existence.state,
+    )
+
+
+def build_actionability_state_assessment(
+    setup: DiscoverySetup,
+    *,
+    sequence_role: SequenceRole,
+    cmp_distance: CmpDistanceDiagnostics | None = None,
+    consistency_audit: ActionabilityConsistencyAudit | None = None,
+    stale_trigger: StaleTriggerDiagnostics | None = None,
+    entry_boundary_audit: EntryBoundaryConsistencyAudit | None = None,
+) -> ActionabilityStateAssessment:
+    # Project current facts into the planned state contract without mutation.
+    distance = build_cmp_distance_diagnostics(setup) if cmp_distance is None else cmp_distance
+
+    if setup.entry_status is EntryStatus.INVALIDATED:
+        state = ActionabilityState.INVALIDATED
+        basis = ActionabilityClassificationBasis.LEGACY_INVALIDATION
+    elif distance.beyond_maximum_chase:
+        state = ActionabilityState.MISSED_OR_CHASING
+        basis = ActionabilityClassificationBasis.MAXIMUM_CHASE
+    elif setup.entry_status is EntryStatus.LATE_OR_CHASING:
+        state = ActionabilityState.MISSED_OR_CHASING
+        basis = ActionabilityClassificationBasis.LEGACY_LATE_STATUS
+    elif setup.execution_allowed_now:
+        if distance.location_state is CmpLocationState.INSIDE_ENTRY_ZONE:
+            state = (
+                ActionabilityState.AGGRESSIVE_NOW
+                if setup.entry_status is EntryStatus.AGGRESSIVE_NOW
+                else ActionabilityState.EXECUTE_NOW
+            )
+            basis = ActionabilityClassificationBasis.EXECUTABLE_INSIDE_ZONE
+        else:
+            state = ActionabilityState.CMP_AVAILABLE_BUT_POOR_LOCATION
+            basis = ActionabilityClassificationBasis.EXECUTABLE_POOR_LOCATION
+    elif setup.entry_status is EntryStatus.PULLBACK_PREFERRED:
+        state = ActionabilityState.RETEST_PREFERRED
+        basis = ActionabilityClassificationBasis.LEGACY_PULLBACK
+    elif setup.entry_status is EntryStatus.WATCH_NEAR_ENTRY:
+        state = ActionabilityState.DEVELOPING
+        basis = ActionabilityClassificationBasis.LEGACY_WATCH
+    else:
+        state = ActionabilityState.DEVELOPING
+        basis = ActionabilityClassificationBasis.CONTRADICTORY_LEGACY_FACTS
+
+    issues: list[ActionabilityProjectionIssue] = []
+    if consistency_audit is not None and not consistency_audit.is_consistent:
+        issues.append(ActionabilityProjectionIssue.ACTIONABILITY_CONTRADICTION)
+    if stale_trigger is not None:
+        if stale_trigger.state is TriggerFreshnessState.STALE:
+            issues.append(ActionabilityProjectionIssue.STALE_TRIGGER)
+        elif stale_trigger.state is TriggerFreshnessState.CLOCK_SKEW:
+            issues.append(ActionabilityProjectionIssue.CLOCK_SKEW)
+        elif stale_trigger.state is TriggerFreshnessState.BAR_EXPIRY_UNEVALUATED:
+            issues.append(ActionabilityProjectionIssue.BAR_EXPIRY_UNEVALUATED)
+    if entry_boundary_audit is not None and not entry_boundary_audit.is_consistent:
+        issues.append(ActionabilityProjectionIssue.ENTRY_BOUNDARY_CONTRADICTION)
+
+    blocking = any(
+        issue
+        in {
+            ActionabilityProjectionIssue.ACTIONABILITY_CONTRADICTION,
+            ActionabilityProjectionIssue.STALE_TRIGGER,
+            ActionabilityProjectionIssue.CLOCK_SKEW,
+            ActionabilityProjectionIssue.ENTRY_BOUNDARY_CONTRADICTION,
+        }
+        for issue in issues
+    )
+
+    return ActionabilityStateAssessment(
+        state=state,
+        basis=basis,
+        source_entry_status=setup.entry_status,
+        execution_allowed_now=setup.execution_allowed_now,
+        location_state=distance.location_state,
+        sequence_role=sequence_role,
+        issues=tuple(issues),
+        has_blocking_issue=blocking,
+    )
+
+
+def build_actionability_consistency_audit(
+    setup: DiscoverySetup,
+    *,
+    sequence_role: SequenceRole,
+    cmp_distance: CmpDistanceDiagnostics | None = None,
+) -> ActionabilityConsistencyAudit:
+    """Record contradictory legacy facts without correcting or reclassifying them."""
+
+    distance = build_cmp_distance_diagnostics(setup) if cmp_distance is None else cmp_distance
+    codes: list[ActionabilityConsistencyCode] = []
+
+    # Ordering is a public diagnostic contract: structural contradictions first,
+    # then status/geometry contradictions, then role/authorization contradictions.
+    if setup.entry_status is EntryStatus.INVALIDATED and setup.execution_allowed_now:
+        codes.append(ActionabilityConsistencyCode.INVALIDATED_EXECUTION_AUTHORIZED)
+
+    if distance.beyond_maximum_chase and setup.execution_allowed_now:
+        codes.append(ActionabilityConsistencyCode.CHASE_BREACHED_EXECUTION_AUTHORIZED)
+
+    if (
+        setup.entry_status is EntryStatus.READY_NOW
+        and distance.location_state is not CmpLocationState.INSIDE_ENTRY_ZONE
+    ):
+        codes.append(ActionabilityConsistencyCode.READY_NOW_OUTSIDE_ENTRY_ZONE)
+
+    if (
+        setup.entry_status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}
+        and not setup.execution_allowed_now
+    ):
+        codes.append(ActionabilityConsistencyCode.IMMEDIATE_STATUS_EXECUTION_DISABLED)
+
+    if (
+        setup.entry_status
+        in {
+            EntryStatus.PULLBACK_PREFERRED,
+            EntryStatus.WATCH_NEAR_ENTRY,
+            EntryStatus.LATE_OR_CHASING,
+            EntryStatus.INVALIDATED,
+        }
+        and setup.execution_allowed_now
+    ):
+        codes.append(ActionabilityConsistencyCode.NON_IMMEDIATE_STATUS_EXECUTION_AUTHORIZED)
+
+    if sequence_role is SequenceRole.NEARBY and setup.execution_allowed_now:
+        codes.append(ActionabilityConsistencyCode.NEARBY_ROLE_EXECUTION_AUTHORIZED)
+
+    if sequence_role is SequenceRole.CURRENT and not setup.execution_allowed_now:
+        codes.append(ActionabilityConsistencyCode.CURRENT_ROLE_EXECUTION_DISABLED)
+
+    return ActionabilityConsistencyAudit(
+        codes=tuple(codes),
+        source_entry_status=setup.entry_status,
+        execution_allowed_now=setup.execution_allowed_now,
+        location_state=distance.location_state,
+        beyond_maximum_chase=distance.beyond_maximum_chase,
+        sequence_role=sequence_role,
     )
 
 
@@ -452,6 +876,38 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
             setup,
             location_state=cmp_distance.location_state,
         )
+        consistency_audit = build_actionability_consistency_audit(
+            setup,
+            sequence_role=opportunity.sequence_role,
+            cmp_distance=cmp_distance,
+        )
+        actionability_state = build_actionability_state_assessment(
+            setup,
+            sequence_role=opportunity.sequence_role,
+            cmp_distance=cmp_distance,
+        )
+        setup_existence = build_setup_existence_assessment(setup)
+        cmp_entry_assessment = build_cmp_entry_assessment(
+            setup,
+            cmp_distance=cmp_distance,
+            setup_existence=setup_existence,
+        )
+        entry_boundary_consistency = build_entry_boundary_consistency_audit(
+            setup,
+            cmp_distance=cmp_distance,
+        )
+        stale_trigger = build_stale_trigger_diagnostics(
+            setup,
+            evaluated_at=portfolio.analysis_timestamp,
+        )
+        actionability_state = build_actionability_state_assessment(
+            setup,
+            sequence_role=opportunity.sequence_role,
+            cmp_distance=cmp_distance,
+            consistency_audit=consistency_audit,
+            stale_trigger=stale_trigger,
+            entry_boundary_audit=entry_boundary_consistency,
+        )
         return {
             "opportunity_id": opportunity.opportunity_id,
             "sequence_role": opportunity.sequence_role.value,
@@ -466,6 +922,63 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
                 "source_entry_status": cmp_actionability.source_entry_status.value,
                 "execution_allowed_now": cmp_actionability.execution_allowed_now,
                 "location_state": cmp_actionability.location_state.value,
+            },
+            "actionability_consistency": {
+                "is_consistent": consistency_audit.is_consistent,
+                "codes": [code.value for code in consistency_audit.codes],
+                "source_entry_status": consistency_audit.source_entry_status.value,
+                "execution_allowed_now": consistency_audit.execution_allowed_now,
+                "location_state": consistency_audit.location_state.value,
+                "beyond_maximum_chase": consistency_audit.beyond_maximum_chase,
+                "sequence_role": consistency_audit.sequence_role.value,
+            },
+            "actionability_state": {
+                "state": actionability_state.state.value,
+                "basis": actionability_state.basis.value,
+                "source_entry_status": actionability_state.source_entry_status.value,
+                "execution_allowed_now": actionability_state.execution_allowed_now,
+                "location_state": actionability_state.location_state.value,
+                "sequence_role": actionability_state.sequence_role.value,
+                "issues": [issue.value for issue in actionability_state.issues],
+                "has_blocking_issue": actionability_state.has_blocking_issue,
+                "is_legacy_projection": actionability_state.is_legacy_projection,
+            },
+            "setup_existence": {
+                "state": setup_existence.state.value,
+                "source_entry_status": setup_existence.source_entry_status.value,
+                "setup_exists": setup_existence.setup_exists,
+            },
+            "cmp_entry_assessment": {
+                "state": cmp_entry_assessment.state.value,
+                "execution_allowed_now": cmp_entry_assessment.execution_allowed_now,
+                "location_state": cmp_entry_assessment.location_state.value,
+                "beyond_maximum_chase": cmp_entry_assessment.beyond_maximum_chase,
+                "setup_existence_state": cmp_entry_assessment.setup_existence_state.value,
+            },
+            "entry_boundary_consistency": {
+                "is_consistent": entry_boundary_consistency.is_consistent,
+                "codes": [code.value for code in entry_boundary_consistency.codes],
+                "ideal_entry_inside_zone": (entry_boundary_consistency.ideal_entry_inside_zone),
+                "maximum_chase_directionally_valid": (
+                    entry_boundary_consistency.maximum_chase_directionally_valid
+                ),
+                "maximum_chase_equals_ideal_entry": (
+                    entry_boundary_consistency.maximum_chase_equals_ideal_entry
+                ),
+                "beyond_maximum_chase": (entry_boundary_consistency.beyond_maximum_chase),
+                "source_entry_status": (entry_boundary_consistency.source_entry_status.value),
+            },
+            "stale_trigger": {
+                "state": stale_trigger.state.value,
+                "codes": [code.value for code in stale_trigger.codes],
+                "evaluated_at": stale_trigger.evaluated_at.isoformat(),
+                "decision_time": stale_trigger.decision_time.isoformat(),
+                "age_seconds": stale_trigger.age_seconds,
+                "setup_expiry_seconds": stale_trigger.setup_expiry_seconds,
+                "setup_expiry_bars": stale_trigger.setup_expiry_bars,
+                "setup_expiry_reason": stale_trigger.setup_expiry_reason,
+                "execution_allowed_now": stale_trigger.execution_allowed_now,
+                "is_stale": stale_trigger.is_stale,
             },
             "cmp_distance": {
                 "zone_position": cmp_distance.zone_position.value,
@@ -513,17 +1026,38 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
 
 
 __all__ = [
+    "ActionabilityClassificationBasis",
+    "ActionabilityConsistencyAudit",
+    "ActionabilityConsistencyCode",
+    "ActionabilityProjectionIssue",
+    "ActionabilityState",
+    "ActionabilityStateAssessment",
     "AnalysisMode",
     "CmpActionabilityDiagnostics",
     "CmpActionabilityState",
     "CmpDistanceDiagnostics",
+    "CmpEntryAssessment",
+    "CmpEntryAssessmentState",
     "CmpLocationState",
     "CmpZonePosition",
+    "EntryBoundaryConsistencyAudit",
+    "EntryBoundaryConsistencyCode",
     "SequenceRole",
+    "SetupExistenceAssessment",
+    "SetupExistenceState",
+    "StaleTriggerDiagnosticCode",
+    "StaleTriggerDiagnostics",
     "SymbolOpportunityPortfolio",
     "TradeOpportunity",
+    "TriggerFreshnessState",
+    "build_actionability_consistency_audit",
+    "build_actionability_state_assessment",
     "build_cmp_actionability_diagnostics",
     "build_cmp_distance_diagnostics",
+    "build_cmp_entry_assessment",
+    "build_entry_boundary_consistency_audit",
+    "build_setup_existence_assessment",
+    "build_stale_trigger_diagnostics",
     "classify_cmp_location_state",
     "classify_setup_sequence_role",
     "opportunity_portfolio_payload",
