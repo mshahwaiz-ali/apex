@@ -24,6 +24,7 @@ from apex.application import (
 from apex.application.enriched_public_output import serialize_scan_result, serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
+from apex.presentation.terminal import emit_terminal
 
 ScanDirection = Literal["long", "short", "both"]
 
@@ -160,7 +161,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
         if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_discovery_scan(payload, explain=explain))
+        emit_terminal(render_discovery_scan(payload, explain=explain))
 
 
 def _normalize_scanner_output(value: str) -> str:

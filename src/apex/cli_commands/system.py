@@ -12,6 +12,7 @@ from apex import __version__
 from apex.config import load_settings
 from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.system import render_config, render_version
+from apex.presentation.terminal import emit_terminal
 
 
 def register_system_commands(app: typer.Typer) -> None:
@@ -60,7 +61,7 @@ def _emit(payload: object, text: str, output_mode: OutputMode) -> None:
     if output_mode is OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
         return
-    typer.echo(text)
+    emit_terminal(text)
 
 
 __all__ = ["register_system_commands"]

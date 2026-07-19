@@ -17,13 +17,15 @@ from apex.presentation import (
     render_section,
     render_title,
 )
+from apex.presentation.operator_output import render_analysis as _render_clean_analysis
+from apex.presentation.operator_output import render_scan as _render_clean_scan
 from apex.presentation.scan_groups import (
     flatten_existing_scan_groups,
     group_scan_results,
 )
 
 
-def render_discovery_analysis(
+def _render_legacy_discovery_analysis(
     payload: Mapping[str, object],
     *,
     mode: str | OutputMode = OutputMode.TEXT,
@@ -349,7 +351,7 @@ def _intelligence_sections(payload: Mapping[str, object]) -> list[str]:
     return sections
 
 
-def render_discovery_scan(payload: Mapping[str, object]) -> str:
+def _render_legacy_discovery_scan(payload: Mapping[str, object]) -> str:
     """Render ranked canonical scan output grouped by actionability."""
 
     grouped = group_scan_results(flatten_existing_scan_groups(payload))
@@ -616,6 +618,28 @@ def _chase_label(setup: Mapping[str, object]) -> str:
     if direction == "long":
         return "Do not buy above"
     return "Maximum chase"
+
+
+def render_discovery_analysis(
+    payload: Mapping[str, object],
+    *,
+    mode: str | OutputMode = OutputMode.TEXT,
+    explain: bool = False,
+) -> str:
+    """Render the current action-first analysis view."""
+
+    normalize_cli_output_mode(mode)
+    return _render_clean_analysis(payload, explain=explain)
+
+
+def render_discovery_scan(
+    payload: Mapping[str, object],
+    *,
+    explain: bool = False,
+) -> str:
+    """Render the current action-board scan view."""
+
+    return _render_clean_scan(payload, explain=explain)
 
 
 __all__ = ["render_discovery_analysis", "render_discovery_scan"]

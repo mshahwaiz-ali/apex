@@ -348,9 +348,9 @@ Probability authority is withheld unless all configured gates pass, including sa
 
 ### Text output
 
-The default `scan` text view is a concise Action Board. It lists ready, conditional, and developing opportunities while summarizing late, invalidated, and no-setup markets as counts. `analyze` includes the early-warning state, historical-edge authority, setup geometry, activation, invalidation, targets, expiry, main evidence, and main concern.
+The default terminal view uses bold, separated, width-aware cards instead of raw field dumps. `scan` is a concise Action Board listing ready, conditional, and developing opportunities while summarizing late, invalidated, and no-setup markets as counts. `analyze` leads with the decision, then shows market context, setup geometry, activation, invalidation, targets, early warning, historical-edge authority, main evidence, and main concern in plain language. `backtest`, `config-check`, and `version` use the same presentation system.
 
-Use `--explain` with `scan` or `analyze` to append full diagnostics.
+Use `--explain` with `scan` or `analyze` for extra readable diagnostic sections. It does not append a raw JSON dump; use `--output json` when complete machine-readable evidence is required.
 
 ### JSON output
 
@@ -364,7 +364,7 @@ JSON output provides machine-readable details such as:
 - strategy routing;
 - candidate ranking;
 - methodology evidence and rejection reasons;
-- zero-trade diagnostics.
+- zero-trade diagnostics;
 - market archetype, regime probability/persistence, and early-warning evidence;
 - futures-evidence availability, freshness, basis, flow, and execution metadata;
 - expected R, probability interval, sample size, artifact version, and withholding reason.
@@ -493,8 +493,11 @@ apex backtest --campaign \
   --report data/research/campaign-report.json \
   --output json
 
-# Train from existing campaign feature_rows.jsonl.
-apex backtest --campaign --train-model --output json
+# Train from existing campaign feature_rows.jsonl and saved membership.
+apex backtest --campaign \
+  --symbols-file data/research/binance_um/universe_by_month.json \
+  --train-model \
+  --output json
 ```
 
 Campaign data defaults to `data/research/binance_um/`, which is git-ignored. `--download-missing` may transfer substantial kline, funding-rate, and aggregate-trade archives. Downloads are resumable and checksum verified.

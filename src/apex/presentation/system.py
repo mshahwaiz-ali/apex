@@ -126,22 +126,50 @@ def render_config(
     """Render resolved configuration without exposing machine-style JSON by default."""
 
     normalize_cli_output_mode(mode)
+    roles = payload.get("timeframe_roles")
+    routing = payload.get("strategy_routing")
+    screener = payload.get("futures_screener")
     sections = [
         render_title("Apex Configuration"),
         render_section(
-            "Validation",
+            "Validation result",
+            "\n".join(
+                (
+                    "▶  CONFIGURATION IS VALID",
+                    render_fields(
+                        (
+                            ("Environment", humanize_code(payload.get("environment"))),
+                            ("Market data", humanize_code(provider)),
+                            ("Log level", payload.get("log_level", UNAVAILABLE)),
+                        )
+                    ),
+                )
+            ),
+        ),
+        render_section(
+            "Analysis engine",
             render_fields(
                 (
-                    ("Status", "Valid"),
-                    ("Environment", humanize_code(payload.get("environment"))),
-                    ("Provider", humanize_code(provider)),
-                    ("Analysis timeframes", _join(payload.get("analysis_timeframes"))),
+                    ("Timeframes", _join(payload.get("analysis_timeframes"))),
+                    ("Timeframe roles", _configured_count(roles)),
+                    ("Strategy routes", _configured_count(routing)),
+                    ("Scanner rules", _configured_count(screener)),
+                    ("Methodology mode", humanize_code(payload.get("methodology_gate_mode"))),
+                )
+            ),
+        ),
+        render_section(
+            "Data and feedback",
+            render_fields(
+                (
                     ("Data directory", payload.get("data_dir", UNAVAILABLE)),
+                    ("Cache", _enabled(payload.get("cache_enabled"))),
+                    ("Futures evidence", _enabled(payload.get("futures_evidence_enabled"))),
+                    ("Outcome tracking", _enabled(payload.get("outcome_tracking_enabled"))),
                 )
             ),
         ),
     ]
-    sections.append(render_section("Resolved Settings", _mapping_fields(payload)))
     return "\n\n".join(sections)
 
 
@@ -168,13 +196,40 @@ def render_smoke(payload: Mapping[str, object]) -> str:
 def render_version(version: str) -> str:
     """Render installed version information."""
 
-    return "\n".join((render_title("Apex Trading Agent"), render_fields((("Version", version),))))
+    return "\n\n".join(
+        (
+            render_title("Apex Trading Agent"),
+            render_section(
+                "Installed build",
+                render_fields(
+                    (
+                        ("Version", version),
+                        ("Purpose", "Binance futures opportunity discovery and research"),
+                    )
+                ),
+            ),
+        )
+    )
 
 
 def _mapping_fields(payload: Mapping[str, object]) -> str:
     return render_fields(
         (humanize_code(key), _display(value)) for key, value in sorted(payload.items())
     )
+
+
+def _configured_count(value: object) -> str:
+    if isinstance(value, Mapping):
+        return f"{len(value)} configured"
+    return UNAVAILABLE
+
+
+def _enabled(value: object) -> str:
+    if value is True:
+        return "Enabled"
+    if value is False:
+        return "Disabled"
+    return UNAVAILABLE
 
 
 def _display(value: object) -> object:

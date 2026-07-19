@@ -31,6 +31,8 @@ from apex.backtesting.historical_signal_replay import (
 from apex.data.providers.errors import MarketDataProviderError
 from apex.data.timeframes import timeframe_delta
 from apex.presentation import OutputMode, normalize_cli_output_mode
+from apex.presentation.backtest_output import render_backtest, render_campaign
+from apex.presentation.terminal import emit_terminal
 from apex.research.campaign import (
     ArchiveSpec,
     CampaignConfig,
@@ -78,7 +80,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         ] = "text",
         candle_limit: Annotated[
             int,
-            typer.Option("--candles", min=80, max=900),
+            typer.Option("--candles", min=201, max=900),
         ] = 240,
         replay_timeframe: Annotated[
             str,
@@ -125,14 +127,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             if report_path is not None:
                 report_path.parent.mkdir(parents=True, exist_ok=True)
                 report_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-            _emit(
-                payload,
-                (
-                    f"CAMPAIGN | months={len(payload['months'])} "
-                    f"| symbols={payload['symbol_count']} | files={payload['verified_file_count']}"
-                ),
-                normalize_cli_output_mode(output),
-            )
+            _emit(payload, render_campaign(payload), normalize_cli_output_mode(output))
             return
         if symbol is None:
             raise typer.BadParameter("SYMBOL is required unless --campaign is used")
@@ -335,12 +330,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         }
         if len(report.trades) == 1:
             payload["trade"] = _jsonable(report.trades[0])
-        text = (
-            f"{normalized_symbol}: CAMPAIGN | decisions={decision_points} "
-            f"| signals={study.generated_signal_count} | trades={report.total_trades} "
-            f"| expectancy={report.expectancy:.6f} | net_pnl={report.net_profit:.6f}"
-        )
-        _emit(payload, text, output_mode)
+        _emit(payload, render_backtest(payload), output_mode)
 
 
 def _run_public_data_campaign(
@@ -437,7 +427,7 @@ def _emit(payload: object, text: str, output_mode: OutputMode) -> None:
     if output_mode is OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True, default=str))
         return
-    typer.echo(text)
+    emit_terminal(text)
 
 
 def _campaign_partition(index: int, total: int) -> str:

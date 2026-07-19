@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from enum import StrEnum
 from math import isfinite
+from textwrap import wrap
 
 UNAVAILABLE = "Unavailable"
-DEFAULT_SEPARATOR_WIDTH = 40
+DEFAULT_SEPARATOR_WIDTH = 78
+CONTENT_WIDTH = 74
 
 
 class OutputMode(StrEnum):
@@ -168,18 +170,30 @@ def format_ratio(value: object, *, decimals: int = 2) -> str:
 
 
 def render_title(title: str, *, width: int = DEFAULT_SEPARATOR_WIDTH) -> str:
-    """Render a top-level title and deterministic separator."""
+    """Render a prominent terminal banner."""
 
     clean_title = title.strip()
-    return f"{clean_title}\n{'─' * max(width, len(clean_title))}"
+    inner_width = max(width - 2, len(clean_title) + 4)
+    label = f" {clean_title.upper()} "
+    remaining = max(0, inner_width - len(label))
+    left = remaining // 2
+    right = remaining - left
+    return "\n".join(
+        (
+            f"╭{'─' * left}{label}{'─' * right}╮",
+            f"╰{'─' * inner_width}╯",
+        )
+    )
 
 
 def render_section(title: str, body: str | Iterable[str]) -> str:
-    """Render one titled terminal section."""
+    """Render one clearly separated terminal section."""
 
     lines = body.splitlines() if isinstance(body, str) else [str(line) for line in body]
     clean_lines = [line.rstrip() for line in lines if line is not None]
-    return "\n".join((title.strip(), *clean_lines))
+    label = f"┌─ {title.strip()} "
+    header = label + "─" * max(1, DEFAULT_SEPARATOR_WIDTH - len(label))
+    return "\n".join((header, *clean_lines, "└" + "─" * 77))
 
 
 def render_fields(
@@ -198,17 +212,41 @@ def render_fields(
         return ""
     label_width = max(len(label) for label, _ in normalized)
     prefix = " " * max(indent, 0)
-    return "\n".join(f"{prefix}{label.ljust(label_width)}: {value}" for label, value in normalized)
+    lines: list[str] = []
+    value_width = max(24, CONTENT_WIDTH - len(prefix) - label_width - 3)
+    continuation = " " * (len(prefix) + label_width + 2)
+    for label, value in normalized:
+        wrapped = wrap(
+            value,
+            width=value_width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        ) or [""]
+        lines.append(f"{prefix}{label.ljust(label_width)}  {wrapped[0]}")
+        lines.extend(f"{continuation}{line}" for line in wrapped[1:])
+    return "\n".join(lines)
 
 
 def render_bullets(values: Iterable[object], *, indent: int = 2) -> str:
     """Render a deterministic bullet list."""
 
     prefix = " " * max(indent, 0)
-    return "\n".join(f"{prefix}- {value}" for value in values)
+    lines: list[str] = []
+    width = max(24, CONTENT_WIDTH - len(prefix) - 2)
+    for value in values:
+        wrapped = wrap(
+            str(value),
+            width=width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        ) or [""]
+        lines.append(f"{prefix}• {wrapped[0]}")
+        lines.extend(f"{prefix}  {line}" for line in wrapped[1:])
+    return "\n".join(lines)
 
 
 __all__ = [
+    "CONTENT_WIDTH",
     "DEFAULT_SEPARATOR_WIDTH",
     "UNAVAILABLE",
     "OutputMode",
