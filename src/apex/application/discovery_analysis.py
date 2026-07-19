@@ -30,6 +30,11 @@ from apex.application.discovery_contracts import (
 )
 from apex.application.discovery_setup import build_discovery_assessment
 from apex.application.futures_quality import analyze_futures_phase5
+from apex.application.historical_edge_runtime import (
+    apply_runtime_edge_ranking,
+    load_runtime_edge_artifact,
+)
+from apex.application.market_intelligence import build_market_intelligence
 from apex.application.market_strategy_router import MarketStrategyRoute
 from apex.application.methodology_candidate_routing import (
     evaluate_methodology_candidate_routing,
@@ -86,6 +91,7 @@ def analyze_symbol(
     market_strategy_route: MarketStrategyRoute | None = None,
     methodology_market_state: PrimaryMarketState | None = None,
     methodology_gate_mode: str = "shadow",
+    futures_evidence_enabled: bool = True,
 ) -> SymbolAnalysis:
     """Run candidate discovery from market evidence and trade geometry."""
 
@@ -100,6 +106,7 @@ def analyze_symbol(
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
         candle_limit=candle_limit,
         received_at=decision_time,
+        futures_evidence_enabled=futures_evidence_enabled,
     )
     strategy_analysis = analyze_strategies(context, decision_time=decision_time)
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
@@ -109,10 +116,20 @@ def analyze_symbol(
         mode=methodology_gate_mode,
     )
     eligible_routed = methodology_routing.analysis
+    market_intelligence = build_market_intelligence(context, dict(regimes))
     selection = analyze_futures_phase5(
         eligible_routed,
         environment_route=market_strategy_route,
     )
+    edge_artifact, edge_reason = load_runtime_edge_artifact(Path("data/models/runtime_edge.json"))
+    intelligence_regime = market_intelligence["regime"]
+    selection, historical_edge = apply_runtime_edge_ranking(
+        selection,
+        edge_artifact,
+        regime=str(intelligence_regime["state"]),
+        archetype=str(market_intelligence["archetype"]),
+    )
+    historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
     assessment = build_discovery_assessment(selection)
     ranking = build_candidate_ranking_snapshot(selection)
     candlestick_patterns = detect_contextual_candlesticks(context)
@@ -213,6 +230,9 @@ def analyze_symbol(
         candidate_ranking=ranking,
         phase5_diagnostics=phase5_diagnostics,
         methodology=methodology,
+        market_intelligence=market_intelligence,
+        historical_edge=historical_edge,
+        outcome_candles=context.decision_frame.recent_candles,
     )
 
 
@@ -351,6 +371,8 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "shared_structure_map": _shared_structure_map_payload(analysis.data_quality_by_timeframe),
         "strategy_routing": analysis.strategy_routing,
         "phase5_diagnostics": analysis.phase5_diagnostics,
+        "market_intelligence": analysis.market_intelligence,
+        "historical_edge": analysis.historical_edge,
         "candidate_ranking": (
             candidate_ranking_payload(analysis.candidate_ranking)
             if analysis.candidate_ranking is not None

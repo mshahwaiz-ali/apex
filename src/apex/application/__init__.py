@@ -4,6 +4,7 @@ Only services required by the active CLI surface are re-exported here.
 """
 
 from apex.application.analysis_records import (
+    reconcile_pending_opportunities_sqlite,
     write_analysis_record,
     write_analysis_record_sqlite,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "create_market_data_services",
     "load_symbol_file",
     "normalize_market_symbol",
+    "reconcile_pending_opportunities_sqlite",
     "scan_symbols",
     "select_futures_scan_symbols",
     "serialize_futures_screening",

@@ -67,6 +67,10 @@ def resample_candles(
                 low=min(candle.low for candle in bucket),
                 close=bucket[-1].close,
                 volume=sum(candle.volume for candle in bucket),
+                quote_volume=_sum_optional(bucket, "quote_volume"),
+                trade_count=_sum_optional_int(bucket, "trade_count"),
+                taker_buy_base_volume=_sum_optional(bucket, "taker_buy_base_volume"),
+                taker_buy_quote_volume=_sum_optional(bucket, "taker_buy_quote_volume"),
                 is_closed=is_complete,
                 source=f"resampled:{source_timeframe}:{bucket[0].source}",
             )
@@ -75,6 +79,18 @@ def resample_candles(
     if limit is not None:
         return resampled[-limit:]
     return resampled
+
+
+def _sum_optional(candles: tuple[Candle, ...], field: str) -> float | None:
+    values = tuple(getattr(candle, field) for candle in candles)
+    if any(value is None for value in values):
+        return None
+    return sum(float(value) for value in values)
+
+
+def _sum_optional_int(candles: tuple[Candle, ...], field: str) -> int | None:
+    value = _sum_optional(candles, field)
+    return int(value) if value is not None else None
 
 
 def source_limit_for_resampling(

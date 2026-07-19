@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from apex.domain.futures_evidence import MarketEvidenceBundle
 from apex.domain.models import Candle
 from apex.liquidity.analysis import LiquidityAnalysisResult
 from apex.structure.contracts import StructureAnalysisResult, TrendDirection
@@ -185,6 +186,7 @@ class TimeframeContext:
 class StrategyContext:
     symbol: str
     frames: tuple[TimeframeContext, ...]
+    market_evidence: MarketEvidenceBundle | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():

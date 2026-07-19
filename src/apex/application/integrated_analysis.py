@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from apex.application import discovery_analysis as _analysis
 from apex.application.discovery_analysis import (
@@ -25,7 +25,13 @@ from apex.application.market_state import (
 from apex.application.market_strategy_router import route_market_strategies
 from apex.application.methodology_market_state import adapt_market_state
 from apex.application.symbols import load_symbol_file
-from apex.data.providers.base import MarketDataProvider
+from apex.data.providers.base import FuturesEvidenceProvider, MarketDataProvider
+from apex.domain.futures_evidence import (
+    FundingRateSnapshot,
+    OpenInterestSnapshot,
+    PremiumIndexSnapshot,
+    TakerFlowSnapshot,
+)
 from apex.domain.models import (
     Candle,
     ExchangeFilterSnapshot,
@@ -61,6 +67,10 @@ class _CachingMarketDataProvider:
         self._ticker: dict[str, TickerSnapshot] = {}
         self._order_book: dict[tuple[str, int], OrderBookSnapshot] = {}
         self._exchange_filters: dict[str, ExchangeFilterSnapshot] = {}
+        self._funding: dict[tuple[str, int], tuple[FundingRateSnapshot, ...]] = {}
+        self._open_interest: dict[tuple[str, str, int], tuple[OpenInterestSnapshot, ...]] = {}
+        self._taker_flow: dict[tuple[str, str, int], tuple[TakerFlowSnapshot, ...]] = {}
+        self._premium_index: dict[str, PremiumIndexSnapshot] = {}
 
     @property
     def name(self) -> str:
@@ -100,6 +110,39 @@ class _CachingMarketDataProvider:
             self._exchange_filters[symbol] = snapshot
         return self._exchange_filters[symbol]
 
+    def fetch_funding_rates(self, symbol: str, limit: int = 100) -> tuple[FundingRateSnapshot, ...]:
+        key = (symbol, limit)
+        if key not in self._funding:
+            evidence = cast(FuturesEvidenceProvider, self._provider)
+            self._funding[key] = tuple(evidence.fetch_funding_rates(symbol, limit))
+        return self._funding[key]
+
+    def fetch_open_interest_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[OpenInterestSnapshot, ...]:
+        key = (symbol, period, limit)
+        if key not in self._open_interest:
+            evidence = cast(FuturesEvidenceProvider, self._provider)
+            self._open_interest[key] = tuple(
+                evidence.fetch_open_interest_history(symbol, period, limit)
+            )
+        return self._open_interest[key]
+
+    def fetch_taker_flow_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[TakerFlowSnapshot, ...]:
+        key = (symbol, period, limit)
+        if key not in self._taker_flow:
+            evidence = cast(FuturesEvidenceProvider, self._provider)
+            self._taker_flow[key] = tuple(evidence.fetch_taker_flow_history(symbol, period, limit))
+        return self._taker_flow[key]
+
+    def fetch_premium_index(self, symbol: str) -> PremiumIndexSnapshot:
+        if symbol not in self._premium_index:
+            evidence = cast(FuturesEvidenceProvider, self._provider)
+            self._premium_index[symbol] = evidence.fetch_premium_index(symbol)
+        return self._premium_index[symbol]
+
 
 def analyze_symbol(
     symbol: str,
@@ -113,6 +156,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    futures_evidence_enabled: bool = True,
 ) -> SymbolAnalysis:
     """Run discovery and attach fused market environment."""
 
@@ -126,6 +170,7 @@ def analyze_symbol(
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
         candle_limit=candle_limit,
         received_at=decision_time,
+        futures_evidence_enabled=futures_evidence_enabled,
     )
     environment = build_market_environment(context, config=market_environment_config)
     route = route_market_strategies(environment)
@@ -147,6 +192,7 @@ def analyze_symbol(
         market_strategy_route=route,
         methodology_market_state=methodology_state.primary,
         methodology_gate_mode=methodology_gate_mode,
+        futures_evidence_enabled=futures_evidence_enabled,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -161,6 +207,9 @@ def analyze_symbol(
         candidate_ranking=base.candidate_ranking,
         methodology=base.methodology,
         methodology_gate=base.methodology_gate,
+        market_intelligence=base.market_intelligence,
+        historical_edge=base.historical_edge,
+        outcome_candles=base.outcome_candles,
         market_environment=environment,
         market_state=market_state,
     )

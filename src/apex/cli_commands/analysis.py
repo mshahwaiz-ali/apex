@@ -13,6 +13,7 @@ from apex.application import (
     build_analysis_record,
     configuration_metadata,
     create_market_data_services,
+    reconcile_pending_opportunities_sqlite,
     write_analysis_record,
     write_analysis_record_sqlite,
 )
@@ -29,7 +30,8 @@ def register_analysis_commands(app: typer.Typer) -> None:
     def analyze(
         symbol: str = typer.Argument(..., help="Any provider-supported futures market symbol."),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
-        candle_limit: int = typer.Option(200, "--candles", min=40, max=1000),
+        explain: bool = typer.Option(False, "--explain", help="Show full diagnostic evidence."),
+        candle_limit: int = typer.Option(200, "--candles", min=200, max=1000),
         record: Path | None = typer.Option(
             None,
             "--record",
@@ -68,6 +70,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     methodology_gate_mode=context.settings.methodology_gate_mode,
                     market_environment_config=context.settings.market_environment,
+                    futures_evidence_enabled=context.settings.futures_evidence_enabled,
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -77,17 +80,23 @@ def register_analysis_commands(app: typer.Typer) -> None:
 
         payload = serialize_symbol_analysis(result)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
-        if record is not None or record_db is not None:
+        effective_record_db = record_db
+        if effective_record_db is None and context.settings.outcome_tracking_enabled:
+            effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
+        if record is not None or effective_record_db is not None:
             analysis_record = build_analysis_record(payload)
             if record is not None:
                 write_analysis_record(record, analysis_record)
-            if record_db is not None:
-                write_analysis_record_sqlite(record_db, analysis_record)
+            if effective_record_db is not None:
+                reconcile_pending_opportunities_sqlite(
+                    effective_record_db, result.symbol, result.outcome_candles
+                )
+                write_analysis_record_sqlite(effective_record_db, analysis_record)
 
         if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_discovery_analysis(payload, mode=output_mode))
+        typer.echo(render_discovery_analysis(payload, mode=output_mode, explain=explain))
 
 
 __all__ = ["register_analysis_commands"]

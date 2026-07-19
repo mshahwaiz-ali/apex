@@ -47,6 +47,66 @@ def test_fetch_candles_uses_futures_endpoint() -> None:
     client.close()
 
 
+def test_enriched_kline_fields_are_preserved() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    1_700_000_000_000,
+                    "100",
+                    "110",
+                    "95",
+                    "105",
+                    "12",
+                    1_700_000_299_999,
+                    "1250",
+                    42,
+                    "7",
+                    "730",
+                    "0",
+                ]
+            ],
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler), base_url="https://fapi.binance.com"
+    ) as client:
+        candle = BinanceFuturesMarketDataProvider(client=client).fetch_candles(
+            "BTCUSDT", "5m", limit=1
+        )[0]
+
+    assert candle.quote_volume == 1250
+    assert candle.trade_count == 42
+    assert candle.taker_buy_base_volume == 7
+    assert candle.taker_buy_quote_volume == 730
+
+
+def test_fetch_premium_index_keeps_mark_index_and_funding_metadata() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/fapi/v1/premiumIndex"
+        return httpx.Response(
+            200,
+            json={
+                "symbol": "BTCUSDT",
+                "markPrice": "101",
+                "indexPrice": "100",
+                "lastFundingRate": "0.0001",
+                "nextFundingTime": 1_800_000_000_000,
+                "time": 1_700_000_000_000,
+            },
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler), base_url="https://fapi.binance.com"
+    ) as client:
+        snapshot = BinanceFuturesMarketDataProvider(client=client).fetch_premium_index("BTCUSDT")
+
+    assert snapshot.mark_price == 101
+    assert snapshot.index_price == 100
+    assert snapshot.basis_percentage == 1
+
+
 def test_fetch_ticker_uses_futures_endpoints() -> None:
     requested_paths: list[str] = []
 

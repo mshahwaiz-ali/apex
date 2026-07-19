@@ -1,31 +1,35 @@
 # Apex Trading Agent
 
-<p align="center"><strong>Deterministic Binance USDT perpetual-futures discovery, trade-setup analysis, and chronological replay.</strong></p>
+<p align="center"><strong>Data-driven Binance USDT perpetual-futures discovery, early-warning analysis, trade-setup ranking, and chronological research.</strong></p>
 
-<p align="center"><code>Python 3.11+</code> · <code>Typer</code> · <code>Pydantic v2</code> · <code>YAML</code> · <code>Ruff</code> · <code>mypy</code> · <code>pytest</code></p>
+<p align="center"><code>Python 3.11+</code> · <code>Typer</code> · <code>Pydantic v2</code> · <code>scikit-learn</code> · <code>SQLite</code> · <code>Ruff</code> · <code>mypy</code> · <code>pytest</code></p>
 
 ---
 
-Apex scans Binance USDT perpetual-futures markets, shortlists symbols with useful opportunity characteristics, runs a shared multi-timeframe analysis engine, generates strategy candidates, evaluates entry/stop/target geometry, and explains why a setup is actionable, developing, late, invalid, or unavailable.
+Apex scans Binance USDT perpetual-futures markets, shortlists symbols with useful opportunity characteristics, combines completed-candle structure with derivatives participation evidence, routes canonical strategies, evaluates entry/stop/target geometry, and explains why a setup is ready, conditional, developing, rejected, or unavailable.
+
+The VNext engine also supports checksum-verified historical campaigns, classical probability models, expected-R ranking, and invisible local outcome reconciliation. Historical probability remains withheld until an artifact passes every final-test promotion gate.
 
 > **Scope:** Apex is an analysis product. It does not place orders, manage exchange accounts or wallets, recommend leverage, or guarantee profitable trades.
 
 ## What Apex answers
 
-Apex is designed to answer five practical questions:
+Apex is designed to answer seven practical questions:
 
 1. Which markets deserve deeper analysis?
 2. Is there a structurally valid long or short setup?
 3. Is the setup executable now, developing, late, missed, or invalidated?
 4. Where are the entry zone, structural invalidation, stop, and realistic targets?
 5. What evidence, contradictions, quality gates, and rejection reasons produced the decision?
+6. Is price participation consistent with breakout preparation, genuine positioning, covering, liquidation, crowding, exhaustion, or contradictory evidence?
+7. Is a historically calibrated edge available, and if so, what are its expected R, probability interval, and sample size?
 
 ## Public CLI
 
 ```text
 apex scan
 apex analyze SYMBOL
-apex backtest SYMBOL
+apex backtest [SYMBOL]
 apex config-check
 apex version
 ```
@@ -34,7 +38,8 @@ apex version
 |---|---|
 | `apex scan` | Discover, shortlist, fully analyze, and rank futures opportunities. |
 | `apex analyze SYMBOL` | Run the shared full-analysis pipeline for one symbol. |
-| `apex backtest SYMBOL` | Run a chronological multi-decision replay campaign. |
+| `apex backtest SYMBOL` | Run a chronological production-path replay for one symbol. |
+| `apex backtest --campaign` | Build or inspect a point-in-time public-data research campaign. |
 | `apex config-check` | Validate and display resolved configuration. |
 | `apex version` | Display the installed package version. |
 
@@ -49,16 +54,17 @@ flowchart TD
     C --> D[Lightweight opportunity scoring]
     D --> E[Lane-based shortlist]
     E --> F[Shared multi-timeframe analysis]
-    F --> G[Structure, liquidity, regime, indicators]
-    G --> H[Strategy routing and candidate generation]
-    H --> I[Methodology evidence and candidate gates]
-    I --> J[Entry, invalidation, stop and targets]
-    J --> K[Scoring, deduplication and ranking]
-    K --> L{Decision}
+    F --> G[Structure, liquidity, regime and archetype]
+    G --> H[Funding, OI, taker flow, mark/index and execution evidence]
+    H --> I[Early warning and strategy routing]
+    I --> J[Methodology evidence and candidate gates]
+    J --> K[Entry, invalidation, stop and targets]
+    K --> Q[Deterministic or promoted expected-R ranking]
+    Q --> L{Decision}
     L -->|Executable| M[Actionable setup]
     L -->|Incomplete| N[Developing setup]
     L -->|Rejected| O[NO_TRADE diagnostics]
-    M --> P[Text, JSON, JSONL or SQLite]
+    M --> P[Action Board, JSON and automatic SQLite feedback]
     N --> P
     O --> P
 ```
@@ -97,7 +103,7 @@ Surviving markets are scored using configured components including:
 - spread quality;
 - noise quality.
 
-The discovery stage decides which symbols deserve expensive full analysis. It cannot approve a trade.
+The discovery stage decides which symbols deserve expensive full analysis. It cannot approve a trade. Lane scores are cross-sectional percentiles, preventing capped `100.0` scores from hiding relative differences between symbols.
 
 ### Shortlist lanes
 
@@ -177,6 +183,35 @@ The default feature registry currently supplies the analysis context with:
 | Structure trend strength | structural directional quality |
 
 Indicators are categorized evidence, not independent trade votes. Correlated observations are grouped so repeated versions of momentum or trend information cannot freely inflate candidate quality.
+
+### Futures evidence and early warning
+
+When `futures_evidence_enabled` is on, Apex gathers a timestamped, fail-soft evidence bundle containing:
+
+- kline quote volume, trade count, and taker-buy base/quote volume;
+- funding history;
+- open-interest level, change, and acceleration;
+- taker buy/sell flow;
+- mark price, index price, and premium/basis;
+- ticker spread, order-book depth, and exchange execution filters;
+- freshness, source provenance, and explicit missing-data reasons.
+
+A single order-book snapshot is execution-quality evidence only. Apex does not copy its imbalance across timeframes as directional confirmation, and unavailable OI, funding, or depth is never silently converted to zero.
+
+The price/OI/flow matrix can report:
+
+- breakout or breakdown preparation;
+- bullish or bearish participation;
+- short covering or long liquidation;
+- crowded-long or crowded-short fragility;
+- exhaustion/reversal watch;
+- contradictory, insufficient, or neutral evidence.
+
+Price structure establishes direction. Derivatives evidence can strengthen, weaken, or classify that move, but cannot authorize a standalone trade.
+
+### Regime stability and coin archetypes
+
+Regime output includes a state probability, persistence estimate, and transition warning. A hysteresis guard is available to stop low-confidence state changes from flipping routing candle by candle. Symbols are classified as majors, liquid alts, momentum alts, insufficient-history listings, or benchmark-decoupled markets when the required benchmark evidence exists.
 
 ## 5. Strategy model
 
@@ -276,6 +311,14 @@ flowchart LR
 
 Quality and ranking values are deterministic analytical scores. They are not calibrated accuracy percentages or guaranteed probabilities.
 
+When a compatible promoted runtime artifact exists, positive expected R becomes the primary candidate rank key:
+
+```text
+Expected R = P(fill) × Σ[P(outcome) × outcome R] − expected costs
+```
+
+ML cannot repair stale data, unusable liquidity, invalid geometry, missing invalidation, or absent target room. If the artifact is missing, stale, incompatible, corrupt, or fails promotion, Apex keeps deterministic ranking and labels historical edge unavailable.
+
 ## 9. Methodology authority and current gate mode
 
 [`docs/trade_plan.md`](docs/trade_plan.md) is the stable methodology authority. Runtime records include the methodology identity:
@@ -293,11 +336,21 @@ methodology_gate_mode: shadow
 
 Shadow mode calculates and exposes methodology routing and diagnostic results while preserving the established public decision path for comparison. It does **not** mean every methodology conflict is currently an enforced hard rejection. Change this only with reviewed implementation and behavioral validation.
 
+### Historical research and ML authority
+
+`apex backtest --campaign` supports the latest 24 complete UTC months by default. Campaign infrastructure can build a monthly top-30 point-in-time universe from the previous month's quote volume, download Binance USD-M public archives resumably, verify official SHA-256 checksums, and retain unavailable evidence as missing.
+
+The classical-ML layer compares fixed-seed regularized logistic regression with histogram gradient boosting for entry fill, post-fill outcome, and early-warning models. It uses chronological 60/20/20 partitions, purge/embargo boundaries, validation-only isotonic calibration, and untouched final-test metrics.
+
+Probability authority is withheld unless all configured gates pass, including sample size, positive net expectancy after costs, Brier skill, calibration error, deflated-Sharpe probability, PBO, leakage, stability, and artifact integrity. An unpromoted model is a valid research result and does not make the application fail.
+
 ## 10. Output and diagnostics
 
 ### Text output
 
-Text output is intended for interactive use. It summarizes the selected or developing setup, entry status, geometry, reasons, warnings, blockers and scan counts.
+The default `scan` text view is a concise Action Board. It lists ready, conditional, and developing opportunities while summarizing late, invalidated, and no-setup markets as counts. `analyze` includes the early-warning state, historical-edge authority, setup geometry, activation, invalidation, targets, expiry, main evidence, and main concern.
+
+Use `--explain` with `scan` or `analyze` to append full diagnostics.
 
 ### JSON output
 
@@ -312,6 +365,13 @@ JSON output provides machine-readable details such as:
 - candidate ranking;
 - methodology evidence and rejection reasons;
 - zero-trade diagnostics.
+- market archetype, regime probability/persistence, and early-warning evidence;
+- futures-evidence availability, freshness, basis, flow, and execution metadata;
+- expected R, probability interval, sample size, artifact version, and withholding reason.
+
+### Invisible outcome feedback
+
+Outcome tracking is enabled by default. Generated single-symbol opportunities are stored in `data/reports/analysis.db`; when the symbol is analyzed again, closed future candles reconcile pending entries, stops, targets, expiry, MFE, and MAE. Same-candle stop/target ambiguity is resolved conservatively as stop-first. This is internal accuracy feedback, not a paper-trading interface.
 
 ### Zero-trade diagnostics
 
@@ -361,6 +421,7 @@ apex scan --results 10
 apex scan --shortlist 50 --results 10
 apex scan --direction long
 apex scan --direction short
+apex scan --explain
 apex scan --output json
 ```
 
@@ -370,13 +431,16 @@ apex scan --output json
 
 ```bash
 apex analyze BTCUSDT
+apex analyze BTCUSDT --explain
 apex analyze ETHUSDT --output json
 apex analyze BTCUSDT --candles 300
 ```
 
 `analyze` bypasses universe discovery but uses the same full-analysis core as `scan`.
 
-### Save analysis records
+### Save additional analysis records
+
+Apex automatically stores analysis opportunities and future outcome feedback in `data/reports/analysis.db` when `outcome_tracking_enabled: true`. The options below add explicit JSONL output or choose another SQLite path.
 
 ```bash
 apex scan --record data/records/scan_history.jsonl
@@ -415,6 +479,37 @@ Reported metrics include expectancy, profit factor, win/loss rates, average win/
 
 This is not a portfolio backtester and does not model leverage, wallet allocation, margin, liquidation, paper accounts or live execution.
 
+### Run a public-data campaign
+
+```bash
+# Build the default latest-24-complete-month, point-in-time top-30 campaign.
+apex backtest --campaign --download-missing
+
+# Bound the campaign and write a machine-readable report.
+apex backtest --campaign \
+  --start 2025-01 \
+  --end 2025-06 \
+  --download-missing \
+  --report data/research/campaign-report.json \
+  --output json
+
+# Train from existing campaign feature_rows.jsonl.
+apex backtest --campaign --train-model --output json
+```
+
+Campaign data defaults to `data/research/binance_um/`, which is git-ignored. `--download-missing` may transfer substantial kline, funding-rate, and aggregate-trade archives. Downloads are resumable and checksum verified.
+
+`--symbols-file` accepts either a JSON symbol list or a month-to-symbol mapping for controlled campaigns:
+
+```json
+{
+  "2025-01": ["BTCUSDT", "ETHUSDT"],
+  "2025-02": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+}
+```
+
+If no universe file exists, `--download-missing` builds monthly membership from trailing Binance quote volume. `--train-model` trains only when point-in-time feature rows are present; otherwise the report truthfully states why training was withheld.
+
 ## 13. Configuration
 
 The primary runtime file is [`config/default.yaml`](config/default.yaml). Major sections include:
@@ -428,6 +523,8 @@ timeframe_roles
 timeframe_resampling_sources
 timeframe_max_staleness_seconds
 methodology_gate_mode
+futures_evidence_enabled
+outcome_tracking_enabled
 ```
 
 Important defaults include:
@@ -437,7 +534,8 @@ Important defaults include:
 - screening candle timeframe: `5m`;
 - full-analysis timeframes: `1m, 3m, 5m, 15m, 30m, 1h, 4h`;
 - methodology gate: `shadow`;
-- futures-specific evidence: disabled unless configured and available.
+- futures-specific evidence: enabled with fail-soft missing-data handling;
+- invisible SQLite outcome tracking: enabled at `data/reports/analysis.db`.
 
 Always run `apex config-check` after changing YAML.
 
@@ -462,6 +560,7 @@ apex/
     ├── market_analysis/     # Shared structure and liquidity analysis
     ├── market_environment/  # Market-state classification and routing context
     ├── presentation/        # Deterministic text rendering
+    ├── research/            # Public-data campaigns, splits, ML and promotion metrics
     ├── scoring/             # Quality, consensus, deduplication and ranking
     └── strategies/          # Strategy contracts and generators
 ```
@@ -497,11 +596,14 @@ Never report Ruff, mypy, pytest, CLI, live-scan or backtest validation as passed
 
 - `READY_NOW` does not mean guaranteed profit.
 - A high analytical score is not a calibrated win probability.
+- An early-warning direction is participation context, not standalone entry authority.
+- Expected R and calibrated intervals are displayed only from promoted compatible artifacts.
 - `NO_TRADE` can be the correct professional result.
 - Discovery rank only grants deeper analysis; it never approves a trade.
 - Developing setups should be monitored separately from executable setups.
 - Historical replay measures deterministic behavior on selected data; it does not prove future profitability.
 - Binance data availability, market conditions, fees, spread and slippage can materially affect real outcomes.
+- Historical validation can reduce uncertainty but cannot guarantee future profitability.
 
 ## Documentation
 

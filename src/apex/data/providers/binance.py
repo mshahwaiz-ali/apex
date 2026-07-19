@@ -341,6 +341,10 @@ class BinanceMarketDataProvider:
                 low=float(row[3]),
                 close=float(row[4]),
                 volume=float(row[5]),
+                quote_volume=float(row[7]) if len(row) > 7 else None,
+                trade_count=int(row[8]) if len(row) > 8 else None,
+                taker_buy_base_volume=float(row[9]) if len(row) > 9 else None,
+                taker_buy_quote_volume=float(row[10]) if len(row) > 10 else None,
                 is_closed=close_time <= now,
                 source=self.name,
             )

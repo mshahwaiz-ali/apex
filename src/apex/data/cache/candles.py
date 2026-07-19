@@ -105,7 +105,9 @@ def validate_candle_series(
 class FileCandleCache:
     """Store normalized candle responses as local JSON files."""
 
-    SCHEMA_VERSION = 1
+    # Version 2 adds Binance quote-volume, trade-count and taker-flow fields.
+    # Older cache entries are deliberately ignored rather than guessed/migrated.
+    SCHEMA_VERSION = 2
 
     def __init__(
         self,

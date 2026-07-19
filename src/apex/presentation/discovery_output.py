@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from apex.presentation import (
+    UNAVAILABLE,
     OutputMode,
     format_price,
     format_ratio,
@@ -39,6 +40,7 @@ def render_discovery_analysis(
     if not setup:
         reasons = _strings(payload.get("reasons"))
         sections = [render_title(f"{symbol} — No Trade")]
+        sections.extend(_intelligence_sections(payload))
         sections.extend(_focused_market_sections(focused))
         sections.append(
             render_section(
@@ -69,6 +71,7 @@ def render_discovery_analysis(
     headline = str(setup.get("trader_headline") or f"{direction} setup")
     title = "Valid Setup, Entry Pending" if developing_only else headline
     sections = [render_title(f"{symbol} — {title}")]
+    sections.extend(_intelligence_sections(payload))
     sections.extend(_focused_market_sections(focused))
     focused_assessment = _mapping(focused.get("directional_assessment"))
     if focused_assessment:
@@ -292,6 +295,60 @@ def render_discovery_analysis(
     return "\n\n".join(sections)
 
 
+def _intelligence_sections(payload: Mapping[str, object]) -> list[str]:
+    intelligence = _mapping(payload.get("market_intelligence"))
+    warning = _mapping(intelligence.get("early_warning"))
+    edge = _mapping(payload.get("historical_edge"))
+    sections: list[str] = []
+    if warning:
+        evidence = _strings(warning.get("evidence"))
+        concerns = _strings(warning.get("concerns"))
+        sections.append(
+            render_section(
+                "Early Warning",
+                render_fields(
+                    (
+                        ("State", humanize_code(warning.get("state"))),
+                        ("Directional lean", humanize_code(warning.get("direction"))),
+                        ("Evidence confidence", format_ratio(warning.get("confidence"))),
+                        ("Main evidence", evidence[0] if evidence else UNAVAILABLE),
+                        ("Main concern", concerns[0] if concerns else "No material conflict"),
+                    )
+                ),
+            )
+        )
+    if edge:
+        interval = edge.get("calibrated_probability_interval")
+        interval_text = (
+            f"{float(interval[0]) * 100:.1f}%-{float(interval[1]) * 100:.1f}%"
+            if isinstance(interval, list) and len(interval) == 2
+            else UNAVAILABLE
+        )
+        expected_r = edge.get("expected_r")
+        sections.append(
+            render_section(
+                "Historical Edge",
+                render_fields(
+                    (
+                        ("Authority", "Promoted" if edge.get("available") is True else "Withheld"),
+                        (
+                            "Expected R",
+                            (
+                                f"{float(expected_r):+.3f}R"
+                                if isinstance(expected_r, (int, float))
+                                else UNAVAILABLE
+                            ),
+                        ),
+                        ("Calibrated interval", interval_text),
+                        ("Final-test sample", edge.get("sample_size")),
+                        ("Reason", edge.get("reason")),
+                    )
+                ),
+            )
+        )
+    return sections
+
+
 def render_discovery_scan(payload: Mapping[str, object]) -> str:
     """Render ranked canonical scan output grouped by actionability."""
 
@@ -329,8 +386,6 @@ def render_discovery_scan(payload: Mapping[str, object]) -> str:
             _render_group("Aggressive Entries", grouped.aggressive),
             _render_group("Pullback / Retest / Reclaim Pending", grouped.conditional),
             _render_group("Developing / Watch", grouped.developing),
-            _render_group("Late or Invalidated", grouped.unavailable),
-            _render_group("No Setup Found", grouped.no_setup),
         )
         if section
     )

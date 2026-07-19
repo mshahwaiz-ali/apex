@@ -5,8 +5,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import cast
 
-from apex.data.providers.base import MarketDataProvider, MarketMicrostructureProvider
+from apex.data.providers.base import (
+    FuturesEvidenceProvider,
+    MarketDataProvider,
+    MarketMicrostructureProvider,
+)
 from apex.data.resampling import resample_candles, source_limit_for_resampling
+from apex.domain.futures_evidence import (
+    FundingRateSnapshot,
+    OpenInterestSnapshot,
+    PremiumIndexSnapshot,
+    TakerFlowSnapshot,
+)
 from apex.domain.models import Candle, ExchangeFilterSnapshot, OrderBookSnapshot, TickerSnapshot
 
 
@@ -80,3 +90,23 @@ class ResamplingMarketDataProvider:
 
         provider = cast(MarketMicrostructureProvider, self._provider)
         return provider.fetch_exchange_filters(symbol)
+
+    def fetch_funding_rates(self, symbol: str, limit: int = 100) -> tuple[FundingRateSnapshot, ...]:
+        return cast(FuturesEvidenceProvider, self._provider).fetch_funding_rates(symbol, limit)
+
+    def fetch_open_interest_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[OpenInterestSnapshot, ...]:
+        return cast(FuturesEvidenceProvider, self._provider).fetch_open_interest_history(
+            symbol, period, limit
+        )
+
+    def fetch_taker_flow_history(
+        self, symbol: str, period: str = "5m", limit: int = 100
+    ) -> tuple[TakerFlowSnapshot, ...]:
+        return cast(FuturesEvidenceProvider, self._provider).fetch_taker_flow_history(
+            symbol, period, limit
+        )
+
+    def fetch_premium_index(self, symbol: str) -> PremiumIndexSnapshot:
+        return cast(FuturesEvidenceProvider, self._provider).fetch_premium_index(symbol)

@@ -61,6 +61,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    futures_evidence_enabled: bool = True,
 ) -> SymbolAnalysis:
     """Run integrated discovery analysis, routing, and the shared methodology gate."""
 
@@ -75,6 +76,7 @@ def analyze_symbol(
         strategy_routing=strategy_routing,
         market_environment_config=market_environment_config,
         methodology_gate_mode=methodology_gate_mode,
+        futures_evidence_enabled=futures_evidence_enabled,
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
@@ -91,6 +93,9 @@ def analyze_symbol(
         candidate_ranking=base.candidate_ranking,
         methodology=getattr(base, "methodology", None),
         methodology_gate=getattr(base, "methodology_gate", None),
+        market_intelligence=base.market_intelligence,
+        historical_edge=base.historical_edge,
+        outcome_candles=base.outcome_candles,
         market_environment=environment,
         market_state=base.market_state,
         market_strategy_route=route,
@@ -116,6 +121,7 @@ def scan_symbols(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    futures_evidence_enabled: bool = True,
 ) -> DiscoveryScanResult:
     """Analyze each symbol once with canonical routing, gating, and ranking."""
 
@@ -124,18 +130,23 @@ def scan_symbols(
     failures: dict[str, str] = {}
     for symbol in symbols:
         try:
+            analysis_kwargs: dict[str, Any] = {
+                "timeframes": timeframes,
+                "timeframe_roles": timeframe_roles,
+                "timeframe_max_staleness_seconds": timeframe_max_staleness_seconds,
+                "candle_limit": candle_limit,
+                "generated_at": timestamp,
+                "strategy_routing": strategy_routing,
+                "market_environment_config": market_environment_config,
+                "methodology_gate_mode": methodology_gate_mode,
+            }
+            if not futures_evidence_enabled:
+                analysis_kwargs["futures_evidence_enabled"] = False
             analyses.append(
                 analyze_symbol(
                     symbol,
                     provider,
-                    timeframes=timeframes,
-                    timeframe_roles=timeframe_roles,
-                    timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
-                    candle_limit=candle_limit,
-                    generated_at=timestamp,
-                    strategy_routing=strategy_routing,
-                    market_environment_config=market_environment_config,
-                    methodology_gate_mode=methodology_gate_mode,
+                    **analysis_kwargs,
                 )
             )
         except Exception as exc:  # Scanner intentionally isolates per-symbol failures.

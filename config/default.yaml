@@ -3,7 +3,8 @@ log_level: INFO
 data_dir: data
 log_dir: logs
 cache_enabled: true
-futures_evidence_enabled: false
+futures_evidence_enabled: true
+outcome_tracking_enabled: true
 methodology_gate_mode: shadow
 futures_screener:
   minimum_quote_volume_24h: 5000000

@@ -15,7 +15,7 @@ class Decision(StrEnum):
 
 
 class Candle(BaseModel):
-    """Normalized OHLCV candle."""
+    """Normalized Binance-compatible candle with optional participation fields."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -28,6 +28,10 @@ class Candle(BaseModel):
     low: float = Field(gt=0)
     close: float = Field(gt=0)
     volume: float = Field(ge=0)
+    quote_volume: float | None = Field(default=None, ge=0)
+    trade_count: int | None = Field(default=None, ge=0)
+    taker_buy_base_volume: float | None = Field(default=None, ge=0)
+    taker_buy_quote_volume: float | None = Field(default=None, ge=0)
     is_closed: bool
     source: str
 

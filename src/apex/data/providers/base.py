@@ -8,6 +8,7 @@ from typing import Protocol
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
     OpenInterestSnapshot,
+    PremiumIndexSnapshot,
     TakerFlowSnapshot,
 )
 from apex.domain.futures_market import FuturesContractMetadata
@@ -112,3 +113,6 @@ class FuturesEvidenceProvider(Protocol):
         self, symbol: str, period: str = "5m", limit: int = 100
     ) -> tuple[TakerFlowSnapshot, ...]:
         """Fetch chronological taker buy/sell observations."""
+
+    def fetch_premium_index(self, symbol: str) -> PremiumIndexSnapshot:
+        """Fetch the current mark price, index price, basis and funding metadata."""

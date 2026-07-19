@@ -13,6 +13,7 @@ from apex.application import (
     build_analysis_record,
     configuration_metadata,
     create_market_data_services,
+    reconcile_pending_opportunities_sqlite,
     scan_symbols,
     select_futures_scan_symbols,
     serialize_futures_screening,
@@ -20,7 +21,7 @@ from apex.application import (
     write_analysis_record_sqlite,
     write_json_report,
 )
-from apex.application.enriched_public_output import serialize_scan_result
+from apex.application.enriched_public_output import serialize_scan_result, serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
 
@@ -44,7 +45,8 @@ def register_scanner_commands(app: typer.Typer) -> None:
         report: Path | None = typer.Option(None, "--report"),
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
-        candle_limit: int = typer.Option(200, "--candles", min=40, max=999),
+        explain: bool = typer.Option(False, "--explain", help="Show full diagnostic evidence."),
+        candle_limit: int = typer.Option(200, "--candles", min=200, max=999),
         results: int = typer.Option(
             20,
             "--results",
@@ -113,6 +115,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     methodology_gate_mode=context.settings.methodology_gate_mode,
                     market_environment_config=context.settings.market_environment,
+                    futures_evidence_enabled=context.settings.futures_evidence_enabled,
                 )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -130,17 +133,34 @@ def register_scanner_commands(app: typer.Typer) -> None:
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         if report is not None:
             write_json_report(payload, report)
-        if record is not None or record_db is not None:
+        effective_record_db = record_db
+        if effective_record_db is None and context.settings.outcome_tracking_enabled:
+            effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
+        if record is not None or effective_record_db is not None:
             analysis_record = build_analysis_record(payload)
             if record is not None:
                 write_analysis_record(record, analysis_record)
-            if record_db is not None:
-                write_analysis_record_sqlite(record_db, analysis_record)
+            if effective_record_db is not None:
+                for analysis in result.analyses:
+                    reconcile_pending_opportunities_sqlite(
+                        effective_record_db,
+                        analysis.symbol,
+                        analysis.outcome_candles,
+                    )
+                    analysis_payload = serialize_symbol_analysis(analysis)
+                    analysis_payload.update(
+                        configuration_metadata(context.settings.model_dump(mode="json"))
+                    )
+                    write_analysis_record_sqlite(
+                        effective_record_db,
+                        build_analysis_record(analysis_payload),
+                    )
+                write_analysis_record_sqlite(effective_record_db, analysis_record)
 
         if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
             return
-        typer.echo(render_discovery_scan(payload))
+        typer.echo(render_discovery_scan(payload, explain=explain))
 
 
 def _normalize_scanner_output(value: str) -> str:

@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from apex.application.market_evidence import build_market_evidence_bundle
 from apex.config import DEFAULT_TIMEFRAME_ROLES
 from apex.config.settings import DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
 from apex.data.providers.base import MarketDataProvider
@@ -36,6 +37,7 @@ def build_strategy_context(
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
     received_at: datetime | None = None,
+    futures_evidence_enabled: bool = True,
 ) -> tuple[StrategyContext, Mapping[str, str]]:
     """Fetch market data and build deterministic strategy context."""
 
@@ -47,6 +49,12 @@ def build_strategy_context(
     spread_percentage = ticker_snapshot.spread_percentage if ticker_snapshot is not None else None
     order_book_snapshot = _fetch_order_book_snapshot(provider, symbol)
     exchange_filter_snapshot = _fetch_exchange_filter_snapshot(provider, symbol)
+    market_evidence = (
+        build_market_evidence_bundle(provider, symbol, as_of=timestamp)
+        if futures_evidence_enabled
+        else None
+    )
+    premium = market_evidence.premium_index if market_evidence is not None else None
     frames: list[TimeframeContext] = []
     regimes: dict[str, str] = {}
 
@@ -67,6 +75,8 @@ def build_strategy_context(
             spread_percentage=spread_percentage,
             order_book_snapshot=order_book_snapshot,
             exchange_filter_snapshot=exchange_filter_snapshot,
+            mark_price=premium.mark_price if premium is not None else None,
+            index_price=premium.index_price if premium is not None else None,
         )
         frames.append(frame)
         regimes[timeframe] = regime
@@ -77,6 +87,7 @@ def build_strategy_context(
         StrategyContext(
             symbol=symbol,
             frames=tuple(sorted(frames, key=lambda frame: timeframe_role_sort_key(frame.role))),
+            market_evidence=market_evidence,
         ),
         regimes,
     )
@@ -121,6 +132,8 @@ def _frame_from_candles(
     spread_percentage: float | None,
     order_book_snapshot: OrderBookSnapshot | None,
     exchange_filter_snapshot: ExchangeFilterSnapshot | None,
+    mark_price: float | None,
+    index_price: float | None,
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
@@ -173,9 +186,8 @@ def _frame_from_candles(
             order_book_spread_percentage=(
                 order_book_snapshot.spread_percentage if order_book_snapshot is not None else None
             ),
-            order_book_depth_imbalance=(
-                order_book_snapshot.depth_imbalance if order_book_snapshot is not None else None
-            ),
+            # A single live book is execution evidence, not a directional series.
+            order_book_depth_imbalance=None,
             exchange_tick_size=(
                 exchange_filter_snapshot.tick_size if exchange_filter_snapshot is not None else None
             ),
@@ -187,6 +199,8 @@ def _frame_from_candles(
                 if exchange_filter_snapshot is not None
                 else None
             ),
+            mark_price=mark_price,
+            index_price=index_price,
             analysis_price=latest_closed.close,
             last_closed_at=latest_closed.close_time,
             last_received_at=received_at,

@@ -12,6 +12,7 @@ from apex.data.providers.http import request_json
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
     OpenInterestSnapshot,
+    PremiumIndexSnapshot,
     TakerFlowSnapshot,
 )
 from apex.domain.futures_screening import FuturesTickerSnapshot
@@ -35,6 +36,51 @@ class BinanceFuturesMarketDataProvider(BinanceMarketDataProvider):
     FUNDING_RATE_PATH = "/fapi/v1/fundingRate"
     OPEN_INTEREST_HISTORY_PATH = "/futures/data/openInterestHist"
     TAKER_FLOW_HISTORY_PATH = "/futures/data/takerlongshortRatio"
+    PREMIUM_INDEX_PATH = "/fapi/v1/premiumIndex"
+
+    def fetch_premium_index(self, symbol: str) -> PremiumIndexSnapshot:
+        payload = request_json(
+            self._client,
+            "GET",
+            self.PREMIUM_INDEX_PATH,
+            provider=self.name,
+            operation="fetch premium index",
+            retry_policy=self._retry_policy,
+            sleep=self._sleep,
+            params={"symbol": self._normalize_symbol(symbol)},
+        )
+        if not isinstance(payload, dict):
+            raise ProviderResponseError(
+                "Binance premium-index response must be an object",
+                provider=self.name,
+                operation="fetch premium index",
+            )
+        try:
+            captured_ms = int(payload.get("time", int(datetime.now(UTC).timestamp() * 1000)))
+            next_funding_ms = int(payload["nextFundingTime"])
+            return PremiumIndexSnapshot(
+                symbol=symbol.upper(),
+                mark_price=float(payload["markPrice"]),
+                index_price=float(payload["indexPrice"]),
+                last_funding_rate=(
+                    float(payload["lastFundingRate"])
+                    if payload.get("lastFundingRate") not in (None, "")
+                    else None
+                ),
+                next_funding_time=(
+                    datetime.fromtimestamp(next_funding_ms / 1000, tz=UTC)
+                    if next_funding_ms > 0
+                    else None
+                ),
+                captured_at=datetime.fromtimestamp(captured_ms / 1000, tz=UTC),
+                source=self.name,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderResponseError(
+                "Invalid Binance premium-index response fields",
+                provider=self.name,
+                operation="fetch premium index",
+            ) from exc
 
     def fetch_funding_rates(self, symbol: str, limit: int = 100) -> tuple[FundingRateSnapshot, ...]:
         payload = self._fetch_evidence_rows(

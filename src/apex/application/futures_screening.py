@@ -268,6 +268,8 @@ def screen_futures_universe(
         )
         scored.append((contract, ticker, features, opportunity, lanes))
 
+    scored = _cross_sectional_lane_scores(scored)
+
     ranked = sorted(
         scored,
         key=lambda item: (
@@ -355,6 +357,11 @@ def _select_lane_budgeted(
     lane_budgets = _lane_budgets(ranked, limit)
     selected_symbols: set[str] = set()
     for lane in lane_order:
+        if len(selected_symbols) >= limit:
+            break
+        quota = lane_budgets.get(lane, 0)
+        if quota <= 0:
+            continue
         lane_ranked = sorted(
             (item for item in ranked if any(signal.lane is lane for signal in item[4])),
             key=lambda item: (
@@ -364,7 +371,6 @@ def _select_lane_budgeted(
             ),
         )
         added = 0
-        quota = lane_budgets.get(lane, 0)
         for item in lane_ranked:
             symbol = _normalize_symbol(item[0].exchange_symbol)
             if symbol in selected_symbols:
@@ -380,6 +386,58 @@ def _select_lane_budgeted(
     return [
         item for item in ranked if _normalize_symbol(item[0].exchange_symbol) in selected_symbols
     ], lane_budgets
+
+
+def _cross_sectional_lane_scores(
+    scored: list[
+        tuple[
+            FuturesContractMetadata,
+            FuturesTickerSnapshot,
+            FuturesOpportunityFeatures,
+            FuturesOpportunityScore,
+            tuple[FuturesDiscoveryLaneSignal, ...],
+        ]
+    ],
+) -> list[
+    tuple[
+        FuturesContractMetadata,
+        FuturesTickerSnapshot,
+        FuturesOpportunityFeatures,
+        FuturesOpportunityScore,
+        tuple[FuturesDiscoveryLaneSignal, ...],
+    ]
+]:
+    """Replace capped lane scores with deterministic within-lane midrank percentiles."""
+
+    populations = {
+        lane: sorted(signal.score for item in scored for signal in item[4] if signal.lane is lane)
+        for lane in FuturesDiscoveryLane
+    }
+    normalized = []
+    for contract, ticker, features, opportunity, signals in scored:
+        ranked_signals = []
+        for signal in signals:
+            values = populations[signal.lane]
+            less = sum(value < signal.score for value in values)
+            equal = sum(value == signal.score for value in values)
+            percentile = 100.0 * (less + 0.5 * equal) / len(values)
+            ranked_signals.append(
+                replace(
+                    signal,
+                    score=round(percentile, 4),
+                    reason=f"{signal.reason}; cross-sectional raw score {signal.score:.2f}",
+                )
+            )
+        normalized.append(
+            (
+                contract,
+                ticker,
+                features,
+                opportunity,
+                tuple(sorted(ranked_signals, key=lambda item: (-item.score, item.lane.value))),
+            )
+        )
+    return normalized
 
 
 def _lane_budgets(

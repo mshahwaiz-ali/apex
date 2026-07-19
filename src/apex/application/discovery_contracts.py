@@ -12,6 +12,7 @@ from typing import Any
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.domain.models import Candle
 from apex.scoring.quality_dimensions import CandidateQualityDimensions
 from apex.strategies.contracts import (
     InvalidationType,
@@ -241,6 +242,9 @@ class SymbolAnalysis:
     methodology: MethodologySnapshot | None = None
     methodology_auxiliary_evidence: MethodologyAuxiliaryEvidence | None = None
     methodology_gate: Mapping[str, Any] | None = None
+    market_intelligence: Mapping[str, Any] | None = None
+    historical_edge: Mapping[str, Any] | None = None
+    outcome_candles: tuple[Candle, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

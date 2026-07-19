@@ -16,6 +16,7 @@ from apex.data.providers import (
     ResamplingMarketDataProvider,
 )
 from apex.data.providers.base import (
+    FuturesEvidenceProvider,
     FuturesMarketScreenerProvider,
     FuturesUniverseProvider,
     MarketDataProvider,
@@ -28,6 +29,7 @@ from apex.data.providers.cached_futures_universe import (
 class ManagedMarketDataProvider(
     MarketDataProvider,
     FuturesMarketScreenerProvider,
+    FuturesEvidenceProvider,
     Protocol,
 ):
     """Live futures provider with screening and closable resources."""
@@ -54,6 +56,7 @@ class MarketDataServices:
     candles: MarketDataProvider
     ticker: MarketDataProvider
     futures_screener: FuturesMarketScreenerProvider
+    futures_evidence: FuturesEvidenceProvider
     futures_universe: FuturesUniverseProvider
     _live_provider: ManagedMarketDataProvider
     _futures_universe_provider: ManagedFuturesUniverseProvider
@@ -122,6 +125,7 @@ def create_market_data_services(
         candles=candle_provider,
         ticker=live_provider,
         futures_screener=live_provider,
+        futures_evidence=live_provider,
         futures_universe=futures_universe_provider,
         _live_provider=live_provider,
         _futures_universe_provider=live_futures_universe_provider,
