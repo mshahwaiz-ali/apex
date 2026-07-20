@@ -33,6 +33,18 @@ from apex.application.discovery_setup import (
     build_opportunity_portfolio,
 )
 from apex.application.futures_quality import analyze_futures_phase5
+from apex.application.high_value_evidence_audit import (
+    build_current_high_value_evidence_audit,
+    high_value_evidence_audit_payload,
+)
+from apex.application.high_value_evidence_runtime import (
+    HighValueEvidenceRuntimeSnapshot,
+    build_high_value_evidence_runtime_snapshot,
+    high_value_evidence_runtime_payload,
+)
+from apex.application.high_value_evidence_status import (
+    reconcile_high_value_evidence_audit,
+)
 from apex.application.historical_edge_runtime import (
     apply_runtime_edge_ranking,
     load_runtime_edge_artifact,
@@ -191,6 +203,10 @@ def analyze_symbol(
     ranking = build_candidate_ranking_snapshot(selection)
     candlestick_patterns = detect_contextual_candlesticks(context)
     candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
+    high_value_evidence_runtime = build_high_value_evidence_runtime_snapshot(
+        context,
+        as_of=decision_time,
+    )
     phase5_diagnostics = {
         "methodology_version": METHODOLOGY_VERSION,
         "candidate_count": len(selection.all_scored_candidates),
@@ -216,7 +232,14 @@ def analyze_symbol(
         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
         "methodology_routing_parity": methodology_parity,
         "methodology_selection_parity": methodology_selection_parity,
+        "high_value_evidence_audit": _high_value_evidence_diagnostics(
+            context,
+            runtime=high_value_evidence_runtime,
+        ),
         "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
+        "high_value_evidence_runtime": high_value_evidence_runtime_payload(
+            high_value_evidence_runtime
+        ),
         "candidates": [
             {
                 "candidate_id": item.scored.candidate_id,
@@ -294,6 +317,21 @@ def analyze_symbol(
         outcome_candles=context.decision_frame.recent_candles,
         opportunity_portfolio=opportunity_portfolio,
     )
+
+
+def _high_value_evidence_diagnostics(
+    context: StrategyContext,
+    *,
+    runtime: HighValueEvidenceRuntimeSnapshot | None = None,
+) -> dict[str, Any]:
+    """Serialize evidence readiness without changing any live decision."""
+
+    audit = (
+        build_current_high_value_evidence_audit(context)
+        if runtime is None
+        else reconcile_high_value_evidence_audit(context, runtime)
+    )
+    return high_value_evidence_audit_payload(audit)
 
 
 def _methodology_selection_parity_diagnostics(
