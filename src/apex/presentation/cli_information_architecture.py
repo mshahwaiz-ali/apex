@@ -130,8 +130,14 @@ def _classify(result: Mapping[str, object]) -> ScanInformationSection:
     if not setup:
         return ScanInformationSection.WEAK_INVALID
 
-    status = str(setup.get("entry_status") or "").upper()
-    if status in {"INVALIDATED", "MISSED_ENTRY", "LATE_OR_CHASING", "EXPIRED"}:
+    status = canonical_actionability_state(setup)
+    if status in {
+        "INVALIDATED",
+        "MISSED_ENTRY",
+        "MISSED_OR_CHASING",
+        "LATE_OR_CHASING",
+        "EXPIRED",
+    }:
         return ScanInformationSection.WEAK_INVALID
 
     role = " ".join(
@@ -142,8 +148,11 @@ def _classify(result: Mapping[str, object]) -> ScanInformationSection:
     if "follow" in role or "reversal" in role or "reversal" in strategy:
         return ScanInformationSection.FOLLOW_UP_REVERSAL
 
-    if status in {"READY_NOW", "AGGRESSIVE_NOW"}:
+    if status in {"EXECUTE_NOW", "AGGRESSIVE_NOW", "READY_NOW"}:
         return ScanInformationSection.ACTIONABLE_CMP
+
+    if status == "EXECUTE_ON_MICRO_CONFIRMATION":
+        return ScanInformationSection.MICRO_CONFIRMATION
 
     activation_text = " ".join(
         (
@@ -156,6 +165,8 @@ def _classify(result: Mapping[str, object]) -> ScanInformationSection:
         return ScanInformationSection.MICRO_CONFIRMATION
 
     if status in {
+        "PLACE_LIMIT",
+        "PLACE_LIMIT_WITH_ACTIVATION",
         "PULLBACK_PREFERRED",
         "RETEST_PREFERRED",
         "WAIT_FOR_RETEST",
@@ -166,6 +177,35 @@ def _classify(result: Mapping[str, object]) -> ScanInformationSection:
         return ScanInformationSection.NEARBY_LIMIT
 
     return ScanInformationSection.FOLLOW_UP_REVERSAL
+
+
+def canonical_actionability_label(setup: Mapping[str, object]) -> str:
+    """Return a compact operator action label for terminal cards."""
+
+    state = canonical_actionability_state(setup)
+    labels = {
+        "EXECUTE_NOW": "Enter now",
+        "AGGRESSIVE_NOW": "Aggressive entry",
+        "EXECUTE_ON_MICRO_CONFIRMATION": "Wait: micro confirm",
+        "PLACE_LIMIT": "Place limit",
+        "PLACE_LIMIT_WITH_ACTIVATION": "Limit + activation",
+        "WAIT_FOR_RETEST": "Wait: retest",
+        "WAIT_FOR_RECLAIM": "Wait: reclaim",
+        "APPROACHING_ENTRY": "Approaching entry",
+        "INVALIDATED": "Skip: invalidated",
+        "MISSED_ENTRY": "Skip: missed",
+        "MISSED_OR_CHASING": "Skip: chasing",
+    }
+    return labels.get(state, state.replace("_", " ").title() or "Unavailable")
+
+
+def canonical_actionability_state(setup: Mapping[str, object]) -> str:
+    """Return canonical actionability with legacy entry status as fallback."""
+
+    value = setup.get("actionability_state")
+    if value is None or not str(value).strip():
+        value = setup.get("entry_status")
+    return str(value or "").strip().upper()
 
 
 def _first_mapping(
@@ -322,6 +362,9 @@ def _mappings(value: object) -> tuple[Mapping[str, object], ...]:
 __all__ = [
     "ScanInformationGroups",
     "ScanInformationSection",
+    "canonical_actionability_label",
+    "canonical_actionability_label",
+    "canonical_actionability_state",
     "data_quality_warning",
     "diagnostic_summary_lines",
     "entry_distance_label",

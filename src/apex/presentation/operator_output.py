@@ -17,6 +17,8 @@ from apex.presentation import (
     render_title,
 )
 from apex.presentation.cli_information_architecture import (
+    canonical_actionability_label,
+    canonical_actionability_state,
     data_quality_warning,
     diagnostic_summary_lines,
     entry_distance_label,
@@ -105,7 +107,7 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
         sections.append(
             render_section(
                 f"Weak or invalid setup summary ({len(grouped.weak_invalid)})",
-                "These markets were retained in the count but are not executable.",
+                render_bullets(_weak_invalid_lines(grouped.weak_invalid)),
             )
         )
     screening = _mapping(payload.get("screening"))
@@ -196,7 +198,7 @@ def _setup_sections(
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     direction = humanize_code(setup.get("direction"))
-    actionability = str(setup.get("actionability_state") or "").lower()
+    actionability = canonical_actionability_state(setup).lower()
     terminal_actionability = actionability in {
         "invalidated",
         "missed_or_chasing",
@@ -231,11 +233,10 @@ def _setup_sections(
                             ),
                             ("Direction", direction),
                             ("Strategy", humanize_code(setup.get("strategy"))),
+                            ("Operator action", canonical_actionability_label(setup)),
                             (
                                 "Actionability",
-                                humanize_code(
-                                    setup.get("actionability_state") or setup.get("entry_status")
-                                ),
+                                humanize_code(canonical_actionability_state(setup)),
                             ),
                             (
                                 "Activation basis",
@@ -518,9 +519,11 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
         runner_rr = targets[-1].get("risk_reward")
     warning = data_quality_warning(payload)
     fields: list[tuple[str, object]] = [
+        ("Action", canonical_actionability_label(setup)),
+        ("Action", canonical_actionability_label(setup)),
         ("Side", humanize_code(setup.get("direction"))),
         ("Strategy", humanize_code(setup.get("strategy"))),
-        ("State", humanize_code(setup.get("entry_status"))),
+        ("State", humanize_code(canonical_actionability_state(setup))),
         ("Current price", format_price(entry.get("current_price"))),
         ("Entry distance", entry_distance_label(setup) or UNAVAILABLE),
         ("Entry zone", _price_range(entry.get("lower"), entry.get("upper"))),
@@ -530,11 +533,11 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
         ("TP1 RR", format_ratio(initial_rr)),
         ("Runner RR", format_ratio(runner_rr)),
         (
-            "Setup / execution",
-            f"{_quality(quality.get('setup_quality') or setup.get('confidence_score'))} / "
-            f"{_quality(quality.get('execution_quality'))}",
+            "Setup quality",
+            _quality(quality.get("setup_quality") or setup.get("confidence_score")),
         ),
-        ("Continuation", _quality(quality.get("continuation_quality"))),
+        ("Execution quality", _quality(quality.get("execution_quality"))),
+        ("Continuation quality", _quality(quality.get("continuation_quality"))),
         (
             "Alignment",
             humanize_code(
@@ -544,20 +547,44 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
     ]
     evidence = _clean_many(setup.get("evidence"))
     warnings = _clean_many(setup.get("warnings"))
-    if evidence:
-        fields.append(("Evidence", evidence[0]))
-    if warnings:
-        fields.append(("Main risk", warnings[0]))
+    fields.append(("Main evidence", evidence[0] if evidence else UNAVAILABLE))
+    fields.append(("Main risk", warnings[0] if warnings else UNAVAILABLE))
     if warning:
         fields.append(("Data quality", warning))
-    if targets:
-        fields.append(
-            ("Targets", "  /  ".join(format_price(item.get("price")) for item in targets[:3]))
-        )
+    for target_index, target in enumerate(targets[:3], start=1):
+        target_price = format_price(target.get("price"))
+        target_rr = format_ratio(target.get("risk_reward"))
+        fields.append((f"TP{target_index}", f"{target_price} • {target_rr}R"))
     if developing and not selected:
         fields.append(("Wait for", activation[0] if activation else "Entry confirmation"))
     fields.append(("Inspect", f"apex analyze {symbol.replace('/', '')}"))
     return "\n".join((f"▶  #{index}  {symbol}", render_fields(fields)))
+
+
+def _weak_invalid_lines(
+    items: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    """Return concise symbol-level rejection summaries."""
+
+    lines: list[str] = []
+    for payload in items[:8]:
+        symbol = str(payload.get("symbol") or "Unknown market")
+        setup = _mapping(payload.get("setup")) or _mapping(payload.get("developing_setup"))
+        reasons = _clean_many(payload.get("reasons"))
+        warnings = _clean_many(setup.get("warnings"))
+        state = canonical_actionability_label(setup) if setup else "No valid setup"
+        reason = (
+            reasons[0]
+            if reasons
+            else warnings[0]
+            if warnings
+            else "No executable opportunity passed current checks"
+        )
+        lines.append(f"{symbol} • {state} — {reason}")
+    hidden = max(0, len(items) - len(lines))
+    if hidden:
+        lines.append(f"{hidden} additional weak or invalid markets not expanded")
+    return tuple(lines)
 
 
 def _watch_items(focused: Mapping[str, object]) -> tuple[str, ...]:

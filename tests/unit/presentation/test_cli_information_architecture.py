@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from apex.presentation.cli_information_architecture import (
     ScanInformationSection,
+    canonical_actionability_label,
+    canonical_actionability_state,
     data_quality_warning,
     partition_scan_results,
 )
@@ -103,7 +105,18 @@ def test_scan_output_preserves_essential_compact_fields() -> None:
     assert "Ideal entry" in output
     assert "Maximum chase" in output
     assert "TP1 RR" in output
-    assert "Setup / execution" in output
+    assert "TP1" in output
+    assert "TP2" in output
+    assert "TP3" in output
+    assert "103" in output
+    assert "106" in output
+    assert "109" in output
+    assert "Setup quality" in output
+    assert "Execution quality" in output
+    assert "Continuation quality" in output
+    assert "Main evidence" in output
+    assert "Main risk" in output
+    assert "Breakout accepted" in output
     assert "Data quality" in output
 
 
@@ -150,7 +163,8 @@ def test_invalidated_setup_is_not_rendered_as_executable() -> None:
     output = render_analysis({"symbol": "BTCUSDT", "setup": setup})
 
     assert "ENTER LONG" not in output
-    assert "WAIT FOR ACTIVATION" in output
+    assert "SKIP — INVALID OR CHASED" in output
+    assert "Skip: invalidated" in output
 
 
 def test_uncalibrated_historical_reliability_remains_visible() -> None:
@@ -181,6 +195,119 @@ def test_data_quality_warning_does_not_invent_absent_warning() -> None:
         )
         == "Optional market evidence is incomplete"
     )
+
+
+def test_canonical_actionability_state_takes_precedence_over_legacy_status() -> None:
+    setup = _setup(status="WAIT_FOR_RETEST")
+    setup["actionability_state"] = "EXECUTE_NOW"
+
+    assert canonical_actionability_state(setup) == "EXECUTE_NOW"
+
+    groups = partition_scan_results(({"symbol": "BTCUSDT", "setup": setup},))
+
+    assert tuple(item["symbol"] for item in groups.actionable_cmp) == ("BTCUSDT",)
+    assert groups.nearby_limit == ()
+
+
+def test_scan_card_displays_canonical_actionability_state() -> None:
+    setup = _setup(status="READY_NOW")
+    setup["actionability_state"] = "EXECUTE_ON_MICRO_CONFIRMATION"
+
+    output = render_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 1,
+            "results": ({"symbol": "BTCUSDT", "setup": setup},),
+        }
+    )
+
+    assert canonical_actionability_state(setup) == "EXECUTE_ON_MICRO_CONFIRMATION"
+    assert "Micro-confirmation entries" in output
+    assert "BTCUSDT" in output
+
+
+def test_canonical_actionability_label_is_compact_and_action_first() -> None:
+    setup = _setup(status="READY_NOW")
+    setup["actionability_state"] = "EXECUTE_ON_MICRO_CONFIRMATION"
+
+    assert canonical_actionability_label(setup) == "Wait: micro confirm"
+
+    output = render_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 1,
+            "results": ({"symbol": "BTCUSDT", "setup": setup},),
+        }
+    )
+
+    assert "Action" in output
+    assert "Wait: micro confirm" in output
+
+
+def test_scan_card_keeps_evidence_and_risk_rows_when_values_are_missing() -> None:
+    setup = _setup(status="READY_NOW")
+    setup["evidence"] = ()
+    setup["warnings"] = ()
+
+    output = render_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 1,
+            "results": ({"symbol": "BTCUSDT", "setup": setup},),
+        }
+    )
+
+    assert "Main evidence" in output
+    assert "Main risk" in output
+    assert "Unavailable" in output
+
+
+def test_weak_invalid_summary_exposes_symbol_and_primary_reason() -> None:
+    invalid = _setup(status="INVALIDATED")
+    invalid["actionability_state"] = "INVALIDATED"
+
+    output = render_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 0,
+            "results": (
+                {
+                    "symbol": "ETHUSDT",
+                    "setup": invalid,
+                    "reasons": ("Structure invalidated below support",),
+                },
+            ),
+        }
+    )
+
+    assert "Weak or invalid setup summary (1)" in output
+    assert "ETHUSDT" in output
+    assert "Skip: invalidated" in output
+    assert "Structure invalidated below support" in output
+
+
+def test_scan_and_analysis_use_same_canonical_operator_action() -> None:
+    setup = _setup(status="WAIT_FOR_RETEST")
+    setup["actionability_state"] = "EXECUTE_ON_MICRO_CONFIRMATION"
+
+    scan_output = render_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 1,
+            "results": ({"symbol": "BTCUSDT", "setup": setup},),
+        }
+    )
+    analysis_output = render_analysis({"symbol": "BTCUSDT", "setup": setup})
+
+    assert "Wait: micro confirm" in scan_output
+    assert "WAIT FOR MICRO CONFIRMATION" in analysis_output
+    assert "Wait: micro confirm" in analysis_output
+    assert "Execute On Micro Confirmation" not in analysis_output
 
 
 def test_section_enum_values_are_stable() -> None:
