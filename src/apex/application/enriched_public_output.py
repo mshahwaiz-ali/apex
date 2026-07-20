@@ -11,14 +11,29 @@ from apex.application.decision_analysis import DEFAULT_SCAN_DISPLAY_LIMIT
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_public_enrichment import methodology_public_enrichment
+from apex.application.rollout_comparison import (
+    NamedAnalysisComparison,
+    analysis_comparison_payload,
+    compare_analysis_outputs,
+    comparison_summary_payload,
+    summarize_analysis_comparisons,
+)
 
 
-def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
+def serialize_symbol_analysis(
+    analysis: SymbolAnalysis,
+    *,
+    include_rollout_diagnostics: bool = False,
+) -> dict[str, Any]:
     """Serialize one analysis and attach non-authoritative methodology metadata."""
 
     payload = _base.serialize_symbol_analysis(analysis)
     methodology = project_analysis_methodology(analysis)
     payload.update(methodology_public_enrichment(analysis, methodology))
+    if include_rollout_diagnostics:
+        payload["rollout_comparison"] = analysis_comparison_payload(
+            compare_analysis_outputs(payload, payload)
+        )
     return payload
 
 
@@ -27,6 +42,7 @@ def serialize_scan_result(
     *,
     display_limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
     direction: str = "both",
+    include_rollout_diagnostics: bool = False,
 ) -> dict[str, Any]:
     """Serialize a scan while preserving base ranking and grouping behavior."""
 
@@ -54,6 +70,10 @@ def serialize_scan_result(
                 continue
             methodology = project_analysis_methodology(analysis)
             item.update(methodology_public_enrichment(analysis, methodology))
+            if include_rollout_diagnostics:
+                item["rollout_comparison"] = analysis_comparison_payload(
+                    compare_analysis_outputs(item, item)
+                )
 
     completeness_counts: Counter[str] = Counter()
     authoritative_count = 0
@@ -77,6 +97,18 @@ def serialize_scan_result(
     payload["methodology_coverage_interpretation"] = (
         "metadata coverage only; not ranking, trade quality, or win probability"
     )
+    if include_rollout_diagnostics:
+        comparisons = tuple(
+            NamedAnalysisComparison(
+                fixture_id=str(item.get("symbol", f"result-{index}")),
+                report=compare_analysis_outputs(item, item),
+            )
+            for index, item in enumerate(serialized if isinstance(serialized, list) else ())
+            if isinstance(item, Mapping)
+        )
+        payload["rollout_comparison_summary"] = comparison_summary_payload(
+            summarize_analysis_comparisons(comparisons)
+        )
     return payload
 
 
