@@ -78,8 +78,10 @@ def assessment_from_portfolio(
             developing_setup=developing,
         )
 
-    reasons = suppression_reasons or assessment.reasons or (
-        "no methodology-eligible opportunity remains",
+    reasons = (
+        suppression_reasons
+        or assessment.reasons
+        or ("no methodology-eligible opportunity remains",)
     )
     return DiscoveryAssessment(
         symbol=assessment.symbol,

@@ -6,7 +6,7 @@ cache_enabled: true
 futures_evidence_enabled: true
 outcome_tracking_enabled: true
 rollout_diagnostics_enabled: false
-methodology_gate_mode: shadow
+methodology_gate_mode: enforce
 futures_screener:
   minimum_quote_volume_24h: 5000000
   maximum_spread_percentage: 0.25

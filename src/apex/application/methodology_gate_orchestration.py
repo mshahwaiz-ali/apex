@@ -62,9 +62,7 @@ def apply_configured_methodology_gate(
             else ("no portfolio opportunity was explicitly suppressed",)
         )
         reason_codes = (
-            ("METHODOLOGY_PORTFOLIO_FILTERED",)
-            if changed
-            else ("METHODOLOGY_GATE_NO_CHANGE",)
+            ("METHODOLOGY_PORTFOLIO_FILTERED",) if changed else ("METHODOLOGY_GATE_NO_CHANGE",)
         )
         assessment = assessment_from_portfolio(
             analysis.assessment,
