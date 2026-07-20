@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from numbers import Real
+from typing import SupportsFloat, cast
 
 
 class CalibrationMetric(StrEnum):
@@ -76,7 +77,11 @@ def evaluate_calibration_acceptance(
     missing = tuple(metric for metric in _REQUIRED_METRICS if metric not in available)
 
     expectancy_value = metrics.get(CalibrationMetric.EXPECTANCY.value)
-    positive_expectancy = float(expectancy_value) > 0.0 if _is_numeric(expectancy_value) else None
+    positive_expectancy = (
+        float(cast(SupportsFloat, expectancy_value)) > 0.0
+        if _is_numeric(expectancy_value)
+        else None
+    )
 
     blockers: list[str] = []
     if sample_size <= 0:
