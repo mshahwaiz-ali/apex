@@ -1,5 +1,10 @@
 """Focused public API for deterministic chronological backtesting."""
 
+from apex.backtesting.calibration_reporting import (
+    calibration_acceptance_from_report,
+    calibration_metrics_from_report,
+    calibration_reporting_payload,
+)
 from apex.backtesting.contracts import (
     BacktestConfig,
     BacktestOutcome,
@@ -37,6 +42,9 @@ __all__ = [
     "HistoricalSignalSplit",
     "SimulatedTrade",
     "build_replay_points",
+    "calibration_acceptance_from_report",
+    "calibration_metrics_from_report",
+    "calibration_reporting_payload",
     "signal_from_discovery_setup",
     "simulate_trade",
     "summarize_trades",
