@@ -32,15 +32,20 @@ from apex.presentation.scan_groups import flatten_existing_scan_groups
 
 
 def render_analysis(payload: Mapping[str, object], *, explain: bool = False) -> str:
-    """Render one selected market as an actionable trade plan or clear no-trade result."""
+    """Render one selected market as an actionable portfolio or clear no-trade plan."""
 
     symbol = str(payload.get("symbol") or "Unknown market")
+    focused = _mapping(payload.get("focused_analysis"))
+    portfolio = _mapping(payload.get("opportunity_portfolio"))
+    sections = [render_title(f"Apex Analysis • {symbol}")]
+
+    if portfolio:
+        sections.extend(_portfolio_analysis_sections(payload, portfolio, focused, explain=explain))
+        return "\n\n".join(section for section in sections if section)
+
     selected = _mapping(payload.get("setup"))
     developing = _mapping(payload.get("developing_setup"))
     setup = selected or developing
-    focused = _mapping(payload.get("focused_analysis"))
-    sections = [render_title(f"Apex Analysis • {symbol}")]
-
     if not setup:
         sections.extend(_no_trade_sections(payload, focused, explain=explain))
     else:
@@ -54,6 +59,176 @@ def render_analysis(payload: Mapping[str, object], *, explain: bool = False) -> 
             )
         )
     return "\n\n".join(section for section in sections if section)
+
+
+def _portfolio_analysis_sections(
+    payload: Mapping[str, object],
+    portfolio: Mapping[str, object],
+    focused: Mapping[str, object],
+    *,
+    explain: bool,
+) -> list[str]:
+    current = _mappings(portfolio.get("current_opportunities"))
+    nearby = _mappings(portfolio.get("nearby_opportunities"))
+    follow_up = _mappings(portfolio.get("follow_up_opportunities"))
+    runner = _mappings(portfolio.get("runner_opportunities"))
+    all_opportunities = _mappings(portfolio.get("opportunities"))
+
+    sections = [_portfolio_market_snapshot(payload, portfolio)]
+    if current:
+        sections.append(_opportunity_group("Current opportunities", current))
+    if nearby:
+        sections.append(_opportunity_group("Nearby opportunity", nearby))
+    if follow_up:
+        sections.append(_opportunity_group("Follow-up opportunity", follow_up))
+    if runner:
+        sections.append(_opportunity_group("Runner management", runner))
+
+    if not all_opportunities:
+        sections.extend(_no_trade_sections(payload, focused, explain=explain))
+        setup_plan = _setup_plan_section(payload)
+        if setup_plan:
+            sections.append(setup_plan)
+        return sections
+
+    setup_plan = _setup_plan_section(payload)
+    if setup_plan:
+        sections.append(setup_plan)
+    context = _market_context(focused)
+    if context:
+        sections.append(context)
+
+    if explain:
+        opportunity_map = opportunity_map_lines(payload)
+        if opportunity_map:
+            sections.append(render_section("Opportunity map", render_bullets(opportunity_map)))
+        diagnostics = diagnostic_summary_lines(payload)
+        if diagnostics:
+            sections.append(render_section("Lifecycle and collision", render_bullets(diagnostics)))
+        rejected = rejected_candidate_lines(payload)
+        if rejected:
+            sections.append(render_section("Rejected candidates", render_bullets(rejected)))
+    return sections
+
+
+def _portfolio_market_snapshot(
+    payload: Mapping[str, object],
+    portfolio: Mapping[str, object],
+) -> str:
+    verdict = _mapping(payload.get("methodology_verdict"))
+    return render_section(
+        "Market snapshot",
+        render_fields(
+            (
+                ("CMP", format_price(portfolio.get("cmp"))),
+                ("Portfolio decision", humanize_code(portfolio.get("decision"))),
+                ("Analysis mode", humanize_code(portfolio.get("analysis_mode"))),
+                ("Opportunities", portfolio.get("opportunity_count")),
+                ("Methodology verdict", humanize_code(verdict.get("status"))),
+            )
+        ),
+    )
+
+
+def _opportunity_group(
+    title: str,
+    opportunities: Sequence[Mapping[str, object]],
+) -> str:
+    cards = [
+        _opportunity_card(opportunity, index=index)
+        for index, opportunity in enumerate(opportunities, start=1)
+    ]
+    return render_section(title, ("\n  " + "·" * 72 + "\n\n").join(cards))
+
+
+def _opportunity_card(opportunity: Mapping[str, object], *, index: int) -> str:
+    setup = _mapping(opportunity.get("setup")) or opportunity
+    entry = _mapping(setup.get("entry"))
+    stop = _mapping(setup.get("stop_loss"))
+    targets = _mappings(setup.get("take_profits"))
+    quality = _mapping(setup.get("quality_dimensions"))
+    reference = _number(entry.get("preferred")) or _number(entry.get("current_price"))
+    fields: list[tuple[str, object]] = [
+        ("Role", humanize_code(opportunity.get("sequence_role"))),
+        ("Side", humanize_code(opportunity.get("direction"))),
+        ("Strategy", humanize_code(opportunity.get("strategy"))),
+        ("Actionability", _actionability_label(setup)),
+        ("CMP", format_price(entry.get("current_price"))),
+        _entry_field(entry),
+        ("Preferred entry", format_price(entry.get("preferred"))),
+        ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
+        ("Stop / invalidation", _price_with_move(stop.get("price"), reference)),
+    ]
+    for target_index, target in enumerate(targets[:3], start=1):
+        fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
+    fields.extend(
+        (
+            (
+                "Trade quality",
+                _quality(
+                    quality.get("overall_trade_quality")
+                    or quality.get("setup_quality")
+                    or setup.get("confidence_score")
+                ),
+            ),
+            ("Execution quality", _quality(quality.get("execution_quality"))),
+        )
+    )
+    warnings = _clean_many(setup.get("warnings"))
+    if warnings:
+        fields.append(("Main risk", warnings[0]))
+    return "\n".join(
+        (
+            f"▶  #{index}  {opportunity.get('opportunity_id') or 'Opportunity'}",
+            render_fields(fields),
+        )
+    )
+
+
+def _actionability_label(setup: Mapping[str, object]) -> str:
+    state = canonical_actionability_state(setup)
+    if state:
+        return humanize_code(state)
+    return canonical_actionability_label(setup)
+
+
+def _entry_field(entry: Mapping[str, object]) -> tuple[str, object]:
+    lower = _number(entry.get("lower"))
+    upper = _number(entry.get("upper"))
+    if lower is not None and upper is not None and lower == upper:
+        return ("Entry price", format_price(lower))
+    return ("Entry zone", _price_range(entry.get("lower"), entry.get("upper")))
+
+
+def _setup_plan_section(payload: Mapping[str, object]) -> str:
+    plan = _mapping(payload.get("setup_plan"))
+    if not plan:
+        return ""
+    if plan.get("geometry_available") is True:
+        return render_section(
+            "Setup plan",
+            render_fields(
+                (
+                    ("Status", humanize_code(plan.get("status"))),
+                    ("Opportunities", plan.get("opportunity_count")),
+                    ("Primary opportunity", plan.get("primary_opportunity_id")),
+                )
+            ),
+        )
+    return render_section(
+        "Setup plan",
+        render_fields(
+            (
+                ("Status", "NO VALID SETUP YET"),
+                ("Current state", plan.get("current_state")),
+                ("Long trigger", plan.get("long_trigger")),
+                ("Short trigger", plan.get("short_trigger")),
+                ("Invalidation", plan.get("invalidation")),
+                ("Stop", plan.get("stop")),
+                ("Main risk", plan.get("main_risk")),
+            )
+        ),
+    )
 
 
 def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
@@ -204,7 +379,7 @@ def _setup_sections(
                         (
                             ("Side", direction),
                             ("Strategy", humanize_code(setup.get("strategy"))),
-                            ("State", canonical_actionability_label(setup)),
+                            ("Actionability", _actionability_label(setup)),
                             (
                                 "Trade quality",
                                 _quality(
@@ -224,11 +399,13 @@ def _setup_sections(
     current = _number(entry.get("current_price"))
     plan: list[tuple[str, object]] = [
         ("Current price", format_price(entry.get("current_price"))),
-        ("Entry zone", _price_range(entry.get("lower"), entry.get("upper"))),
+        _entry_field(entry),
         ("Preferred entry", format_price(entry.get("preferred"))),
         ("Stop", _price_with_move(stop.get("price"), preferred or current)),
     ]
-    chase_label = "Do not chase below" if setup.get("direction") == "short" else "Do not chase above"
+    chase_label = (
+        "Do not chase below" if setup.get("direction") == "short" else "Do not chase above"
+    )
     plan.append((chase_label, format_price(entry.get("maximum_chase_price"))))
     for index, target in enumerate(targets[:3], start=1):
         plan.append(
@@ -252,7 +429,10 @@ def _setup_sections(
     if reasons:
         sections.append(render_section("Why this trade", render_bullets(reasons[:3])))
 
-    warnings = _clean_many(setup.get("warnings"))
+    warnings = list(_clean_many(setup.get("warnings")))
+    feasibility = _mapping(payload.get("methodology_target_feasibility_semantics"))
+    if feasibility.get("costs_available") is False:
+        warnings.append("fees and slippage are not included in target feasibility")
     if warnings:
         sections.append(render_section("Main risks", render_bullets(warnings[:3])))
 
@@ -318,7 +498,7 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
     quality = _mapping(setup.get("quality_dimensions"))
     reference = _number(entry.get("preferred")) or _number(entry.get("current_price"))
     fields: list[tuple[str, object]] = [
-        ("Action", canonical_actionability_label(setup)),
+        ("Action", _actionability_label(setup)),
         ("Side", humanize_code(setup.get("direction"))),
         ("Strategy", humanize_code(setup.get("strategy"))),
         ("CMP", format_price(entry.get("current_price"))),
@@ -476,7 +656,9 @@ def _activation(
     useful = tuple(
         item
         for item in warnings
-        if any(word in item.lower() for word in ("confirm", "retest", "reclaim", "pullback", "close"))
+        if any(
+            word in item.lower() for word in ("confirm", "retest", "reclaim", "pullback", "close")
+        )
     )
     return useful or _watch_items(focused) or ("Wait for the stated entry conditions.",)
 
