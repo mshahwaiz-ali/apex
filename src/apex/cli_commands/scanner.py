@@ -20,13 +20,48 @@ from apex.application import (
     write_analysis_record,
     write_analysis_record_sqlite,
     write_json_report,
+    write_rollout_operator_report,
 )
-from apex.application.enriched_public_output import serialize_scan_result, serialize_symbol_analysis
+from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
+from apex.application.enriched_public_output import (
+    serialize_scan_result,
+    serialize_symbol_analysis,
+)
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
 from apex.presentation.terminal import emit_terminal
 
 ScanDirection = Literal["long", "short", "both"]
+
+
+def _serialize_scan_payload(
+    result: ScanResult,
+    *,
+    display_limit: int,
+    direction: ScanDirection,
+    rollout_diagnostics_enabled: bool,
+) -> dict[str, object]:
+    """Serialize scan output using the configured diagnostics switch."""
+
+    return serialize_scan_result(
+        result,
+        display_limit=display_limit,
+        direction=direction,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
+    )
+
+
+def _serialize_scan_analysis_record(
+    analysis: SymbolAnalysis,
+    *,
+    rollout_diagnostics_enabled: bool,
+) -> dict[str, object]:
+    """Serialize a scan record with the same diagnostics configuration."""
+
+    return serialize_symbol_analysis(
+        analysis,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
+    )
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
@@ -44,6 +79,11 @@ def register_scanner_commands(app: typer.Typer) -> None:
         ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
         report: Path | None = typer.Option(None, "--report"),
+        rollout_report: Path | None = typer.Option(
+            None,
+            "--rollout-report",
+            help="Optional non-authoritative rollout diagnostics JSON path.",
+        ),
         record: Path | None = typer.Option(None, "--record"),
         record_db: Path | None = typer.Option(None, "--record-db"),
         explain: bool = typer.Option(False, "--explain", help="Show full diagnostic evidence."),
@@ -124,16 +164,23 @@ def register_scanner_commands(app: typer.Typer) -> None:
             typer.echo(f"Scanner market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = serialize_scan_result(
+        payload = _serialize_scan_payload(
             result,
             display_limit=results,
             direction=direction,
+            rollout_diagnostics_enabled=context.settings.rollout_diagnostics_enabled,
         )
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         if report is not None:
             write_json_report(payload, report)
+        if rollout_report is not None:
+            if not context.settings.rollout_diagnostics_enabled:
+                raise typer.BadParameter(
+                    "--rollout-report requires rollout_diagnostics_enabled: true"
+                )
+            write_rollout_operator_report(payload, rollout_report, command="scan")
         effective_record_db = record_db
         if effective_record_db is None and context.settings.outcome_tracking_enabled:
             effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
@@ -148,7 +195,10 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         analysis.symbol,
                         analysis.outcome_candles,
                     )
-                    analysis_payload = serialize_symbol_analysis(analysis)
+                    analysis_payload = _serialize_scan_analysis_record(
+                        analysis,
+                        rollout_diagnostics_enabled=(context.settings.rollout_diagnostics_enabled),
+                    )
                     analysis_payload.update(
                         configuration_metadata(context.settings.model_dump(mode="json"))
                     )

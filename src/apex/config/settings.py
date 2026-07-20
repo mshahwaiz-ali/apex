@@ -103,6 +103,7 @@ class FileSettings(BaseModel):
     market_environment: MarketEnvironmentConfig = Field(default_factory=MarketEnvironmentConfig)
     futures_evidence_enabled: bool = True
     outcome_tracking_enabled: bool = True
+    rollout_diagnostics_enabled: bool = False
     futures_screener: FuturesScreenerSettings = Field(default_factory=FuturesScreenerSettings)
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))

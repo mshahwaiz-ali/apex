@@ -188,3 +188,20 @@ def test_load_settings_uses_market_environment_from_default_yaml(tmp_path) -> No
 
     assert settings.market_environment.trend_strength_min == 0.6
     assert settings.market_environment.strong_trend_strength_min == 0.8
+
+
+def test_rollout_diagnostics_default_to_disabled() -> None:
+    settings = FileSettings()
+
+    assert settings.rollout_diagnostics_enabled is False
+
+
+def test_load_settings_accepts_rollout_diagnostics_switch(tmp_path) -> None:
+    (tmp_path / "default.yaml").write_text(
+        "rollout_diagnostics_enabled: true\n",
+        encoding="utf-8",
+    )
+
+    settings = load_settings(tmp_path)
+
+    assert settings.rollout_diagnostics_enabled is True

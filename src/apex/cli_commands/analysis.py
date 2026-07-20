@@ -16,12 +16,27 @@ from apex.application import (
     reconcile_pending_opportunities_sqlite,
     write_analysis_record,
     write_analysis_record_sqlite,
+    write_rollout_operator_report,
 )
+from apex.application.discovery_contracts import SymbolAnalysis
 from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.methodology_selected_entry_output import render_discovery_analysis
 from apex.presentation.terminal import emit_terminal
+
+
+def _serialize_analysis_payload(
+    result: SymbolAnalysis,
+    *,
+    rollout_diagnostics_enabled: bool,
+) -> dict[str, object]:
+    """Serialize analysis using the configured non-authoritative diagnostics switch."""
+
+    return serialize_symbol_analysis(
+        result,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
+    )
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
@@ -42,6 +57,11 @@ def register_analysis_commands(app: typer.Typer) -> None:
             None,
             "--record-db",
             help="Optional SQLite analysis record database path.",
+        ),
+        rollout_report: Path | None = typer.Option(
+            None,
+            "--rollout-report",
+            help="Optional non-authoritative rollout diagnostics JSON path.",
         ),
         config_dir: Path = typer.Option(
             Path("config"),
@@ -79,8 +99,17 @@ def register_analysis_commands(app: typer.Typer) -> None:
             typer.echo(f"Analysis market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        payload = serialize_symbol_analysis(result)
+        payload = _serialize_analysis_payload(
+            result,
+            rollout_diagnostics_enabled=context.settings.rollout_diagnostics_enabled,
+        )
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
+        if rollout_report is not None:
+            if not context.settings.rollout_diagnostics_enabled:
+                raise typer.BadParameter(
+                    "--rollout-report requires rollout_diagnostics_enabled: true"
+                )
+            write_rollout_operator_report(payload, rollout_report, command="analyze")
         effective_record_db = record_db
         if effective_record_db is None and context.settings.outcome_tracking_enabled:
             effective_record_db = context.settings.data_dir / "reports" / "analysis.db"

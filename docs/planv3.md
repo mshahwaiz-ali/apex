@@ -1636,41 +1636,118 @@ No confidence-band claims become user-facing until calibration supports them.
 
 ### Goal
 
-Move safely from compatibility behavior to the new product model.
+Move safely from compatibility behavior to the new product model while keeping
+the legacy path recoverable until diagnostic evidence supports removal.
 
-### Rollout sequence
+### Controlled rollout sequence
 
-1. New contracts behind compatibility adapter.
-2. Shared orchestrator enabled in tests.
-3. Multi-opportunity results available in diagnostic mode.
-4. New actionability and geometry enabled for fixtures.
-5. Compare old versus new outputs on a fixed symbol set.
-6. Enable new scan output.
-7. Enable new analyze output.
-8. Remove obsolete single-winner paths only after parity and regression review.
-9. Remove deprecated configuration only after migration documentation.
+1. Keep new contracts behind the compatibility adapter.
+2. Exercise the shared orchestrator through deterministic tests.
+3. Expose multi-opportunity results in non-authoritative diagnostic mode.
+4. Compare legacy and portfolio projections on fixed fixtures.
+5. Separate expected compatibility gaps from structural regressions.
+6. Require zero structural regressions for diagnostic acceptance.
+7. Keep rollout diagnostics disabled by default.
+8. Allow operators to enable diagnostics through typed configuration.
+9. Write dedicated rollout reports only when explicitly requested.
+10. Enable new scan or analyze output only after reviewed evidence.
+11. Remove obsolete single-winner paths only after parity and regression review.
+12. Remove deprecated configuration only after migration documentation.
+
+### Current controlled-rollout controls
+
+```yaml
+rollout_diagnostics_enabled: false
+```
+
+When disabled:
+
+- normal scan and analyze payloads remain unchanged;
+- no rollout comparison fields are attached;
+- no rollout report can be written.
+
+When enabled:
+
+- diagnostics remain explicitly non-authoritative;
+- scan and analyze use the same serialization switch;
+- `--rollout-report PATH` writes a dedicated operator artifact;
+- acceptance evaluation does not alter trade selection or command exit status.
+
+### Evidence gate
+
+Before enabling any new output as authoritative, review a fixed and reproducible
+comparison set. The evidence must include:
+
+- exact-match count;
+- compatibility-only difference count;
+- structural regression count;
+- differences by field;
+- affected fixture or symbol identities;
+- representative generated report;
+- Ruff, mypy, and focused pytest output;
+- operator sign-off.
+
+Diagnostic acceptance requires:
+
+```text
+regression_count == 0
+```
+
+Compatibility-only differences may be accepted when they are documented and do
+not conceal changes to strategy, direction, geometry, targets, rejection
+reasons, or opportunity count.
 
 ### Rollback boundary
 
-Keep each major batch independently revertible. Avoid combining:
+Keep every major rollout step independently revertible. Do not combine:
 
-- contract migration;
+- compatibility removal;
 - strategy threshold tuning;
 - live-data expansion;
 - CLI redesign;
-- calibration changes
+- calibration changes;
+- authoritative-output activation
 
 in one commit.
 
-### Final cleanup
+The immediate rollback control is:
+
+```yaml
+rollout_diagnostics_enabled: false
+```
+
+If an authoritative output is enabled later, rollback must restore the previous
+serializer or adapter without reverting unrelated methodology work.
+
+### Operator runbook
+
+Use `docs/rollout_operations.md` for:
+
+- enabling and disabling diagnostics;
+- generating analyze and scan rollout reports;
+- reviewing acceptance results;
+- collecting validation evidence;
+- rollback triggers;
+- compatibility-removal prerequisites.
+
+### Final cleanup gate
+
+The following remain blocked until controlled-rollout evidence is approved:
 
 - delete dead compatibility code;
 - remove duplicate selectors;
-- remove unused configuration;
-- update README and command help;
-- add architecture diagrams;
-- document all state semantics;
-- document calibration limitations.
+- remove unused or deprecated configuration;
+- make portfolio output authoritative;
+- remove legacy single-winner serialization.
+
+Documentation cleanup must also include:
+
+- README command examples;
+- command help;
+- architecture diagrams;
+- state semantics;
+- calibration limitations;
+- migration and rollback notes.
 
 ---
 
@@ -1937,3 +2014,19 @@ Apex is a CMP-first, multi-opportunity futures trade-analysis system.
 It should prioritize immediately actionable trades while preserving nearby limit entries, structurally independent opposite follow-ups, and post-TP continuation decisions. It must provide complete execution geometry, avoid chasing, distinguish setup quality from execution readiness, and remain honest about uncertainty and historical reliability.
 
 The system’s objective is not to produce the maximum number of signals or claim unrealistic accuracy. Its objective is to produce the most defensible, explainable, and executable opportunities available from the current market evidence while controlling false positives and preserving positive expectancy after realistic costs.
+
+### Batch 12 completion boundary
+
+Batch 12 is complete when the final cleanup-readiness audit confirms:
+
+- disabled-by-default behavior;
+- explicit diagnostic opt-in;
+- shared scan/analyze rollout wiring;
+- non-authoritative acceptance;
+- dedicated operator reporting;
+- legacy compatibility retention;
+- documented rollback and removal prerequisites.
+
+Completion of Batch 12 does not itself remove compatibility code or activate
+portfolio output as authoritative. Those actions remain blocked by the final
+cleanup gate and require a separate reviewed change.
