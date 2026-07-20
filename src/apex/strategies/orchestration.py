@@ -33,12 +33,19 @@ class SuppressedStrategyCandidate:
     candidate: TradeCandidate
     reason_codes: tuple[str, ...]
     reasons: tuple[str, ...]
+    candidate_id: str | None = None
+    entry_status: EntryStatus | None = None
+    suppression_stage: str = "strategy_routing"
 
     def __post_init__(self) -> None:
         if not self.reason_codes:
             raise ValueError("suppressed candidate reason codes cannot be empty")
         if not self.reasons:
             raise ValueError("suppressed candidate reasons cannot be empty")
+        if self.candidate_id is not None and not self.candidate_id.strip():
+            raise ValueError("suppressed candidate identity cannot be blank")
+        if not self.suppression_stage.strip():
+            raise ValueError("suppression stage cannot be blank")
 
 
 @dataclass(frozen=True, slots=True)

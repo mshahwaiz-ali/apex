@@ -423,6 +423,18 @@ def _zero_trade_diagnostics(
     )
     selected = selection.selected_candidate
     developing = assessment.developing_setup
+    methodology_input_count = int(
+        getattr(
+            methodology_routing,
+            "input_candidate_count",
+            len(getattr(strategy_analysis, "candidates", ())),
+        )
+    )
+    methodology_suppressed_count = int(
+        getattr(methodology_routing, "suppressed_candidate_count", 0)
+    )
+    scored_candidates = getattr(selection, "all_scored_candidates", ())
+    selection_metadata = getattr(selection, "metadata", {}) or {}
     return {
         "diagnostic_version": 1,
         "execution_filter_policy": (
@@ -432,11 +444,25 @@ def _zero_trade_diagnostics(
         "no_trade_reason": selection.no_trade_reason,
         "selection_summary": {
             "raw_candidate_count": len(strategy_analysis.candidates),
+            "methodology_input_candidate_count": methodology_input_count,
             "retained_candidate_count": len(eligible_routed.candidates),
+            "methodology_suppressed_candidate_count": methodology_suppressed_count,
+            "scored_candidate_count": len(scored_candidates),
             "ranked_count": len(selection.ranked_candidates),
+            "terminal_outcome_count": int(selection_metadata.get("terminal_outcome_count", 0)),
             "rejected_count": len(selection.rejected_candidates),
             "selected_candidate_id": None if selected is None else selected.scored.candidate_id,
             "developing_candidate_id": None if developing is None else developing.candidate_id,
+            "methodology_lineage_balanced": (
+                methodology_input_count
+                == len(eligible_routed.candidates) + methodology_suppressed_count
+            ),
+            "selection_lineage_balanced": bool(
+                selection_metadata.get(
+                    "lineage_balanced",
+                    len(scored_candidates) == len(selection.ranked_candidates),
+                )
+            ),
         },
         "entry_status_distribution": {
             "raw": dict(sorted(raw_status_counts.items())),

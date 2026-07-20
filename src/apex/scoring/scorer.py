@@ -4,13 +4,8 @@ from __future__ import annotations
 
 from apex.scoring.config import QUALITY_COMPONENTS, ScoringConfig
 from apex.scoring.contracts import ScoreBreakdown, ScoredCandidate
+from apex.strategies.candidate_identity import candidate_identity
 from apex.strategies.contracts import TradeCandidate
-
-
-def candidate_identity(candidate: TradeCandidate, occurrence: int) -> str:
-    """Return a stable identity within one candidate-selection result."""
-
-    return f"{candidate.strategy.value}:{candidate.direction.value}:{occurrence}"
 
 
 def _higher_timeframe_contradiction(candidate: TradeCandidate) -> float:

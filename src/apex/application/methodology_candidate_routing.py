@@ -15,6 +15,7 @@ from apex.application.methodology_strategy_enforcement import (
 )
 from apex.application.methodology_strategy_evaluation import evaluate_strategy_eligibility
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
+from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.strategy_types import StrategyType
 
@@ -58,13 +59,23 @@ class MethodologyCandidateRoutingResult:
     analysis: StrategyAnalysisResult
     mode: MethodologyGateMode
     decisions: tuple[StrategyEnforcementDecision, ...]
+    input_candidate_count: int
     suppressed_candidate_count: int
     suppressed_strategies: tuple[StrategyType, ...]
     reason_codes: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        if self.input_candidate_count < 0:
+            raise ValueError("input candidate count cannot be negative")
         if self.suppressed_candidate_count < 0:
             raise ValueError("suppressed candidate count cannot be negative")
+        if (
+            len(self.analysis.candidates) + self.suppressed_candidate_count
+            != self.input_candidate_count
+        ):
+            raise ValueError(
+                "methodology routing must balance input candidates into retained and suppressed"
+            )
         if len(set(self.suppressed_strategies)) != len(self.suppressed_strategies):
             raise ValueError("suppressed strategies must be unique")
         if len({item.strategy for item in self.decisions}) != len(self.decisions):
@@ -124,12 +135,18 @@ def apply_methodology_candidate_routing(
             analysis=analysis,
             mode=normalized_mode,
             decisions=decisions,
+            input_candidate_count=len(analysis.candidates),
             suppressed_candidate_count=0,
             suppressed_strategies=(),
             reason_codes=("METHODOLOGY_CANDIDATE_ROUTING_SHADOW",),
         )
 
     decision_by_strategy = {item.strategy: item for item in decisions}
+    identities = candidate_identities(analysis.candidates)
+    identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+    status_by_object = {
+        id(item.candidate): item.status for item in analysis.candidate_actionability
+    }
     retained: list[TradeCandidate] = []
     newly_suppressed: list[SuppressedStrategyCandidate] = []
     suppressed_strategies: list[StrategyType] = []
@@ -144,6 +161,9 @@ def apply_methodology_candidate_routing(
                 candidate=candidate,
                 reason_codes=decision.reason_codes,
                 reasons=decision.reasons,
+                candidate_id=identity_by_object[id(candidate)],
+                entry_status=status_by_object.get(id(candidate)),
+                suppression_stage="methodology_enforcement",
             )
         )
         if strategy not in suppressed_strategies:
@@ -165,6 +185,7 @@ def apply_methodology_candidate_routing(
         analysis=routed,
         mode=normalized_mode,
         decisions=decisions,
+        input_candidate_count=len(analysis.candidates),
         suppressed_candidate_count=len(newly_suppressed),
         suppressed_strategies=tuple(suppressed_strategies),
         reason_codes=(
@@ -239,8 +260,13 @@ def methodology_candidate_routing_payload(
     )
     return {
         "mode": result.mode.value,
+        "input_candidate_count": result.input_candidate_count,
         "retained_candidate_count": len(result.analysis.candidates),
         "suppressed_candidate_count": result.suppressed_candidate_count,
+        "lineage_balanced": (
+            result.input_candidate_count
+            == len(result.analysis.candidates) + result.suppressed_candidate_count
+        ),
         "all_generated_candidates_suppressed": (
             result.suppressed_candidate_count > 0 and not result.analysis.candidates
         ),
@@ -249,8 +275,14 @@ def methodology_candidate_routing_payload(
         "strategy_decisions": [strategy_enforcement_payload(item) for item in result.decisions],
         "suppressed_candidates": [
             {
+                "candidate_id": item.candidate_id,
                 "strategy": item.candidate.strategy.value,
                 "direction": item.candidate.direction.value,
+                "entry_status": (
+                    item.entry_status.value if item.entry_status is not None else None
+                ),
+                "suppression_stage": item.suppression_stage,
+                "terminal_outcome": "suppressed",
                 "reason_codes": list(item.reason_codes),
                 "reasons": list(item.reasons),
             }

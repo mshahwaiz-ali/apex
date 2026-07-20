@@ -246,3 +246,31 @@ def test_selected_trade_cannot_also_have_no_trade_reason() -> None:
             configuration_id="test",
             metadata={},
         )
+
+
+def test_result_rejects_missing_ranked_terminal_outcome() -> None:
+    scored = _scored()
+    with pytest.raises(
+        ValueError,
+        match="every scored candidate must have exactly one ranked terminal outcome",
+    ):
+        CandidateSelectionResult(
+            symbol="BTC/USDT",
+            decision_time=NOW,
+            all_scored_candidates=(scored,),
+            ranked_candidates=(),
+            rejected_candidates=(),
+            conflict_summary=ConflictSummary(
+                directional_consensus=DirectionalConsensus.NONE,
+                long_count=0,
+                short_count=0,
+                duplicate_groups=(),
+                warnings=(),
+            ),
+            directional_consensus=DirectionalConsensus.NONE,
+            selected_candidate=None,
+            no_trade_reason="candidate disappeared",
+            evaluated_strategy_order=ORDER,
+            configuration_id="test",
+            metadata={},
+        )

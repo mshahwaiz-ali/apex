@@ -125,12 +125,18 @@ def test_enforce_mode_removes_explicit_conflict_and_keeps_audit_record() -> None
     assert result.suppressed_strategies == (StrategyType.RANGE_REVERSAL,)
     payload = methodology_candidate_routing_payload(result)
     assert payload["reason_codes"] == ["METHODOLOGY_CANDIDATES_SUPPRESSED"]
+    assert payload["input_candidate_count"] == 2
     assert payload["retained_candidate_count"] == 1
+    assert payload["lineage_balanced"] is True
     assert payload["all_generated_candidates_suppressed"] is False
     assert payload["suppressed_candidates"] == [
         {
+            "candidate_id": "range_reversal:long:0",
             "strategy": StrategyType.RANGE_REVERSAL.value,
             "direction": "long",
+            "entry_status": result.analysis.suppressed_candidates[0].entry_status.value,
+            "suppression_stage": "methodology_enforcement",
+            "terminal_outcome": "suppressed",
             "reason_codes": ["TEST_SUPPRESS"],
             "reasons": ["range_reversal is suppress"],
         }

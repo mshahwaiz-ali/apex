@@ -15,6 +15,7 @@ from apex.strategies import (
     strategy_evidence_payload,
     strategy_evidence_summary,
 )
+from apex.strategies.candidate_identity import candidate_identities
 
 
 def apply_strategy_routing(
@@ -38,11 +39,24 @@ def apply_strategy_routing(
         CandidateActionability(candidate=entry.candidate, status=entry.status)
         for entry in enabled_candidates_with_status
     )
+    identity_by_object = dict(
+        zip(
+            map(id, strategy_analysis.candidates),
+            candidate_identities(strategy_analysis.candidates),
+            strict=True,
+        )
+    )
+    status_by_object = {
+        id(entry.candidate): entry.status for entry in strategy_analysis.candidate_actionability
+    }
     newly_suppressed = tuple(
         SuppressedStrategyCandidate(
             candidate=candidate,
             reason_codes=("STRATEGY_EXPLICITLY_DISABLED",),
             reasons=(f"{candidate.strategy.value} is disabled by explicit strategy configuration",),
+            candidate_id=identity_by_object[id(candidate)],
+            entry_status=status_by_object.get(id(candidate)),
+            suppression_stage="strategy_enablement",
         )
         for candidate in strategy_analysis.candidates
         if candidate.strategy not in enabled
@@ -176,8 +190,10 @@ def _suppressed_payload(
         return []
     return [
         {
-            **_candidate_payload(item.candidate, status=None),
+            **_candidate_payload(item.candidate, status=item.entry_status),
+            "candidate_id": item.candidate_id,
             "routing_status": "suppressed",
+            "suppression_stage": item.suppression_stage,
             "reason_codes": list(item.reason_codes),
             "reasons": list(item.reasons),
         }

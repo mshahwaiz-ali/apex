@@ -34,6 +34,10 @@ def analyze_candidate_selection(
     ranked, conflict_summary = resolve_conflicts(initially_ranked, config=config)
     selected = select_candidate(ranked, config=config)
     rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
+    outcome_counts = {
+        outcome.value: sum(item.outcome is outcome for item in ranked)
+        for outcome in CandidateOutcome
+    }
     return CandidateSelectionResult(
         symbol=strategy_analysis.symbol,
         decision_time=strategy_analysis.decision_time,
@@ -48,8 +52,17 @@ def analyze_candidate_selection(
         configuration_id=config.identifier,
         metadata={
             "candidate_count": len(scored),
+            "ranked_count": len(ranked),
             "rejected_count": len(rejected),
             "selected": selected is not None,
+            "minimum_accept_score": config.minimum_accept_score,
+            "warning_accept_score": config.warning_accept_score,
+            "terminal_outcome_count": sum(outcome_counts.values()),
+            **{
+                f"terminal_outcome_{outcome.value}_count": outcome_counts[outcome.value]
+                for outcome in CandidateOutcome
+            },
+            "lineage_balanced": len(scored) == len(ranked) == sum(outcome_counts.values()),
             "config_hash": config.fingerprint(),
             "duplicate_cluster_count": len(conflict_summary.duplicate_groups),
             "decision_regime": strategy_analysis.decision_regime.value,

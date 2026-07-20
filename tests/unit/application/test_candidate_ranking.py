@@ -8,6 +8,7 @@ from apex.application.candidate_ranking import (
     candidate_ranking_payload,
 )
 from apex.scoring import analyze_candidate_selection
+from apex.scoring.config import ScoringConfig
 from apex.strategies import (
     EntryMode,
     EntryZone,
@@ -166,3 +167,60 @@ def test_payload_preserves_candidate_geometry_for_focused_analysis() -> None:
     assert rejected["invalidation"]["price"] == 95.0
     assert rejected["targets"][0]["price"] == 110.0
     assert rejected["evidence"]["supporting"] == ["test evidence"]
+
+
+def test_snapshot_uses_runtime_approval_threshold() -> None:
+    strategy_analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(_candidate(StrategyType.TREND_PULLBACK, quality=0.40),),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+    )
+    config = ScoringConfig(
+        identifier="custom-threshold",
+        minimum_accept_score=66.0,
+        warning_accept_score=60.0,
+    )
+
+    selection = analyze_candidate_selection(strategy_analysis, config=config)
+    payload = candidate_ranking_payload(build_candidate_ranking_snapshot(selection))
+
+    rejected = payload["rejected"][0]  # type: ignore[index]
+    assert rejected["approval_threshold"] == 66.0
+    assert selection.metadata["minimum_accept_score"] == 66.0
+    assert selection.metadata["warning_accept_score"] == 60.0
+    assert selection.metadata["lineage_balanced"] is True
+    assert selection.metadata["terminal_outcome_count"] == 1
+
+
+def test_rejected_payload_exposes_exact_threshold_and_penalties() -> None:
+    strategy_analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(_candidate(StrategyType.TREND_PULLBACK, quality=0.40),),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+    )
+
+    payload = candidate_ranking_payload(
+        build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
+    )
+    rejected = payload["rejected"][0]  # type: ignore[index]
+
+    assert rejected["approval_threshold"] == 58.0
+    assert rejected["warning_threshold"] == 52.0
+    assert rejected["outcome_threshold"] == 52.0
+    assert rejected["score_shortfall"] == max(
+        0.0,
+        rejected["outcome_threshold"] - rejected["final_score"],
+    )
+    assert rejected["base_score"] >= rejected["final_score"]
+    assert rejected["total_penalty"] >= 0.0
+    assert set(rejected["penalty_points"]) == {
+        "extension_penalty",
+        "conflict_penalty",
+        "provisional_penalty",
+        "higher_timeframe_contradiction",
+    }
+    assert rejected["primary_reason_code"] == "SCORE_BELOW_WARNING_THRESHOLD"
+    assert rejected["secondary_reason_codes"] == []
+    assert rejected["reason_codes"] == ["SCORE_BELOW_WARNING_THRESHOLD"]

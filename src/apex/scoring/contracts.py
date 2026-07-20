@@ -185,7 +185,12 @@ class CandidateSelectionResult:
         ranks = tuple(item.rank for item in self.ranked_candidates)
         if ranks != tuple(range(1, len(ranks) + 1)):
             raise ValueError("ranked candidates must have contiguous ranks")
-        ranked_ids = {item.scored.candidate_id for item in self.ranked_candidates}
+        ranked_identity_sequence = tuple(
+            item.scored.candidate_id for item in self.ranked_candidates
+        )
+        if len(set(ranked_identity_sequence)) != len(ranked_identity_sequence):
+            raise ValueError("ranked candidate identities must be unique")
+        ranked_ids = set(ranked_identity_sequence)
         rejected_ids = {item.scored.candidate_id for item in self.rejected_candidates}
         if not rejected_ids.issubset(ranked_ids):
             raise ValueError("rejected candidates must belong to ranked candidates")
@@ -197,6 +202,8 @@ class CandidateSelectionResult:
                 raise ValueError("selected trade cannot also have a no-trade reason")
         elif not self.no_trade_reason or not self.no_trade_reason.strip():
             raise ValueError("no-trade result requires a reason")
+        if set(identities) != ranked_ids:
+            raise ValueError("every scored candidate must have exactly one ranked terminal outcome")
         if self.directional_consensus is not self.conflict_summary.directional_consensus:
             raise ValueError("directional consensus must match conflict summary")
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
