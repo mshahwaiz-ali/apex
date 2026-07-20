@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 
 from apex.presentation import (
@@ -260,6 +261,9 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
     groups = _canonical_scan_groups(payload)
     sections = [render_title("Apex Market Scan")]
     sections.append(_scan_summary(payload, groups))
+    health = _scan_health_summary(groups)
+    if health:
+        sections.append(health)
 
     for title, hint, items in (
         (
@@ -296,6 +300,10 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
     failures = _scan_failure_lines(payload)
     if failures:
         sections.append(render_section("Scan failures", render_bullets(failures)))
+
+    conclusion = _scan_conclusion(groups)
+    if conclusion:
+        sections.append(conclusion)
 
     if explain:
         screening = _mapping(payload.get("screening"))
@@ -522,38 +530,169 @@ def _signed_move_label(price: float | None, reference: float | None) -> str:
     return UNAVAILABLE if move is None else f"{move:+.2f}%"
 
 
+def _scan_health_summary(
+    groups: Mapping[str, Sequence[Mapping[str, object]]],
+) -> str:
+    no_trade = groups["no_trade"]
+    rejection_counts = Counter(_no_trade_category(item) for item in no_trade)
+    fields: list[tuple[str, object]] = [
+        ("Executable now", len(groups["enter"])),
+        ("Confirmation entries", len(groups["confirmation"])),
+        ("Nearby entries", len(groups["nearby"])),
+        ("Developing", len(groups["developing"])),
+        ("No valid setup", len(no_trade)),
+    ]
+    for category, count in rejection_counts.most_common(4):
+        fields.append((category, count))
+    return render_section("Market health", render_fields(fields))
+
+
 def _no_trade_plan_group(items: Sequence[Mapping[str, object]]) -> str:
-    cards = [_no_trade_plan_card(item, index=index) for index, item in enumerate(items, start=1)]
-    hint = (
-        "  No executable geometry is being invented. Each symbol shows the best "
-        "available trigger or the exact rejection reason."
+    grouped: dict[str, list[Mapping[str, object]]] = {}
+    for item in items:
+        grouped.setdefault(_no_trade_category(item), []).append(item)
+
+    blocks: list[str] = [
+        "  No executable geometry is being invented. Unavailable fields are hidden; "
+        "each symbol shows its clearest rejection reason and next action."
+    ]
+    index = 1
+    order = (
+        "Waiting for trigger",
+        "Weak execution quality",
+        "Methodology rejected",
+        "No valid structure",
+        "Data unavailable",
     )
-    body = hint + "\n\n" + ("\n  " + "·" * 72 + "\n\n").join(cards)
-    return render_section(f"No current trade — Setup plans ({len(items)})", body)
+    for category in order:
+        category_items = grouped.get(category, [])
+        if not category_items:
+            continue
+        cards: list[str] = []
+        for item in category_items:
+            cards.append(_no_trade_plan_card(item, index=index))
+            index += 1
+        blocks.append(
+            f"  {category} ({len(category_items)})\n\n" + ("\n  " + "·" * 72 + "\n\n").join(cards)
+        )
+    return render_section(f"No current trade — Setup plans ({len(items)})", "\n\n".join(blocks))
 
 
 def _no_trade_plan_card(payload: Mapping[str, object], *, index: int) -> str:
     symbol = str(payload.get("symbol") or "Unknown market")
     plan = _mapping(payload.get("setup_plan"))
-    reasons = _clean_many(payload.get("reasons"))
+    reason = _no_trade_reason(payload)
+    category = _no_trade_category(payload)
+    fields: list[tuple[str, object]] = [
+        ("Verdict", category),
+        ("Reason", reason),
+        ("Priority", _no_trade_priority(payload)),
+    ]
+    for label, value in (
+        ("Long trigger", plan.get("long_trigger")),
+        ("Short trigger", plan.get("short_trigger")),
+        ("Invalidation", plan.get("invalidation")),
+    ):
+        if _available_output_value(value):
+            fields.append((label, value))
+    fields.append(("Next action", _no_trade_next_action(payload)))
     return "\n".join(
         (
-            f"▶  #{index}  {symbol} — NO VALID SETUP YET",
-            render_fields(
-                (
-                    ("Status", humanize_code(plan.get("status") or "no_valid_setup_yet")),
-                    (
-                        "Current state",
-                        plan.get("current_state") or (reasons[0] if reasons else None),
-                    ),
-                    ("Long trigger", plan.get("long_trigger")),
-                    ("Short trigger", plan.get("short_trigger")),
-                    ("Invalidation", plan.get("invalidation")),
-                    ("Main risk", plan.get("main_risk") or (reasons[0] if reasons else None)),
-                )
-            ),
+            f"▶  #{index}  {symbol} — NO VALID SETUP YET · {category.upper()}",
+            render_fields(fields),
         )
     )
+
+
+def _no_trade_reason(payload: Mapping[str, object]) -> str:
+    plan = _mapping(payload.get("setup_plan"))
+    reasons = _clean_many(payload.get("reasons"))
+    for value in (
+        plan.get("main_risk"),
+        reasons[0] if reasons else None,
+        plan.get("current_state"),
+    ):
+        if _available_output_value(value):
+            return _clean(value)
+    return "No structurally valid opportunity is available."
+
+
+def _no_trade_category(payload: Mapping[str, object]) -> str:
+    plan = _mapping(payload.get("setup_plan"))
+    reason = _no_trade_reason(payload).lower()
+    state = str(plan.get("current_state") or "").lower()
+    trigger_available = any(
+        _available_output_value(plan.get(field)) for field in ("long_trigger", "short_trigger")
+    )
+    if any(token in reason for token in ("candle", "usable candles", "data", "unavailable")):
+        return "Data unavailable"
+    if trigger_available:
+        return "Waiting for trigger"
+    if any(token in reason for token in ("score", "quality", "floor", "confidence")):
+        return "Weak execution quality"
+    if any(
+        token in f"{reason} {state}"
+        for token in ("methodology", "routing", "eligible", "suppressed", "rejected")
+    ):
+        return "Methodology rejected"
+    return "No valid structure"
+
+
+def _no_trade_priority(payload: Mapping[str, object]) -> str:
+    category = _no_trade_category(payload)
+    if category == "Waiting for trigger":
+        return "High"
+    if category == "Weak execution quality":
+        return "Medium"
+    return "Low"
+
+
+def _no_trade_next_action(payload: Mapping[str, object]) -> str:
+    category = _no_trade_category(payload)
+    plan = _mapping(payload.get("setup_plan"))
+    long_trigger = plan.get("long_trigger")
+    short_trigger = plan.get("short_trigger")
+    if category == "Waiting for trigger":
+        if _available_output_value(long_trigger) and _available_output_value(short_trigger):
+            return "Monitor the stated long and short triggers."
+        if _available_output_value(long_trigger):
+            return "Monitor the stated long trigger; do not chase before activation."
+        return "Monitor the stated short trigger; do not chase before activation."
+    if category == "Weak execution quality":
+        return "Ignore until score, execution quality, or risk geometry improves."
+    if category == "Methodology rejected":
+        return "Wait for structure or regime evidence to change before re-analysis."
+    if category == "Data unavailable":
+        return "Retry after sufficient market data is available."
+    return "Re-run after a material market-structure change."
+
+
+def _available_output_value(value: object) -> bool:
+    if value is None:
+        return False
+    normalized = str(value).strip().lower()
+    return normalized not in {"", "unavailable", "none", "n/a"}
+
+
+def _scan_conclusion(
+    groups: Mapping[str, Sequence[Mapping[str, object]]],
+) -> str:
+    executable = len(groups["enter"])
+    monitor = len(groups["confirmation"]) + len(groups["nearby"]) + len(groups["developing"])
+    no_trade = groups["no_trade"]
+    rejected = sum(
+        _no_trade_category(item) in {"Methodology rejected", "No valid structure"}
+        for item in no_trade
+    )
+    lines = [
+        f"Executable setups: {executable}.",
+        f"Symbols worth monitoring: {monitor}.",
+        f"Rejected until conditions change: {rejected}.",
+    ]
+    if executable == 0:
+        lines.insert(0, "No executable setup was found in this scan.")
+    lines.append("Use `apex analyze SYMBOL` for complete multi-opportunity diagnostics.")
+    return render_section("Scan conclusion", render_bullets(lines))
 
 
 def _scan_methodology_status(payload: Mapping[str, object]) -> str:
