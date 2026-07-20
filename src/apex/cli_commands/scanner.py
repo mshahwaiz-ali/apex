@@ -20,7 +20,6 @@ from apex.application import (
     write_analysis_record,
     write_analysis_record_sqlite,
     write_json_report,
-    write_rollout_operator_report,
 )
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.enriched_public_output import (
@@ -39,29 +38,20 @@ def _serialize_scan_payload(
     *,
     display_limit: int,
     direction: ScanDirection,
-    rollout_diagnostics_enabled: bool,
 ) -> dict[str, object]:
-    """Serialize scan output using the configured diagnostics switch."""
+    """Serialize the canonical ranked scan payload."""
 
     return serialize_scan_result(
         result,
         display_limit=display_limit,
         direction=direction,
-        include_rollout_diagnostics=rollout_diagnostics_enabled,
     )
 
 
-def _serialize_scan_analysis_record(
-    analysis: SymbolAnalysis,
-    *,
-    rollout_diagnostics_enabled: bool,
-) -> dict[str, object]:
-    """Serialize a scan record with the same diagnostics configuration."""
+def _serialize_scan_analysis_record(analysis: SymbolAnalysis) -> dict[str, object]:
+    """Serialize one scan result for internal outcome tracking."""
 
-    return serialize_symbol_analysis(
-        analysis,
-        include_rollout_diagnostics=rollout_diagnostics_enabled,
-    )
+    return serialize_symbol_analysis(analysis)
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
@@ -78,22 +68,21 @@ def register_scanner_commands(app: typer.Typer) -> None:
             help="Optional static symbol override. Defaults to live Binance futures discovery.",
         ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
-        report: Path | None = typer.Option(None, "--report"),
-        rollout_report: Path | None = typer.Option(
-            None,
-            "--rollout-report",
-            help="Optional non-authoritative rollout diagnostics JSON path.",
+        report: Path | None = typer.Option(None, "--report", hidden=True),
+        record: Path | None = typer.Option(None, "--record", hidden=True),
+        record_db: Path | None = typer.Option(None, "--record-db", hidden=True),
+        explain: bool = typer.Option(
+            False,
+            "--explain",
+            help="Show full evidence, contradictions, rejected candidates, and diagnostics.",
         ),
-        record: Path | None = typer.Option(None, "--record"),
-        record_db: Path | None = typer.Option(None, "--record-db"),
-        explain: bool = typer.Option(False, "--explain", help="Show full diagnostic evidence."),
         candle_limit: int = typer.Option(200, "--candles", min=200, max=999),
         results: int = typer.Option(
             20,
             "--results",
             min=1,
             max=50,
-            help="Maximum ranked results to display after detailed analysis.",
+            help="Maximum ranked trade opportunities to display.",
         ),
         shortlist: int = typer.Option(
             36,
@@ -116,7 +105,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
             help="Configuration directory containing Apex YAML settings.",
         ),
     ) -> None:
-        """Discover, analyze, and rank the active futures symbol universe."""
+        """Find and rank current or developing futures trade setups."""
 
         try:
             output_mode = _normalize_scanner_output(output)
@@ -168,19 +157,12 @@ def register_scanner_commands(app: typer.Typer) -> None:
             result,
             display_limit=results,
             direction=direction,
-            rollout_diagnostics_enabled=context.settings.rollout_diagnostics_enabled,
         )
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         if report is not None:
             write_json_report(payload, report)
-        if rollout_report is not None:
-            if not context.settings.rollout_diagnostics_enabled:
-                raise typer.BadParameter(
-                    "--rollout-report requires rollout_diagnostics_enabled: true"
-                )
-            write_rollout_operator_report(payload, rollout_report, command="scan")
         effective_record_db = record_db
         if effective_record_db is None and context.settings.outcome_tracking_enabled:
             effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
@@ -195,10 +177,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         analysis.symbol,
                         analysis.outcome_candles,
                     )
-                    analysis_payload = _serialize_scan_analysis_record(
-                        analysis,
-                        rollout_diagnostics_enabled=(context.settings.rollout_diagnostics_enabled),
-                    )
+                    analysis_payload = _serialize_scan_analysis_record(analysis)
                     analysis_payload.update(
                         configuration_metadata(context.settings.model_dump(mode="json"))
                     )
