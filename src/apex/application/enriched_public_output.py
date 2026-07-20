@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from enum import Enum
 from typing import Any
 
 from apex.application import public_output as _base
@@ -11,72 +13,15 @@ from apex.application.decision_analysis import DEFAULT_SCAN_DISPLAY_LIMIT
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_public_enrichment import methodology_public_enrichment
-from apex.application.rollout_comparison import (
-    NamedAnalysisComparison,
-    analysis_comparison_payload,
-    compare_analysis_outputs,
-    comparison_summary_payload,
-    summarize_analysis_comparisons,
-)
-
-_LEGACY_ROLLOUT_KEYS = (
-    "symbol",
-    "setup",
-    "developing_setup",
-    "entry_state",
-    "entry_status",
-    "confidence_score",
-    "quality_score",
-    "rank",
-    "final_rank_score",
-    "ranking_score",
-    "reasons",
-    "rejection_reasons",
-)
 
 
-def _legacy_rollout_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Extract only the frozen single-winner compatibility surface."""
-
-    return {key: payload.get(key) for key in _LEGACY_ROLLOUT_KEYS if key in payload}
-
-
-def _portfolio_rollout_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Extract only the native portfolio surface from the same analysis result."""
-
-    return {
-        "symbol": payload.get("symbol"),
-        "opportunity_portfolio": payload.get("opportunity_portfolio"),
-        "rejection_reasons": payload.get(
-            "rejection_reasons",
-            payload.get("reasons", ()),
-        ),
-    }
-
-
-def _build_rollout_comparison(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Compare independent legacy and portfolio projections, never a payload to itself."""
-
-    return analysis_comparison_payload(
-        compare_analysis_outputs(
-            _legacy_rollout_projection(payload),
-            _portfolio_rollout_projection(payload),
-        )
-    )
-
-
-def serialize_symbol_analysis(
-    analysis: SymbolAnalysis,
-    *,
-    include_rollout_diagnostics: bool = False,
-) -> dict[str, Any]:
-    """Serialize one analysis and attach non-authoritative methodology metadata."""
+def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
+    """Serialize one analysis with the opportunity portfolio as public authority."""
 
     payload = _base.serialize_symbol_analysis(analysis)
+    _project_portfolio(analysis, payload)
     methodology = project_analysis_methodology(analysis)
     payload.update(methodology_public_enrichment(analysis, methodology))
-    if include_rollout_diagnostics:
-        payload["rollout_comparison"] = _build_rollout_comparison(payload)
     return payload
 
 
@@ -85,75 +30,113 @@ def serialize_scan_result(
     *,
     display_limit: int = DEFAULT_SCAN_DISPLAY_LIMIT,
     direction: str = "both",
-    include_rollout_diagnostics: bool = False,
 ) -> dict[str, Any]:
-    """Serialize a scan while preserving base ranking and grouping behavior."""
+    """Serialize a scan using the same portfolio projection as selected analysis."""
 
-    payload = _base.serialize_scan_result(
-        result,
-        display_limit=display_limit,
-        direction=direction,
-    )
     normalized_direction = direction.strip().lower()
-    ranked = (
-        result.analyses
-        if normalized_direction == "both"
-        else tuple(
-            item
-            for item in result.analyses
-            if item.assessment.setup is not None
-            and item.assessment.setup.direction.value == normalized_direction
-        )
-    )
-    displayed = tuple(ranked[:display_limit])
-    serialized = payload.get("results")
-    if isinstance(serialized, list):
-        for analysis, item in zip(displayed, serialized, strict=False):
-            if not isinstance(item, dict):
-                continue
-            methodology = project_analysis_methodology(analysis)
-            item.update(methodology_public_enrichment(analysis, methodology))
-            if include_rollout_diagnostics:
-                item["rollout_comparison"] = _build_rollout_comparison(item)
+    if normalized_direction not in {"long", "short", "both"}:
+        raise ValueError("direction must be one of: long, short, both")
 
-    completeness_counts: Counter[str] = Counter()
-    authoritative_count = 0
-    projected_count = 0
-    for item in serialized if isinstance(serialized, list) else ():
-        if not isinstance(item, Mapping):
-            continue
-        if item.get("methodology_projection_authoritative") is True:
-            authoritative_count += 1
-        else:
-            projected_count += 1
-        completeness = item.get("methodology_completeness")
-        if isinstance(completeness, Mapping):
-            unavailable = completeness.get("unavailable_fields")
-            if isinstance(unavailable, list):
-                completeness_counts.update(str(field) for field in unavailable)
-
-    payload["methodology_authoritative_result_count"] = authoritative_count
-    payload["methodology_projected_result_count"] = projected_count
-    payload["methodology_unavailable_field_counts"] = dict(sorted(completeness_counts.items()))
-    payload["methodology_coverage_interpretation"] = (
-        "metadata coverage only; not ranking, trade quality, or win probability"
+    ranked = tuple(
+        analysis
+        for analysis in result.analyses
+        if normalized_direction == "both" or _portfolio_has_direction(analysis, normalized_direction)
     )
-    if include_rollout_diagnostics:
-        comparisons = tuple(
-            NamedAnalysisComparison(
-                fixture_id=str(item.get("symbol", f"result-{index}")),
-                report=compare_analysis_outputs(
-                    _legacy_rollout_projection(item),
-                    _portfolio_rollout_projection(item),
-                ),
-            )
-            for index, item in enumerate(serialized if isinstance(serialized, list) else ())
-            if isinstance(item, Mapping)
+    displayed = ranked[:display_limit]
+    serialized = [serialize_symbol_analysis(analysis) for analysis in displayed]
+    actionable = [item for item in serialized if item.get("setup") is not None]
+    developing = [
+        item
+        for item in serialized
+        if item.get("setup") is None and item.get("developing_setup") is not None
+    ]
+    no_trade = [
+        item
+        for item in serialized
+        if item.get("setup") is None and item.get("developing_setup") is None
+    ]
+    valid = actionable + developing
+    return {
+        "schema_version": 3,
+        "generated_at": result.generated_at.isoformat(),
+        "best_overall": valid[0] if valid else None,
+        "best_actionable": actionable[0] if actionable else None,
+        "best_developing": developing[0] if developing else None,
+        "actionable_setups": actionable,
+        "developing_setups": developing,
+        "unavailable_setups": [],
+        "no_trade_results": no_trade,
+        "results": serialized,
+        "total_analysis_count": len(result.analyses),
+        "displayed_analysis_count": len(serialized),
+        "display_limit": display_limit,
+        "direction_filter": normalized_direction,
+        "selected_setup_count": len(actionable),
+        "execution_ready_count": len(actionable),
+        "actionable_count": len(actionable),
+        "developing_count": len(developing),
+        "unavailable_count": 0,
+        "no_trade_count": len(no_trade),
+        "long_candidate_count": sum(_payload_direction(item) == "long" for item in valid),
+        "short_candidate_count": sum(_payload_direction(item) == "short" for item in valid),
+        "failures": dict(result.failures),
+    }
+
+
+def _project_portfolio(analysis: SymbolAnalysis, payload: dict[str, Any]) -> None:
+    portfolio = analysis.opportunity_portfolio
+    if portfolio is None:
+        return
+
+    current = portfolio.current_opportunities
+    nearby = portfolio.nearby_opportunities
+    follow_up = portfolio.follow_up_opportunities
+    primary = current[0] if current else None
+    developing = nearby[0] if nearby else follow_up[0] if follow_up else None
+    payload["setup"] = None if primary is None else _normalize(primary.setup)
+    payload["developing_setup"] = None if developing is None else _normalize(developing.setup)
+    payload["portfolio_decision"] = portfolio.public_decision.value
+
+    effective = payload["setup"] or payload["developing_setup"]
+    if not isinstance(effective, Mapping):
+        payload.update(
+            entry_status=None,
+            strategy=None,
+            confidence_score=None,
+            quality_score=None,
+            result_group="no_trade",
         )
-        payload["rollout_comparison_summary"] = comparison_summary_payload(
-            summarize_analysis_comparisons(comparisons)
-        )
-    return payload
+        return
+
+    payload["entry_status"] = effective.get("entry_status")
+    payload["strategy"] = effective.get("strategy")
+    payload["confidence_score"] = effective.get("confidence_score")
+    payload["quality_score"] = effective.get("confidence_score")
+    payload["result_group"] = "actionable" if primary is not None else "developing"
+
+
+def _normalize(value: Any) -> Any:
+    if is_dataclass(value):
+        return _normalize(asdict(value))
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if isinstance(value, Mapping):
+        return {str(key): _normalize(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_normalize(item) for item in value]
+    return value
+
+
+def _portfolio_has_direction(analysis: SymbolAnalysis, direction: str) -> bool:
+    portfolio = analysis.opportunity_portfolio
+    return portfolio is not None and portfolio.has_direction(direction)
+
+
+def _payload_direction(payload: Mapping[str, Any]) -> str | None:
+    setup = payload.get("setup") or payload.get("developing_setup")
+    return str(setup.get("direction")) if isinstance(setup, Mapping) else None
 
 
 __all__ = ["serialize_scan_result", "serialize_symbol_analysis"]
