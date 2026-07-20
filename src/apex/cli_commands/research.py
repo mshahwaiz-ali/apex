@@ -168,18 +168,32 @@ def _run_public_data_campaign(
     manifest_path = dataset_dir / "campaign_manifest.json"
     write_manifest(manifest_path, manifest)
     training_result = train_campaign_models(dataset_dir) if train_model else None
+    unique_symbols = sorted({symbol for values in universe.values() for symbol in values})
     return {
         "schema_version": 1,
         "campaign": True,
         "months": list(months),
+        "date_range": {"start": months[0], "end": months[-1]},
+        "dataset_dir": str(dataset_dir),
+        "universe_path": str(universe_path),
         "universe_size": 30,
-        "symbol_count": len({symbol for values in universe.values() for symbol in values}),
+        "symbol_count": len(unique_symbols),
+        "symbols": unique_symbols,
+        "universe_by_month": {month: list(symbols) for month, symbols in universe.items()},
         "verified_file_count": len(files),
+        "verified_files": dict(sorted(files.items())),
         "missing_file_count": len(missing),
+        "missing_files": dict(sorted(missing.items())),
         "manifest": str(manifest_path),
         "manifest_hash": manifest.checksum,
+        "manifest_schema_version": manifest.schema_version,
         "train_model_requested": train_model,
         "model_training": training_result if train_model else "not requested",
+        "artifacts": {
+            "dataset_dir": str(dataset_dir),
+            "universe": str(universe_path),
+            "manifest": str(manifest_path),
+        },
         "calibration_authoritative": False,
     }
 

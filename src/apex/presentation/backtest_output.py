@@ -215,52 +215,147 @@ def _render_no_trades(decisions: Sequence[object]) -> str:
 
 
 def render_campaign(payload: Mapping[str, object]) -> str:
-    """Render a public-data campaign status report."""
+    """Render a complete public-data campaign status report."""
 
-    months = payload.get("months")
-    month_values = (
-        [str(item) for item in months]
-        if isinstance(months, Sequence) and not isinstance(months, str | bytes)
-        else []
-    )
-    missing = _number(payload.get("missing_file_count")) or 0.0
+    month_values = [str(item) for item in _sequence(payload.get("months"))]
+    universe = _mapping(payload.get("universe_by_month"))
+    verified_files = _mapping(payload.get("verified_files"))
+    missing_files = _mapping(payload.get("missing_files"))
+    artifacts = _mapping(payload.get("artifacts"))
+    missing_count = int(_number(payload.get("missing_file_count")) or 0)
     training = payload.get("model_training")
-    training_status = (
-        "Not requested"
-        if training == "not requested"
-        else "Completed; inspect JSON report for promotion gates"
-    )
+    status = "COMPLETE WITH MISSING DATA" if missing_count else "COMPLETE"
+
     return "\n\n".join(
         (
             render_title("Apex Historical Research Campaign"),
             render_section(
-                "Campaign status",
+                "Campaign Configuration",
                 "\n".join(
                     (
-                        f"▶  {'COMPLETE WITH MISSING DATA' if missing else 'COMPLETE'}",
+                        f"▶  {status}",
                         render_fields(
                             (
+                                ("Campaign status", status.title()),
                                 ("UTC range", _range(month_values)),
                                 ("Complete months", len(month_values)),
-                                ("Unique symbols", payload.get("symbol_count")),
-                                ("Verified files", payload.get("verified_file_count")),
-                                ("Missing files", payload.get("missing_file_count")),
+                                ("Dataset root", payload.get("dataset_dir")),
+                                ("Download verification", "Checksum-backed public archives"),
+                                ("Calibration authority", "Withheld"),
                             )
                         ),
                     )
                 ),
             ),
             render_section(
+                "Dataset Coverage",
+                render_fields(
+                    (
+                        ("Verified files", payload.get("verified_file_count")),
+                        ("Missing files", payload.get("missing_file_count")),
+                        ("Coverage state", "Incomplete" if missing_count else "Complete"),
+                        ("File detail records", len(verified_files)),
+                    )
+                ),
+            ),
+            render_section(
+                "Universe Summary",
+                "\n".join(
+                    (
+                        render_fields(
+                            (
+                                ("Unique symbols", payload.get("symbol_count")),
+                                ("Configured monthly cap", payload.get("universe_size")),
+                                ("Universe source", payload.get("universe_path")),
+                            )
+                        ),
+                        _render_monthly_universe(universe),
+                    )
+                ),
+            ),
+            render_section(
+                "Missing Data",
+                _render_mapping_lines(missing_files, empty="No missing campaign files."),
+            ),
+            render_section(
+                "Manifest",
+                render_fields(
+                    (
+                        ("Path", payload.get("manifest")),
+                        ("Schema version", payload.get("manifest_schema_version")),
+                        ("Fingerprint", _short_hash(payload.get("manifest_hash"))),
+                    )
+                ),
+            ),
+            render_section("Model Training", _render_training(training)),
+            render_section(
                 "Artifacts",
                 render_fields(
                     (
-                        ("Manifest", payload.get("manifest")),
-                        ("Manifest fingerprint", _short_hash(payload.get("manifest_hash"))),
-                        ("Model training", training_status),
+                        (
+                            "Dataset root",
+                            artifacts.get("dataset_dir") or payload.get("dataset_dir"),
+                        ),
+                        ("Universe", artifacts.get("universe") or payload.get("universe_path")),
+                        ("Manifest", artifacts.get("manifest") or payload.get("manifest")),
                         ("Probability authority", "Withheld until every promotion gate passes"),
                     )
                 ),
             ),
+        )
+    )
+
+
+def _render_monthly_universe(universe: Mapping[str, object]) -> str:
+    if not universe:
+        return "Monthly universe detail unavailable."
+    lines: list[str] = []
+    for month, symbols in sorted(universe.items()):
+        lines.append(f"{month}: {len(_sequence(symbols))} symbols")
+    return "\n".join(lines)
+
+
+def _render_mapping_lines(
+    values: Mapping[str, object],
+    *,
+    empty: str,
+    limit: int = 20,
+) -> str:
+    if not values:
+        return empty
+    items = sorted(values.items())
+    lines = [f"{key} — {value}" for key, value in items[:limit]]
+    remaining = len(items) - limit
+    if remaining > 0:
+        lines.append(
+            f"Showing {limit} of {len(items)} records; {remaining} more in JSON/report file."
+        )
+    return "\n".join(lines)
+
+
+def _render_training(training: object) -> str:
+    if training == "not requested":
+        return render_fields(
+            (
+                ("Requested", "No"),
+                ("Status", "Not requested"),
+                ("Authority", "No profitability claim"),
+            )
+        )
+    if isinstance(training, Mapping):
+        return render_fields(
+            (
+                ("Requested", "Yes"),
+                ("Status", training.get("status") or "Completed"),
+                ("Artifacts", training.get("artifact_count")),
+                ("Authority", "Subject to final promotion gates"),
+            )
+        )
+    return render_fields(
+        (
+            ("Requested", "Yes"),
+            ("Status", training),
+            ("Authority", "Subject to final promotion gates"),
         )
     )
 
