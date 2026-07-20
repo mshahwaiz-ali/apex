@@ -16,6 +16,25 @@ from apex.application.rollout_comparison import AnalysisComparisonSummary
 RolloutCommand = Literal["analyze", "scan"]
 
 
+def _validated_comparison(value: object) -> dict[str, Any]:
+    """Require evidence that diagnostics compare two distinct projection sources."""
+
+    if not isinstance(value, Mapping):
+        raise ValueError("rollout comparison is missing or malformed")
+    if value.get("distinct_projection_sources") is not True:
+        raise ValueError("rollout comparison does not prove distinct projection sources")
+
+    legacy_kind = value.get("legacy_projection_kind")
+    new_kind = value.get("new_projection_kind")
+    if not isinstance(legacy_kind, str) or not legacy_kind.strip():
+        raise ValueError("rollout comparison legacy projection kind is missing")
+    if not isinstance(new_kind, str) or not new_kind.strip():
+        raise ValueError("rollout comparison portfolio projection kind is missing")
+    if legacy_kind == new_kind:
+        raise ValueError("rollout comparison projection kinds are not distinct")
+    return dict(value)
+
+
 def build_rollout_operator_report(
     payload: Mapping[str, Any],
     *,
@@ -37,7 +56,7 @@ def build_rollout_operator_report(
         comparison = payload.get("rollout_comparison")
         if not isinstance(comparison, Mapping):
             raise ValueError("analyze payload does not contain rollout diagnostics")
-        report["comparison"] = dict(comparison)
+        report["comparison"] = _validated_comparison(comparison)
         return report
 
     summary = payload.get("rollout_comparison_summary")
@@ -75,7 +94,7 @@ def build_rollout_operator_report(
             comparisons.append(
                 {
                     "symbol": item.get("symbol"),
-                    "comparison": dict(comparison),
+                    "comparison": _validated_comparison(comparison),
                 }
             )
     report["comparisons"] = comparisons

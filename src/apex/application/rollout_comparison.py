@@ -33,12 +33,14 @@ class DiagnosticDifference:
 
 @dataclass(frozen=True, slots=True)
 class AnalysisComparisonReport:
-    """Deterministic, non-authoritative comparison of two analysis payloads."""
+    """Deterministic, non-authoritative comparison of two distinct projections."""
 
     symbol: str | None
     legacy_opportunity_count: int
     new_opportunity_count: int
     differences: tuple[DiagnosticDifference, ...]
+    legacy_projection_kind: str = "legacy_single_winner"
+    new_projection_kind: str = "portfolio_native"
     interpretation: str = (
         "diagnostic comparison only; does not change selection, ranking, "
         "actionability, scoring, or live behavior"
@@ -155,8 +157,18 @@ def comparison_summary_payload(
 def compare_analysis_outputs(
     legacy_payload: Mapping[str, Any],
     new_payload: Mapping[str, Any],
+    *,
+    legacy_projection_kind: str = "legacy_single_winner",
+    new_projection_kind: str = "portfolio_native",
 ) -> AnalysisComparisonReport:
-    """Compare legacy single-winner and new portfolio projections."""
+    """Compare two explicitly distinct legacy and portfolio projections."""
+
+    if legacy_payload is new_payload:
+        raise ValueError("rollout comparison requires distinct projection payload objects")
+    if not legacy_projection_kind.strip() or not new_projection_kind.strip():
+        raise ValueError("rollout projection kinds cannot be empty")
+    if legacy_projection_kind == new_projection_kind:
+        raise ValueError("rollout comparison requires distinct projection kinds")
 
     legacy = _legacy_projection(legacy_payload)
     new = _new_projection(new_payload)
@@ -189,6 +201,8 @@ def compare_analysis_outputs(
         legacy_opportunity_count=int(legacy["opportunity_count"]),
         new_opportunity_count=int(new["opportunity_count"]),
         differences=differences,
+        legacy_projection_kind=legacy_projection_kind,
+        new_projection_kind=new_projection_kind,
     )
 
 
@@ -200,6 +214,9 @@ def analysis_comparison_payload(report: AnalysisComparisonReport) -> dict[str, A
         "matches": report.matches,
         "legacy_opportunity_count": report.legacy_opportunity_count,
         "new_opportunity_count": report.new_opportunity_count,
+        "legacy_projection_kind": report.legacy_projection_kind,
+        "new_projection_kind": report.new_projection_kind,
+        "distinct_projection_sources": True,
         "differences": [
             {
                 "field": difference.field,

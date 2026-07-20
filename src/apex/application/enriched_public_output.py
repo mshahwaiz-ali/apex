@@ -19,6 +19,51 @@ from apex.application.rollout_comparison import (
     summarize_analysis_comparisons,
 )
 
+_LEGACY_ROLLOUT_KEYS = (
+    "symbol",
+    "setup",
+    "developing_setup",
+    "entry_state",
+    "entry_status",
+    "confidence_score",
+    "quality_score",
+    "rank",
+    "final_rank_score",
+    "ranking_score",
+    "reasons",
+    "rejection_reasons",
+)
+
+
+def _legacy_rollout_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract only the frozen single-winner compatibility surface."""
+
+    return {key: payload.get(key) for key in _LEGACY_ROLLOUT_KEYS if key in payload}
+
+
+def _portfolio_rollout_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract only the native portfolio surface from the same analysis result."""
+
+    return {
+        "symbol": payload.get("symbol"),
+        "opportunity_portfolio": payload.get("opportunity_portfolio"),
+        "rejection_reasons": payload.get(
+            "rejection_reasons",
+            payload.get("reasons", ()),
+        ),
+    }
+
+
+def _build_rollout_comparison(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare independent legacy and portfolio projections, never a payload to itself."""
+
+    return analysis_comparison_payload(
+        compare_analysis_outputs(
+            _legacy_rollout_projection(payload),
+            _portfolio_rollout_projection(payload),
+        )
+    )
+
 
 def serialize_symbol_analysis(
     analysis: SymbolAnalysis,
@@ -31,9 +76,7 @@ def serialize_symbol_analysis(
     methodology = project_analysis_methodology(analysis)
     payload.update(methodology_public_enrichment(analysis, methodology))
     if include_rollout_diagnostics:
-        payload["rollout_comparison"] = analysis_comparison_payload(
-            compare_analysis_outputs(payload, payload)
-        )
+        payload["rollout_comparison"] = _build_rollout_comparison(payload)
     return payload
 
 
@@ -71,9 +114,7 @@ def serialize_scan_result(
             methodology = project_analysis_methodology(analysis)
             item.update(methodology_public_enrichment(analysis, methodology))
             if include_rollout_diagnostics:
-                item["rollout_comparison"] = analysis_comparison_payload(
-                    compare_analysis_outputs(item, item)
-                )
+                item["rollout_comparison"] = _build_rollout_comparison(item)
 
     completeness_counts: Counter[str] = Counter()
     authoritative_count = 0
@@ -101,7 +142,10 @@ def serialize_scan_result(
         comparisons = tuple(
             NamedAnalysisComparison(
                 fixture_id=str(item.get("symbol", f"result-{index}")),
-                report=compare_analysis_outputs(item, item),
+                report=compare_analysis_outputs(
+                    _legacy_rollout_projection(item),
+                    _portfolio_rollout_projection(item),
+                ),
             )
             for index, item in enumerate(serialized if isinstance(serialized, list) else ())
             if isinstance(item, Mapping)

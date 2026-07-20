@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from apex.application.rollout_comparison import (
     analysis_comparison_payload,
     compare_analysis_outputs,
@@ -70,6 +72,23 @@ def _new_payload() -> dict[str, object]:
         },
         "rejection_reasons": [],
     }
+
+
+def test_refuses_same_payload_object_on_both_sides() -> None:
+    payload = _legacy_payload()
+
+    with pytest.raises(ValueError, match="distinct projection payload objects"):
+        compare_analysis_outputs(payload, payload)
+
+
+def test_refuses_same_projection_kind() -> None:
+    with pytest.raises(ValueError, match="distinct projection kinds"):
+        compare_analysis_outputs(
+            _legacy_payload(),
+            _new_payload(),
+            legacy_projection_kind="same",
+            new_projection_kind="same",
+        )
 
 
 def test_equal_projections_report_no_differences() -> None:
@@ -147,4 +166,7 @@ def test_serialized_report_is_explicitly_non_authoritative() -> None:
 
     assert payload["matches"] is True
     assert payload["authoritative"] is False
+    assert payload["legacy_projection_kind"] == "legacy_single_winner"
+    assert payload["new_projection_kind"] == "portfolio_native"
+    assert payload["distinct_projection_sources"] is True
     assert "does not change selection" in str(payload["interpretation"])
