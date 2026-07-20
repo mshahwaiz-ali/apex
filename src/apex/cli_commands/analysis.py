@@ -14,7 +14,6 @@ from apex.application import (
     configuration_metadata,
     create_market_data_services,
     reconcile_pending_opportunities_sqlite,
-    write_analysis_record,
     write_analysis_record_sqlite,
 )
 from apex.application.discovery_contracts import SymbolAnalysis
@@ -25,10 +24,17 @@ from apex.presentation.methodology_selected_entry_output import render_discovery
 from apex.presentation.terminal import emit_terminal
 
 
-def _serialize_analysis_payload(result: SymbolAnalysis) -> dict[str, object]:
+def _serialize_analysis_payload(
+    result: SymbolAnalysis,
+    *,
+    rollout_diagnostics_enabled: bool = False,
+) -> dict[str, object]:
     """Serialize the canonical selected-symbol analysis payload."""
 
-    return serialize_symbol_analysis(result)
+    return serialize_symbol_analysis(
+        result,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
+    )
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
@@ -44,18 +50,6 @@ def register_analysis_commands(app: typer.Typer) -> None:
             help="Show the full evidence, contradictions, rejected candidates, and diagnostics.",
         ),
         candle_limit: int = typer.Option(200, "--candles", min=200, max=1000),
-        record: Path | None = typer.Option(
-            None,
-            "--record",
-            hidden=True,
-            help="Optional append-only JSONL analysis record path.",
-        ),
-        record_db: Path | None = typer.Option(
-            None,
-            "--record-db",
-            hidden=True,
-            help="Optional SQLite analysis record database path.",
-        ),
         config_dir: Path = typer.Option(
             Path("config"),
             "--config-dir",
@@ -94,18 +88,13 @@ def register_analysis_commands(app: typer.Typer) -> None:
 
         payload = _serialize_analysis_payload(result)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
-        effective_record_db = record_db
-        if effective_record_db is None and context.settings.outcome_tracking_enabled:
-            effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
-        if record is not None or effective_record_db is not None:
+        if context.settings.outcome_tracking_enabled:
+            outcome_db = context.settings.data_dir / "reports" / "analysis.db"
             analysis_record = build_analysis_record(payload)
-            if record is not None:
-                write_analysis_record(record, analysis_record)
-            if effective_record_db is not None:
-                reconcile_pending_opportunities_sqlite(
-                    effective_record_db, result.symbol, result.outcome_candles
-                )
-                write_analysis_record_sqlite(effective_record_db, analysis_record)
+            reconcile_pending_opportunities_sqlite(
+                outcome_db, result.symbol, result.outcome_candles
+            )
+            write_analysis_record_sqlite(outcome_db, analysis_record)
 
         if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))

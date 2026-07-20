@@ -17,9 +17,7 @@ from apex.application import (
     scan_symbols,
     select_futures_scan_symbols,
     serialize_futures_screening,
-    write_analysis_record,
     write_analysis_record_sqlite,
-    write_json_report,
 )
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.enriched_public_output import (
@@ -38,6 +36,7 @@ def _serialize_scan_payload(
     *,
     display_limit: int,
     direction: ScanDirection,
+    rollout_diagnostics_enabled: bool = False,
 ) -> dict[str, object]:
     """Serialize the canonical ranked scan payload."""
 
@@ -45,6 +44,7 @@ def _serialize_scan_payload(
         result,
         display_limit=display_limit,
         direction=direction,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
     )
 
 
@@ -68,9 +68,6 @@ def register_scanner_commands(app: typer.Typer) -> None:
             help="Optional static symbol override. Defaults to live Binance futures discovery.",
         ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
-        report: Path | None = typer.Option(None, "--report", hidden=True),
-        record: Path | None = typer.Option(None, "--record", hidden=True),
-        record_db: Path | None = typer.Option(None, "--record-db", hidden=True),
         explain: bool = typer.Option(
             False,
             "--explain",
@@ -161,31 +158,24 @@ def register_scanner_commands(app: typer.Typer) -> None:
         if selection.screening is not None:
             payload["screening"] = serialize_futures_screening(selection.screening)
         payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
-        if report is not None:
-            write_json_report(payload, report)
-        effective_record_db = record_db
-        if effective_record_db is None and context.settings.outcome_tracking_enabled:
-            effective_record_db = context.settings.data_dir / "reports" / "analysis.db"
-        if record is not None or effective_record_db is not None:
+        if context.settings.outcome_tracking_enabled:
+            outcome_db = context.settings.data_dir / "reports" / "analysis.db"
             analysis_record = build_analysis_record(payload)
-            if record is not None:
-                write_analysis_record(record, analysis_record)
-            if effective_record_db is not None:
-                for analysis in result.analyses:
-                    reconcile_pending_opportunities_sqlite(
-                        effective_record_db,
-                        analysis.symbol,
-                        analysis.outcome_candles,
-                    )
-                    analysis_payload = _serialize_scan_analysis_record(analysis)
-                    analysis_payload.update(
-                        configuration_metadata(context.settings.model_dump(mode="json"))
-                    )
-                    write_analysis_record_sqlite(
-                        effective_record_db,
-                        build_analysis_record(analysis_payload),
-                    )
-                write_analysis_record_sqlite(effective_record_db, analysis_record)
+            for analysis in result.analyses:
+                reconcile_pending_opportunities_sqlite(
+                    outcome_db,
+                    analysis.symbol,
+                    analysis.outcome_candles,
+                )
+                analysis_payload = _serialize_scan_analysis_record(analysis)
+                analysis_payload.update(
+                    configuration_metadata(context.settings.model_dump(mode="json"))
+                )
+                write_analysis_record_sqlite(
+                    outcome_db,
+                    build_analysis_record(analysis_payload),
+                )
+            write_analysis_record_sqlite(outcome_db, analysis_record)
 
         if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))

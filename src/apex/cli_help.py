@@ -6,16 +6,16 @@ import typer
 
 _COMMAND_HELP: dict[str, tuple[str, str]] = {
     "scan": (
-        "Trade discovery",
+        "Trading",
         "Discover, analyze, and rank Binance USDT perpetual-futures opportunities.",
     ),
     "analyze": (
-        "Trade discovery",
+        "Trading",
         "Analyze one futures symbol and show its entry geometry, targets, and cautions.",
     ),
     "backtest": (
         "Evaluation",
-        "Replay focused trade-discovery analysis against historical market data.",
+        "Replay historical decisions for one futures symbol.",
     ),
     "config-check": (
         "System",
@@ -29,8 +29,8 @@ def apply_curated_help(app: typer.Typer) -> None:
     """Apply concise descriptions to the intentionally small command surface."""
 
     app.info.help = (
-        "Discover and evaluate Binance USDT perpetual-futures trade opportunities. "
-        "Start with `apex scan`."
+        "Apex discovers, analyzes, and evaluates Binance USDT perpetual-futures "
+        "opportunities. Start with `apex scan`."
     )
     for command in app.registered_commands:
         name = command.name
