@@ -21,7 +21,7 @@ from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.methodology_selected_entry_output import render_discovery_analysis
-from apex.presentation.terminal import emit_terminal
+from apex.presentation.terminal import cli_progress, emit_terminal
 
 
 def _serialize_analysis_payload(
@@ -62,39 +62,44 @@ def register_analysis_commands(app: typer.Typer) -> None:
 
         try:
             output_mode = normalize_cli_output_mode(output)
-            context = bootstrap(config_dir)
-            with create_market_data_services(context.settings) as services:
-                result = analyze_selected_symbol(
-                    symbol,
-                    services.candles,
-                    timeframes=context.settings.analysis_timeframes,
-                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                    timeframe_max_staleness_seconds=getattr(
-                        context.settings,
-                        "timeframe_max_staleness_seconds",
-                        None,
-                    ),
-                    candle_limit=candle_limit,
-                    strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    methodology_gate_mode=context.settings.methodology_gate_mode,
-                    market_environment_config=context.settings.market_environment,
-                    futures_evidence_enabled=context.settings.futures_evidence_enabled,
-                )
+            with cli_progress() as progress:
+                progress.update("Loading configuration…")
+                context = bootstrap(config_dir)
+                progress.update(f"Fetching {symbol.upper()} market data…")
+                with create_market_data_services(context.settings) as services:
+                    progress.update("Running multi-timeframe analysis…")
+                    result = analyze_selected_symbol(
+                        symbol,
+                        services.candles,
+                        timeframes=context.settings.analysis_timeframes,
+                        timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                        timeframe_max_staleness_seconds=getattr(
+                            context.settings,
+                            "timeframe_max_staleness_seconds",
+                            None,
+                        ),
+                        candle_limit=candle_limit,
+                        strategy_routing=getattr(context.settings, "strategy_routing", None),
+                        methodology_gate_mode=context.settings.methodology_gate_mode,
+                        market_environment_config=context.settings.market_environment,
+                        futures_evidence_enabled=context.settings.futures_evidence_enabled,
+                    )
+                progress.update("Building trade opportunities…")
+                payload = _serialize_analysis_payload(result)
+                payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
+                if context.settings.outcome_tracking_enabled:
+                    outcome_db = context.settings.data_dir / "reports" / "analysis.db"
+                    analysis_record = build_analysis_record(payload)
+                    reconcile_pending_opportunities_sqlite(
+                        outcome_db, result.symbol, result.outcome_candles
+                    )
+                    write_analysis_record_sqlite(outcome_db, analysis_record)
+                progress.update("Preparing output…")
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
             typer.echo(f"Analysis market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
-
-        payload = _serialize_analysis_payload(result)
-        payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
-        if context.settings.outcome_tracking_enabled:
-            outcome_db = context.settings.data_dir / "reports" / "analysis.db"
-            analysis_record = build_analysis_record(payload)
-            reconcile_pending_opportunities_sqlite(
-                outcome_db, result.symbol, result.outcome_candles
-            )
-            write_analysis_record_sqlite(outcome_db, analysis_record)
 
         if output_mode.value == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))

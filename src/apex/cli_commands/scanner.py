@@ -26,7 +26,7 @@ from apex.application.enriched_public_output import (
 )
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
-from apex.presentation.terminal import emit_terminal
+from apex.presentation.terminal import cli_progress, emit_terminal
 
 ScanDirection = Literal["long", "short", "both"]
 
@@ -113,76 +113,82 @@ def register_scanner_commands(app: typer.Typer) -> None:
 
         try:
             output_mode = _normalize_scanner_output(output)
-            context = bootstrap(config_dir)
-            with create_market_data_services(context.settings) as services:
-                base_screener_settings = context.settings.futures_screener
-                screener_settings = base_screener_settings.model_copy(
-                    update={
-                        "shortlist_size": shortlist,
-                        "ticker_prefilter_size": max(
-                            base_screener_settings.ticker_prefilter_size,
-                            shortlist,
+            with cli_progress() as progress:
+                progress.update("Loading configuration…")
+                context = bootstrap(config_dir)
+                with create_market_data_services(context.settings) as services:
+                    base_screener_settings = context.settings.futures_screener
+                    screener_settings = base_screener_settings.model_copy(
+                        update={
+                            "shortlist_size": shortlist,
+                            "ticker_prefilter_size": max(
+                                base_screener_settings.ticker_prefilter_size,
+                                shortlist,
+                            ),
+                        }
+                    )
+                    progress.update("Discovering and screening Binance futures markets…")
+                    selection = select_futures_scan_symbols(
+                        services.futures_universe,
+                        services.futures_screener,
+                        services.candles,
+                        config=screener_settings.to_domain(),
+                        symbols_file=symbols_file,
+                        quote_asset=screener_settings.quote_asset,
+                        blacklist=screener_settings.blacklist,
+                        allowlist=screener_settings.allowlist,
+                    )
+                    progress.update("Analyzing shortlisted symbols…")
+                    result = scan_symbols(
+                        selection.symbols,
+                        services.candles,
+                        timeframes=context.settings.analysis_timeframes,
+                        timeframe_roles=getattr(context.settings, "timeframe_roles", None),
+                        timeframe_max_staleness_seconds=getattr(
+                            context.settings,
+                            "timeframe_max_staleness_seconds",
+                            None,
                         ),
-                    }
+                        candle_limit=candle_limit,
+                        strategy_routing=getattr(context.settings, "strategy_routing", None),
+                        methodology_gate_mode=context.settings.methodology_gate_mode,
+                        market_environment_config=context.settings.market_environment,
+                        futures_evidence_enabled=context.settings.futures_evidence_enabled,
+                    )
+                progress.update("Ranking retained opportunities…")
+                payload = _serialize_scan_payload(
+                    result,
+                    display_limit=results,
+                    direction=direction,
                 )
-                selection = select_futures_scan_symbols(
-                    services.futures_universe,
-                    services.futures_screener,
-                    services.candles,
-                    config=screener_settings.to_domain(),
-                    symbols_file=symbols_file,
-                    quote_asset=screener_settings.quote_asset,
-                    blacklist=screener_settings.blacklist,
-                    allowlist=screener_settings.allowlist,
-                )
-                result = scan_symbols(
-                    selection.symbols,
-                    services.candles,
-                    timeframes=context.settings.analysis_timeframes,
-                    timeframe_roles=getattr(context.settings, "timeframe_roles", None),
-                    timeframe_max_staleness_seconds=getattr(
-                        context.settings,
-                        "timeframe_max_staleness_seconds",
-                        None,
-                    ),
-                    candle_limit=candle_limit,
-                    strategy_routing=getattr(context.settings, "strategy_routing", None),
-                    methodology_gate_mode=context.settings.methodology_gate_mode,
-                    market_environment_config=context.settings.market_environment,
-                    futures_evidence_enabled=context.settings.futures_evidence_enabled,
-                )
+                if selection.screening is not None:
+                    payload["screening"] = serialize_futures_screening(selection.screening)
+                payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
+                if context.settings.outcome_tracking_enabled:
+                    progress.update("Saving outcome-tracking records…")
+                    outcome_db = context.settings.data_dir / "reports" / "analysis.db"
+                    analysis_record = build_analysis_record(payload)
+                    for analysis in result.analyses:
+                        reconcile_pending_opportunities_sqlite(
+                            outcome_db,
+                            analysis.symbol,
+                            analysis.outcome_candles,
+                        )
+                        analysis_payload = _serialize_scan_analysis_record(analysis)
+                        analysis_payload.update(
+                            configuration_metadata(context.settings.model_dump(mode="json"))
+                        )
+                        write_analysis_record_sqlite(
+                            outcome_db,
+                            build_analysis_record(analysis_payload),
+                        )
+                    write_analysis_record_sqlite(outcome_db, analysis_record)
+                progress.update("Preparing output…")
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
             typer.echo(f"Scanner market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
-
-        payload = _serialize_scan_payload(
-            result,
-            display_limit=results,
-            direction=direction,
-        )
-        if selection.screening is not None:
-            payload["screening"] = serialize_futures_screening(selection.screening)
-        payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
-        if context.settings.outcome_tracking_enabled:
-            outcome_db = context.settings.data_dir / "reports" / "analysis.db"
-            analysis_record = build_analysis_record(payload)
-            for analysis in result.analyses:
-                reconcile_pending_opportunities_sqlite(
-                    outcome_db,
-                    analysis.symbol,
-                    analysis.outcome_candles,
-                )
-                analysis_payload = _serialize_scan_analysis_record(analysis)
-                analysis_payload.update(
-                    configuration_metadata(context.settings.model_dump(mode="json"))
-                )
-                write_analysis_record_sqlite(
-                    outcome_db,
-                    build_analysis_record(analysis_payload),
-                )
-            write_analysis_record_sqlite(outcome_db, analysis_record)
 
         if output_mode == "json":
             typer.echo(json.dumps(payload, indent=2, default=str))
