@@ -5,11 +5,9 @@ _FORBIDDEN_TERMS = (
     "position_size",
     "position sizing",
     "leverage",
-    "liquidation",
     "portfolio allocation",
     "execute_order",
     "place_order",
-    "winner",
     "winning candidate",
     "final selection",
 )

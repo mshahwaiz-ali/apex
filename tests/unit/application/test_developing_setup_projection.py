@@ -197,7 +197,7 @@ def test_scan_uses_compact_pending_card() -> None:
     )
 
     assert "Developing / Watch" not in text
-    assert "Pullback / Retest / Reclaim Pending" in text
+    assert "Nearby limit entries" in text
     assert "Inspect" in text
     assert "Trade Management" not in text
     assert "Candlestick Evidence" not in text

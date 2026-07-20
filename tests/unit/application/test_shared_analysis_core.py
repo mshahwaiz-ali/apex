@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from apex.application import decision_analysis, selected_symbol
+from apex.application.opportunity_portfolio import AnalysisMode
 from apex.cli_commands import analysis as analysis_cli
 from apex.cli_commands import scanner as scanner_cli
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG
@@ -51,6 +52,7 @@ def test_selected_symbol_delegates_to_canonical_analysis_core(monkeypatch: Any) 
                 "generated_at": None,
                 "strategy_routing": None,
                 "methodology_gate_mode": "enforce",
+                "analysis_mode": AnalysisMode.ANALYZE_FULL,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
             },
         )
@@ -99,6 +101,7 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "strategy_routing": None,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
+                "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),
         (
@@ -113,6 +116,7 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "strategy_routing": None,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
+                "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),
     ]

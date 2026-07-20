@@ -16,7 +16,18 @@ from apex.presentation import (
     render_section,
     render_title,
 )
-from apex.presentation.scan_groups import flatten_existing_scan_groups, group_scan_results
+from apex.presentation.cli_information_architecture import (
+    data_quality_warning,
+    diagnostic_summary_lines,
+    entry_distance_label,
+    evidence_contradiction_lines,
+    multi_timeframe_lines,
+    opportunity_map_lines,
+    partition_scan_results,
+    rationale_lines,
+    rejected_candidate_lines,
+)
+from apex.presentation.scan_groups import flatten_existing_scan_groups
 
 
 def render_analysis(payload: Mapping[str, object], *, explain: bool = False) -> str:
@@ -47,36 +58,56 @@ def render_analysis(payload: Mapping[str, object], *, explain: bool = False) -> 
 def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
     """Render the ranked scan as a compact action board."""
 
-    grouped = group_scan_results(flatten_existing_scan_groups(payload))
-    visible = len(grouped.ready) + len(grouped.aggressive) + len(grouped.conditional)
-    sections = [render_title("Apex Market Scan • Action Board")]
+    grouped = partition_scan_results(flatten_existing_scan_groups(payload))
+    visible = grouped.visible_count
+    sections = [render_title("Apex Market Scan • Opportunity Board")]
     sections.append(
         render_section(
             "At a glance",
             render_fields(
                 (
                     ("Markets checked", payload.get("total_analysis_count")),
-                    ("Trade-ready", len(grouped.ready) + len(grouped.aggressive)),
-                    ("Waiting for trigger", len(grouped.conditional)),
-                    ("Developing", len(grouped.developing)),
-                    ("No usable setup", len(grouped.unavailable) + len(grouped.no_setup)),
+                    ("Actionable at CMP", len(grouped.actionable_cmp)),
+                    ("Nearby limit entries", len(grouped.nearby_limit)),
+                    ("Micro-confirmation entries", len(grouped.micro_confirmation)),
+                    ("Follow-up / reversal", len(grouped.follow_up_reversal)),
+                    ("Weak / invalid", len(grouped.weak_invalid)),
                     ("Action", "Review the highest section first" if visible else "Stay patient"),
                 )
             ),
         )
     )
     for title, hint, items in (
-        ("Ready now", "Entry conditions are currently satisfied.", grouped.ready),
-        ("Aggressive", "Valid but requires tighter execution discipline.", grouped.aggressive),
         (
-            "Pullback / Retest / Reclaim Pending",
-            "Do not enter until the activation condition completes.",
-            grouped.conditional,
+            "Actionable at CMP",
+            "Current market price is inside an executable opportunity.",
+            grouped.actionable_cmp,
         ),
-        ("Developing", "Watchlist only; the setup is not ready.", grouped.developing),
+        (
+            "Nearby limit entries",
+            "A valid entry exists near CMP but price has not reached it.",
+            grouped.nearby_limit,
+        ),
+        (
+            "Micro-confirmation entries",
+            "Wait only for the stated reclaim, close, or micro trigger.",
+            grouped.micro_confirmation,
+        ),
+        (
+            "Follow-up / reversal setups",
+            "Sequential, reversal, or developing opportunities; not executable yet.",
+            grouped.follow_up_reversal,
+        ),
     ):
         if items:
             sections.append(_scan_group(title, hint, items))
+    if grouped.weak_invalid:
+        sections.append(
+            render_section(
+                f"Weak or invalid setup summary ({len(grouped.weak_invalid)})",
+                "These markets were retained in the count but are not executable.",
+            )
+        )
     screening = _mapping(payload.get("screening"))
     lanes = _screening_lanes(screening)
     if lanes:
@@ -95,8 +126,15 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
                         ("Selected setups", payload.get("selected_setup_count")),
                         ("Long candidates", payload.get("long_candidate_count")),
                         ("Short candidates", payload.get("short_candidate_count")),
-                        ("Late / invalidated", len(grouped.unavailable)),
-                        ("No setup formed", len(grouped.no_setup)),
+                        ("Weak / invalid", len(grouped.weak_invalid)),
+                        (
+                            "Not silently displayed",
+                            max(
+                                0,
+                                _count(payload.get("total_analysis_count"))
+                                - _count(payload.get("displayed_analysis_count")),
+                            ),
+                        ),
                     )
                 ),
             )
@@ -158,7 +196,13 @@ def _setup_sections(
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     direction = humanize_code(setup.get("direction"))
-    executable = setup.get("execution_allowed_now") is True and not pending
+    terminal_status = str(setup.get("entry_status") or "").upper() in {
+        "INVALIDATED",
+        "MISSED_ENTRY",
+        "LATE_OR_CHASING",
+        "EXPIRED",
+    }
+    executable = setup.get("execution_allowed_now") is True and not pending and not terminal_status
     action = f"ENTER {direction.upper()}" if executable else "WAIT FOR ACTIVATION"
     sections = [
         render_section(
@@ -264,6 +308,40 @@ def _setup_sections(
             for item in alternatives[:3]
         ]
         sections.append(render_section("Alternative Entry Opportunities", render_bullets(lines)))
+    opportunity_map = opportunity_map_lines(payload)
+    if opportunity_map:
+        sections.append(render_section("Opportunity map", render_bullets(opportunity_map)))
+
+    timeframe_map = multi_timeframe_lines(payload)
+    if timeframe_map:
+        sections.append(render_section("Multi-timeframe map", render_bullets(timeframe_map)))
+
+    rationale = rationale_lines(payload, setup)
+    if rationale:
+        sections.append(
+            render_section(
+                "Entry, stop, target, and chase rationale",
+                render_bullets(rationale),
+            )
+        )
+
+    evidence = evidence_contradiction_lines(payload, setup)
+    if evidence:
+        sections.append(render_section("Evidence and contradictions", render_bullets(evidence)))
+
+    diagnostics = diagnostic_summary_lines(payload)
+    if diagnostics and explain:
+        sections.append(
+            render_section(
+                "Diagnostics • Collision, runner, and lifecycle",
+                render_bullets(diagnostics),
+            )
+        )
+
+    rejected = rejected_candidate_lines(payload)
+    if rejected and explain:
+        sections.append(render_section("Rejected candidates", render_bullets(rejected)))
+
     if explain:
         sections.extend(_setup_explanation(payload, setup, focused))
     return sections
@@ -411,16 +489,47 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     activation = _activation(setup, {})
+    quality = _mapping(setup.get("quality_dimensions"))
+    initial_rr = setup.get("initial_risk_reward")
+    if initial_rr is None and targets:
+        initial_rr = targets[0].get("risk_reward")
+    runner_rr = setup.get("runner_risk_reward")
+    if runner_rr is None and targets:
+        runner_rr = targets[-1].get("risk_reward")
+    warning = data_quality_warning(payload)
     fields: list[tuple[str, object]] = [
-        (
-            "Direction / strategy",
-            f"{humanize_code(setup.get('direction'))} • {humanize_code(setup.get('strategy'))}",
-        ),
-        ("Status", humanize_code(setup.get("entry_status"))),
-        ("Quality", _quality(setup.get("confidence_score"))),
-        ("Entry", _price_range(entry.get("lower"), entry.get("upper"))),
+        ("Side", humanize_code(setup.get("direction"))),
+        ("Strategy", humanize_code(setup.get("strategy"))),
+        ("State", humanize_code(setup.get("entry_status"))),
+        ("Current price", format_price(entry.get("current_price"))),
+        ("Entry distance", entry_distance_label(setup) or UNAVAILABLE),
+        ("Entry zone", _price_range(entry.get("lower"), entry.get("upper"))),
+        ("Ideal entry", format_price(entry.get("preferred"))),
+        ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
         ("Stop", format_price(stop.get("price"))),
+        ("TP1 RR", format_ratio(initial_rr)),
+        ("Runner RR", format_ratio(runner_rr)),
+        (
+            "Setup / execution",
+            f"{_quality(quality.get('setup_quality') or setup.get('confidence_score'))} / "
+            f"{_quality(quality.get('execution_quality'))}",
+        ),
+        ("Continuation", _quality(quality.get("continuation_quality"))),
+        (
+            "Alignment",
+            humanize_code(
+                setup.get("alignment_classification") or setup.get("trend_classification")
+            ),
+        ),
     ]
+    evidence = _clean_many(setup.get("evidence"))
+    warnings = _clean_many(setup.get("warnings"))
+    if evidence:
+        fields.append(("Evidence", evidence[0]))
+    if warnings:
+        fields.append(("Main risk", warnings[0]))
+    if warning:
+        fields.append(("Data quality", warning))
     if targets:
         fields.append(
             ("Targets", "  /  ".join(format_price(item.get("price")) for item in targets[:3]))
@@ -561,6 +670,21 @@ def _quality(value: object) -> str:
 
 def _yes_no(value: object) -> str:
     return "Yes" if value is True else "No" if value is False else UNAVAILABLE
+
+
+def _count(value: object) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 __all__ = ["render_analysis", "render_scan"]
