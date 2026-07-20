@@ -305,7 +305,6 @@ apex backtest BTCUSDT \
 | `--decision-points INTEGER` | `5` | Number of non-overlapping chronological decisions. |
 | `--funding-pct FLOAT` | `0.0` | Optional modeled funding drag. |
 | `--report-file PATH` | none | Writes the complete structured backtest payload to JSON. |
-| `--explain` | off | Includes expanded no-trade and replay diagnostics when supported. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
 | `--config-dir PATH` | `config` | Loads another Apex configuration directory. |
 
@@ -463,7 +462,7 @@ config/default.yaml
 Common settings include:
 
 ```yaml
-methodology_gate_mode: shadow
+methodology_gate_mode: enforce
 futures_evidence_enabled: true
 outcome_tracking_enabled: true
 ```

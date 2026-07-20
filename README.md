@@ -440,7 +440,7 @@ config/default.yaml
 Important switches include:
 
 ```yaml
-methodology_gate_mode: shadow
+methodology_gate_mode: enforce
 futures_evidence_enabled: true
 outcome_tracking_enabled: true
 ```

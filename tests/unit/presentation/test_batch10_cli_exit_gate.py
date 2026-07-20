@@ -77,34 +77,35 @@ def test_detailed_analysis_contains_all_remaining_batch10_sections() -> None:
                 "reason": "Activation arrived after maximum chase.",
             },
         ),
-        "methodology_completeness": {
-            "unavailable_fields": ("liquidation_impulse",),
-        },
+        "methodology_completeness": {"unavailable_fields": ("liquidation_impulse",)},
     }
 
     output = render_analysis(payload, explain=True)
 
-    assert "Opportunity map" in output
-    assert "Current opportunity" in output
-    assert "Nearby alternative" in output
-    assert "Opposite follow-up" in output
-    assert "Multi-timeframe map" in output
-    assert "5m: Bullish • Expanding" in output
-    assert "Entry, stop, target, and chase rationale" in output
-    assert "Entry rationale" in output
-    assert "Stop rationale" in output
-    assert "Target rationale" in output
-    assert "Chase boundary" in output
-    assert "Evidence and contradictions" in output
-    assert "Support:" in output
-    assert "Contradiction:" in output
-    assert "Collision, runner, and lifecycle" in output
-    assert "Collision: Coexist" in output
-    assert "Lifecycle: Activated" in output
-    assert "Runner: Hold Runner" in output
-    assert "Rejected candidates" in output
-    assert "Short • Momentum Scalp" in output
-    assert "Data quality" in output
+    for expected in (
+        "Opportunity map",
+        "Current opportunity",
+        "Nearby alternative",
+        "Opposite follow-up",
+        "Multi-timeframe view",
+        "5m: Bullish • Expanding",
+        "Geometry rationale",
+        "Entry rationale",
+        "Stop rationale",
+        "Target rationale",
+        "Chase boundary",
+        "Evidence and contradictions",
+        "Support:",
+        "Contradiction:",
+        "Lifecycle and collision",
+        "Collision:",
+        "Runner:",
+        "Rejected candidates",
+        "Activation arrived after maximum chase.",
+        "Data quality:",
+        "liquidation_impulse",
+    ):
+        assert expected in output
 
 
 def test_rejected_candidates_and_diagnostics_are_hidden_without_explain() -> None:
@@ -144,17 +145,24 @@ def test_scan_compact_card_contains_complete_ranking_minimum_fields() -> None:
 
     output = render_scan(payload)
 
-    assert "BTCUSDT" in output
-    assert "Long" in output
-    assert "Breakout" in output
-    assert "Continuation" in output
-    assert "Ready now" in output
-    assert "Entry distance" in output
-    assert "0.40%" in output
-    assert "Setup / execution" in output
-    assert "TP1 RR" in output
-    assert "Data quality" in output
-    assert "Optional market evidence is incomplete" in output
+    for expected in (
+        "BTCUSDT",
+        "Long",
+        "Breakout",
+        "Strategy",
+        "Ready now",
+        "CMP",
+        "Entry",
+        "Preferred",
+        "Stop",
+        "TP1",
+        "TP2",
+        "TP3",
+        "Trade quality",
+        "Execution quality",
+        "Optional market evidence is incomplete",
+    ):
+        assert expected in output
 
 
 def test_scan_preserves_tp1_tp2_tp3_values() -> None:
@@ -186,9 +194,11 @@ def test_no_cmp_entry_is_distinct_from_no_setup() -> None:
 
     output = render_scan(payload)
 
-    assert "Nearby limit entries" in output
-    assert "Weak or invalid setup summary" in output
-    assert "not executable" in output.lower()
+    assert "Nearby entry" in output
+    assert "BTCUSDT" in output
+    assert "No current trade" in output
+    assert "ETHUSDT" in output
+    assert "No valid setup formed." in output
 
 
 def test_analysis_does_not_invent_missing_detailed_sections() -> None:

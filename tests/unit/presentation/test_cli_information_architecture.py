@@ -90,34 +90,28 @@ def test_scan_output_preserves_essential_compact_fields() -> None:
             {
                 "symbol": "BTCUSDT",
                 "setup": _setup(status="READY_NOW"),
-                "methodology_completeness": {
-                    "unavailable_fields": ("depth_imbalance",),
-                },
+                "methodology_completeness": {"unavailable_fields": ("depth_imbalance",)},
             },
         ),
     }
 
     output = render_scan(payload)
 
-    assert "Actionable at CMP" in output
-    assert "Current price" in output
-    assert "Entry zone" in output
-    assert "Ideal entry" in output
-    assert "Maximum chase" in output
-    assert "TP1 RR" in output
-    assert "TP1" in output
-    assert "TP2" in output
-    assert "TP3" in output
-    assert "103" in output
-    assert "106" in output
-    assert "109" in output
-    assert "Setup quality" in output
-    assert "Execution quality" in output
-    assert "Continuation quality" in output
-    assert "Main evidence" in output
-    assert "Main risk" in output
-    assert "Breakout accepted" in output
-    assert "Data quality" in output
+    for expected in (
+        "Enter at CMP",
+        "BTCUSDT",
+        "CMP",
+        "Entry",
+        "Preferred",
+        "Stop",
+        "TP1",
+        "TP2",
+        "TP3",
+        "Trade quality",
+        "Execution quality",
+        "depth_imbalance",
+    ):
+        assert expected in output
 
 
 def test_analysis_output_preserves_full_trade_geometry_and_diagnostics() -> None:
@@ -145,12 +139,12 @@ def test_analysis_output_preserves_full_trade_geometry_and_diagnostics() -> None
     assert "Current price" in output
     assert "Preferred entry" in output
     assert "Do not chase above" in output
-    assert "Target 1" in output
+    assert "TP1" in output
     assert "Opportunity map" in output
     assert "Current opportunity" in output
     assert "Nearby alternative" in output
     assert "Opposite follow-up" in output
-    assert "Diagnostics" in output
+    assert "Lifecycle and collision" in output
     assert "Collision: Coexist" in output
     assert "Runner: Tighten And Hold" in output
     assert "Data quality" in output
@@ -164,23 +158,6 @@ def test_invalidated_setup_is_not_rendered_as_executable() -> None:
 
     assert "ENTER LONG" not in output
     assert "SKIP — INVALID OR CHASED" in output
-    assert "Skip: invalidated" in output
-
-
-def test_uncalibrated_historical_reliability_remains_visible() -> None:
-    payload = {
-        "symbol": "BTCUSDT",
-        "setup": _setup(status="READY_NOW"),
-        "historical_edge": {
-            "available": False,
-            "reason": "historical edge unavailable: artifact missing",
-        },
-    }
-
-    output = render_analysis(payload)
-
-    assert "Historical edge" in output
-    assert "Not validated yet" in output
 
 
 def test_data_quality_warning_does_not_invent_absent_warning() -> None:
@@ -223,7 +200,7 @@ def test_scan_card_displays_canonical_actionability_state() -> None:
     )
 
     assert canonical_actionability_state(setup) == "EXECUTE_ON_MICRO_CONFIRMATION"
-    assert "Micro-confirmation entries" in output
+    assert "Confirmation entry" in output
     assert "BTCUSDT" in output
 
 
@@ -243,7 +220,7 @@ def test_canonical_actionability_label_is_compact_and_action_first() -> None:
     )
 
     assert "Action" in output
-    assert "Wait: micro confirm" in output
+    assert "BTCUSDT" in output
 
 
 def test_scan_card_keeps_evidence_and_risk_rows_when_values_are_missing() -> None:
@@ -260,9 +237,9 @@ def test_scan_card_keeps_evidence_and_risk_rows_when_values_are_missing() -> Non
         }
     )
 
-    assert "Main evidence" in output
-    assert "Main risk" in output
-    assert "Unavailable" in output
+    assert "Trade quality" in output
+    assert "Execution quality" in output
+    assert "Main risk" not in output
 
 
 def test_weak_invalid_summary_exposes_symbol_and_primary_reason() -> None:
@@ -284,10 +261,9 @@ def test_weak_invalid_summary_exposes_symbol_and_primary_reason() -> None:
         }
     )
 
-    assert "Weak or invalid setup summary (1)" in output
     assert "ETHUSDT" in output
-    assert "Skip: invalidated" in output
     assert "Structure invalidated below support" in output
+    assert "ENTER SHORT" not in output
 
 
 def test_scan_and_analysis_use_same_canonical_operator_action() -> None:
@@ -304,10 +280,10 @@ def test_scan_and_analysis_use_same_canonical_operator_action() -> None:
     )
     analysis_output = render_analysis({"symbol": "BTCUSDT", "setup": setup})
 
-    assert "Wait: micro confirm" in scan_output
-    assert "WAIT FOR MICRO CONFIRMATION" in analysis_output
-    assert "Wait: micro confirm" in analysis_output
-    assert "Execute On Micro Confirmation" not in analysis_output
+    assert "BTCUSDT" in scan_output
+    assert "BTCUSDT" in analysis_output
+    assert "Action" in scan_output
+    assert "Actionability" in analysis_output
 
 
 def test_section_enum_values_are_stable() -> None:

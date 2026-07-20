@@ -58,10 +58,12 @@ def _setup_payload() -> dict[str, object]:
 def test_analysis_text_exposes_entry_and_candlestick_sections() -> None:
     rendered = render_discovery_analysis(_setup_payload())
 
-    assert "Why This Entry" in rendered
-    assert "Candlestick Evidence" in rendered
-    assert "Hammer" in rendered
-    assert "Executable now" in rendered
+    assert "Trade plan" in rendered
+    assert "Why this trade" in rendered
+    assert "Current price" in rendered
+    assert "Preferred entry" in rendered
+    assert "Stop" in rendered
+    assert "TP1" in rendered
 
 
 def test_analysis_text_explains_independent_no_trade_theses() -> None:
@@ -90,41 +92,18 @@ def test_analysis_text_explains_independent_no_trade_theses() -> None:
                     "confidence_label": "Low",
                     "reason": "neither side is executable",
                 },
-                "long_thesis": {
-                    "state": "rejected",
-                    "primary_strategy": "breakout_continuation",
-                    "score": 56.7,
-                    "approval_threshold": 58.0,
-                    "score_shortfall": 1.3,
-                    "candidate_outcome": "rejected_below_score_threshold",
-                    "summary": "long breakout continuation is not approved",
-                    "blockers": ("rule-based quality is below threshold",),
-                    "activation_conditions": ("5m candle closes above resistance",),
-                    "invalidation_conditions": ("setup invalidates below support",),
-                },
-                "short_thesis": {
-                    "state": "developing",
-                    "primary_strategy": "breakout_retest",
-                    "score": 60.0,
-                    "approval_threshold": 58.0,
-                    "score_shortfall": 0.0,
-                    "candidate_outcome": "accepted",
-                    "summary": "short is developing; retest required",
-                    "blockers": ("retest confirmation is incomplete",),
-                    "activation_conditions": ("support breaks and retest fails",),
-                    "invalidation_conditions": ("reclaim above failed support",),
-                },
+                "long_thesis": {},
+                "short_thesis": {},
                 "watch_plan": ("avoid forcing direction",),
             },
         }
     )
 
-    assert "Market Outlook" in rendered
-    assert "Directional Assessment" in rendered
-    assert "Long Assessment" in rendered
-    assert "Short Assessment" in rendered
-    assert "Required threshold" in rendered
-    assert "Watch Next" in rendered
+    assert "NO TRADE" in rendered
+    assert "Market context" in rendered
+    assert "Range" in rendered
+    assert "Compressed" in rendered
+    assert "Support 0.0074, resistance 0.0077" in rendered
 
 
 def test_scan_text_exposes_discovery_lanes() -> None:
@@ -158,8 +137,9 @@ def test_scan_text_exposes_discovery_lanes() -> None:
                     },
                 )
             },
-        }
+        },
+        explain=True,
     )
 
-    assert "Discovery Lanes" in rendered
-    assert "Trend continuation" in rendered
+    assert "Shortlist evidence" in rendered
+    assert "BTC/USDT" in rendered

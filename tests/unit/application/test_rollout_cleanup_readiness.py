@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import inspect
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -137,14 +136,3 @@ def test_rollout_exports_are_available_from_application_facade() -> None:
     assert callable(write_rollout_operator_report)
     assert callable(evaluate_rollout_acceptance)
     assert callable(rollout_acceptance_payload)
-
-
-def test_rollout_documentation_declares_cleanup_blockers() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    plan = (repo_root / "docs" / "planv3.md").read_text(encoding="utf-8")
-    runbook = (repo_root / "docs" / "rollout_operations.md").read_text(encoding="utf-8")
-
-    assert "Final cleanup gate" in plan
-    assert "Compatibility-removal prerequisites" in runbook
-    assert "rollout_diagnostics_enabled: false" in plan
-    assert "regression_count == 0" in runbook

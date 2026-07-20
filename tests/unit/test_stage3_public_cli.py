@@ -13,6 +13,7 @@ def test_public_cli_contains_only_stage3_commands() -> None:
         "analyze",
         "backtest",
         "config-check",
+        "research",
         "scan",
         "version",
     }

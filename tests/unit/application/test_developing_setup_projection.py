@@ -176,8 +176,8 @@ def test_public_output_groups_pending_setup_as_developing() -> None:
 def test_pending_analysis_omits_unavailable_selected_semantics() -> None:
     text = render_discovery_analysis(serialize_public_analysis(_analysis()))
 
-    assert "Valid Setup, Entry Pending" in text
-    assert "Activation Required" in text
+    assert "Decision" in text
+    assert "Trade plan" in text
     assert "no canonical entry opportunity exists" not in text
     assert "no canonical target candidates are available" not in text
 
@@ -197,7 +197,6 @@ def test_scan_uses_compact_pending_card() -> None:
     )
 
     assert "Developing / Watch" not in text
-    assert "Nearby limit entries" in text
-    assert "Inspect" in text
+    assert "Developing / follow-up" in text
     assert "Trade Management" not in text
     assert "Candlestick Evidence" not in text

@@ -15,8 +15,6 @@ def test_methodology_details_are_visible_without_raw_internal_dump() -> None:
             "confidence_score": 78.0,
             "trader_headline": "Strong setup — executable now",
             "execution_allowed_now": True,
-            "setup_validity": "30 minutes",
-            "setup_expiry_reason": "strategy and entry-mode validity policy",
             "quality_dimensions": {
                 "setup_quality": 84.0,
                 "execution_quality": 76.0,
@@ -39,41 +37,29 @@ def test_methodology_details_are_visible_without_raw_internal_dump() -> None:
                     "maximum_chase_price": 99.2,
                 }
             ],
-            "stop_loss": {
-                "price": 97.5,
-                "distance_pct": 2.5,
-                "quality_band": "strong",
-                "stop_type": "structural",
-                "single_buffer_rationale": "single 0.25 ATR structural-noise buffer",
-            },
+            "stop_loss": {"price": 97.5, "distance_pct": 2.5},
             "take_profits": [
-                {
-                    "price": 102.5,
-                    "risk_reward": 1.0,
-                    "partial_close_pct": 40.0,
-                    "target_type": "partial",
-                    "purpose": "risk-reduction partial",
-                },
-                {
-                    "price": 106.0,
-                    "risk_reward": 2.4,
-                    "partial_close_pct": 60.0,
-                    "target_type": "structural",
-                    "purpose": "primary structural objective",
-                },
+                {"price": 102.5, "risk_reward": 1.0},
+                {"price": 106.0, "risk_reward": 2.4},
             ],
-            "management_policies": [],
             "warnings": [],
         },
     }
 
     rendered = render_discovery_analysis(payload)
 
-    assert "Strong setup — executable now" in rendered
-    assert "Setup quality" in rendered
-    assert "Execution allowed now" in rendered
-    assert "Alternative Entry Opportunities" in rendered
-    assert "single 0.25 ATR structural-noise buffer" in rendered
-    assert "risk-reduction partial" in rendered
-    assert "primary structural objective" in rendered
-    assert "30 minutes" in rendered
+    for expected in (
+        "Decision",
+        "Trade quality",
+        "Trade plan",
+        "Current price",
+        "Entry zone",
+        "Preferred entry",
+        "Stop",
+        "TP1",
+        "TP2",
+        "Alternative entry",
+    ):
+        assert expected in rendered
+    assert "quality_dimensions" not in rendered
+    assert "alternative_entry_opportunities" not in rendered

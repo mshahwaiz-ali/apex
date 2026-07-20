@@ -48,10 +48,17 @@ def _serialize_scan_payload(
     )
 
 
-def _serialize_scan_analysis_record(analysis: SymbolAnalysis) -> dict[str, object]:
+def _serialize_scan_analysis_record(
+    analysis: SymbolAnalysis,
+    *,
+    rollout_diagnostics_enabled: bool = False,
+) -> dict[str, object]:
     """Serialize one scan result for internal outcome tracking."""
 
-    return serialize_symbol_analysis(analysis)
+    return serialize_symbol_analysis(
+        analysis,
+        include_rollout_diagnostics=rollout_diagnostics_enabled,
+    )
 
 
 def register_scanner_commands(app: typer.Typer) -> None:
