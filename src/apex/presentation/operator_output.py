@@ -18,3 +18,588 @@ from apex.presentation import (
 )
 from apex.presentation.cli_information_architecture import (
     canonical_actionability_label,
+    canonical_actionability_state,
+    data_quality_warning,
+    diagnostic_summary_lines,
+    evidence_contradiction_lines,
+    multi_timeframe_lines,
+    opportunity_map_lines,
+    partition_scan_results,
+    rationale_lines,
+    rejected_candidate_lines,
+)
+from apex.presentation.scan_groups import flatten_existing_scan_groups
+
+
+def render_analysis(payload: Mapping[str, object], *, explain: bool = False) -> str:
+    """Render one selected market as an actionable trade plan or clear no-trade result."""
+
+    symbol = str(payload.get("symbol") or "Unknown market")
+    selected = _mapping(payload.get("setup"))
+    developing = _mapping(payload.get("developing_setup"))
+    setup = selected or developing
+    focused = _mapping(payload.get("focused_analysis"))
+    sections = [render_title(f"Apex Analysis • {symbol}")]
+
+    if not setup:
+        sections.extend(_no_trade_sections(payload, focused, explain=explain))
+    else:
+        sections.extend(
+            _setup_sections(
+                payload,
+                setup,
+                focused,
+                pending=bool(developing and not selected),
+                explain=explain,
+            )
+        )
+    return "\n\n".join(section for section in sections if section)
+
+
+def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
+    """Render ranked current and developing trade opportunities."""
+
+    grouped = partition_scan_results(flatten_existing_scan_groups(payload))
+    sections = [render_title("Apex Market Scan • Best Trade Opportunities")]
+    sections.append(
+        render_section(
+            "Summary",
+            render_fields(
+                (
+                    ("Markets analyzed", payload.get("total_analysis_count")),
+                    ("Actionable now", len(grouped.actionable_cmp)),
+                    ("Nearby entries", len(grouped.nearby_limit)),
+                    ("Confirmation entries", len(grouped.micro_confirmation)),
+                    ("Developing / follow-up", len(grouped.follow_up_reversal)),
+                    ("No valid setup", len(grouped.weak_invalid)),
+                )
+            ),
+        )
+    )
+
+    for title, hint, items in (
+        (
+            "Enter at CMP",
+            "CMP is inside an executable entry area.",
+            grouped.actionable_cmp,
+        ),
+        (
+            "Nearby entry",
+            "A valid trade exists close to CMP; use the stated entry zone.",
+            grouped.nearby_limit,
+        ),
+        (
+            "Confirmation entry",
+            "Price location is usable after the stated micro confirmation.",
+            grouped.micro_confirmation,
+        ),
+        (
+            "Developing and follow-up setups",
+            "These setups remain valid but are not executable yet.",
+            grouped.follow_up_reversal,
+        ),
+    ):
+        if items:
+            sections.append(_scan_group(title, hint, items))
+
+    if grouped.weak_invalid:
+        sections.append(
+            render_section(
+                f"No valid trade ({len(grouped.weak_invalid)})",
+                render_bullets(_weak_invalid_lines(grouped.weak_invalid)),
+            )
+        )
+
+    if explain:
+        screening = _mapping(payload.get("screening"))
+        lanes = _screening_lanes(screening)
+        if lanes:
+            sections.append(render_section("Shortlist evidence", render_bullets(lanes)))
+        sections.append(
+            render_section(
+                "Full scan counts",
+                render_fields(
+                    (
+                        ("Displayed", payload.get("displayed_analysis_count")),
+                        ("Selected setups", payload.get("selected_setup_count")),
+                        ("Long candidates", payload.get("long_candidate_count")),
+                        ("Short candidates", payload.get("short_candidate_count")),
+                    )
+                ),
+            )
+        )
+    return "\n\n".join(sections)
+
+
+def _no_trade_sections(
+    payload: Mapping[str, object],
+    focused: Mapping[str, object],
+    *,
+    explain: bool,
+) -> list[str]:
+    assessment = _mapping(focused.get("directional_assessment"))
+    reasons = _clean_many(payload.get("reasons"))
+    reason = reasons[0] if reasons else "No defensible entry with defined risk is available."
+    sections = [
+        render_section(
+            "Decision",
+            "\n".join(
+                (
+                    "▶  NO TRADE RIGHT NOW",
+                    render_fields(
+                        (
+                            ("Directional bias", humanize_code(assessment.get("preferred_side"))),
+                            ("Reason", reason),
+                        )
+                    ),
+                )
+            ),
+        )
+    ]
+    watch = _watch_items(focused)
+    if watch:
+        sections.append(render_section("Next valid setup", render_bullets(watch[:4])))
+    context = _market_context(focused)
+    if context:
+        sections.append(context)
+    if explain:
+        signal = _signal_snapshot(payload)
+        if signal:
+            sections.append(signal)
+        sections.extend(_side_explanation(focused))
+    return sections
+
+
+def _setup_sections(
+    payload: Mapping[str, object],
+    setup: Mapping[str, object],
+    focused: Mapping[str, object],
+    *,
+    pending: bool,
+    explain: bool,
+) -> list[str]:
+    entry = _mapping(setup.get("entry"))
+    stop = _mapping(setup.get("stop_loss"))
+    targets = _mappings(setup.get("take_profits"))
+    direction = humanize_code(setup.get("direction"))
+    actionability = canonical_actionability_state(setup).lower()
+
+    if actionability in {"execute_now", "aggressive_now"} and not pending:
+        action = f"ENTER {direction.upper()}"
+    elif actionability == "execute_on_micro_confirmation" and not pending:
+        action = "WAIT FOR MICRO CONFIRMATION"
+    elif actionability in {"invalidated", "missed_or_chasing"}:
+        action = "SKIP — INVALID OR CHASED"
+    else:
+        action = "VALID SETUP — WAIT FOR ENTRY"
+
+    quality = _mapping(setup.get("quality_dimensions"))
+    sections = [
+        render_section(
+            "Decision",
+            "\n".join(
+                (
+                    f"▶  {action}",
+                    render_fields(
+                        (
+                            ("Side", direction),
+                            ("Strategy", humanize_code(setup.get("strategy"))),
+                            ("State", canonical_actionability_label(setup)),
+                            (
+                                "Trade quality",
+                                _quality(
+                                    quality.get("overall_trade_quality")
+                                    or quality.get("setup_quality")
+                                    or setup.get("confidence_score")
+                                ),
+                            ),
+                        )
+                    ),
+                )
+            ),
+        )
+    ]
+
+    preferred = _number(entry.get("preferred"))
+    current = _number(entry.get("current_price"))
+    plan: list[tuple[str, object]] = [
+        ("Current price", format_price(entry.get("current_price"))),
+        ("Entry zone", _price_range(entry.get("lower"), entry.get("upper"))),
+        ("Preferred entry", format_price(entry.get("preferred"))),
+        ("Stop", _price_with_move(stop.get("price"), preferred or current)),
+    ]
+    chase_label = "Do not chase below" if setup.get("direction") == "short" else "Do not chase above"
+    plan.append((chase_label, format_price(entry.get("maximum_chase_price"))))
+    for index, target in enumerate(targets[:3], start=1):
+        plan.append(
+            (
+                f"TP{index}",
+                _target_label(target, reference=preferred or current),
+            )
+        )
+    sections.append(render_section("Trade plan", render_fields(plan)))
+
+    timeframe_map = multi_timeframe_lines(payload)
+    if timeframe_map:
+        sections.append(render_section("Multi-timeframe view", render_bullets(timeframe_map)))
+
+    if pending:
+        sections.append(
+            render_section("Activation needed", render_bullets(_activation(setup, focused)[:4]))
+        )
+
+    reasons = _clean_many(payload.get("reasons"))
+    if reasons:
+        sections.append(render_section("Why this trade", render_bullets(reasons[:3])))
+
+    warnings = _clean_many(setup.get("warnings"))
+    if warnings:
+        sections.append(render_section("Main risks", render_bullets(warnings[:3])))
+
+    alternatives = _mappings(setup.get("alternative_entry_opportunities"))
+    if alternatives:
+        lines = [
+            f"{_price_range(item.get('lower'), item.get('upper'))} • preferred "
+            f"{format_price(item.get('preferred'))}"
+            for item in alternatives[:2]
+        ]
+        sections.append(render_section("Alternative entry", render_bullets(lines)))
+
+    if explain:
+        signal = _signal_snapshot(payload)
+        if signal:
+            sections.append(signal)
+        opportunity_map = opportunity_map_lines(payload)
+        if opportunity_map:
+            sections.append(render_section("Opportunity map", render_bullets(opportunity_map)))
+        rationale = rationale_lines(payload, setup)
+        if rationale:
+            sections.append(render_section("Geometry rationale", render_bullets(rationale)))
+        evidence = evidence_contradiction_lines(payload, setup)
+        if evidence:
+            sections.append(render_section("Evidence and contradictions", render_bullets(evidence)))
+        diagnostics = diagnostic_summary_lines(payload)
+        if diagnostics:
+            sections.append(render_section("Lifecycle and collision", render_bullets(diagnostics)))
+        rejected = rejected_candidate_lines(payload)
+        if rejected:
+            sections.append(render_section("Rejected candidates", render_bullets(rejected)))
+        sections.extend(_setup_explanation(setup, focused))
+    return sections
+
+
+def _scan_group(
+    title: str,
+    hint: str,
+    items: Sequence[Mapping[str, object]],
+) -> str:
+    cards = [_scan_card(item, index=index) for index, item in enumerate(items, start=1)]
+    body = f"  {hint}\n\n" + ("\n  " + "·" * 72 + "\n\n").join(cards)
+    return render_section(f"{title} ({len(items)})", body)
+
+
+def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
+    symbol = str(payload.get("symbol") or "Unknown market")
+    selected = _mapping(payload.get("setup"))
+    developing = _mapping(payload.get("developing_setup"))
+    setup = selected or developing
+    if not setup:
+        reasons = _clean_many(payload.get("reasons"))
+        return "\n".join(
+            (
+                f"▶  #{index}  {symbol} • NO TRADE",
+                render_fields((("Reason", reasons[0] if reasons else "No valid setup formed"),)),
+            )
+        )
+
+    entry = _mapping(setup.get("entry"))
+    stop = _mapping(setup.get("stop_loss"))
+    targets = _mappings(setup.get("take_profits"))
+    quality = _mapping(setup.get("quality_dimensions"))
+    reference = _number(entry.get("preferred")) or _number(entry.get("current_price"))
+    fields: list[tuple[str, object]] = [
+        ("Action", canonical_actionability_label(setup)),
+        ("Side", humanize_code(setup.get("direction"))),
+        ("Strategy", humanize_code(setup.get("strategy"))),
+        ("CMP", format_price(entry.get("current_price"))),
+        ("Entry", _price_range(entry.get("lower"), entry.get("upper"))),
+        ("Preferred", format_price(entry.get("preferred"))),
+        ("Stop", _price_with_move(stop.get("price"), reference)),
+    ]
+    for target_index, target in enumerate(targets[:3], start=1):
+        fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
+    fields.extend(
+        (
+            (
+                "Trade quality",
+                _quality(
+                    quality.get("overall_trade_quality")
+                    or quality.get("setup_quality")
+                    or setup.get("confidence_score")
+                ),
+            ),
+            ("Execution quality", _quality(quality.get("execution_quality"))),
+        )
+    )
+    warning = data_quality_warning(payload)
+    if warning:
+        fields.append(("Data warning", warning))
+    warnings = _clean_many(setup.get("warnings"))
+    if warnings:
+        fields.append(("Main risk", warnings[0]))
+    if developing and not selected:
+        fields.append(("Wait for", _activation(setup, {})[0]))
+    return "\n".join((f"▶  #{index}  {symbol}", render_fields(fields)))
+
+
+def _market_context(focused: Mapping[str, object]) -> str:
+    outlook = _mapping(focused.get("market_outlook"))
+    if not outlook:
+        return ""
+    return render_section(
+        "Market context",
+        render_fields(
+            (
+                ("Regime", humanize_code(outlook.get("regime"))),
+                ("Structure", humanize_code(outlook.get("primary_structure"))),
+                ("Volatility", humanize_code(outlook.get("volatility"))),
+                ("Participation", humanize_code(outlook.get("participation"))),
+                ("Price location", _clean(outlook.get("current_location"))),
+            )
+        ),
+    )
+
+
+def _signal_snapshot(payload: Mapping[str, object]) -> str:
+    intelligence = _mapping(payload.get("market_intelligence"))
+    warning = _mapping(intelligence.get("early_warning"))
+    edge = _mapping(payload.get("historical_edge"))
+    fields: list[tuple[str, object]] = []
+    if warning:
+        evidence = _clean_many(warning.get("evidence"))
+        concerns = _clean_many(warning.get("concerns"))
+        fields.extend(
+            (
+                ("Early warning", humanize_code(warning.get("state"))),
+                ("Directional lean", humanize_code(warning.get("direction"))),
+                ("Main evidence", evidence[0] if evidence else UNAVAILABLE),
+                ("Main concern", concerns[0] if concerns else UNAVAILABLE),
+            )
+        )
+    if edge and edge.get("available") is True:
+        expected_r = edge.get("expected_r")
+        fields.extend(
+            (
+                ("Historical edge", "Validated"),
+                (
+                    "Expected return",
+                    f"{float(expected_r):+.2f}R"
+                    if isinstance(expected_r, int | float)
+                    else UNAVAILABLE,
+                ),
+            )
+        )
+    return render_section("Signal evidence", render_fields(fields)) if fields else ""
+
+
+def _side_explanation(focused: Mapping[str, object]) -> list[str]:
+    sections: list[str] = []
+    for label, key in (("Long assessment", "long_thesis"), ("Short assessment", "short_thesis")):
+        thesis = _mapping(focused.get(key))
+        if not thesis:
+            continue
+        blockers = _clean_many(thesis.get("blockers"))
+        body = render_fields(
+            (
+                ("State", humanize_code(thesis.get("state"))),
+                ("Best strategy", humanize_code(thesis.get("primary_strategy"))),
+                ("Quality", _quality(thesis.get("score"))),
+                ("Summary", _clean(thesis.get("summary"))),
+            )
+        )
+        if blockers:
+            body += "\n\n" + render_bullets(blockers[:4])
+        sections.append(render_section(label, body))
+    return sections
+
+
+def _setup_explanation(
+    setup: Mapping[str, object],
+    focused: Mapping[str, object],
+) -> list[str]:
+    sections: list[str] = []
+    quality = _mapping(setup.get("quality_dimensions"))
+    if quality:
+        sections.append(
+            render_section(
+                "Quality breakdown",
+                render_fields(
+                    (
+                        ("Setup", _quality(quality.get("setup_quality"))),
+                        ("Execution", _quality(quality.get("execution_quality"))),
+                        ("Targets", _quality(quality.get("target_quality"))),
+                        ("Risk", _quality(quality.get("risk_quality"))),
+                        ("Overall", _quality(quality.get("overall_trade_quality"))),
+                    )
+                ),
+            )
+        )
+    sections.extend(_side_explanation(focused))
+    return sections
+
+
+def _weak_invalid_lines(items: Sequence[Mapping[str, object]]) -> tuple[str, ...]:
+    lines: list[str] = []
+    for payload in items[:8]:
+        symbol = str(payload.get("symbol") or "Unknown market")
+        reasons = _clean_many(payload.get("reasons"))
+        lines.append(f"{symbol} — {reasons[0] if reasons else 'No valid setup formed'}")
+    hidden = max(0, len(items) - len(lines))
+    if hidden:
+        lines.append(f"{hidden} additional markets not expanded")
+    return tuple(lines)
+
+
+def _watch_items(focused: Mapping[str, object]) -> tuple[str, ...]:
+    watch = list(_clean_many(focused.get("watch_plan")))
+    if not watch:
+        for key in ("long_thesis", "short_thesis"):
+            watch.extend(_clean_many(_mapping(focused.get(key)).get("activation_conditions")))
+    return tuple(dict.fromkeys(watch))
+
+
+def _activation(
+    setup: Mapping[str, object],
+    focused: Mapping[str, object],
+) -> tuple[str, ...]:
+    warnings = _clean_many(setup.get("warnings"))
+    useful = tuple(
+        item
+        for item in warnings
+        if any(word in item.lower() for word in ("confirm", "retest", "reclaim", "pullback", "close"))
+    )
+    return useful or _watch_items(focused) or ("Wait for the stated entry conditions.",)
+
+
+def _screening_lanes(screening: Mapping[str, object]) -> tuple[str, ...]:
+    lines: list[str] = []
+    for candidate in _mappings(screening.get("candidates"))[:8]:
+        lanes = _mappings(candidate.get("discovery_lanes"))
+        if lanes:
+            lane = lanes[0]
+            lines.append(
+                f"{candidate.get('symbol')}: {humanize_code(lane.get('lane'))} "
+                f"({_quality(lane.get('score'))}) — {_clean(lane.get('reason'))}"
+            )
+    return tuple(lines)
+
+
+def _target_label(target: Mapping[str, object], *, reference: float | None) -> str:
+    price = target.get("price")
+    rr = format_ratio(target.get("risk_reward"))
+    move = _move_pct(price, reference)
+    suffixes = []
+    if move is not None:
+        suffixes.append(f"{move:+.2f}%")
+    if rr != UNAVAILABLE:
+        suffixes.append(f"{rr}R")
+    suffix = " • " + " • ".join(suffixes) if suffixes else ""
+    return f"{format_price(price)}{suffix}"
+
+
+def _price_with_move(price: object, reference: float | None) -> str:
+    move = _move_pct(price, reference)
+    return format_price(price) if move is None else f"{format_price(price)} • {move:+.2f}%"
+
+
+def _move_pct(price: object, reference: float | None) -> float | None:
+    numeric = _number(price)
+    if numeric is None or reference is None or reference == 0:
+        return None
+    return (numeric - reference) / reference * 100.0
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _clean(value: object) -> str:
+    if value is None:
+        return UNAVAILABLE
+    text = str(value).strip()
+    replacements = (
+        (
+            r"all candidates scored below their configured approval thresholds",
+            "No setup reached the required trade quality.",
+        ),
+        (
+            r"all candidates were rejected by deterministic candidate-selection rules",
+            "No setup passed the current structure and execution checks.",
+        ),
+        (
+            r"active-candle evidence is provisional",
+            "Current-candle confirmation remains incomplete.",
+        ),
+        (
+            r"rule-based quality is below the configured approval threshold",
+            "Setup quality is below the required level.",
+        ),
+        (
+            r"score [\d.]+ is below aggressive floor [\d.]+",
+            "Setup quality is below the aggressive-entry requirement.",
+        ),
+        (
+            r"no (long|short) candidate passed strategy generation",
+            r"No clear \1 setup formed.",
+        ),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    text = re.sub(r";?\s*cross-sectional raw score\s+[-+\d.]+", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<![\w.])-?\d+\.\d{7,}", _short_number, text)
+    return text[:1].upper() + text[1:] if text else UNAVAILABLE
+
+
+def _short_number(match: re.Match[str]) -> str:
+    number = float(match.group(0))
+    absolute = abs(number)
+    decimals = 2 if absolute >= 1_000 else 4 if absolute >= 1 else 6 if absolute >= 0.01 else 8
+    return f"{number:,.{decimals}f}"
+
+
+def _clean_many(value: object) -> tuple[str, ...]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return ()
+    return tuple(dict.fromkeys(_clean(item) for item in value))
+
+
+def _mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _mappings(value: object) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
+def _price_range(low: object, high: object) -> str:
+    if low is None and high is None:
+        return UNAVAILABLE
+    if low == high or high is None:
+        return format_price(low)
+    if low is None:
+        return format_price(high)
+    return f"{format_price(low)} - {format_price(high)}"
+
+
+def _quality(value: object) -> str:
+    score = format_score(value)
+    return score if score == UNAVAILABLE else f"{score}/100"
+
+
+__all__ = ["render_analysis", "render_scan"]
