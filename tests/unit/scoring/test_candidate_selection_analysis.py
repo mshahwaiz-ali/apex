@@ -306,7 +306,7 @@ def test_all_candidates_below_threshold_returns_no_trade() -> None:
     assert result.rejected_candidates[0].outcome is CandidateOutcome.REJECTED_BELOW_THRESHOLD
 
 
-def test_major_higher_timeframe_contradiction_is_rejected() -> None:
+def test_major_higher_timeframe_contradiction_is_retained_with_warning() -> None:
     result = analyze_candidate_selection(
         _phase4(
             _candidate(
@@ -315,8 +315,9 @@ def test_major_higher_timeframe_contradiction_is_rejected() -> None:
             )
         )
     )
-    assert result.selected_candidate is None
-    assert result.rejected_candidates[0].outcome is CandidateOutcome.REJECTED_CONTRADICTION
+    assert result.selected_candidate is not None
+    assert result.selected_candidate.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
+    assert result.rejected_candidates == ()
 
 
 def test_empty_phase4_result_is_explicit_no_trade() -> None:

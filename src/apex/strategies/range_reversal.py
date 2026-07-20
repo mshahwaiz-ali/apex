@@ -69,8 +69,7 @@ def _candidate_for_direction(
     detected_range = _best_range(context, minimum_quality=minimum_range_quality)
     if detected_range is None:
         return None
-    if context.higher_timeframe_contradiction(bullish=bullish):
-        return None
+    higher_timeframe_conflict = context.higher_timeframe_contradiction(bullish=bullish)
     if not _trend_allows_mean_reversion(frame.structure.trend.direction):
         return None
     if not _breakout_state_allows(detected_range.breakout_state, bullish=bullish):
@@ -113,7 +112,14 @@ def _candidate_for_direction(
         config=entry_config,
     )
     features = frame.features
-    warnings = ("active-candle evidence is provisional",) if context.provisional else ()
+    warnings: list[str] = []
+    if context.provisional:
+        warnings.append("active-candle evidence is provisional")
+    if higher_timeframe_conflict:
+        warnings.append(
+            "higher-timeframe trend opposes the local range reversal; "
+            "treat the setup as scalp-only and cap targets at local range structure"
+        )
     false_break = detected_range.breakout_state in {
         RangeBreakoutState.FALSE_BULLISH,
         RangeBreakoutState.FALSE_BEARISH,
@@ -156,11 +162,11 @@ def _candidate_for_direction(
                 target=primary_target,
             ),
             extension_penalty=1.0 - entry.location_quality,
-            conflict_penalty=0.0,
+            conflict_penalty=0.25 if higher_timeframe_conflict else 0.0,
         ),
         evidence=StrategyEvidence(
             supporting=tuple(supporting),
-            warnings=warnings,
+            warnings=tuple(warnings),
             feature_references=tuple(
                 name
                 for name, value in (
@@ -180,6 +186,11 @@ def _candidate_for_direction(
             "range_start_index": detected_range.start_index,
             "range_end_index": detected_range.end_index,
             "range_quality": detected_range.quality,
+            "higher_timeframe_conflict": higher_timeframe_conflict,
+            "higher_timeframe_authority": (
+                "warning_and_target_ceiling" if higher_timeframe_conflict else "aligned_or_neutral"
+            ),
+            "runner_allowed": not higher_timeframe_conflict,
         },
         provisional=context.provisional,
     )

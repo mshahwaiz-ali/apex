@@ -38,11 +38,18 @@ def derive_strategy_enforcement(
 ) -> StrategyEnforcementDecision:
     """Translate one eligibility result into a non-mutating routing decision."""
 
-    if evaluation.state is StrategyEligibilityState.COMPATIBLE:
+    if evaluation.state in {
+        StrategyEligibilityState.COMPATIBLE,
+        StrategyEligibilityState.COMPATIBLE_WITH_CONSTRAINTS,
+    }:
         return StrategyEnforcementDecision(
             strategy=evaluation.strategy,
             action=StrategyEnforcementAction.ALLOW,
-            reason_codes=("METHODOLOGY_COMPATIBLE",),
+            reason_codes=(
+                "METHODOLOGY_COMPATIBLE_WITH_CONSTRAINTS"
+                if evaluation.state is StrategyEligibilityState.COMPATIBLE_WITH_CONSTRAINTS
+                else "METHODOLOGY_COMPATIBLE",
+            ),
             reasons=evaluation.reasons,
         )
     if evaluation.state is StrategyEligibilityState.PROHIBITED_STATE:

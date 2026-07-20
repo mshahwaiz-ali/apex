@@ -9,13 +9,18 @@ from apex.application.methodology_selected_strategy_verdict import (
     SelectedStrategyVerdictState,
     derive_selected_strategy_verdict,
 )
-from apex.application.methodology_strategy_enforcement import StrategyEnforcementDecision
+from apex.application.methodology_strategy_enforcement import (
+    StrategyEnforcementAction,
+    StrategyEnforcementDecision,
+)
 from apex.application.opportunity_portfolio import SymbolOpportunityPortfolio, TradeOpportunity
 
 
 def filter_portfolio_by_methodology(
     portfolio: SymbolOpportunityPortfolio | None,
     decisions: tuple[StrategyEnforcementDecision, ...],
+    *,
+    opportunity_decisions: dict[str, StrategyEnforcementDecision] | None = None,
 ) -> tuple[SymbolOpportunityPortfolio | None, tuple[str, ...]]:
     """Remove only opportunities whose strategy verdict is explicitly suppressed."""
 
@@ -27,11 +32,20 @@ def filter_portfolio_by_methodology(
     def keep(opportunity: TradeOpportunity | None) -> TradeOpportunity | None:
         if opportunity is None:
             return None
-        verdict = derive_selected_strategy_verdict(
-            selected_strategy=opportunity.setup.strategy,
-            decisions=decisions,
+        opportunity_decision = (
+            None
+            if opportunity_decisions is None
+            else opportunity_decisions.get(opportunity.opportunity_id)
         )
-        if verdict.state is SelectedStrategyVerdictState.SUPPRESSED:
+        if opportunity_decision is not None:
+            suppressed = opportunity_decision.action is StrategyEnforcementAction.SUPPRESS
+        else:
+            verdict = derive_selected_strategy_verdict(
+                selected_strategy=opportunity.setup.strategy,
+                decisions=decisions,
+            )
+            suppressed = verdict.state is SelectedStrategyVerdictState.SUPPRESSED
+        if suppressed:
             removed.append(opportunity.opportunity_id)
             return None
         return opportunity

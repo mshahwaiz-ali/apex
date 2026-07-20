@@ -6,6 +6,7 @@ from dataclasses import replace
 from typing import Any
 
 from apex.application.discovery_contracts import SymbolAnalysis
+from apex.application.methodology_opportunity_context import infer_opportunity_methodology_context
 from apex.application.methodology_portfolio_gate import (
     assessment_from_portfolio,
     filter_portfolio_by_methodology,
@@ -17,9 +18,13 @@ from apex.application.methodology_selected_strategy_verdict import (
     selected_strategy_verdict_payload,
 )
 from apex.application.methodology_strategy_enforcement import (
+    derive_strategy_enforcement,
     derive_strategy_enforcement_registry,
 )
-from apex.application.methodology_strategy_evaluation import evaluate_strategy_registry
+from apex.application.methodology_strategy_evaluation import (
+    evaluate_strategy_eligibility,
+    evaluate_strategy_registry,
+)
 
 
 def apply_configured_methodology_gate(
@@ -47,6 +52,23 @@ def apply_configured_methodology_gate(
     )
 
     portfolio = analysis.opportunity_portfolio
+    opportunity_decisions = {}
+    if portfolio is not None:
+        for opportunity in portfolio.opportunities:
+            context = infer_opportunity_methodology_context(opportunity)
+            opportunity_evaluation = evaluate_strategy_eligibility(
+                opportunity.setup.strategy,
+                market_state=(
+                    None if methodology.market_state is None else methodology.market_state.primary
+                ),
+                evidence=methodology.evidence,
+                lane=context.lane,
+                direction=opportunity.setup.direction,
+                holding_horizon=context.holding_horizon,
+            )
+            opportunity_decisions[opportunity.opportunity_id] = derive_strategy_enforcement(
+                opportunity_evaluation
+            )
     removed_ids: tuple[str, ...] = ()
     assessment = analysis.assessment
     changed = False
@@ -54,7 +76,11 @@ def apply_configured_methodology_gate(
     reason_codes = ("METHODOLOGY_GATE_SHADOW",)
 
     if normalized_mode is MethodologyGateMode.ENFORCE:
-        portfolio, removed_ids = filter_portfolio_by_methodology(portfolio, enforcement)
+        portfolio, removed_ids = filter_portfolio_by_methodology(
+            portfolio,
+            enforcement,
+            opportunity_decisions=opportunity_decisions,
+        )
         changed = bool(removed_ids)
         reasons = (
             ("explicitly suppressed methodology opportunities were removed",)
@@ -76,6 +102,15 @@ def apply_configured_methodology_gate(
         "reason_codes": list(reason_codes),
         "reasons": list(reasons),
         "removed_opportunity_ids": list(removed_ids),
+        "opportunity_decisions": {
+            opportunity_id: {
+                "strategy": decision.strategy.value,
+                "action": decision.action.value,
+                "reason_codes": list(decision.reason_codes),
+                "reasons": list(decision.reasons),
+            }
+            for opportunity_id, decision in opportunity_decisions.items()
+        },
         "selected_strategy_verdict": selected_strategy_verdict_payload(selected_verdict),
     }
     return replace(

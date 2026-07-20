@@ -70,24 +70,32 @@ def resolve_conflicts(
                 f"score {item.final_score:.2f} is below aggressive floor "
                 f"{config.warning_accept_score:.2f}"
             )
-        elif (
-            item.scored.breakdown.penalty_points.get("higher_timeframe_contradiction", 0.0)
-            >= config.penalties.higher_timeframe_contradiction
-        ):
-            outcome = CandidateOutcome.REJECTED_CONTRADICTION
-            reasons.append("major higher-timeframe contradiction invalidates selection")
         elif unresolved_directional_conflict:
             outcome = CandidateOutcome.ACCEPTED_WITH_WARNING
             reasons.append(
                 "opposing direction remains independently valid inside the conflict margin"
             )
         elif item.final_score >= config.minimum_accept_score:
-            if item.candidate.provisional or consensus is DirectionalConsensus.MIXED:
+            higher_timeframe_penalty = item.scored.breakdown.penalty_points.get(
+                "higher_timeframe_contradiction",
+                0.0,
+            )
+            has_higher_timeframe_warning = higher_timeframe_penalty > 0.0
+            if (
+                item.candidate.provisional
+                or consensus is DirectionalConsensus.MIXED
+                or has_higher_timeframe_warning
+            ):
                 outcome = CandidateOutcome.ACCEPTED_WITH_WARNING
                 if item.candidate.provisional:
                     reasons.append("qualified provisional evidence accepted with penalty")
                 if consensus is DirectionalConsensus.MIXED:
                     reasons.append("opposing directional evidence remains below winner strength")
+                if has_higher_timeframe_warning:
+                    reasons.append(
+                        "higher-timeframe opposition is retained as a scored warning; "
+                        "lane-aware methodology decides scalp versus runner authority"
+                    )
             else:
                 outcome = CandidateOutcome.ACCEPTED
                 reasons.append("candidate clears score and conflict requirements")

@@ -80,3 +80,37 @@ def test_registry_evaluation_covers_every_strategy() -> None:
 
     assert {item.strategy for item in results} == set(StrategyType)
     assert len(results) == len(StrategyType)
+
+
+def test_scalp_lane_allows_broader_state_with_runner_disabled() -> None:
+    from apex.application.methodology_opportunity_context import HoldingHorizon, OpportunityLane
+    from apex.strategies.contracts import TradeDirection
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.EXHAUSTED_UP,
+        evidence=_evidence(EvidenceFamily.MOMENTUM, EvidenceFamily.PARTICIPATION),
+        lane=OpportunityLane.CMP_SCALP,
+        direction=TradeDirection.SHORT,
+        holding_horizon=HoldingHorizon.SCALP,
+    )
+
+    assert result.state is StrategyEligibilityState.COMPATIBLE_WITH_CONSTRAINTS
+    assert result.runner_allowed is False
+    assert "warning and target ceiling" in result.reasons[0]
+
+
+def test_runner_lane_keeps_incompatible_state_strict() -> None:
+    from apex.application.methodology_opportunity_context import HoldingHorizon, OpportunityLane
+    from apex.strategies.contracts import TradeDirection
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.EXHAUSTED_UP,
+        evidence=_evidence(EvidenceFamily.MOMENTUM, EvidenceFamily.PARTICIPATION),
+        lane=OpportunityLane.RUNNER,
+        direction=TradeDirection.SHORT,
+        holding_horizon=HoldingHorizon.RUNNER,
+    )
+
+    assert result.state is StrategyEligibilityState.INCOMPATIBLE_STATE
