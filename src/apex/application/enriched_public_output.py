@@ -13,6 +13,7 @@ from apex.application.decision_analysis import DEFAULT_SCAN_DISPLAY_LIMIT
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_public_enrichment import methodology_public_enrichment
+from apex.strategies.contracts import TradeDirection
 
 
 def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
@@ -131,7 +132,7 @@ def _normalize(value: Any) -> Any:
 
 def _portfolio_has_direction(analysis: SymbolAnalysis, direction: str) -> bool:
     portfolio = analysis.opportunity_portfolio
-    return portfolio is not None and portfolio.has_direction(direction)
+    return portfolio is not None and portfolio.has_direction(TradeDirection(direction))
 
 
 def _payload_direction(payload: Mapping[str, Any]) -> str | None:
