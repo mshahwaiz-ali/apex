@@ -232,78 +232,331 @@ def _setup_plan_section(payload: Mapping[str, object]) -> str:
 
 
 def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
-    """Render ranked current and developing trade opportunities."""
+    """Render every displayed canonical scan opportunity and truthful setup plan."""
 
-    grouped = partition_scan_results(flatten_existing_scan_groups(payload))
-    sections = [render_title("Apex Market Scan • Best Trade Opportunities")]
-    sections.append(
-        render_section(
-            "Summary",
-            render_fields(
-                (
-                    ("Markets analyzed", payload.get("total_analysis_count")),
-                    ("Actionable now", len(grouped.actionable_cmp)),
-                    ("Nearby entries", len(grouped.nearby_limit)),
-                    ("Confirmation entries", len(grouped.micro_confirmation)),
-                    ("Developing / follow-up", len(grouped.follow_up_reversal)),
-                    ("No valid setup", len(grouped.weak_invalid)),
-                )
-            ),
-        )
-    )
+    groups = _canonical_scan_groups(payload)
+    sections = [render_title("Apex Market Scan")]
+    sections.append(_scan_summary(payload, groups))
 
     for title, hint, items in (
         (
             "Enter at CMP",
             "CMP is inside an executable entry area.",
-            grouped.actionable_cmp,
-        ),
-        (
-            "Nearby entry",
-            "A valid trade exists close to CMP; use the stated entry zone.",
-            grouped.nearby_limit,
+            groups["enter"],
         ),
         (
             "Confirmation entry",
             "Price location is usable after the stated micro confirmation.",
-            grouped.micro_confirmation,
+            groups["confirmation"],
         ),
         (
-            "Developing and follow-up setups",
-            "These setups remain valid but are not executable yet.",
-            grouped.follow_up_reversal,
+            "Nearby entry",
+            "A valid trade exists close to CMP; use the stated entry zone.",
+            groups["nearby"],
+        ),
+        (
+            "Developing / follow-up",
+            "These plans remain valid but are not executable yet.",
+            groups["developing"],
         ),
     ):
         if items:
-            sections.append(_scan_group(title, hint, items))
+            sections.append(_canonical_scan_group(title, hint, items))
 
-    if grouped.weak_invalid:
-        sections.append(
-            render_section(
-                f"No valid trade ({len(grouped.weak_invalid)})",
-                render_bullets(_weak_invalid_lines(grouped.weak_invalid)),
-            )
-        )
+    if groups["no_trade"]:
+        sections.append(_no_trade_plan_group(groups["no_trade"]))
+
+    truncation = _scan_truncation_lines(payload)
+    if truncation:
+        sections.append(render_section("Display limits", render_bullets(truncation)))
+
+    failures = _scan_failure_lines(payload)
+    if failures:
+        sections.append(render_section("Scan failures", render_bullets(failures)))
 
     if explain:
         screening = _mapping(payload.get("screening"))
         lanes = _screening_lanes(screening)
         if lanes:
             sections.append(render_section("Shortlist evidence", render_bullets(lanes)))
-        sections.append(
-            render_section(
-                "Full scan counts",
-                render_fields(
-                    (
-                        ("Displayed", payload.get("displayed_analysis_count")),
-                        ("Selected setups", payload.get("selected_setup_count")),
-                        ("Long candidates", payload.get("long_candidate_count")),
-                        ("Short candidates", payload.get("short_candidate_count")),
-                    )
-                ),
+
+    return "\n\n".join(section for section in sections if section)
+
+
+def _scan_summary(
+    payload: Mapping[str, object],
+    groups: Mapping[str, Sequence[Mapping[str, object]]],
+) -> str:
+    failure_count = len(_mapping(payload.get("failures")))
+    methodology = _scan_methodology_status(payload)
+    return render_section(
+        "Scan summary",
+        render_fields(
+            (
+                ("Markets discovered", payload.get("total_symbol_count")),
+                ("Markets screened", payload.get("filtered_symbol_count")),
+                ("Symbols shortlisted", payload.get("displayed_symbol_count")),
+                ("Symbols analyzed", payload.get("total_analysis_count")),
+                ("Symbols failed", failure_count),
+                ("Opportunities retained", payload.get("retained_opportunity_count")),
+                ("Opportunities displayed", payload.get("displayed_opportunity_count")),
+                ("Executable now", len(groups["enter"])),
+                ("Confirmation entries", len(groups["confirmation"])),
+                ("Nearby entries", len(groups["nearby"])),
+                ("Developing / follow-up", len(groups["developing"])),
+                ("No current trade", len(groups["no_trade"])),
+                ("Direction filter", humanize_code(payload.get("direction_filter"))),
+                ("Methodology gate", methodology),
             )
+        ),
+    )
+
+
+def _canonical_scan_groups(
+    payload: Mapping[str, object],
+) -> dict[str, list[Mapping[str, object]]]:
+    groups: dict[str, list[Mapping[str, object]]] = {
+        "enter": [],
+        "confirmation": [],
+        "nearby": [],
+        "developing": [],
+        "no_trade": [],
+    }
+    results = _mappings(payload.get("results"))
+
+    # Preserve the established renderer for payloads that predate the
+    # canonical opportunity portfolio.
+    if not results or not any(_mapping(result.get("opportunity_portfolio")) for result in results):
+        return _legacy_scan_groups(payload)
+
+    for result in results:
+        portfolio = _mapping(result.get("opportunity_portfolio"))
+        if not portfolio:
+            selected = _mapping(result.get("setup"))
+            developing = _mapping(result.get("developing_setup"))
+            setup = selected or developing
+            if not setup:
+                groups["no_trade"].append(result)
+                continue
+
+            canonical_state = canonical_actionability_state(setup).strip().lower()
+            entry_state = str(setup.get("entry_status") or "").strip().lower()
+            states = {canonical_state, entry_state}
+
+            if selected and states & {
+                "execute_now",
+                "aggressive_now",
+                "ready_now",
+            }:
+                groups["enter"].append(result)
+            elif selected and states & {
+                "execute_on_micro_confirmation",
+                "wait_for_retest",
+                "wait_for_reclaim",
+            }:
+                groups["confirmation"].append(result)
+            elif selected:
+                groups["nearby"].append(result)
+            else:
+                groups["developing"].append(result)
+            continue
+
+        symbol = str(result.get("symbol") or portfolio.get("symbol") or "Unknown market")
+        opportunities = _mappings(portfolio.get("opportunities"))
+        if not opportunities:
+            groups["no_trade"].append(result)
+            continue
+
+        for opportunity in opportunities:
+            item = {
+                "symbol": symbol,
+                "opportunity": opportunity,
+                "source": result,
+            }
+            category = (
+                str(opportunity.get("category") or opportunity.get("sequence_role") or "")
+                .strip()
+                .lower()
+            )
+            setup = _mapping(opportunity.get("setup")) or opportunity
+            canonical_state = canonical_actionability_state(setup).strip().lower()
+            entry_state = (
+                str(opportunity.get("entry_status") or setup.get("entry_status") or "")
+                .strip()
+                .lower()
+            )
+            states = {canonical_state, entry_state}
+
+            if category == "current" and states & {
+                "execute_now",
+                "aggressive_now",
+                "ready_now",
+            }:
+                groups["enter"].append(item)
+            elif category == "current" and states & {
+                "execute_on_micro_confirmation",
+                "wait_for_retest",
+                "wait_for_reclaim",
+            }:
+                groups["confirmation"].append(item)
+            elif category == "nearby" or category == "current":
+                groups["nearby"].append(item)
+            else:
+                groups["developing"].append(item)
+    return groups
+
+
+def _legacy_scan_groups(payload: Mapping[str, object]) -> dict[str, list[Mapping[str, object]]]:
+    grouped = partition_scan_results(flatten_existing_scan_groups(payload))
+    return {
+        "enter": list(grouped.actionable_cmp),
+        "confirmation": list(grouped.micro_confirmation),
+        "nearby": list(grouped.nearby_limit),
+        "developing": list(grouped.follow_up_reversal),
+        "no_trade": list(grouped.weak_invalid),
+    }
+
+
+def _canonical_scan_group(
+    title: str,
+    hint: str,
+    items: Sequence[Mapping[str, object]],
+) -> str:
+    cards = [_canonical_scan_card(item, index=index) for index, item in enumerate(items, start=1)]
+    body = f"  {hint}\n\n" + ("\n  " + "·" * 72 + "\n\n").join(cards)
+    return render_section(f"{title} ({len(items)})", body)
+
+
+def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
+    opportunity = _mapping(item.get("opportunity"))
+    if not opportunity:
+        return _scan_card(item, index=index)
+    source = _mapping(item.get("source"))
+    setup = _mapping(opportunity.get("setup")) or opportunity
+    entry = _mapping(setup.get("entry"))
+    stop = _mapping(setup.get("stop_loss"))
+    targets = _mappings(setup.get("take_profits"))
+    quality = _mapping(setup.get("quality_dimensions"))
+    verdict = _mapping(opportunity.get("methodology_verdict"))
+    cmp_value = _number(entry.get("current_price"))
+    preferred = _number(entry.get("preferred"))
+    reference = preferred or cmp_value
+    symbol = str(item.get("symbol") or source.get("symbol") or "Unknown market")
+    direction = humanize_code(opportunity.get("direction") or setup.get("direction"))
+    action = _actionability_label(setup)
+    fields: list[tuple[str, object]] = [
+        ("Action", action),
+        ("Strategy", humanize_code(opportunity.get("strategy") or setup.get("strategy"))),
+        ("State", humanize_code(canonical_actionability_state(setup))),
+        ("Methodology", humanize_code(verdict.get("status"))),
+        ("CMP", format_price(entry.get("current_price"))),
+        _entry_field(entry),
+        ("Preferred", format_price(entry.get("preferred"))),
+        ("Entry distance", _signed_move_label(preferred, cmp_value)),
+        ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
+        ("Stop", _price_with_move(stop.get("price"), reference)),
+    ]
+    for target_index, target in enumerate(targets[:3], start=1):
+        fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
+    fields.append(("Quality", _quality_dimensions_label(quality, setup)))
+    warnings = _clean_many(setup.get("warnings"))
+    if warnings:
+        fields.append(("Main risk", warnings[0]))
+    data_warning = data_quality_warning(source)
+    if data_warning:
+        fields.append(("Data warning", data_warning))
+    identity = opportunity.get("opportunity_id") or f"opportunity-{index}"
+    return "\n".join(
+        (
+            f"▶  #{index}  {symbol} — {action.upper()} {direction.upper()}",
+            f"   Opportunity {identity}",
+            render_fields(fields),
         )
-    return "\n\n".join(sections)
+    )
+
+
+def _quality_dimensions_label(
+    quality: Mapping[str, object],
+    setup: Mapping[str, object],
+) -> str:
+    setup_quality = (
+        quality.get("setup_quality")
+        or quality.get("overall_trade_quality")
+        or setup.get("confidence_score")
+    )
+    return " · ".join(
+        (
+            f"Setup {_quality(setup_quality)}",
+            f"Execution {_quality(quality.get('execution_quality'))}",
+            f"Target {_quality(quality.get('target_quality'))}",
+        )
+    )
+
+
+def _signed_move_label(price: float | None, reference: float | None) -> str:
+    move = _move_pct(price, reference)
+    return UNAVAILABLE if move is None else f"{move:+.2f}%"
+
+
+def _no_trade_plan_group(items: Sequence[Mapping[str, object]]) -> str:
+    cards = [_no_trade_plan_card(item, index=index) for index, item in enumerate(items, start=1)]
+    body = ("\n  " + "·" * 72 + "\n\n").join(cards)
+    return render_section(f"No current trade — Setup plans ({len(items)})", body)
+
+
+def _no_trade_plan_card(payload: Mapping[str, object], *, index: int) -> str:
+    symbol = str(payload.get("symbol") or "Unknown market")
+    plan = _mapping(payload.get("setup_plan"))
+    reasons = _clean_many(payload.get("reasons"))
+    return "\n".join(
+        (
+            f"▶  #{index}  {symbol} — NO VALID SETUP YET",
+            render_fields(
+                (
+                    ("Status", humanize_code(plan.get("status") or "no_valid_setup_yet")),
+                    (
+                        "Current state",
+                        plan.get("current_state") or (reasons[0] if reasons else None),
+                    ),
+                    ("Long trigger", plan.get("long_trigger")),
+                    ("Short trigger", plan.get("short_trigger")),
+                    ("Invalidation", plan.get("invalidation")),
+                    ("Main risk", plan.get("main_risk") or (reasons[0] if reasons else None)),
+                )
+            ),
+        )
+    )
+
+
+def _scan_methodology_status(payload: Mapping[str, object]) -> str:
+    statuses = {
+        str(_mapping(result.get("methodology_verdict")).get("status"))
+        for result in _mappings(payload.get("results"))
+        if _mapping(result.get("methodology_verdict")).get("status")
+    }
+    if not statuses:
+        return UNAVAILABLE
+    return ", ".join(sorted(humanize_code(status) for status in statuses))
+
+
+def _scan_truncation_lines(payload: Mapping[str, object]) -> tuple[str, ...]:
+    lines: list[str] = []
+    filtered = _number(payload.get("filtered_symbol_count"))
+    displayed = _number(payload.get("displayed_symbol_count"))
+    if filtered is not None and displayed is not None and filtered > displayed:
+        lines.append(f"Showing {int(displayed)} of {int(filtered)} filtered symbols.")
+    retained = _number(payload.get("retained_opportunity_count"))
+    shown = _number(payload.get("displayed_opportunity_count"))
+    if retained is not None and shown is not None and retained > shown:
+        lines.append(f"Showing {int(shown)} of {int(retained)} retained opportunities.")
+    if lines:
+        lines.append("Use --output json for the complete structured record.")
+    return tuple(lines)
+
+
+def _scan_failure_lines(payload: Mapping[str, object]) -> tuple[str, ...]:
+    failures = _mapping(payload.get("failures"))
+    return tuple(f"{symbol} — {_clean(reason)}" for symbol, reason in failures.items())
 
 
 def _no_trade_sections(
