@@ -37,6 +37,10 @@ from apex.application.high_value_evidence_audit import (
     build_current_high_value_evidence_audit,
     high_value_evidence_audit_payload,
 )
+from apex.application.high_value_evidence_exit_gate import (
+    evaluate_high_value_evidence_exit_gate,
+    high_value_evidence_exit_gate_payload,
+)
 from apex.application.high_value_evidence_runtime import (
     HighValueEvidenceRuntimeSnapshot,
     build_high_value_evidence_runtime_snapshot,
@@ -207,6 +211,10 @@ def analyze_symbol(
         context,
         as_of=decision_time,
     )
+    high_value_evidence_audit = reconcile_high_value_evidence_audit(
+        context,
+        high_value_evidence_runtime,
+    )
     phase5_diagnostics = {
         "methodology_version": METHODOLOGY_VERSION,
         "candidate_count": len(selection.all_scored_candidates),
@@ -232,9 +240,9 @@ def analyze_symbol(
         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
         "methodology_routing_parity": methodology_parity,
         "methodology_selection_parity": methodology_selection_parity,
-        "high_value_evidence_audit": _high_value_evidence_diagnostics(
-            context,
-            runtime=high_value_evidence_runtime,
+        "high_value_evidence_audit": high_value_evidence_audit_payload(high_value_evidence_audit),
+        "high_value_evidence_exit_gate": high_value_evidence_exit_gate_payload(
+            evaluate_high_value_evidence_exit_gate(high_value_evidence_audit)
         ),
         "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
         "high_value_evidence_runtime": high_value_evidence_runtime_payload(
