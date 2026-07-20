@@ -164,9 +164,13 @@ def register_scanner_commands(app: typer.Typer) -> None:
                 if selection.screening is not None:
                     payload["screening"] = serialize_futures_screening(selection.screening)
                 payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
+                outcome_db = context.settings.data_dir / "reports" / "analysis.db"
+                payload["outcome_tracking"] = {
+                    "enabled": context.settings.outcome_tracking_enabled,
+                    "database": str(outcome_db),
+                }
                 if context.settings.outcome_tracking_enabled:
                     progress.update("Saving outcome-tracking records…")
-                    outcome_db = context.settings.data_dir / "reports" / "analysis.db"
                     analysis_record = build_analysis_record(payload)
                     for analysis in result.analyses:
                         reconcile_pending_opportunities_sqlite(

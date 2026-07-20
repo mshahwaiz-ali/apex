@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from apex.presentation import (
     UNAVAILABLE,
@@ -302,12 +302,7 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
         lanes = _screening_lanes(screening)
         if lanes:
             sections.append(render_section("Shortlist evidence", render_bullets(lanes)))
-        sections.extend(
-            _canonical_explain_sections(
-                payload,
-                _scan_explain_opportunities(payload),
-            )
-        )
+        sections.extend(_scan_explain_sections(payload))
 
     return "\n\n".join(section for section in sections if section)
 
@@ -529,7 +524,11 @@ def _signed_move_label(price: float | None, reference: float | None) -> str:
 
 def _no_trade_plan_group(items: Sequence[Mapping[str, object]]) -> str:
     cards = [_no_trade_plan_card(item, index=index) for index, item in enumerate(items, start=1)]
-    body = ("\n  " + "·" * 72 + "\n\n").join(cards)
+    hint = (
+        "  No executable geometry is being invented. Each symbol shows the best "
+        "available trigger or the exact rejection reason."
+    )
+    body = hint + "\n\n" + ("\n  " + "·" * 72 + "\n\n").join(cards)
     return render_section(f"No current trade — Setup plans ({len(items)})", body)
 
 
@@ -919,6 +918,296 @@ def _scan_explain_opportunities(
         portfolio = _mapping(result.get("opportunity_portfolio"))
         opportunities.extend(_mappings(portfolio.get("opportunities")))
     return tuple(opportunities)
+
+
+def _scan_explain_sections(payload: Mapping[str, object]) -> list[str]:
+    """Aggregate per-symbol diagnostics for scan explain mode.
+
+    Scan diagnostics live on each serialized symbol result. Treating the scan payload
+    as one selected-symbol payload produces empty methodology counts and hides the
+    reasons every candidate was rejected. This adapter keeps scan and analyze on the
+    same canonical evidence while presenting a scan-wide diagnostic summary.
+    """
+
+    results = _mappings(payload.get("results"))
+    sections: list[str] = []
+
+    methodology = _scan_methodology_enforcement_fields(payload, results)
+    sections.append(render_section("Methodology enforcement", render_fields(methodology)))
+
+    portfolio_lines = _scan_prefixed_portfolio_lines(results)
+    sections.append(
+        render_section(
+            "Opportunity portfolio",
+            render_bullets(portfolio_lines or ("No opportunities were retained.",)),
+        )
+    )
+
+    timeframe = _scan_prefixed_result_lines(results, multi_timeframe_lines)
+    sections.append(
+        render_section(
+            "Multi-timeframe evidence",
+            render_bullets(timeframe or ("No multi-timeframe evidence was serialized.",)),
+        )
+    )
+
+    entry, stop, target = _scan_rationale_groups(results)
+    sections.append(
+        render_section(
+            "Entry and chase rationale",
+            render_bullets(entry or ("No retained entry or chase geometry is available.",)),
+        )
+    )
+    sections.append(
+        render_section(
+            "Stop rationale",
+            render_bullets(stop or ("No retained stop geometry is available.",)),
+        )
+    )
+    sections.append(
+        render_section(
+            "Target rationale",
+            render_bullets(target or ("No retained target geometry is available.",)),
+        )
+    )
+
+    evidence = _scan_prefixed_opportunity_lines(results, _canonical_evidence_lines)
+    sections.append(
+        render_section(
+            "Supporting evidence",
+            render_bullets(evidence or ("No retained opportunity evidence is available.",)),
+        )
+    )
+
+    contradictions = _scan_prefixed_opportunity_lines(
+        results,
+        _canonical_contradiction_lines,
+    )
+    sections.append(
+        render_section(
+            "Contradictions",
+            render_bullets(
+                contradictions or ("No retained-opportunity contradictions were serialized.",)
+            ),
+        )
+    )
+
+    missing = _scan_prefixed_result_lines(results, _missing_evidence_lines)
+    sections.append(
+        render_section(
+            "Missing evidence",
+            render_bullets(missing or ("No explicit missing-evidence record was serialized.",)),
+        )
+    )
+
+    collisions = _scan_prefixed_result_lines(results, diagnostic_summary_lines)
+    sections.append(
+        render_section(
+            "Collision and sequence",
+            render_bullets(
+                collisions or ("No collision or sequence diagnostics were serialized.",)
+            ),
+        )
+    )
+
+    rejected, rejected_total = _scan_rejected_lines(results)
+    sections.append(
+        render_section(
+            "Rejected and suppressed candidates",
+            render_bullets(rejected or ("No rejected-candidate details were serialized.",)),
+        )
+    )
+    if rejected_total > len(rejected):
+        sections.append(
+            render_section(
+                "Explain display limits",
+                render_bullets(
+                    (
+                        f"Showing {len(rejected)} of {rejected_total} rejected candidates.",
+                        "Use --output json for the complete structured record.",
+                    )
+                ),
+            )
+        )
+
+    data_lines = _scan_data_quality_lines(payload, results)
+    sections.append(
+        render_section(
+            "Data quality",
+            render_bullets(data_lines or ("No data-quality warnings were reported.",)),
+        )
+    )
+
+    tracking = _outcome_tracking_fields(payload)
+    sections.append(
+        render_section(
+            "Outcome-tracking status",
+            render_fields(
+                tracking
+                or (
+                    ("Outcome tracking", "Unavailable"),
+                    ("Database", "No outcome-tracking status was serialized"),
+                )
+            ),
+        )
+    )
+
+    calibration = _historical_calibration_fields(payload)
+    sections.append(
+        render_section(
+            "Historical calibration",
+            render_fields(
+                calibration
+                or (
+                    ("Status", "Unavailable"),
+                    ("Reason", "No historical calibration sample is attached to this scan"),
+                )
+            ),
+        )
+    )
+    return sections
+
+
+def _scan_methodology_enforcement_fields(
+    payload: Mapping[str, object],
+    results: Sequence[Mapping[str, object]],
+) -> tuple[tuple[str, object], ...]:
+    totals = {
+        "evaluated": 0,
+        "allowed": 0,
+        "deferred": 0,
+        "suppressed": 0,
+        "unavailable": 0,
+    }
+    for result in results:
+        portfolio = _mapping(result.get("opportunity_portfolio"))
+        opportunities = _mappings(portfolio.get("opportunities"))
+        fields = dict(_methodology_enforcement_fields(result, opportunities))
+        for field, key in (
+            ("Candidates evaluated", "evaluated"),
+            ("Allowed", "allowed"),
+            ("Deferred", "deferred"),
+            ("Suppressed", "suppressed"),
+            ("Unavailable", "unavailable"),
+        ):
+            value = _number(fields.get(field))
+            if value is not None:
+                totals[key] += int(value)
+
+    gate_mode = (
+        payload.get("methodology_gate_mode")
+        or _mapping(payload.get("configuration")).get("methodology_gate_mode")
+        or _scan_methodology_status(payload)
+    )
+    return (
+        ("Gate mode", humanize_code(gate_mode)),
+        ("Candidates evaluated", totals["evaluated"]),
+        ("Allowed", totals["allowed"]),
+        ("Deferred", totals["deferred"]),
+        ("Suppressed", totals["suppressed"]),
+        ("Unavailable", totals["unavailable"]),
+    )
+
+
+def _scan_prefixed_portfolio_lines(
+    results: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    lines: list[str] = []
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        portfolio = _mapping(result.get("opportunity_portfolio"))
+        for line in _canonical_portfolio_lines(_mappings(portfolio.get("opportunities"))):
+            lines.append(f"{symbol} — {line}")
+    return tuple(dict.fromkeys(lines))
+
+
+def _scan_prefixed_result_lines(
+    results: Sequence[Mapping[str, object]],
+    factory: Callable[[Mapping[str, object]], Sequence[str]],
+) -> tuple[str, ...]:
+    lines: list[str] = []
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        produced = factory(result)
+        lines.extend(f"{symbol} — {line}" for line in produced)
+    return tuple(dict.fromkeys(lines))
+
+
+def _scan_prefixed_opportunity_lines(
+    results: Sequence[Mapping[str, object]],
+    factory: Callable[
+        [Mapping[str, object], Sequence[Mapping[str, object]]],
+        Sequence[str],
+    ],
+) -> tuple[str, ...]:
+    lines: list[str] = []
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        portfolio = _mapping(result.get("opportunity_portfolio"))
+        opportunities = _mappings(portfolio.get("opportunities"))
+        produced = factory(result, opportunities)
+        lines.extend(f"{symbol} — {line}" for line in produced)
+    return tuple(dict.fromkeys(lines))
+
+
+def _scan_rationale_groups(
+    results: Sequence[Mapping[str, object]],
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    entry: list[str] = []
+    stop: list[str] = []
+    target: list[str] = []
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        portfolio = _mapping(result.get("opportunity_portfolio"))
+        opportunities = _mappings(portfolio.get("opportunities"))
+        for opportunity in opportunities:
+            setup = _mapping(opportunity.get("setup")) or opportunity
+            identity = opportunity.get("opportunity_id") or "Opportunity"
+            for line in rationale_lines(result, setup):
+                rendered = f"{symbol} • {identity} — {line}"
+                normalized = line.lower()
+                if any(token in normalized for token in ("stop", "invalid")):
+                    stop.append(rendered)
+                elif any(token in normalized for token in ("target", "tp", "reward", "room")):
+                    target.append(rendered)
+                else:
+                    entry.append(rendered)
+    return (
+        tuple(dict.fromkeys(entry)),
+        tuple(dict.fromkeys(stop)),
+        tuple(dict.fromkeys(target)),
+    )
+
+
+def _scan_rejected_lines(
+    results: Sequence[Mapping[str, object]],
+) -> tuple[tuple[str, ...], int]:
+    lines: list[str] = []
+    total = 0
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        produced = tuple(
+            dict.fromkeys(
+                (
+                    *rejected_candidate_lines(result),
+                    *_methodology_suppressed_candidate_lines(result),
+                )
+            )
+        )
+        total += max(_rejected_candidate_count(result), len(produced))
+        lines.extend(f"{symbol} — {line}" for line in produced)
+    return tuple(dict.fromkeys(lines)), total
+
+
+def _scan_data_quality_lines(
+    payload: Mapping[str, object],
+    results: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    lines = list(_scan_failure_lines(payload))
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        lines.extend(f"{symbol} — {line}" for line in _data_diagnostic_lines(result))
+    return tuple(dict.fromkeys(lines))
 
 
 def _no_trade_sections(
