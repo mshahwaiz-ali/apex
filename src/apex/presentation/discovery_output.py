@@ -186,6 +186,9 @@ def _render_legacy_discovery_analysis(
         sections.append(render_section(reason_title, render_bullets(reasons[:4])))
 
     if developing_only:
+        conditional = _conditional_plan_section(setup)
+        if conditional:
+            sections.append(conditional)
         activation_lines = _pending_activation_lines(setup)
         if activation_lines:
             sections.append(render_section("Activation Required", render_bullets(activation_lines)))
@@ -445,6 +448,38 @@ def _render_scan_card(payload: Mapping[str, object]) -> str:
             )
         )
     return "\n".join((f"{symbol} — {state}", render_fields(fields)))
+
+
+def _conditional_plan_section(setup: Mapping[str, object]) -> str:
+    plan = _mapping(setup.get("conditional_plan"))
+    if not plan:
+        return ""
+    trigger = _mapping(plan.get("trigger"))
+    invalidation = _mapping(plan.get("pre_entry_invalidation"))
+    expiry = _mapping(plan.get("expiry"))
+    return render_section(
+        "Conditional Entry Plan",
+        render_fields(
+            (
+                ("Trigger", humanize_code(trigger.get("type"))),
+                ("Trigger level", format_price(trigger.get("level"))),
+                ("Condition", trigger.get("condition")),
+                (
+                    "Confirmation timeframe",
+                    trigger.get("confirmation_timeframe") or UNAVAILABLE,
+                ),
+                ("Pre-entry invalidation", format_price(invalidation.get("price"))),
+                ("Cancel when", invalidation.get("condition")),
+                ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+                (
+                    "Resting order authorized",
+                    _yes_no(plan.get("conditional_order_eligible")),
+                ),
+                ("Valid for", expiry.get("validity") or UNAVAILABLE),
+                ("Expiry reason", expiry.get("reason") or UNAVAILABLE),
+            )
+        ),
+    )
 
 
 def _pending_activation_lines(setup: Mapping[str, object]) -> tuple[str, ...]:

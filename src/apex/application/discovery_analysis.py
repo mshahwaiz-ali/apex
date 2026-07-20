@@ -677,7 +677,44 @@ def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
             }
             for policy in setup.management_policies
         ],
+        "conditional_plan": _conditional_plan_payload(setup),
         "warnings": list(setup.warnings),
+    }
+
+
+def _conditional_plan_payload(setup: DiscoverySetup) -> dict[str, Any] | None:
+    plan = setup.conditional_plan
+    if plan is None:
+        return None
+    return {
+        "trigger": {
+            "type": plan.trigger.kind.value,
+            "level": plan.trigger.level,
+            "condition": plan.trigger.condition,
+            "confirmation_timeframe": plan.trigger.confirmation_timeframe,
+        },
+        "pre_entry_invalidation": {
+            "price": plan.pre_entry_invalidation.price,
+            "condition": plan.pre_entry_invalidation.condition,
+            "rationale": list(plan.pre_entry_invalidation.rationale),
+        },
+        "conditional_order_eligible": plan.conditional_order_eligible,
+        "recommended_order_intent": plan.recommended_order_intent.value,
+        "reason_not_executable_now": plan.reason_not_executable_now,
+        "expiry": {
+            "seconds": setup.setup_expiry_seconds,
+            "bars": setup.setup_expiry_bars,
+            "reason": setup.setup_expiry_reason,
+            "validity": _duration_label(setup.setup_expiry_seconds),
+        },
+        "geometry": {
+            "geometry_basis": plan.geometry_basis,
+            "entry_source": plan.entry_source,
+            "trigger_matches_preferred_entry": plan.trigger_matches_preferred_entry,
+            "stop_basis": plan.stop_basis,
+            "targets_basis": plan.targets_basis,
+            "geometry_is_trigger_relative": plan.geometry_is_trigger_relative,
+        },
     }
 
 

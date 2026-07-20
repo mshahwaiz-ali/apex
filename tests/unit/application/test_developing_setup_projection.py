@@ -200,3 +200,61 @@ def test_scan_uses_compact_pending_card() -> None:
     assert "Developing / follow-up" in text
     assert "Trade Management" not in text
     assert "Candlestick Evidence" not in text
+
+
+def test_developing_setup_exposes_typed_conditional_plan() -> None:
+    assessment = build_discovery_assessment(_selection())
+
+    assert assessment.developing_setup is not None
+    plan = assessment.developing_setup.conditional_plan
+    assert plan is not None
+    assert plan.trigger.level == assessment.developing_setup.entry.preferred
+    assert (
+        plan.pre_entry_invalidation.price
+        == _selection().ranked_candidates[0].scored.candidate.invalidation.price
+    )
+    assert plan.pre_entry_invalidation.price != assessment.developing_setup.stop_loss.price
+    assert plan.conditional_order_eligible is False
+    assert plan.reason_not_executable_now
+    assert plan.recommended_order_intent.value in {"limit", "alert_only", "stop"}
+
+
+def test_developing_setup_serializes_conditional_plan() -> None:
+    payload = serialize_symbol_analysis(_analysis())
+    developing = payload["developing_setup"]
+
+    assert developing is not None
+    plan = developing["conditional_plan"]
+    assert plan is not None
+    assert plan["trigger"]["level"] == developing["entry"]["preferred"]
+    assert (
+        plan["pre_entry_invalidation"]["price"]
+        == _selection().ranked_candidates[0].scored.candidate.invalidation.price
+    )
+    assert plan["pre_entry_invalidation"]["price"] != developing["stop_loss"]["price"]
+    assert plan["conditional_order_eligible"] is False
+    assert plan["reason_not_executable_now"]
+
+
+def test_conditional_plan_exposes_geometry_provenance() -> None:
+    assessment = build_discovery_assessment(_selection())
+
+    assert assessment.developing_setup is not None
+    plan = assessment.developing_setup.conditional_plan
+    assert plan is not None
+    assert plan.geometry_basis == "candidate_entry_zone"
+    assert plan.trigger_matches_preferred_entry is True
+    assert plan.geometry_is_trigger_relative is True
+    assert plan.stop_basis == "structural_invalidation_buffered_from_candidate_entry"
+    assert plan.targets_basis == "strategy_supplied_structural_targets"
+
+
+def test_conditional_plan_serializes_geometry_provenance() -> None:
+    payload = serialize_symbol_analysis(_analysis())
+    developing = payload["developing_setup"]
+
+    assert developing is not None
+    geometry = developing["conditional_plan"]["geometry"]
+    assert geometry["geometry_basis"] == "candidate_entry_zone"
+    assert geometry["trigger_matches_preferred_entry"] is True
+    assert geometry["geometry_is_trigger_relative"] is True

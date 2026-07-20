@@ -1225,6 +1225,55 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
                 }
                 for target in setup.take_profits
             ],
+            **(
+                {
+                    "conditional_plan": {
+                        "trigger": {
+                            "type": setup.conditional_plan.trigger.kind.value,
+                            "level": setup.conditional_plan.trigger.level,
+                            "condition": setup.conditional_plan.trigger.condition,
+                            "confirmation_timeframe": (
+                                setup.conditional_plan.trigger.confirmation_timeframe
+                            ),
+                        },
+                        "pre_entry_invalidation": {
+                            "price": setup.conditional_plan.pre_entry_invalidation.price,
+                            "condition": (setup.conditional_plan.pre_entry_invalidation.condition),
+                            "rationale": list(
+                                setup.conditional_plan.pre_entry_invalidation.rationale
+                            ),
+                        },
+                        "conditional_order_eligible": (
+                            setup.conditional_plan.conditional_order_eligible
+                        ),
+                        "recommended_order_intent": (
+                            setup.conditional_plan.recommended_order_intent.value
+                        ),
+                        "reason_not_executable_now": (
+                            setup.conditional_plan.reason_not_executable_now
+                        ),
+                        "expiry": {
+                            "seconds": setup.setup_expiry_seconds,
+                            "bars": setup.setup_expiry_bars,
+                            "reason": setup.setup_expiry_reason,
+                        },
+                        "geometry": {
+                            "geometry_basis": setup.conditional_plan.geometry_basis,
+                            "entry_source": setup.conditional_plan.entry_source,
+                            "trigger_matches_preferred_entry": (
+                                setup.conditional_plan.trigger_matches_preferred_entry
+                            ),
+                            "stop_basis": setup.conditional_plan.stop_basis,
+                            "targets_basis": setup.conditional_plan.targets_basis,
+                            "geometry_is_trigger_relative": (
+                                setup.conditional_plan.geometry_is_trigger_relative
+                            ),
+                        },
+                    }
+                }
+                if setup.conditional_plan is not None
+                else {}
+            ),
         }
 
     return {

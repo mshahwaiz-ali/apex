@@ -40,6 +40,19 @@ class ManagementPolicyType(StrEnum):
     MOMENTUM_FAILURE = "momentum_failure"
 
 
+class ActivationTriggerType(StrEnum):
+    PRICE_TOUCH = "price_touch"
+    CANDLE_CLOSE = "candle_close"
+    RETEST_HOLD = "retest_hold"
+    RECLAIM_CLOSE = "reclaim_close"
+
+
+class RecommendedOrderIntent(StrEnum):
+    STOP = "stop"
+    LIMIT = "limit"
+    ALERT_ONLY = "alert_only"
+
+
 def _finite(name: str, value: float) -> None:
     if not math.isfinite(value):
         raise ValueError(f"{name} must be finite")
@@ -144,6 +157,76 @@ class ManagementPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class ActivationTrigger:
+    kind: ActivationTriggerType
+    level: float
+    condition: str
+    confirmation_timeframe: str | None = None
+
+    def __post_init__(self) -> None:
+        _positive("activation trigger level", self.level)
+        if not self.condition.strip():
+            raise ValueError("activation trigger condition cannot be empty")
+        if self.confirmation_timeframe is not None and not self.confirmation_timeframe.strip():
+            raise ValueError("confirmation timeframe cannot be blank")
+
+
+@dataclass(frozen=True, slots=True)
+class PreEntryInvalidation:
+    price: float
+    condition: str
+    rationale: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _positive("pre-entry invalidation price", self.price)
+        if not self.condition.strip():
+            raise ValueError("pre-entry invalidation condition cannot be empty")
+        if not self.rationale:
+            raise ValueError("pre-entry invalidation rationale cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalExecutionPlan:
+    trigger: ActivationTrigger
+    pre_entry_invalidation: PreEntryInvalidation
+    conditional_order_eligible: bool
+    recommended_order_intent: RecommendedOrderIntent
+    reason_not_executable_now: str
+    geometry_basis: str
+    entry_source: str
+    trigger_matches_preferred_entry: bool
+    stop_basis: str
+    targets_basis: str
+    geometry_is_trigger_relative: bool
+
+    def __post_init__(self) -> None:
+        if not self.reason_not_executable_now.strip():
+            raise ValueError("conditional plan requires a non-executable reason")
+        for name, value in (
+            ("geometry basis", self.geometry_basis),
+            ("entry source", self.entry_source),
+            ("stop basis", self.stop_basis),
+            ("targets basis", self.targets_basis),
+        ):
+            if not value.strip():
+                raise ValueError(f"conditional plan {name} cannot be empty")
+        if self.geometry_is_trigger_relative and not self.trigger_matches_preferred_entry:
+            raise ValueError(
+                "trigger-relative geometry requires trigger and preferred entry to match"
+            )
+        if (
+            self.recommended_order_intent is RecommendedOrderIntent.ALERT_ONLY
+            and self.conditional_order_eligible
+        ):
+            raise ValueError("alert-only plans cannot authorize a resting conditional order")
+        if (
+            self.recommended_order_intent is RecommendedOrderIntent.LIMIT
+            and self.trigger.kind is not ActivationTriggerType.PRICE_TOUCH
+        ):
+            raise ValueError("limit intent requires a predefined price-touch trigger")
+
+
+@dataclass(frozen=True, slots=True)
 class DiscoverySetup:
     symbol: str
     direction: TradeDirection
@@ -169,6 +252,7 @@ class DiscoverySetup:
     confirmation_complete: bool = True
     provisional: bool = False
     canonical_actionability: bool = False
+    conditional_plan: ConditionalExecutionPlan | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():
@@ -188,6 +272,8 @@ class DiscoverySetup:
             raise ValueError("setup bar expiry must be positive when provided")
         if self.setup_expiry_seconds is not None and not self.setup_expiry_reason.strip():
             raise ValueError("setup expiry reason is required when expiry is provided")
+        if self.execution_allowed_now and self.conditional_plan is not None:
+            raise ValueError("executable setup cannot also expose a conditional execution plan")
         partial_total = sum(target.partial_close_pct for target in self.take_profits)
         if not math.isclose(partial_total, 100.0, rel_tol=0.0, abs_tol=1e-9):
             raise ValueError("take-profit partial percentages must sum to 100")

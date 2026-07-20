@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from apex.application.discovery_contracts import (
     ActionableEntry,
+    ActivationTrigger,
+    ActivationTriggerType,
+    ConditionalExecutionPlan,
     DiscoveryAssessment,
     DiscoverySetup,
     ManagementPolicy,
     ManagementPolicyType,
+    PreEntryInvalidation,
+    RecommendedOrderIntent,
     StopLoss,
     StopQualityBand,
     TakeProfit,
@@ -162,6 +167,126 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         ),
         provisional=candidate.provisional,
         canonical_actionability=True,
+        conditional_plan=_conditional_plan(
+            candidate,
+            entry_status=entry_status,
+            entry=entry,
+            stop=stop,
+        ),
+    )
+
+
+def _conditional_plan(
+    candidate: TradeCandidate,
+    *,
+    entry_status: EntryStatus,
+    entry: ActionableEntry,
+    stop: StopLoss,
+) -> ConditionalExecutionPlan | None:
+    if is_entry_status_executable(entry_status):
+        return None
+
+    confirmation_timeframe = _confirmation_timeframe(candidate)
+    mode = candidate.entry.mode
+    if mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}:
+        trigger_kind = ActivationTriggerType.PRICE_TOUCH
+        condition = (
+            "price enters the predefined entry zone and the setup is revalidated "
+            "before order placement"
+        )
+        order_intent = RecommendedOrderIntent.LIMIT
+        conditional_order_eligible = False
+    elif mode is EntryMode.RETEST:
+        trigger_kind = ActivationTriggerType.RETEST_HOLD
+        condition = "price retests the entry zone and demonstrates acceptance before entry"
+        order_intent = RecommendedOrderIntent.ALERT_ONLY
+        conditional_order_eligible = False
+    elif mode is EntryMode.SWEEP_RECOVERY:
+        trigger_kind = ActivationTriggerType.RECLAIM_CLOSE
+        condition = "price reclaims the preferred level after the liquidity sweep"
+        order_intent = RecommendedOrderIntent.ALERT_ONLY
+        conditional_order_eligible = False
+    elif mode is EntryMode.MOMENTUM_CONTINUATION:
+        trigger_kind = ActivationTriggerType.RETEST_HOLD
+        condition = (
+            "price tests the shallow continuation reference and momentum confirmation renews"
+        )
+        order_intent = RecommendedOrderIntent.ALERT_ONLY
+        conditional_order_eligible = False
+    else:
+        trigger_kind = ActivationTriggerType.CANDLE_CLOSE
+        condition = "the required confirmation closes through the preferred trigger level"
+        order_intent = RecommendedOrderIntent.ALERT_ONLY
+        conditional_order_eligible = False
+
+    invalidation_condition = (
+        "price reaches or closes below structural invalidation before activation"
+        if candidate.direction is TradeDirection.LONG
+        else "price reaches or closes above structural invalidation before activation"
+    )
+    return ConditionalExecutionPlan(
+        trigger=ActivationTrigger(
+            kind=trigger_kind,
+            level=entry.preferred,
+            condition=condition,
+            confirmation_timeframe=confirmation_timeframe,
+        ),
+        pre_entry_invalidation=PreEntryInvalidation(
+            price=candidate.invalidation.price,
+            condition=invalidation_condition,
+            rationale=candidate.invalidation.rationale,
+        ),
+        conditional_order_eligible=conditional_order_eligible,
+        recommended_order_intent=order_intent,
+        reason_not_executable_now=_reason_not_executable(entry_status),
+        geometry_basis="candidate_entry_zone",
+        entry_source=_entry_source(candidate),
+        trigger_matches_preferred_entry=True,
+        stop_basis="structural_invalidation_buffered_from_candidate_entry",
+        targets_basis="strategy_supplied_structural_targets",
+        geometry_is_trigger_relative=True,
+    )
+
+
+def _entry_source(candidate: TradeCandidate) -> str:
+    mode = candidate.entry.mode
+    if mode is EntryMode.RETEST:
+        return {
+            "breakout_continuation": "strategy_generated_broken_level_retest",
+            "range_reversal": "strategy_generated_range_boundary_retest",
+            "trend_pullback": "strategy_generated_structural_level_retest",
+        }.get(candidate.strategy.value, "strategy_generated_retest")
+    if mode is EntryMode.SWEEP_RECOVERY:
+        return "strategy_generated_liquidity_boundary_recovery"
+    if mode is EntryMode.PULLBACK:
+        return "strategy_generated_pullback_reference"
+    if mode is EntryMode.SCALED_ENTRY:
+        return "strategy_generated_scaled_entry_zone"
+    if mode is EntryMode.MOMENTUM_CONTINUATION:
+        return "strategy_generated_momentum_reference"
+    return "strategy_generated_market_near_confirmation"
+
+
+def _confirmation_timeframe(candidate: TradeCandidate) -> str | None:
+    for key in ("confirmation_timeframe", "decision_timeframe", "setup_timeframe"):
+        value = candidate.metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _reason_not_executable(entry_status: EntryStatus) -> str:
+    reasons = {
+        EntryStatus.PULLBACK_PREFERRED: ("price has not reached the preferred pullback zone"),
+        EntryStatus.WATCH_NEAR_ENTRY: (
+            "price is approaching the entry zone but activation is incomplete"
+        ),
+        EntryStatus.LATE_OR_CHASING: ("current price is beyond acceptable entry geometry"),
+        EntryStatus.INVALIDATED: "the setup is invalidated and cannot activate",
+    }
+    return reasons.get(
+        entry_status,
+        f"{entry_status.value.lower().replace('_', ' ')} is not currently executable",
     )
 
 

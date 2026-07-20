@@ -161,6 +161,7 @@ def _opportunity_card(opportunity: Mapping[str, object], *, index: int) -> str:
     ]
     for target_index, target in enumerate(targets[:3], start=1):
         fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
+    fields.extend(_conditional_opportunity_fields(setup))
     fields.extend(
         (
             (
@@ -183,6 +184,37 @@ def _opportunity_card(opportunity: Mapping[str, object], *, index: int) -> str:
             render_fields(fields),
         )
     )
+
+
+def _conditional_opportunity_fields(
+    setup: Mapping[str, object],
+) -> tuple[tuple[str, object], ...]:
+    plan = _mapping(setup.get("conditional_plan"))
+    if not plan:
+        return ()
+
+    trigger = _mapping(plan.get("trigger"))
+    invalidation = _mapping(plan.get("pre_entry_invalidation"))
+    expiry = _mapping(plan.get("expiry"))
+
+    fields: list[tuple[str, object]] = [
+        (
+            "Activation trigger",
+            f"{humanize_code(trigger.get('type'))} at {format_price(trigger.get('level'))}",
+        ),
+        ("Trigger condition", trigger.get("condition")),
+        ("Pre-entry invalidation", format_price(invalidation.get("price"))),
+        ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+        (
+            "Resting order authorized",
+            "Yes" if plan.get("conditional_order_eligible") is True else "No",
+        ),
+    ]
+    if expiry.get("validity"):
+        fields.append(("Conditional validity", expiry.get("validity")))
+    if expiry.get("reason"):
+        fields.append(("Conditional expiry reason", expiry.get("reason")))
+    return tuple(fields)
 
 
 def _actionability_label(setup: Mapping[str, object]) -> str:
@@ -1464,6 +1496,9 @@ def _setup_sections(
         sections.append(render_section("Multi-timeframe view", render_bullets(timeframe_map)))
 
     if pending:
+        conditional = _conditional_plan_section(setup)
+        if conditional:
+            sections.append(conditional)
         sections.append(
             render_section("Activation needed", render_bullets(_activation(setup, focused)[:4]))
         )
@@ -1572,7 +1607,58 @@ def _scan_card(payload: Mapping[str, object], *, index: int) -> str:
         fields.append(("Main risk", warnings[0]))
     if developing and not selected:
         fields.append(("Wait for", _activation(setup, {})[0]))
+        fields.extend(_conditional_scan_fields(setup))
     return "\n".join((f"▶  #{index}  {symbol}", render_fields(fields)))
+
+
+def _conditional_plan_section(setup: Mapping[str, object]) -> str:
+    plan = _mapping(setup.get("conditional_plan"))
+    if not plan:
+        return ""
+    trigger = _mapping(plan.get("trigger"))
+    invalidation = _mapping(plan.get("pre_entry_invalidation"))
+    expiry = _mapping(plan.get("expiry"))
+    return render_section(
+        "Conditional entry plan",
+        render_fields(
+            (
+                ("Trigger", humanize_code(trigger.get("type"))),
+                ("Trigger level", format_price(trigger.get("level"))),
+                ("Condition", trigger.get("condition")),
+                (
+                    "Confirmation timeframe",
+                    trigger.get("confirmation_timeframe") or UNAVAILABLE,
+                ),
+                ("Pre-entry invalidation", format_price(invalidation.get("price"))),
+                ("Cancel when", invalidation.get("condition")),
+                ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+                (
+                    "Resting order authorized",
+                    ("Yes" if plan.get("conditional_order_eligible") is True else "No"),
+                ),
+                ("Valid for", expiry.get("validity") or UNAVAILABLE),
+                ("Expiry reason", expiry.get("reason") or UNAVAILABLE),
+            )
+        ),
+    )
+
+
+def _conditional_scan_fields(
+    setup: Mapping[str, object],
+) -> tuple[tuple[str, object], ...]:
+    plan = _mapping(setup.get("conditional_plan"))
+    if not plan:
+        return ()
+    trigger = _mapping(plan.get("trigger"))
+    invalidation = _mapping(plan.get("pre_entry_invalidation"))
+    return (
+        (
+            "Trigger",
+            f"{humanize_code(trigger.get('type'))} at {format_price(trigger.get('level'))}",
+        ),
+        ("Pre-entry invalidation", format_price(invalidation.get("price"))),
+        ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+    )
 
 
 def _market_context(focused: Mapping[str, object]) -> str:

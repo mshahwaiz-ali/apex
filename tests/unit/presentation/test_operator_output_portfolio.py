@@ -104,22 +104,55 @@ def _portfolio_payload() -> dict[str, object]:
             target=97.0,
         ),
     )
+    follow_up_setup = _setup(
+        candidate_id="btc-follow-up-long",
+        direction="long",
+        strategy="sweep_reversal",
+        entry_status="APPROACHING_ENTRY",
+        current_price=100.0,
+        lower=96.0,
+        upper=97.0,
+        preferred=96.5,
+        maximum_chase=98.0,
+        stop=94.0,
+        target=103.0,
+    )
+    follow_up_setup["conditional_plan"] = {
+        "trigger": {
+            "type": "reclaim_close",
+            "level": 96.5,
+            "condition": "price reclaims the preferred level after the liquidity sweep",
+            "confirmation_timeframe": "5m",
+        },
+        "pre_entry_invalidation": {
+            "price": 94.5,
+            "condition": (
+                "price reaches or closes below structural invalidation before activation"
+            ),
+            "rationale": ["raw thesis invalidation"],
+        },
+        "conditional_order_eligible": False,
+        "recommended_order_intent": "alert_only",
+        "reason_not_executable_now": "activation is incomplete",
+        "expiry": {
+            "seconds": 900,
+            "bars": 6,
+            "reason": "candidate activation window",
+            "validity": "15 minutes",
+        },
+        "geometry": {
+            "geometry_basis": "candidate_entry_zone",
+            "entry_source": "strategy_generated_liquidity_boundary_recovery",
+            "trigger_matches_preferred_entry": True,
+            "stop_basis": "structural_invalidation_buffered_from_candidate_entry",
+            "targets_basis": "strategy_supplied_structural_targets",
+            "geometry_is_trigger_relative": True,
+        },
+    }
     follow_up = _opportunity(
         opportunity_id="btc-follow-up-long",
         role="follow_up",
-        setup=_setup(
-            candidate_id="btc-follow-up-long",
-            direction="long",
-            strategy="sweep_reversal",
-            entry_status="APPROACHING_ENTRY",
-            current_price=100.0,
-            lower=96.0,
-            upper=97.0,
-            preferred=96.5,
-            maximum_chase=98.0,
-            stop=94.0,
-            target=103.0,
-        ),
+        setup=follow_up_setup,
     )
     runner = _opportunity(
         opportunity_id="btc-runner-long",
@@ -271,3 +304,18 @@ def test_analysis_legacy_payload_still_uses_compatibility_fallback() -> None:
     assert "APEX ANALYSIS" in text
     assert "Trade plan" in text
     assert "Current opportunities" not in text
+
+
+def test_analysis_renders_conditional_follow_up_details() -> None:
+    text = render_analysis(_portfolio_payload())
+
+    assert "Activation trigger" in text
+    assert "Reclaim close" in text
+    assert "Pre-entry invalidation" in text
+    assert "94.5" in text
+    assert "Order intent" in text
+    assert "Alert only" in text
+    assert "Resting order authorized" in text
+    assert "Conditional validity" in text
+    assert "15 minutes" in text
+    assert "candidate activation window" in text

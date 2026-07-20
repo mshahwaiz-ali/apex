@@ -143,3 +143,110 @@ def test_scan_text_exposes_discovery_lanes() -> None:
 
     assert "Shortlist evidence" in rendered
     assert "BTC/USDT" in rendered
+
+
+def _developing_conditional_payload() -> dict[str, object]:
+    base = _setup_payload()
+    setup = dict(base["setup"])
+    setup.update(
+        {
+            "entry_status": "PULLBACK_PREFERRED",
+            "execution_allowed_now": False,
+            "setup_validity": "15 minutes",
+            "setup_expiry_seconds": 900,
+            "setup_expiry_bars": 6,
+            "setup_expiry_reason": "candidate activation window",
+            "conditional_plan": {
+                "trigger": {
+                    "type": "price_touch",
+                    "level": 100.0,
+                    "condition": (
+                        "price enters the predefined entry zone and the setup "
+                        "is revalidated before order placement"
+                    ),
+                    "confirmation_timeframe": "5m",
+                },
+                "pre_entry_invalidation": {
+                    "price": 98.0,
+                    "condition": (
+                        "price reaches or closes below structural invalidation before activation"
+                    ),
+                    "rationale": ("raw thesis invalidation",),
+                },
+                "conditional_order_eligible": False,
+                "recommended_order_intent": "limit",
+                "reason_not_executable_now": ("price has not reached the preferred pullback zone"),
+                "expiry": {
+                    "seconds": 900,
+                    "bars": 6,
+                    "reason": "candidate activation window",
+                    "validity": "15 minutes",
+                },
+                "geometry": {
+                    "geometry_basis": "candidate_entry_zone",
+                    "entry_source": "strategy_generated_pullback_reference",
+                    "trigger_matches_preferred_entry": True,
+                    "stop_basis": ("structural_invalidation_buffered_from_candidate_entry"),
+                    "targets_basis": "strategy_supplied_structural_targets",
+                    "geometry_is_trigger_relative": True,
+                },
+            },
+        }
+    )
+    return {
+        "symbol": "BTCUSDT",
+        "result_group": "developing_setup",
+        "reasons": ("price has not reached the preferred pullback zone",),
+        "candidate_count": 1,
+        "setup": None,
+        "developing_setup": setup,
+    }
+
+
+def test_pending_setup_renders_conditional_entry_plan() -> None:
+    rendered = render_discovery_analysis(_developing_conditional_payload())
+
+    assert "Conditional entry plan" in rendered
+    assert "Price touch" in rendered
+    assert "Trigger level" in rendered
+    assert "Pre-entry invalidation" in rendered
+    assert "Order intent" in rendered
+    assert "Limit" in rendered
+    assert "Resting order authorized" in rendered
+    assert "No" in rendered
+    assert "15 minutes" in rendered
+    assert "candidate activation window" in rendered
+
+
+def test_developing_scan_renders_conditional_summary() -> None:
+    result = _developing_conditional_payload()
+    rendered = render_discovery_scan(
+        {
+            "total_analysis_count": 1,
+            "displayed_analysis_count": 1,
+            "selected_setup_count": 0,
+            "actionable_count": 0,
+            "developing_count": 1,
+            "unavailable_count": 0,
+            "no_trade_count": 0,
+            "long_candidate_count": 1,
+            "short_candidate_count": 0,
+            "status_counts": {"PULLBACK_PREFERRED": 1},
+            "actionable_setups": (),
+            "developing_setups": (result,),
+            "unavailable_setups": (),
+            "no_trade_results": (),
+        }
+    )
+
+    assert "Trigger" in rendered
+    assert "Price touch" in rendered
+    assert "Pre-entry invalidation" in rendered
+    assert "Order intent" in rendered
+    assert "Limit" in rendered
+
+
+def test_executable_setup_omits_conditional_entry_plan() -> None:
+    rendered = render_discovery_analysis(_setup_payload())
+
+    assert "Conditional entry plan" not in rendered
