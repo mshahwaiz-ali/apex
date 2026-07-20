@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -17,6 +17,12 @@ from apex.application import (
     create_market_data_services,
     normalize_market_symbol,
     serialize_symbol_analysis,
+)
+from apex.application.discovery_contracts import DiscoverySetup
+from apex.application.opportunity_portfolio import (
+    ActionabilityState,
+    SequenceRole,
+    build_actionability_state_assessment,
 )
 from apex.backtesting.contracts import BacktestConfig, BacktestRequest
 from apex.backtesting.discovery_signal import signal_from_discovery_setup
@@ -35,6 +41,93 @@ from apex.research.metrics import (
     deflated_sharpe_probability,
     probability_of_backtest_overfitting,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _ReplayDecision:
+    """Canonical decision selected for one historical analysis point."""
+
+    setup: DiscoverySetup | None
+    opportunity_id: str | None
+    sequence_role: str | None
+    actionability_state: str | None
+    reason_code: str
+    canonical_portfolio: bool
+
+
+_EXECUTABLE_REPLAY_STATES = frozenset(
+    {
+        ActionabilityState.EXECUTE_NOW,
+        ActionabilityState.AGGRESSIVE_NOW,
+    }
+)
+
+
+def _select_replay_decision(analysis: object) -> _ReplayDecision:
+    """Select one already-executable canonical opportunity without inventing fills."""
+
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    if portfolio is None:
+        assessment = getattr(analysis, "assessment", None)
+        setup = getattr(assessment, "setup", None)
+        return _ReplayDecision(
+            setup=setup if isinstance(setup, DiscoverySetup) else None,
+            opportunity_id=(setup.candidate_id if isinstance(setup, DiscoverySetup) else None),
+            sequence_role=(
+                SequenceRole.CURRENT.value if isinstance(setup, DiscoverySetup) else None
+            ),
+            actionability_state=None,
+            reason_code=(
+                "legacy_selected_setup"
+                if isinstance(setup, DiscoverySetup)
+                else "legacy_no_selected_setup"
+            ),
+            canonical_portfolio=False,
+        )
+
+    observed_states: list[ActionabilityState] = []
+    opportunities = tuple(getattr(portfolio, "opportunities", ()))
+    for opportunity in opportunities:
+        setup = getattr(opportunity, "setup", None)
+        role = getattr(opportunity, "sequence_role", None)
+        if not isinstance(setup, DiscoverySetup) or not isinstance(role, SequenceRole):
+            continue
+        actionability = build_actionability_state_assessment(
+            setup,
+            sequence_role=role,
+        )
+        observed_states.append(actionability.state)
+        if (
+            role is SequenceRole.CURRENT
+            and actionability.state in _EXECUTABLE_REPLAY_STATES
+            and setup.execution_allowed_now
+            and not actionability.has_blocking_issue
+        ):
+            return _ReplayDecision(
+                setup=setup,
+                opportunity_id=str(getattr(opportunity, "opportunity_id", setup.candidate_id)),
+                sequence_role=role.value,
+                actionability_state=actionability.state.value,
+                reason_code="canonical_executable_opportunity",
+                canonical_portfolio=True,
+            )
+
+    reason_code = "canonical_no_executable_opportunity"
+    if ActionabilityState.MISSED_OR_CHASING in observed_states:
+        reason_code = "canonical_opportunity_missed_or_chasing"
+    elif ActionabilityState.INVALIDATED in observed_states:
+        reason_code = "canonical_opportunity_invalidated"
+    elif observed_states:
+        reason_code = "canonical_opportunity_pending_activation"
+
+    return _ReplayDecision(
+        setup=None,
+        opportunity_id=None,
+        sequence_role=None,
+        actionability_state=None,
+        reason_code=reason_code,
+        canonical_portfolio=True,
+    )
 
 
 def register_backtesting_commands(app: typer.Typer) -> None:
@@ -165,13 +258,16 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     generated_at=decision_time,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     market_environment_config=context.settings.market_environment,
+                    methodology_gate_mode=context.settings.methodology_gate_mode,
                     futures_evidence_enabled=context.settings.futures_evidence_enabled,
                 )
-                setup = analysis.assessment.setup
+                replay_decision = _select_replay_decision(analysis)
+                setup = replay_decision.setup
                 calibration_records.append(
                     _calibration_record(
                         analysis=analysis,
                         partition=partition,
+                        replay_decision=replay_decision,
                     )
                 )
                 if setup is None:
@@ -179,7 +275,11 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         {
                             "decision_time": decision_time.isoformat(),
                             "partition": partition,
-                            "reasons": list(analysis.assessment.reasons),
+                            "reasons": [
+                                replay_decision.reason_code,
+                                *analysis.assessment.reasons,
+                            ],
+                            "canonical_portfolio": replay_decision.canonical_portfolio,
                         }
                     )
                     continue
@@ -267,7 +367,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             ),
         }
         payload = {
-            "schema_version": 2,
+            "schema_version": 3,
             "symbol": normalized_symbol,
             "replay_timeframe": replay_timeframe,
             "replay_candles": replay_candles,
@@ -278,8 +378,22 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_partitions": decision_partitions,
             "no_trade_decisions": no_trade_decisions,
             "calibration_records": calibration_records,
-            "trades": [_jsonable(trade) for trade in report.trades],
+            "trades": _canonical_trade_records(
+                report.trades,
+                calibration_records=calibration_records,
+                partition_by_time=partition_by_time,
+            ),
             "metrics": _report_metrics(report),
+            "outcome_distribution": _outcome_distribution(report.trades),
+            "risk_and_excursion": _risk_and_excursion(report.trades),
+            "execution_assumptions": {
+                "fee_pct": config.fee_pct,
+                "slippage_pct": config.slippage_pct,
+                "funding_pct": config.funding_pct,
+                "maximum_holding_candles": config.maximum_holding_candles,
+                "conservative_intrabar": config.conservative_intrabar,
+                "methodology_gate_mode": context.settings.methodology_gate_mode,
+            },
             "metrics_by_partition": partition_metrics,
             "promotion_statistics": promotion_statistics,
             "calibration_authoritative": False,
@@ -338,9 +452,17 @@ def _campaign_source_limit(
     return candle_limit + displaced_bars + 4
 
 
-def _calibration_record(*, analysis: object, partition: str) -> dict[str, object]:
+def _calibration_record(
+    *,
+    analysis: object,
+    partition: str,
+    replay_decision: _ReplayDecision | None = None,
+) -> dict[str, object]:
+    resolved_decision = (
+        _select_replay_decision(analysis) if replay_decision is None else replay_decision
+    )
     serialized = serialize_symbol_analysis(analysis)  # type: ignore[arg-type]
-    setup = serialized.get("setup")
+    setup = resolved_decision.setup
     diagnostics = serialized.get("phase5_diagnostics")
     zero_trade = (
         diagnostics.get("zero_trade_diagnostics") if isinstance(diagnostics, Mapping) else None
@@ -356,7 +478,12 @@ def _calibration_record(*, analysis: object, partition: str) -> dict[str, object
         "decision_time": serialized.get("generated_at"),
         "partition": partition,
         "production_decision": serialized.get("decision"),
-        "strategy": serialized.get("strategy"),
+        "strategy": None if setup is None else setup.strategy.value,
+        "opportunity_id": resolved_decision.opportunity_id,
+        "sequence_role": resolved_decision.sequence_role,
+        "actionability_state": resolved_decision.actionability_state,
+        "replay_reason_code": resolved_decision.reason_code,
+        "canonical_portfolio": resolved_decision.canonical_portfolio,
         "methodology_gate_mode": (
             methodology_routing.get("mode") if isinstance(methodology_routing, Mapping) else None
         ),
@@ -371,9 +498,9 @@ def _calibration_record(*, analysis: object, partition: str) -> dict[str, object
         ),
         "no_trade_reasons": serialized.get("reasons"),
         "zero_trade_diagnostics": zero_trade,
-        "entry_geometry": None if not isinstance(setup, Mapping) else setup.get("entry"),
-        "stop_geometry": None if not isinstance(setup, Mapping) else setup.get("stop_loss"),
-        "target_geometry": None if not isinstance(setup, Mapping) else setup.get("take_profits"),
+        "entry_geometry": None if setup is None else _jsonable(setup.entry),
+        "stop_geometry": None if setup is None else _jsonable(setup.stop_loss),
+        "target_geometry": None if setup is None else _jsonable(setup.take_profits),
     }
 
 
@@ -397,6 +524,106 @@ def _report_metrics(report: object) -> dict[str, object]:
         raise TypeError("backtest report must serialize to an object")
     payload["trades"] = []
     return payload
+
+
+def _canonical_trade_records(
+    trades: object,
+    *,
+    calibration_records: list[dict[str, object]],
+    partition_by_time: Mapping[str, str],
+) -> list[dict[str, object]]:
+    if not isinstance(trades, tuple | list):
+        return []
+    calibration_by_time = {
+        str(record.get("decision_time")): record for record in calibration_records
+    }
+    records: list[dict[str, object]] = []
+    for index, trade in enumerate(trades, start=1):
+        serialized = _jsonable(trade)
+        if not isinstance(serialized, dict):
+            continue
+        signal = serialized.get("signal")
+        generated_at = signal.get("generated_at") if isinstance(signal, Mapping) else None
+        decision_time = str(generated_at or "")
+        calibration = calibration_by_time.get(decision_time, {})
+        metadata = serialized.get("metadata")
+        metadata_map = metadata if isinstance(metadata, Mapping) else {}
+        target_count = int(metadata_map.get("partial_target_count", 0) or 0)
+        serialized.update(
+            {
+                "trade_number": index,
+                "decision_time": decision_time or None,
+                "partition": partition_by_time.get(decision_time),
+                "opportunity_id": calibration.get("opportunity_id"),
+                "sequence_role": calibration.get("sequence_role"),
+                "actionability_state": calibration.get("actionability_state"),
+                "replay_reason_code": calibration.get("replay_reason_code"),
+                "canonical_portfolio": calibration.get("canonical_portfolio"),
+                "targets_hit": target_count,
+                "maximum_favorable_excursion_r": metadata_map.get("maximum_favorable_excursion_r"),
+                "maximum_adverse_excursion_r": metadata_map.get("maximum_adverse_excursion_r"),
+            }
+        )
+        records.append(serialized)
+    return records
+
+
+def _outcome_distribution(trades: object) -> dict[str, object]:
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    outcome_counts = {"target": 0, "stop": 0, "expired": 0, "missed_entry": 0}
+    target_counts = {"tp1_hit_count": 0, "tp2_hit_count": 0, "tp3_hit_count": 0}
+    for trade in values:
+        outcome = getattr(getattr(trade, "outcome", None), "value", None)
+        if outcome in outcome_counts:
+            outcome_counts[outcome] += 1
+        metadata = getattr(trade, "metadata", {})
+        target_count = (
+            int(metadata.get("partial_target_count", 0) or 0)
+            if isinstance(metadata, Mapping)
+            else 0
+        )
+        for threshold, key in (
+            (1, "tp1_hit_count"),
+            (2, "tp2_hit_count"),
+            (3, "tp3_hit_count"),
+        ):
+            if target_count >= threshold:
+                target_counts[key] += 1
+
+    total = len(values)
+    return {
+        **outcome_counts,
+        **target_counts,
+        "stop_rate": outcome_counts["stop"] / total if total else 0.0,
+        "missed_entry_rate": outcome_counts["missed_entry"] / total if total else 0.0,
+        "expired_rate": outcome_counts["expired"] / total if total else 0.0,
+        "tp1_hit_rate": target_counts["tp1_hit_count"] / total if total else 0.0,
+        "tp2_hit_rate": target_counts["tp2_hit_count"] / total if total else 0.0,
+        "tp3_hit_rate": target_counts["tp3_hit_count"] / total if total else 0.0,
+    }
+
+
+def _risk_and_excursion(trades: object) -> dict[str, object]:
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    mfe_values: list[float] = []
+    mae_values: list[float] = []
+    for trade in values:
+        metadata = getattr(trade, "metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
+        mfe = metadata.get("maximum_favorable_excursion_r")
+        mae = metadata.get("maximum_adverse_excursion_r")
+        if isinstance(mfe, int | float) and not isinstance(mfe, bool):
+            mfe_values.append(float(mfe))
+        if isinstance(mae, int | float) and not isinstance(mae, bool):
+            mae_values.append(float(mae))
+
+    return {
+        "average_mfe_r": sum(mfe_values) / len(mfe_values) if mfe_values else 0.0,
+        "average_mae_r": sum(mae_values) / len(mae_values) if mae_values else 0.0,
+        "best_mfe_r": max(mfe_values) if mfe_values else 0.0,
+        "worst_mae_r": max(mae_values) if mae_values else 0.0,
+    }
 
 
 __all__ = ["register_backtesting_commands"]
