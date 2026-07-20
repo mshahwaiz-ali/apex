@@ -1,8 +1,8 @@
 # Apex Command Reference
 
-Apex provides a focused CLI for Binance USDT perpetual-futures discovery, derivatives-aware early-warning analysis, chronological replay, and checksum-verified research campaigns.
+Apex is a command-line analysis tool for Binance USDT perpetual-futures discovery, single-symbol analysis, chronological backtesting, and historical research preparation.
 
-> Apex analyzes markets. It does not place orders, manage exchange accounts, recommend leverage, or guarantee profitable trades.
+> Apex does not place orders, manage exchange accounts, recommend leverage, or guarantee profitable trades.
 
 ## Setup
 
@@ -13,236 +13,454 @@ cd ~/data_drive/apex
 source .venv/bin/activate
 ```
 
-Confirm the installed CLI:
+Confirm the CLI is installed:
 
 ```bash
 apex --help
 ```
 
-## Commands
+## Public command tree
 
-| Command | Purpose |
-|---|---|
-| `apex scan` | Discover, shortlist, fully analyze, and rank active futures opportunities. |
-| `apex analyze SYMBOL` | Run the shared full-analysis pipeline for one requested symbol. |
-| `apex backtest SYMBOL` | Run a chronological production-path replay for one symbol. |
-| `apex backtest --campaign` | Build, verify, report, or train from a point-in-time public-data campaign. |
-| `apex config-check` | Validate configuration and display resolved settings. |
-| `apex version` | Display the installed Apex version. |
-
-## Scan
-
-```bash
-apex scan
+```text
+apex
+├── scan
+├── analyze SYMBOL
+├── backtest SYMBOL
+├── research
+│   └── campaign
+├── config-check
+└── version
 ```
 
-The scan workflow:
+| Command | Use it for |
+|---|---|
+| `apex scan` | Discover and rank opportunities across the Binance USDT perpetual universe. |
+| `apex analyze SYMBOL` | Run the full shared analysis pipeline for one symbol. |
+| `apex backtest SYMBOL` | Replay historical decisions for one symbol using chronological data. |
+| `apex research campaign` | Prepare, verify, report, or optionally train on historical public datasets. |
+| `apex config-check` | Validate and display the resolved Apex configuration. |
+| `apex version` | Display the installed Apex version. |
 
-1. discovers active Binance USDT perpetual contracts;
-2. applies hard tradability checks for liquidity, spread, freshness, history, and exchange metadata;
-3. reserves shortlist coverage across trend, compression, fresh-break, fast-mover, range/rejection, benchmark-relative, and developing lanes;
-4. converts raw lane scores into cross-sectional percentiles;
-5. sends shortlisted symbols through the shared multi-timeframe and futures-evidence pipeline;
-6. ranks and displays only ready, conditional, and developing opportunities; rejected/no-setup markets remain summarized as counts.
+---
+
+## `apex scan`
+
+### Purpose
+
+`scan` discovers active Binance USDT perpetual markets, applies hard tradability filters, creates a shortlist, and runs the same canonical analysis engine used by `analyze`.
+
+It can return:
+
+- executable opportunities near CMP;
+- confirmation-based opportunities;
+- nearby entries;
+- developing or follow-up opportunities;
+- no-current-trade setup plans;
+- compact per-symbol failures;
+- complete structured JSON.
 
 Apex may return fewer results than requested. It does not force trades to fill a quota.
 
-### Common examples
+### Basic usage
 
 ```bash
 apex scan
+```
+
+### Useful examples
+
+```bash
+# Show the default market scan
+apex scan
+
+# Display fewer ranked opportunities
 apex scan --results 5
+
+# Analyze a wider shortlist but display only the best results
 apex scan --shortlist 50 --results 10
+
+# Display only long opportunities
 apex scan --direction long
+
+# Display only short opportunities
 apex scan --direction short
+
+# Display both directions
 apex scan --direction both
-apex scan --output json
+
+# Include detailed methodology and evidence diagnostics
 apex scan --explain
+
+# Produce complete machine-readable output
+apex scan --output json
+
+# Save complete JSON using normal shell redirection
+apex scan --output json > data/reports/latest_scan.json
+
+# Increase closed-candle analysis depth
 apex scan --candles 300
+
+# Use a configured static symbol universe
 apex scan --symbols-file config/symbols.yaml
-apex scan --report data/reports/latest_scan.json
-apex scan --record data/records/scan_history.jsonl
-apex scan --record-db data/records/apex_analysis.sqlite3
+
+# Load an alternate configuration directory
+apex scan --config-dir config
 ```
 
-### Important options
+### Options
 
-| Option | Default | Purpose |
+| Option | Default | Description |
 |---|---:|---|
-| `--symbols-file PATH` | live discovery | Use a static symbol list |
-| `--output`, `-o` | `text` | Select `text` or `json` output |
-| `--report PATH` | none | Write the complete scan payload as JSON |
-| `--record PATH` | none | Append normalized records to JSONL |
-| `--record-db PATH` | none | Store normalized records in SQLite |
-| `--explain` | off | Show extra readable ranking, routing, evidence, and rejection sections |
-| `--candles N` | `200` | Closed-candle analysis depth |
-| `--results N` | `20` | Maximum displayed ranked results |
-| `--shortlist N` | `36` | Symbols sent to detailed analysis |
-| `--direction VALUE` | `both` | Display `long`, `short`, or `both` |
-| `--config-dir PATH` | `config` | Configuration directory |
+| `--results INTEGER` | `20` | Maximum number of ranked opportunities displayed. |
+| `--shortlist INTEGER` | `36` | Number of screened symbols sent to full analysis. |
+| `--direction long\|short\|both` | `both` | Filters displayed direction only. It does not alter canonical analysis decisions. |
+| `--candles INTEGER` | `200` | Closed-candle depth used by the analysis engine. |
+| `--explain` | off | Appends methodology, evidence, contradiction, collision, calibration, and outcome-tracking diagnostics. |
+| `--output`, `-o` | `text` | Selects `text` or complete `json` output. |
+| `--symbols-file PATH` | live universe | Uses a configured static symbol list instead of market-wide discovery. |
+| `--config-dir PATH` | `config` | Loads Apex YAML configuration from another directory. |
 
-With `outcome_tracking_enabled: true`, every scan also records individual analyzed opportunities in `data/reports/analysis.db` and reconciles older pending outcomes for the same symbols. `--record-db` replaces that automatic SQLite path for the current run.
+### Output groups
 
-Use the installed command help for exact ranges and current option behavior:
+Normal text output is organized into:
 
-```bash
-apex scan --help
-```
+1. Enter at CMP
+2. Confirmation Entry
+3. Nearby Entry
+4. Developing / Follow-up
+5. No Current Trade — Setup Plans
+6. Failures, when present
 
-## Analyze one symbol
+Counts distinguish symbols from opportunities.
+
+### Outcome tracking
+
+When `outcome_tracking_enabled` is enabled, scan automatically:
+
+- records canonical portfolio opportunities;
+- uses the configured SQLite path;
+- deduplicates stable opportunity IDs;
+- reconciles older pending opportunities;
+- updates fills, outcomes, MFE, MAE, and expiry state.
+
+There is no normal CLI flag for choosing a record database. Persistence remains configuration-driven.
+
+---
+
+## `apex analyze SYMBOL`
+
+### Purpose
+
+`analyze` bypasses universe discovery and sends one requested symbol directly into the same canonical multi-timeframe analysis pipeline used by `scan`.
+
+The renderer consumes the complete `opportunity_portfolio`, not only legacy single-setup compatibility fields.
+
+### Basic usage
 
 ```bash
 apex analyze BTCUSDT
 ```
 
-`analyze` bypasses market-wide discovery and sends the requested symbol directly into the same analysis core used by `scan`.
+### Symbol format
 
-The output can include:
+Use the Binance perpetual symbol without a slash:
 
-- market state probability, persistence, archetype, and compatible strategy;
-- early-warning state derived from price, OI, taker flow, funding, and basis;
-- long, short, or `NO_TRADE`;
-- current and preferred entry opportunities;
-- ideal entry and maximum-chase boundary;
-- structural invalidation and stop;
-- TP1, TP2, TP3, and conditional runner logic;
-- expected movement and reward geometry;
-- setup maturity, evidence, contradictions, and warnings;
-- deterministic quality and confidence diagnostics;
-- management guidance and setup expiry;
-- expected R, calibrated probability interval, sample size, and artifact authority when a model is promoted;
-- an explicit withholding reason when historical probability is unavailable.
+```text
+BTCUSDT
+ETHUSDT
+SOLUSDT
+```
 
-### Common examples
+### Useful examples
 
 ```bash
+# Normal readable analysis
 apex analyze BTCUSDT
+
+# Full methodology and evidence explanation
 apex analyze BTCUSDT --explain
-apex analyze ETHUSDT --output json
+
+# Complete structured authority
+apex analyze BTCUSDT --output json
+
+# Save the JSON analysis
+apex analyze BTCUSDT --output json > data/reports/btc_analysis.json
+
+# Increase analysis depth
 apex analyze BTCUSDT --candles 300
-apex analyze BTCUSDT --record data/records/manual_analysis.jsonl
-apex analyze BTCUSDT --record-db data/records/apex_analysis.sqlite3
+
+# Use another configuration directory
+apex analyze BTCUSDT --config-dir config
 ```
 
-Important options:
+### Options
 
-| Option | Default | Purpose |
+| Option | Default | Description |
 |---|---:|---|
-| `--output`, `-o` | `text` | Select concise text or complete JSON |
-| `--explain` | off | Show extra readable diagnostics without dumping raw JSON |
-| `--candles N` | `200` | Analysis depth; installed range is `200..1000` |
-| `--record PATH` | none | Append a JSONL analysis record |
-| `--record-db PATH` | automatic default DB | Choose an explicit SQLite record database |
-| `--config-dir PATH` | `config` | Load settings from another configuration directory |
+| `--candles INTEGER` | `200` | Closed-candle depth used by the shared analysis engine. |
+| `--explain` | off | Appends methodology enforcement, evidence, contradictions, rationale, rejected candidates, calibration, and outcome-tracking detail. |
+| `--output`, `-o` | `text` | Selects concise text or complete JSON. |
+| `--config-dir PATH` | `config` | Loads settings from another Apex configuration directory. |
 
-Use:
+### Normal output structure
+
+The text report may include:
+
+1. Market Snapshot
+2. Best Current Opportunity
+3. Alternative Current Opportunity
+4. Nearby Opportunity
+5. Follow-up Opportunity
+6. Developing Opportunity
+7. Market Context
+8. Risk and Invalidation
+
+Empty optional sections disappear.
+
+### Setup-plan rule
+
+Every analyzed symbol receives a useful operator plan:
+
+- executable setup;
+- nearby or confirmation setup;
+- developing or follow-up setup;
+- no structurally valid setup yet.
+
+Apex never fabricates entry, stop, or target geometry just to avoid an empty result.
+
+### JSON output
+
+Use JSON when you need the full structured record:
 
 ```bash
-apex analyze --help
+apex analyze BTCUSDT --output json
 ```
 
-for the exact installed options.
+JSON remains the complete machine-readable authority for the canonical opportunity portfolio and diagnostics.
 
-## Backtest
+---
+
+## `apex backtest SYMBOL`
+
+### Purpose
+
+`backtest` runs chronological historical decisions through the production analysis path.
+
+It:
+
+- loads historical closed candles;
+- creates chronological decision points;
+- blocks future candle access;
+- forwards the configured methodology gate;
+- reads canonical opportunity portfolios;
+- simulates only execution-authorized current opportunities;
+- preserves no-trade, missed-entry, invalidated, nearby, and developing decisions;
+- models fees, slippage, optional funding, expiry, and conservative intrabar behavior;
+- records complete trade and no-trade histories;
+- reports MFE, MAE, targets, stops, partitions, fingerprints, and robustness statistics.
+
+### Basic usage
 
 ```bash
 apex backtest BTCUSDT
 ```
 
-The backtest command runs a chronological multi-decision replay campaign. It:
-
-1. loads closed historical candles;
-2. creates non-overlapping decision windows;
-3. analyzes only information available at each decision timestamp;
-4. converts valid selected setups into replay signals;
-5. models entry, stop, structural targets, partial exits, costs, optional funding, expiry, and ambiguous candles;
-6. reports campaign expectancy, drawdown, fill and expiry rates, and MFE/MAE.
-
-No-trade decision points remain no-trade observations.
-
-### Common examples
+### Useful examples
 
 ```bash
+# Default chronological replay
 apex backtest BTCUSDT
+
+# Complete structured output
 apex backtest BTCUSDT --output json
+
+# Save the complete structured backtest payload
+apex backtest BTCUSDT --report-file data/reports/btc_backtest.json
+
+# Use a 5-minute replay stream and a 24-candle holding window
 apex backtest BTCUSDT --replay-timeframe 5m --replay-candles 24
-apex backtest BTCUSDT --decision-points 10 --funding-pct 0.01
+
+# Run more chronological decision points
+apex backtest BTCUSDT --decision-points 10
+
+# Model optional funding drag
+apex backtest BTCUSDT --funding-pct 0.01
+
+# Increase historical analysis depth
 apex backtest BTCUSDT --candles 400 --replay-candles 50
+
+# Combine readable terminal output with a complete JSON report file
+apex backtest BTCUSDT \
+  --decision-points 10 \
+  --report-file data/reports/btc_backtest.json
 ```
 
-### Single-symbol replay options
+### Options
 
-| Option | Default | Purpose |
+| Option | Default | Description |
 |---|---:|---|
-| `--output`, `-o` | `text` | Select the sectioned research report or full JSON |
-| `--candles N` | `240` | Historical prefix; accepted range is `201..900` so the decision always has 200 closed bars |
-| `--replay-timeframe TF` | `5m` | Candle stream used for outcome replay |
-| `--replay-candles N` | `24` | Maximum candles retained after each decision |
-| `--decision-points N` | `5` | Non-overlapping chronological decisions |
-| `--funding-pct N` | `0.0` | Optional modeled funding drag |
-| `--config-dir PATH` | `config` | Configuration directory |
+| `--candles INTEGER` | `240` | Historical prefix used to form chronological analysis windows. |
+| `--replay-timeframe TIMEFRAME` | `5m` | Candle stream used for historical outcome replay. |
+| `--replay-candles INTEGER` | `24` | Maximum replay candles retained after each decision. |
+| `--decision-points INTEGER` | `5` | Number of non-overlapping chronological decisions. |
+| `--funding-pct FLOAT` | `0.0` | Optional modeled funding drag. |
+| `--report-file PATH` | none | Writes the complete structured backtest payload to JSON. |
+| `--explain` | off | Includes expanded no-trade and replay diagnostics when supported. |
+| `--output`, `-o` | `text` | Selects readable text or complete JSON. |
+| `--config-dir PATH` | `config` | Loads another Apex configuration directory. |
 
-The JSON report includes training, validation, and untouched final-test labels plus deflated-Sharpe and PBO promotion statistics. These fields remain non-authoritative until sufficient final-test evidence passes every promotion gate.
+### Text report sections
 
-This is not a portfolio backtester. It does not model wallet allocation, leverage, required margin, liquidation, paper-account state, or live exchange execution.
+The backtest report includes:
 
-Use:
+1. Test Configuration
+2. Performance Summary
+3. Outcome Distribution
+4. Risk and Excursion
+5. Partition Performance
+6. Trade Record
+7. No-Trade Decisions
+8. Robustness
+
+### Important interpretation
+
+Backtest output is historical research, not proof of future profitability.
+
+The command does not model:
+
+- wallet allocation;
+- leverage;
+- required margin;
+- liquidation;
+- exchange account state;
+- live order execution.
+
+---
+
+## `apex research campaign`
+
+### Purpose
+
+`research campaign` prepares and verifies a point-in-time historical public-data campaign.
+
+It can:
+
+- resolve a complete UTC month range;
+- use or build a point-in-time symbol universe;
+- download missing Binance public archives;
+- verify downloaded files;
+- write a campaign manifest;
+- report missing files and reasons;
+- optionally train campaign models;
+- preserve a complete JSON report.
+
+This command does not claim strategy profitability.
+
+### Basic usage
 
 ```bash
-apex backtest --help
+apex research campaign
 ```
 
-for the exact installed options.
-
-## Historical campaign and ML
+### Useful examples
 
 ```bash
-apex backtest --campaign --download-missing
+# Inspect or prepare the default latest 24 complete UTC months
+apex research campaign
+
+# Build missing universe data and download missing archives
+apex research campaign --download-missing
+
+# Restrict the campaign to a month range
+apex research campaign \
+  --start 2025-01 \
+  --end 2025-06 \
+  --download-missing
+
+# Use a specific dataset root
+apex research campaign \
+  --dataset-dir /mnt/research/apex-binance \
+  --download-missing
+
+# Use a saved point-in-time universe
+apex research campaign \
+  --symbols-file data/research/binance_um/universe_by_month.json
+
+# Request model training
+apex research campaign \
+  --symbols-file data/research/binance_um/universe_by_month.json \
+  --train-model
+
+# Produce JSON terminal output
+apex research campaign --output json
+
+# Save the complete structured campaign payload
+apex research campaign \
+  --download-missing \
+  --report-file data/research/campaign_report.json
 ```
 
-Without `--start` and `--end`, the campaign covers the latest 24 complete UTC months. If no saved universe exists, `--download-missing` builds each month's top-30 eligible USDT-perpetual membership from the previous month's quote volume. It then downloads public 1-minute klines, funding-rate archives, and aggregate trades under the git-ignored dataset directory.
+### Options
 
-### Common examples
-
-```bash
-apex backtest --campaign --download-missing
-apex backtest --campaign --start 2025-01 --end 2025-06 --download-missing
-apex backtest --campaign --dataset-dir /mnt/research/apex-binance --download-missing
-apex backtest --campaign --symbols-file data/research/binance_um/universe_by_month.json --download-missing
-apex backtest --campaign --symbols-file data/research/binance_um/universe_by_month.json --train-model --output json
-apex backtest --campaign --download-missing --report data/research/campaign-report.json --output json
-```
-
-### Campaign options
-
-| Option | Default | Purpose |
+| Option | Default | Description |
 |---|---:|---|
-| `--campaign` | off | Select multi-symbol campaign mode; makes positional `SYMBOL` optional |
-| `--start VALUE` | latest 24-month range | Inclusive UTC month/date lower bound |
-| `--end VALUE` | latest complete month | Inclusive UTC month/date upper bound |
-| `--symbols-file PATH` | dynamic/saved universe | JSON symbol list or month-to-symbol mapping |
-| `--dataset-dir PATH` | `data/research/binance_um` | Git-ignored archive, manifest, features, and models root |
-| `--download-missing` | off | Build missing universe data and download checksum-verified archives |
-| `--train-model` | off | Train the three model families when `feature_rows.jsonl` exists |
-| `--report PATH` | none | Write the complete campaign report as JSON |
+| `--start TEXT` | latest available range | Inclusive complete UTC month/date lower bound. |
+| `--end TEXT` | latest complete month | Inclusive complete UTC month/date upper bound. |
+| `--symbols-file FILE` | saved/dynamic universe | JSON symbol list or month-to-symbol mapping. |
+| `--dataset-dir DIRECTORY` | `data/research/binance_um` | Dataset, universe, manifest, features, and model root. |
+| `--download-missing` | off | Builds missing universe data and downloads missing verified archives. |
+| `--train-model` | off | Requests campaign model training when required feature data exists. |
+| `--report-file PATH` | none | Writes the complete structured campaign payload to JSON. |
+| `--output`, `-o` | `text` | Selects readable text or complete JSON. |
+| `--config-dir DIRECTORY` | `config` | Loads another Apex configuration directory. |
 
-Downloads are resumable and verified against Binance SHA-256 checksum files. Missing historical OI or order-book evidence remains missing; it is never converted to zero.
+### Text report sections
 
-Model training compares fixed-seed regularized logistic regression and histogram gradient boosting, applies chronological 60/20/20 splits with purge/embargo, and calibrates on validation-only data using isotonic regression. Runtime expected-R ranking activates only after integrity and promotion gates pass.
+The campaign renderer includes:
 
-## Configuration
+1. Campaign Configuration
+2. Dataset Coverage
+3. Universe Summary
+4. Missing Data
+5. Manifest
+6. Model Training
+7. Artifacts
+
+### Data behavior
+
+- Downloads are checksum-verified.
+- Missing historical files remain explicit.
+- Missing OI or other unavailable evidence is never converted to zero.
+- Model authority remains withheld until all promotion gates pass.
+- `--report-file` preserves complete campaign details even when terminal output is concise.
+
+---
+
+## `apex config-check`
+
+### Purpose
+
+Validates and displays the resolved Apex configuration.
 
 ```bash
 apex config-check
 ```
 
-The primary runtime configuration is:
+Use this before scan, analyze, backtest, or research work when configuration may have changed.
+
+The primary configuration directory is:
+
+```text
+config/
+```
+
+The primary default file is:
 
 ```text
 config/default.yaml
 ```
 
-The current default methodology gate is:
+Common settings include:
 
 ```yaml
 methodology_gate_mode: shadow
@@ -250,68 +468,196 @@ futures_evidence_enabled: true
 outcome_tracking_enabled: true
 ```
 
-Shadow mode computes and exposes methodology diagnostics without allowing every new methodology gate to replace the established public decision automatically. Futures evidence and local outcome reconciliation are fail-soft: unavailable optional evidence does not crash analysis or become fabricated data.
+Optional evidence is fail-soft: unavailable optional data does not crash analysis and is not fabricated.
 
-Analysis JSON uses schema version 2. Canonical strategy family, subtype, entry state, bar expiry, and rule-based quality fields are additive during the compatibility period.
+---
 
-## Common decision states
+## `apex version`
+
+Displays the installed Apex version:
+
+```bash
+apex version
+```
+
+---
+
+## Output modes
+
+### Text
+
+Text is the default operator-facing mode:
+
+```bash
+apex scan
+apex analyze BTCUSDT
+apex backtest BTCUSDT
+apex research campaign
+```
+
+### JSON
+
+JSON preserves the complete structured record:
+
+```bash
+apex scan --output json
+apex analyze BTCUSDT --output json
+apex backtest BTCUSDT --output json
+apex research campaign --output json
+```
+
+Use shell redirection when a command does not expose `--report-file`:
+
+```bash
+apex scan --output json > data/reports/scan.json
+apex analyze BTCUSDT --output json > data/reports/btc_analysis.json
+```
+
+Use `--report-file` for backtest and research campaign:
+
+```bash
+apex backtest BTCUSDT --report-file data/reports/btc_backtest.json
+apex research campaign --report-file data/research/campaign_report.json
+```
+
+---
+
+## Explain mode
+
+`--explain` appends diagnostics without changing the canonical decision.
+
+Examples:
+
+```bash
+apex scan --explain
+apex analyze BTCUSDT --explain
+```
+
+Explain output can include:
+
+- methodology enforcement;
+- opportunity portfolio mapping;
+- multi-timeframe evidence;
+- entry and chase rationale;
+- stop and target rationale;
+- supporting evidence;
+- contradictions;
+- missing evidence;
+- collision and sequence;
+- rejected or suppressed candidates;
+- data quality;
+- outcome-tracking status;
+- historical calibration.
+
+Use JSON when complete untruncated diagnostics are required.
+
+---
+
+## Canonical decision states
 
 | State | Meaning |
 |---|---|
-| `READY_NOW` | Rule-defined execution conditions are complete near current price |
-| `AGGRESSIVE_NOW` | An immediate entry exists with explicit caution |
-| `PULLBACK_PREFERRED` | A retracement offers better geometry |
-| `RETEST_PREFERRED` | A level retest is the preferred entry path |
-| `RECLAIM_REQUIRED` | Price must regain the stated level |
-| `APPROACHING_ENTRY` | Price is near an incomplete entry condition |
-| `WAIT_FOR_CLOSE` | Candle completion is required |
-| `DEVELOPING_SETUP` | A measurable setup exists but is not executable yet |
-| `LATE_ENTRY` | Direction may remain valid, but entry quality has deteriorated |
-| `MISSED_ENTRY` | The planned geometry is no longer realistically available |
-| `INVALIDATED` | The underlying thesis has failed structurally |
-| `NO_TRADE` | No valid setup survived analysis and gating |
+| `READY_NOW` | Execution conditions are complete near current price. |
+| `AGGRESSIVE_NOW` | An immediate but explicitly cautious entry is available. |
+| `PULLBACK_PREFERRED` | Direction may be valid, but a retracement offers better geometry. |
+| `RETEST_PREFERRED` | A level retest is the preferred execution path. |
+| `RECLAIM_REQUIRED` | Price must regain a stated level before entry. |
+| `APPROACHING_ENTRY` | Price is close to an incomplete entry condition. |
+| `WAIT_FOR_CLOSE` | Candle completion is required. |
+| `DEVELOPING_SETUP` | A measurable setup exists but is not executable yet. |
+| `LATE_ENTRY` | Direction may remain valid, but entry quality has deteriorated. |
+| `MISSED_ENTRY` | Planned geometry is no longer realistically available. |
+| `INVALIDATED` | The structural thesis has failed. |
+| `NO_TRADE` | No valid opportunity survived analysis and gating. |
 
-These states describe setup condition, not certainty.
+These states describe setup condition, not certainty or win probability.
 
-## Early-warning states
+---
 
-| State | Interpretation |
-|---|---|
-| `BREAKOUT_PREPARATION` / `BREAKDOWN_PREPARATION` | Compression and range location align with directional taker participation |
-| `BULLISH_PARTICIPATION` / `BEARISH_PARTICIPATION` | Price, OI, and aggressive flow expand coherently |
-| `SHORT_COVERING` | Price rises while OI contracts; this is not treated as fresh long positioning |
-| `LONG_LIQUIDATION` | Price falls while OI contracts; this is not treated as fresh short positioning |
-| `CROWDED_LONG_FRAGILITY` / `CROWDED_SHORT_FRAGILITY` | Funding indicates crowded positioning and liquidation risk, not standalone direction |
-| `EXHAUSTION_REVERSAL_WATCH` | An extended move is losing participation acceleration |
-| `CONTRADICTORY_EVIDENCE` | Price and participation inputs disagree |
-| `INSUFFICIENT_EVIDENCE` | Required independent inputs are missing or stale |
-| `NEUTRAL` | No coherent early-warning matrix is active |
-
-Early warnings change context and rank; they do not bypass entry geometry, invalidation, liquidity, freshness, or target-room requirements.
-
-## Practical workflow
+## Recommended daily workflow
 
 ```bash
+# 1. Confirm configuration
 apex config-check
+
+# 2. Discover markets
 apex scan --results 10 --shortlist 36
-apex analyze BTCUSDT
-apex backtest BTCUSDT --output json
+
+# 3. Inspect one candidate deeply
+apex analyze BTCUSDT --explain
+
+# 4. Save a complete structured analysis when needed
+apex analyze BTCUSDT --output json > data/reports/btc_analysis.json
+
+# 5. Evaluate historical behavior
+apex backtest BTCUSDT \
+  --decision-points 10 \
+  --report-file data/reports/btc_backtest.json
 ```
 
-For machine-readable research output:
+For historical dataset work:
 
 ```bash
-apex analyze BTCUSDT --output json > /tmp/btc_analysis.json
+apex research campaign \
+  --download-missing \
+  --report-file data/research/campaign_report.json
 ```
 
-## Development validation
+---
 
-Documentation-only changes require at minimum:
+## Removed legacy options
+
+The following options are intentionally no longer part of the public CLI:
+
+```text
+scan --record
+scan --record-db
+scan --report
+analyze --record
+analyze --record-db
+backtest --campaign
+backtest --report
+```
+
+Use instead:
+
+- automatic configuration-driven SQLite outcome tracking;
+- `--output json` with shell redirection for scan/analyze;
+- `--report-file` for backtest and research campaign;
+- `apex research campaign` for historical campaign work.
+
+---
+
+## Help and troubleshooting
+
+Show command help:
 
 ```bash
-git diff --check
+apex --help
+apex scan --help
+apex analyze --help
+apex backtest --help
+apex research --help
+apex research campaign --help
+apex config-check --help
+apex version --help
 ```
 
-For code changes, run scoped Ruff formatting and safe fixes, scoped mypy, relevant pytest tests, CLI smoke checks, and `git diff --check`.
+Common checks:
 
-Only report validation results that were actually observed.
+```bash
+# Confirm the virtual environment
+which python
+which apex
+
+# Confirm package version
+apex version
+
+# Validate configuration
+apex config-check
+
+# Confirm repository state during development
+git status --short
+```
+
+When a command fails, read the error before retrying. Do not silently replace missing market data, stale candles, unavailable symbols, incomplete historical files, or invalid limits with guessed values.
