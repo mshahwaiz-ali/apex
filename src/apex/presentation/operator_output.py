@@ -85,10 +85,17 @@ def _portfolio_analysis_sections(
         sections.append(_opportunity_group("Runner management", runner))
 
     if not all_opportunities:
-        sections.extend(_no_trade_sections(payload, focused, explain=explain))
         setup_plan = _setup_plan_section(payload)
         if setup_plan:
             sections.append(setup_plan)
+        context = _market_context(focused)
+        if context:
+            sections.append(context)
+        risk = _risk_and_invalidation_section(payload)
+        if risk:
+            sections.append(risk)
+        if explain:
+            sections.extend(_canonical_explain_sections(payload, ()))
         return sections
 
     setup_plan = _setup_plan_section(payload)
@@ -221,6 +228,30 @@ def _setup_plan_section(payload: Mapping[str, object]) -> str:
             )
         ),
     )
+
+
+def _risk_and_invalidation_section(payload: Mapping[str, object]) -> str:
+    plan = _mapping(payload.get("setup_plan"))
+    if not plan:
+        return ""
+
+    invalidation = plan.get("invalidation")
+    stop = plan.get("stop")
+    has_invalidation = invalidation not in {None, "", UNAVAILABLE}
+    has_stop = stop not in {None, "", UNAVAILABLE}
+    if not has_invalidation and not has_stop:
+        return ""
+
+    fields: list[tuple[str, object]] = []
+    if has_invalidation:
+        fields.append(("Invalidation", invalidation))
+    if has_stop:
+        fields.append(("Stop", stop))
+
+    main_risk = plan.get("main_risk")
+    if main_risk not in {None, "", UNAVAILABLE}:
+        fields.append(("Main risk", main_risk))
+    return render_section("Risk and invalidation", render_fields(fields))
 
 
 def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
@@ -601,7 +632,14 @@ def _canonical_explain_sections(
     if diagnostics:
         sections.append(render_section("Collision and sequence", render_bullets(diagnostics)))
 
-    rejected = rejected_candidate_lines(payload)
+    rejected = tuple(
+        dict.fromkeys(
+            (
+                *rejected_candidate_lines(payload),
+                *_methodology_suppressed_candidate_lines(payload),
+            )
+        )
+    )
     if rejected:
         sections.append(
             render_section("Rejected and suppressed candidates", render_bullets(rejected))
@@ -634,21 +672,49 @@ def _canonical_explain_sections(
     return sections
 
 
+def _methodology_suppressed_candidate_lines(
+    payload: Mapping[str, object],
+) -> tuple[str, ...]:
+    phase5 = _mapping(payload.get("phase5_diagnostics"))
+    routing = _mapping(phase5.get("methodology_candidate_routing"))
+    lines: list[str] = []
+    for item in _mappings(routing.get("suppressed_candidates")):
+        strategy = humanize_code(item.get("strategy"))
+        direction = humanize_code(item.get("direction"))
+        reasons = _clean_many(item.get("reasons"))
+        reason_codes = _clean_many(item.get("reason_codes"))
+        reason = reasons[0] if reasons else reason_codes[0] if reason_codes else "Suppressed"
+        lines.append(f"{strategy} • {direction} — {reason}")
+    return tuple(lines)
+
+
 def _methodology_enforcement_fields(
     payload: Mapping[str, object],
     opportunities: Sequence[Mapping[str, object]],
 ) -> tuple[tuple[str, object], ...]:
+    phase5 = _mapping(payload.get("phase5_diagnostics"))
     summary = (
         _mapping(payload.get("methodology_enforcement"))
         or _mapping(payload.get("methodology_summary"))
         or _mapping(payload.get("methodology_gate_summary"))
+        or _mapping(phase5.get("methodology_candidate_routing"))
     )
     statuses = [
         str(_mapping(opportunity.get("methodology_verdict")).get("status")).strip().lower()
         for opportunity in opportunities
         if _mapping(opportunity.get("methodology_verdict")).get("status")
     ]
-    evaluated = summary.get("candidates_evaluated") or summary.get("evaluated")
+    evaluated = (
+        summary.get("candidates_evaluated")
+        or summary.get("evaluated")
+        or summary.get("retained_candidate_count")
+    )
+    suppressed_count = summary.get("suppressed_candidate_count")
+    if evaluated is None and suppressed_count is not None:
+        retained_number = _number(summary.get("retained_candidate_count")) or 0.0
+        suppressed_number = _number(suppressed_count)
+        if suppressed_number is not None:
+            evaluated = int(retained_number + suppressed_number)
     if evaluated is None and opportunities:
         evaluated = len(opportunities)
     allowed = summary.get("allowed")
@@ -659,10 +725,21 @@ def _methodology_enforcement_fields(
         deferred = sum(status in {"deferred", "wait", "developing"} for status in statuses)
     suppressed = summary.get("suppressed")
     if suppressed is None:
+        suppressed = summary.get("suppressed_candidate_count")
+    if suppressed is None:
         suppressed = sum(status in {"suppressed", "blocked", "rejected"} for status in statuses)
     unavailable = summary.get("unavailable")
     if unavailable is None:
         unavailable = sum(status == "unavailable" for status in statuses)
+
+    category_counts = tuple(
+        _number(value) for value in (allowed, deferred, suppressed, unavailable)
+    )
+    known_category_total = sum(value for value in category_counts if value is not None)
+    evaluated_number = _number(evaluated)
+    if evaluated_number is None or evaluated_number < known_category_total:
+        evaluated = int(known_category_total)
+
     gate_mode = (
         summary.get("gate_mode")
         or payload.get("methodology_gate_mode")

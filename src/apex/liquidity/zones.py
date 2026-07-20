@@ -49,7 +49,9 @@ def derive_liquidity_zones(
         pivots = tuple(item for item in confirmed if item.kind is kind)
         for cluster in _cluster_pivots(pivots, tolerance):
             prices = tuple(item.price for item in cluster)
-            representative = sum(prices) / len(prices)
+            low = min(prices)
+            high = max(prices)
+            representative = min(high, max(low, sum(prices) / len(prices)))
             side = LiquiditySide.BUY_SIDE if kind is SwingType.HIGH else LiquiditySide.SELL_SIDE
             zone_type = _zone_type(
                 kind,
@@ -64,8 +66,8 @@ def derive_liquidity_zones(
                 LiquidityZone(
                     side=side,
                     kind=zone_type,
-                    low=min(prices),
-                    high=max(prices),
+                    low=low,
+                    high=high,
                     representative_price=representative,
                     source_pivot_indices=indices,
                     touch_count=len(indices),

@@ -56,15 +56,17 @@ def derive_structure_levels(
         if len(cluster) < minimum_touches:
             continue
         prices = tuple(item.price for item in cluster)
-        representative = sum(prices) / len(prices)
+        low = min(prices)
+        high = max(prices)
+        representative = min(high, max(low, sum(prices) / len(prices)))
         latest_pivot = max(cluster, key=lambda item: item.index)
         source_role = (
             LevelRole.RESISTANCE if latest_pivot.kind is SwingType.HIGH else LevelRole.SUPPORT
         )
         role, status = _classify_level_state(
             source_role,
-            low=min(prices),
-            high=max(prices),
+            low=low,
+            high=high,
             pivot_time=latest_pivot.time,
             candles=candles,
         )
@@ -73,8 +75,8 @@ def derive_structure_levels(
         levels.append(
             StructureLevel(
                 representative_price=representative,
-                low=min(prices),
-                high=max(prices),
+                low=low,
+                high=high,
                 role=role,
                 status=status,
                 touches=len(cluster),

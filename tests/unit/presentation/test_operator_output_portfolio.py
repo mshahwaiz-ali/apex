@@ -240,7 +240,7 @@ def test_analysis_renders_truthful_no_valid_setup_plan() -> None:
 
     text = render_analysis(payload)
 
-    assert "NO TRADE RIGHT NOW" in text
+    assert "NO TRADE RIGHT NOW" not in text
     assert "Setup plan" in text
     assert "NO VALID SETUP YET" in text
     assert "mid-range conflicting structure" in text

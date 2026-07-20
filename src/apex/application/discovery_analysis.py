@@ -320,6 +320,11 @@ def analyze_symbol(
         candidate_ranking=ranking,
         phase5_diagnostics=phase5_diagnostics,
         methodology=methodology,
+        methodology_gate={
+            **methodology_candidate_routing_payload(methodology_routing),
+            "status": methodology_routing.mode.value,
+            "allowed": None,
+        },
         market_intelligence=market_intelligence,
         historical_edge=historical_edge,
         outcome_candles=context.decision_frame.recent_candles,
@@ -1214,11 +1219,12 @@ def _hold_category(seconds: int) -> HoldCategory:
 
 
 def _target_role(index: int, count: int) -> TargetRole:
+    del count
     if index == 1:
         return TargetRole.TP1
     if index == 2:
         return TargetRole.TP2
-    if index == 3 and count == 3:
+    if index == 3:
         return TargetRole.TP3
     return TargetRole.RUNNER
 

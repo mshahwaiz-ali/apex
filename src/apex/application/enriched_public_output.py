@@ -178,7 +178,7 @@ def _methodology_verdict(analysis: SymbolAnalysis) -> dict[str, Any]:
 
     status = _first_string(
         gate,
-        ("verdict", "decision", "status", "outcome", "result"),
+        ("verdict", "decision", "status", "mode", "outcome", "result"),
     )
     allowed = _first_bool(
         gate,
@@ -250,11 +250,11 @@ def _attach_setup_plan(
         return
 
     reasons = list(analysis.assessment.reasons)
-    main_risk = reasons[0] if reasons else "No structurally valid opportunity is available."
+    current_state, main_risk = _no_trade_summary(payload, reasons)
     payload["setup_plan"] = {
         "status": "no_valid_setup_yet",
         "geometry_available": False,
-        "current_state": main_risk,
+        "current_state": current_state,
         "long_trigger": None,
         "short_trigger": None,
         "invalidation": None,
@@ -267,6 +267,80 @@ def _attach_setup_plan(
             "Re-run analysis after market structure changes."
         ),
     }
+
+
+def _no_trade_summary(
+    payload: Mapping[str, Any],
+    reasons: list[str],
+) -> tuple[str, str]:
+    # Return a stage-specific no-trade summary without inventing geometry.
+    fallback = "No structurally valid opportunity is available."
+    ignored_reasons = {
+        "no portfolio opportunity was explicitly suppressed",
+        "candidate selection produced no setup",
+    }
+    primary_reason = next(
+        (
+            reason.strip()
+            for reason in reasons
+            if reason.strip() and reason.strip().lower() not in ignored_reasons
+        ),
+        "",
+    )
+
+    diagnostics = payload.get("phase5_diagnostics")
+    if not isinstance(diagnostics, Mapping):
+        resolved = primary_reason or fallback
+        return resolved, resolved
+
+    zero_trade = diagnostics.get("zero_trade_diagnostics")
+    if not isinstance(zero_trade, Mapping):
+        resolved = primary_reason or fallback
+        return resolved, resolved
+
+    summary = zero_trade.get("selection_summary")
+    selection_summary = summary if isinstance(summary, Mapping) else {}
+    raw_count = _non_negative_int(selection_summary.get("raw_candidate_count"))
+    retained_count = _non_negative_int(selection_summary.get("retained_candidate_count"))
+    ranked_count = _non_negative_int(selection_summary.get("ranked_count"))
+    rejected_count = _non_negative_int(selection_summary.get("rejected_count"))
+
+    if raw_count == 0:
+        current_state = "No strategy produced a structurally valid candidate."
+    elif retained_count == 0:
+        current_state = (
+            f"{raw_count} candidate(s) were generated, but none remained "
+            "eligible after strategy and methodology routing."
+        )
+    elif ranked_count == 0:
+        current_state = (
+            f"{retained_count} routed candidate(s) reached selection, but none "
+            "qualified for ranking."
+        )
+    elif rejected_count > 0:
+        current_state = (
+            f"{ranked_count} candidate(s) were ranked; no candidate satisfied "
+            "the complete execution and risk geometry."
+        )
+    else:
+        current_state = primary_reason or fallback
+
+    top_rejected = zero_trade.get("top_rejected_reasons")
+    if isinstance(top_rejected, list):
+        for item in top_rejected:
+            if not isinstance(item, Mapping):
+                continue
+            reason = item.get("reason")
+            if isinstance(reason, str) and reason.strip():
+                return current_state, reason.strip()
+
+    return current_state, primary_reason or fallback
+
+
+def _non_negative_int(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(int(value), 0)
 
 
 def _first_string(
