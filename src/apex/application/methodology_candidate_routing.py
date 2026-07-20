@@ -20,6 +20,38 @@ from apex.strategies.strategy_types import StrategyType
 
 
 @dataclass(frozen=True, slots=True)
+class MethodologyRoutingParityAudit:
+    """Deterministic preview of what enforcement would change from shadow mode."""
+
+    shadow_candidate_count: int
+    enforced_candidate_count: int
+    suppressed_candidate_count: int
+    suppressed_strategies: tuple[StrategyType, ...]
+    would_change_candidate_set: bool
+    all_candidates_would_be_suppressed: bool
+    reason_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("shadow candidate count", self.shadow_candidate_count),
+            ("enforced candidate count", self.enforced_candidate_count),
+            ("suppressed candidate count", self.suppressed_candidate_count),
+        ):
+            if value < 0:
+                raise ValueError(f"{name} cannot be negative")
+        if self.enforced_candidate_count > self.shadow_candidate_count:
+            raise ValueError("enforcement cannot increase the candidate count")
+        if self.suppressed_candidate_count != (
+            self.shadow_candidate_count - self.enforced_candidate_count
+        ):
+            raise ValueError("suppressed count must equal the shadow/enforce difference")
+        if len(set(self.suppressed_strategies)) != len(self.suppressed_strategies):
+            raise ValueError("suppressed strategies must be unique")
+        if not self.reason_codes:
+            raise ValueError("methodology parity audit requires reason codes")
+
+
+@dataclass(frozen=True, slots=True)
 class MethodologyCandidateRoutingResult:
     """Candidate-routing outcome with deterministic audit metadata."""
 
@@ -143,6 +175,58 @@ def apply_methodology_candidate_routing(
     )
 
 
+def evaluate_methodology_routing_parity(
+    analysis: StrategyAnalysisResult,
+    decisions: tuple[StrategyEnforcementDecision, ...],
+) -> MethodologyRoutingParityAudit:
+    """Compare shadow and enforce outcomes without mutating live routing mode."""
+
+    shadow = apply_methodology_candidate_routing(
+        analysis,
+        decisions,
+        mode=MethodologyGateMode.SHADOW,
+    )
+    enforced = apply_methodology_candidate_routing(
+        analysis,
+        decisions,
+        mode=MethodologyGateMode.ENFORCE,
+    )
+    shadow_count = len(shadow.analysis.candidates)
+    enforced_count = len(enforced.analysis.candidates)
+    suppressed_count = shadow_count - enforced_count
+    would_change = suppressed_count > 0
+    all_suppressed = shadow_count > 0 and enforced_count == 0
+    return MethodologyRoutingParityAudit(
+        shadow_candidate_count=shadow_count,
+        enforced_candidate_count=enforced_count,
+        suppressed_candidate_count=suppressed_count,
+        suppressed_strategies=enforced.suppressed_strategies,
+        would_change_candidate_set=would_change,
+        all_candidates_would_be_suppressed=all_suppressed,
+        reason_codes=(
+            "METHODOLOGY_ENFORCEMENT_WOULD_CHANGE_CANDIDATES"
+            if would_change
+            else "METHODOLOGY_ENFORCEMENT_PARITY",
+        ),
+    )
+
+
+def methodology_routing_parity_payload(
+    audit: MethodologyRoutingParityAudit,
+) -> dict[str, object]:
+    """Serialize the shadow/enforce candidate-set parity audit."""
+
+    return {
+        "shadow_candidate_count": audit.shadow_candidate_count,
+        "enforced_candidate_count": audit.enforced_candidate_count,
+        "suppressed_candidate_count": audit.suppressed_candidate_count,
+        "suppressed_strategies": [item.value for item in audit.suppressed_strategies],
+        "would_change_candidate_set": audit.would_change_candidate_set,
+        "all_candidates_would_be_suppressed": audit.all_candidates_would_be_suppressed,
+        "reason_codes": list(audit.reason_codes),
+    }
+
+
 def methodology_candidate_routing_payload(
     result: MethodologyCandidateRoutingResult,
 ) -> dict[str, object]:
@@ -177,7 +261,10 @@ def methodology_candidate_routing_payload(
 
 __all__ = [
     "MethodologyCandidateRoutingResult",
+    "MethodologyRoutingParityAudit",
     "apply_methodology_candidate_routing",
     "evaluate_methodology_candidate_routing",
+    "evaluate_methodology_routing_parity",
     "methodology_candidate_routing_payload",
+    "methodology_routing_parity_payload",
 ]

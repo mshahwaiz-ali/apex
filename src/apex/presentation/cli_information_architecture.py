@@ -251,7 +251,7 @@ def rationale_lines(
             entry.get("maximum_chase_rationale") or setup.get("maximum_chase_rationale"),
         ),
     ):
-        if value not in {None, ""}:
+        if value is not None and value != "":
             lines.append(f"{label}: {str(value).strip()}")
     return tuple(lines)
 

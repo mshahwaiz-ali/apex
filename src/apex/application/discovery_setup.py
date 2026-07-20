@@ -27,6 +27,7 @@ from apex.scoring.quality_dimensions import derive_quality_dimensions
 from apex.scoring.selection import is_entry_status_executable
 from apex.strategies import classify_candidate_actionability
 from apex.strategies.contracts import (
+    EntryMode,
     EntryZone,
     TargetType,
     TradeCandidate,
@@ -41,6 +42,12 @@ DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
 _VALID_DEVELOPING_OUTCOMES = {
     CandidateOutcome.ACCEPTED,
     CandidateOutcome.ACCEPTED_WITH_WARNING,
+}
+_CONFIRMATION_REQUIRED_MODES = {
+    EntryMode.MARKET_NEAR,
+    EntryMode.RETEST,
+    EntryMode.SWEEP_RECOVERY,
+    EntryMode.MOMENTUM_CONTINUATION,
 }
 
 
@@ -147,6 +154,14 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         setup_expiry_bars=None if lifecycle is None else lifecycle.expires_after_bars,
         setup_expiry_reason=_expiry_reason(candidate),
         trader_headline=_trader_headline(entry_status),
+        entry_mode=candidate.entry.mode,
+        confirmation_required=candidate.entry.mode in _CONFIRMATION_REQUIRED_MODES,
+        confirmation_complete=(
+            candidate.metadata.get("entry_confirmation_complete") is True
+            and not candidate.provisional
+        ),
+        provisional=candidate.provisional,
+        canonical_actionability=True,
     )
 
 

@@ -24,7 +24,11 @@ from apex.application.methodology_gate_orchestration import (
 )
 from apex.application.methodology_setup_maturity import derive_setup_maturity
 from apex.application.methodology_strategy_contracts import SetupMaturity
-from apex.application.opportunity_portfolio import AnalysisMode
+from apex.application.opportunity_portfolio import (
+    AnalysisMode,
+    PortfolioDecisionState,
+    SymbolOpportunityPortfolio,
+)
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -177,6 +181,8 @@ def serialize_symbol_analysis(analysis: DiscoverySymbolAnalysis) -> dict[str, An
         market_strategy_route_payload(route) if isinstance(route, MarketStrategyRoute) else None
     )
     payload["methodology_gate"] = getattr(analysis, "methodology_gate", None)
+    portfolio = _opportunity_portfolio(analysis)
+    payload["portfolio_decision"] = None if portfolio is None else portfolio.public_decision.value
     payload["decision_reason_code"] = _decision_reason_code(analysis)
     return payload
 
@@ -185,17 +191,9 @@ def serialize_scan_result(result: DiscoveryScanResult) -> dict[str, Any]:
     """Return scanner JSON with decision-aware nested analyses."""
 
     displayed = _display_analyses(result)
-    approved = tuple(item for item in displayed if item.assessment.setup is not None)
-    long_setups = tuple(
-        item
-        for item in approved
-        if item.assessment.setup is not None and item.assessment.setup.direction.value == "long"
-    )
-    short_setups = tuple(
-        item
-        for item in approved
-        if item.assessment.setup is not None and item.assessment.setup.direction.value == "short"
-    )
+    approved = tuple(item for item in displayed if _has_portfolio_opportunities(item))
+    long_setups = tuple(item for item in approved if _portfolio_has_direction(item, "long"))
+    short_setups = tuple(item for item in approved if _portfolio_has_direction(item, "short"))
     serialized_results = [serialize_symbol_analysis(item) for item in displayed]
     opportunity_records = _scan_opportunity_records(displayed)
     return {
@@ -221,7 +219,12 @@ def _scan_opportunity_records(
         portfolio = getattr(analysis, "opportunity_portfolio", None)
         if portfolio is None:
             continue
-        for opportunity in portfolio.all_opportunities:
+        opportunities = getattr(
+            portfolio,
+            "opportunities",
+            getattr(portfolio, "all_opportunities", ()),
+        )
+        for opportunity in opportunities:
             records.append(
                 {
                     "symbol": analysis.symbol,
@@ -286,8 +289,10 @@ def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
     base_text = _integrated.format_symbol_text(analysis)
     route = getattr(analysis, "market_strategy_route", None)
     environment = getattr(analysis, "market_environment", None)
-    setup = analysis.assessment.setup
-    decision = "NO_TRADE" if setup is None else setup.direction.value.upper()
+    portfolio = _opportunity_portfolio(analysis)
+    primary = None if portfolio is None else portfolio.primary_opportunity
+    setup = analysis.assessment.setup if primary is None else primary.setup
+    decision = "NO_VALID_SETUP" if portfolio is None else portfolio.public_decision.value.upper()
     lines = [f"{analysis.symbol} | {decision}", base_text]
     if isinstance(route, MarketStrategyRoute):
         strategies = ", ".join(item.value for item in route.strategy_priority) or "none"
@@ -335,12 +340,27 @@ def format_scan_text(result: DiscoveryScanResult) -> str:
     return "\n".join(lines)
 
 
-def _opportunity_summary_lines(analysis: DiscoverySymbolAnalysis) -> tuple[str, ...]:
+def _opportunity_summary_lines(
+    analysis: DiscoverySymbolAnalysis,
+) -> tuple[str, ...]:
     """Return compact operator-facing diagnostics for the best ranked candidate."""
 
     record = _best_rank_record(analysis)
     if record is None:
+        ranking = analysis.candidate_ranking
+        primary = None if ranking is None else ranking.primary
+        if primary is not None and getattr(primary, "candidate_id", None) is None:
+            record = primary
+        elif ranking is not None:
+            rejected = tuple(getattr(ranking, "rejected", ()))
+            if len(rejected) == 1:
+                only_rejected = next(iter(rejected))
+                if getattr(only_rejected, "candidate_id", None) is None:
+                    record = only_rejected
+
+    if record is None:
         return ("Best opportunity: none",)
+
     dimensions = record.score_dimensions
     return (
         (
@@ -371,10 +391,34 @@ def _decision_reason_code(analysis: DiscoverySymbolAnalysis) -> str:
         return "NO_ROUTED_STRATEGY"
     if analysis.candidate_count == 0:
         return "NO_CANDIDATE_GENERATED"
+    portfolio = _opportunity_portfolio(analysis)
+    if portfolio is not None and portfolio.opportunities:
+        return portfolio.public_decision.value
     if not candidate_diagnostics.get("selected"):
         return "CANDIDATE_REJECTED"
-    setup = analysis.assessment.setup
-    return "NO_TRADE" if setup is None else setup.entry_status.value
+    return PortfolioDecisionState.NO_VALID_SETUP.value
+
+
+def _opportunity_portfolio(
+    analysis: DiscoverySymbolAnalysis,
+) -> SymbolOpportunityPortfolio | None:
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    return portfolio if isinstance(portfolio, SymbolOpportunityPortfolio) else None
+
+
+def _has_portfolio_opportunities(analysis: DiscoverySymbolAnalysis) -> bool:
+    portfolio = _opportunity_portfolio(analysis)
+    return portfolio is not None and bool(portfolio.opportunities)
+
+
+def _portfolio_has_direction(
+    analysis: DiscoverySymbolAnalysis,
+    direction: str,
+) -> bool:
+    portfolio = _opportunity_portfolio(analysis)
+    if portfolio is None:
+        return False
+    return any(item.direction.value == direction for item in portfolio.opportunities)
 
 
 def _display_analyses(
@@ -441,12 +485,32 @@ def _scan_maturity_class(analysis: DiscoverySymbolAnalysis) -> int:
 
 
 def _best_rank_record(analysis: DiscoverySymbolAnalysis) -> Any | None:
+    # Return the ranking record for the canonical retained opportunity.
     ranking = analysis.candidate_ranking
     if ranking is None:
         return None
-    records = (
-        (() if ranking.primary is None else (ranking.primary,))
-        + ranking.alternatives
-        + ranking.rejected
-    )
-    return min(records, key=lambda item: item.rank, default=None)
+
+    viable_records = (() if ranking.primary is None else (ranking.primary,)) + ranking.alternatives
+    records_by_id = {
+        item.candidate_id: item
+        for item in viable_records
+        if getattr(item, "candidate_id", None) is not None
+    }
+    if not records_by_id:
+        return min(viable_records, key=lambda item: item.rank, default=None)
+
+    portfolio = _opportunity_portfolio(analysis)
+    if portfolio is not None:
+        opportunities = getattr(
+            portfolio,
+            "opportunities",
+            getattr(portfolio, "all_opportunities", ()),
+        )
+        for opportunity in opportunities:
+            record = records_by_id.get(opportunity.opportunity_id)
+            if record is not None:
+                return record
+        if records_by_id:
+            return None
+
+    return min(viable_records, key=lambda item: item.rank, default=None)

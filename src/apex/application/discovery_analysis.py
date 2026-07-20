@@ -40,8 +40,12 @@ from apex.application.historical_edge_runtime import (
 from apex.application.market_intelligence import build_market_intelligence
 from apex.application.market_strategy_router import MarketStrategyRoute
 from apex.application.methodology_candidate_routing import (
+    MethodologyCandidateRoutingResult,
+    apply_methodology_candidate_routing,
     evaluate_methodology_candidate_routing,
+    evaluate_methodology_routing_parity,
     methodology_candidate_routing_payload,
+    methodology_routing_parity_payload,
 )
 from apex.application.methodology_contracts import (
     ConfidenceAssessment,
@@ -64,11 +68,17 @@ from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
 )
 from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
+from apex.application.methodology_selection_parity import (
+    evaluate_methodology_selection_parity,
+    methodology_selection_parity_payload,
+)
 from apex.application.methodology_setup_maturity import derive_setup_maturity
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.opportunity_portfolio import (
     AnalysisMode,
+    build_actionability_state_assessment,
+    classify_setup_sequence_role,
     opportunity_portfolio_payload,
 )
 from apex.application.strategy_routing import (
@@ -76,12 +86,14 @@ from apex.application.strategy_routing import (
     build_strategy_routing_payload,
 )
 from apex.data.providers.base import MarketDataProvider
+from apex.scoring.contracts import CandidateSelectionResult
 from apex.strategies import (
     StrategyContext,
     analyze_strategies,
     strategy_evidence_payload,
     strategy_evidence_summary,
 )
+from apex.strategies.analysis import StrategyAnalysisResult
 from apex.strategies.entry_status import EntryStatus
 
 
@@ -123,6 +135,10 @@ def analyze_symbol(
         market_state=methodology_market_state,
         mode=methodology_gate_mode,
     )
+    methodology_parity = _methodology_parity_diagnostics(
+        routed,
+        methodology_routing,
+    )
     eligible_routed = methodology_routing.analysis
     market_intelligence = build_market_intelligence(context, dict(regimes))
     selection = analyze_futures_phase5(
@@ -138,6 +154,27 @@ def analyze_symbol(
         archetype=str(market_intelligence["archetype"]),
     )
     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
+    counterfactual_mode = "enforce" if methodology_routing.mode.value == "shadow" else "shadow"
+    counterfactual_routing = apply_methodology_candidate_routing(
+        routed,
+        methodology_routing.decisions,
+        mode=counterfactual_mode,
+    )
+    counterfactual_selection = analyze_futures_phase5(
+        counterfactual_routing.analysis,
+        environment_route=market_strategy_route,
+    )
+    counterfactual_selection, _ = apply_runtime_edge_ranking(
+        counterfactual_selection,
+        edge_artifact,
+        regime=str(intelligence_regime["state"]),
+        archetype=str(market_intelligence["archetype"]),
+    )
+    methodology_selection_parity = _methodology_selection_parity_diagnostics(
+        live_mode=methodology_routing.mode.value,
+        live_selection=selection,
+        counterfactual_selection=counterfactual_selection,
+    )
     assessment = build_discovery_assessment(selection)
     portfolio_cmp = (
         assessment.setup.entry.current_price
@@ -177,6 +214,8 @@ def analyze_symbol(
             methodology_routing=methodology_routing,
         ),
         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
+        "methodology_routing_parity": methodology_parity,
+        "methodology_selection_parity": methodology_selection_parity,
         "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
         "candidates": [
             {
@@ -255,6 +294,40 @@ def analyze_symbol(
         outcome_candles=context.decision_frame.recent_candles,
         opportunity_portfolio=opportunity_portfolio,
     )
+
+
+def _methodology_selection_parity_diagnostics(
+    *,
+    live_mode: str,
+    live_selection: CandidateSelectionResult,
+    counterfactual_selection: CandidateSelectionResult,
+) -> dict[str, object]:
+    """Orient live and counterfactual results into shadow/enforced order."""
+
+    if live_mode == "shadow":
+        shadow = live_selection
+        enforced = counterfactual_selection
+    elif live_mode == "enforce":
+        shadow = counterfactual_selection
+        enforced = live_selection
+    else:
+        raise ValueError("methodology selection parity requires shadow or enforce mode")
+    return methodology_selection_parity_payload(
+        evaluate_methodology_selection_parity(shadow, enforced)
+    )
+
+
+def _methodology_parity_diagnostics(
+    routed: StrategyAnalysisResult,
+    methodology_routing: MethodologyCandidateRoutingResult,
+) -> dict[str, object]:
+    """Preview enforcement against the same pre-ranking candidate set."""
+
+    audit = evaluate_methodology_routing_parity(
+        routed,
+        methodology_routing.decisions,
+    )
+    return methodology_routing_parity_payload(audit)
 
 
 def _zero_trade_diagnostics(
@@ -366,15 +439,24 @@ def scan_symbols(
 
 
 def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
-    """Serialize discovery output without account-oriented fields."""
+    """Serialize the canonical portfolio view while retaining legacy diagnostics."""
 
-    setup = analysis.assessment.setup
+    legacy_setup = analysis.assessment.setup
+    legacy_developing_setup = analysis.assessment.developing_setup
+    portfolio = analysis.opportunity_portfolio
+    primary_opportunity = None if portfolio is None else portfolio.primary_opportunity
+    setup = legacy_setup if primary_opportunity is None else primary_opportunity.setup
+    portfolio_decision = None if portfolio is None else portfolio.public_decision.value
     payload: dict[str, Any] = {
         "symbol": analysis.symbol,
         "generated_at": analysis.generated_at.isoformat(),
         "methodology_version": METHODOLOGY_VERSION,
         "methodology_path": METHODOLOGY_PATH,
         "decision": setup.direction.value.upper() if setup is not None else "NO_TRADE",
+        "portfolio_decision": portfolio_decision,
+        "legacy_decision": (
+            legacy_setup.direction.value.upper() if legacy_setup is not None else "NO_TRADE"
+        ),
         "entry_status": setup.entry_status.value if setup is not None else None,
         "strategy": setup.strategy.value if setup is not None else None,
         "strategy_family": setup.strategy.canonical_family.value if setup is not None else None,
@@ -406,22 +488,45 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         ),
         "setup": None,
         "developing_setup": None,
+        "legacy_assessment": {
+            "setup": None if legacy_setup is None else _setup_payload(legacy_setup),
+            "developing_setup": (
+                None if legacy_developing_setup is None else _setup_payload(legacy_developing_setup)
+            ),
+            "reasons": list(analysis.assessment.reasons),
+        },
     }
-    if setup is not None:
-        payload["setup"] = _setup_payload(setup)
-    developing_setup = analysis.assessment.developing_setup
-    if developing_setup is not None:
-        payload["developing_setup"] = _setup_payload(developing_setup)
+    if primary_opportunity is not None:
+        primary_setup = primary_opportunity.setup
+        if primary_setup.execution_allowed_now:
+            payload["setup"] = _setup_payload(primary_setup)
+        else:
+            payload["developing_setup"] = _setup_payload(primary_setup)
+    else:
+        if legacy_setup is not None:
+            payload["setup"] = _setup_payload(legacy_setup)
+        if legacy_developing_setup is not None:
+            payload["developing_setup"] = _setup_payload(legacy_developing_setup)
     return payload
 
 
 def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
+    sequence_role = classify_setup_sequence_role(setup)
+    actionability = build_actionability_state_assessment(
+        setup,
+        sequence_role=sequence_role,
+    )
     return {
         "candidate_id": setup.candidate_id,
         "direction": setup.direction.value,
         "strategy": setup.strategy.value,
         "strategy_family": setup.strategy.canonical_family.value,
         "strategy_subtype": setup.strategy.canonical_subtype,
+        "actionability_state": actionability.state.value,
+        "actionability_basis": actionability.basis.value,
+        "actionability_blocked": actionability.has_blocking_issue,
+        "actionability_issues": [issue.value for issue in actionability.issues],
+        "sequence_role": sequence_role.value,
         "entry_status": setup.entry_status.value,
         "confidence_score": setup.confidence_score,
         "trader_headline": setup.trader_headline,

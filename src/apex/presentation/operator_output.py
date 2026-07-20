@@ -196,14 +196,25 @@ def _setup_sections(
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     direction = humanize_code(setup.get("direction"))
-    terminal_status = str(setup.get("entry_status") or "").upper() in {
-        "INVALIDATED",
-        "MISSED_ENTRY",
-        "LATE_OR_CHASING",
-        "EXPIRED",
+    actionability = str(setup.get("actionability_state") or "").lower()
+    terminal_actionability = actionability in {
+        "invalidated",
+        "missed_or_chasing",
     }
-    executable = setup.get("execution_allowed_now") is True and not pending and not terminal_status
-    action = f"ENTER {direction.upper()}" if executable else "WAIT FOR ACTIVATION"
+    executable_actionability = actionability in {
+        "execute_now",
+        "aggressive_now",
+    }
+    micro_confirmation = actionability == "execute_on_micro_confirmation"
+    executable = executable_actionability and not pending and not terminal_actionability
+    if executable:
+        action = f"ENTER {direction.upper()}"
+    elif micro_confirmation and not pending:
+        action = "WAIT FOR MICRO CONFIRMATION"
+    elif terminal_actionability:
+        action = "SKIP — INVALID OR CHASED"
+    else:
+        action = "WAIT FOR ACTIVATION"
     sections = [
         render_section(
             "Decision",
@@ -220,7 +231,16 @@ def _setup_sections(
                             ),
                             ("Direction", direction),
                             ("Strategy", humanize_code(setup.get("strategy"))),
-                            ("Status", humanize_code(setup.get("entry_status"))),
+                            (
+                                "Actionability",
+                                humanize_code(
+                                    setup.get("actionability_state") or setup.get("entry_status")
+                                ),
+                            ),
+                            (
+                                "Activation basis",
+                                humanize_code(setup.get("actionability_basis")),
+                            ),
                             ("Setup quality", _quality(setup.get("confidence_score"))),
                             (
                                 "Execution allowed now",

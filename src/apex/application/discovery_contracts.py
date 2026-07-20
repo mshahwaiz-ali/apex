@@ -18,6 +18,7 @@ from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.domain.models import Candle
 from apex.scoring.quality_dimensions import CandidateQualityDimensions
 from apex.strategies.contracts import (
+    EntryMode,
     InvalidationType,
     TargetType,
     TradeDirection,
@@ -163,6 +164,11 @@ class DiscoverySetup:
     setup_expiry_bars: int | None = None
     setup_expiry_reason: str = ""
     trader_headline: str = ""
+    entry_mode: EntryMode = EntryMode.MARKET_NEAR
+    confirmation_required: bool = False
+    confirmation_complete: bool = True
+    provisional: bool = False
+    canonical_actionability: bool = False
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():

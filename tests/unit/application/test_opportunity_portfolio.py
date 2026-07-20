@@ -16,6 +16,7 @@ from apex.application.discovery_contracts import (
 )
 from apex.application.opportunity_portfolio import (
     AnalysisMode,
+    PortfolioDecisionState,
     SequenceRole,
     SymbolOpportunityPortfolio,
     TradeOpportunity,
@@ -116,3 +117,62 @@ def test_current_opportunity_requires_immediate_execution() -> None:
 
     with pytest.raises(ValueError, match="authorize execution now"):
         TradeOpportunity("nearby", setup, SequenceRole.CURRENT)
+
+
+def test_portfolio_public_decision_prefers_current_over_nearby() -> None:
+    current_setup = _setup("current-long", TradeDirection.LONG, executable=True)
+    nearby_setup = _setup("nearby-short", TradeDirection.SHORT, executable=False)
+    portfolio = SymbolOpportunityPortfolio(
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+        current_long=TradeOpportunity(
+            current_setup.candidate_id,
+            current_setup,
+            SequenceRole.CURRENT,
+        ),
+        nearby_short=TradeOpportunity(
+            nearby_setup.candidate_id,
+            nearby_setup,
+            SequenceRole.NEARBY,
+        ),
+    )
+
+    assert portfolio.public_decision is PortfolioDecisionState.ACTIONABLE_AT_CMP
+    assert portfolio.primary_opportunity is not None
+    assert portfolio.primary_opportunity.opportunity_id == "current-long"
+    assert portfolio.has_direction(TradeDirection.LONG)
+    assert portfolio.has_direction(TradeDirection.SHORT)
+    assert portfolio.all_opportunities == portfolio.opportunities
+
+
+def test_portfolio_public_decision_preserves_nearby_setup_without_current_trade() -> None:
+    nearby_setup = _setup("nearby-long", TradeDirection.LONG, executable=False)
+    portfolio = SymbolOpportunityPortfolio(
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+        nearby_long=TradeOpportunity(
+            nearby_setup.candidate_id,
+            nearby_setup,
+            SequenceRole.NEARBY,
+        ),
+    )
+
+    assert portfolio.public_decision is PortfolioDecisionState.NEARBY_SETUP_AVAILABLE
+    assert portfolio.primary_opportunity is not None
+    assert portfolio.primary_opportunity.opportunity_id == "nearby-long"
+
+
+def test_empty_portfolio_has_no_valid_setup_decision() -> None:
+    portfolio = SymbolOpportunityPortfolio(
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+    )
+
+    assert portfolio.public_decision is PortfolioDecisionState.NO_VALID_SETUP
+    assert portfolio.primary_opportunity is None
