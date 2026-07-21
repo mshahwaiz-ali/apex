@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 
+from apex.application.methodology_horizon_contracts import (
+    HigherTimeframeAuthority,
+    HoldingHorizon,
+)
+from apex.application.methodology_lane_horizon import (
+    LaneHorizonAssessment,
+)
 from apex.application.opportunity_portfolio import (
     ActionabilityState,
     OpportunityLane,
@@ -15,19 +21,6 @@ from apex.application.opportunity_portfolio import (
 from apex.strategies.contracts import EntryMode, TradeCandidate
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
-
-
-class HoldingHorizon(StrEnum):
-    SCALP = "scalp"
-    SHORT = "short"
-    STRUCTURED = "structured"
-    RUNNER = "runner"
-
-
-class HigherTimeframeAuthority(StrEnum):
-    WARNING_AND_TARGET_CEILING = "warning_and_target_ceiling"
-    CONTEXTUAL_PENALTY = "contextual_penalty"
-    STRICT = "strict"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,12 +40,39 @@ _SCALP_STRATEGIES = {
 }
 
 
+def methodology_context_from_lane_horizon(
+    assessment: LaneHorizonAssessment,
+) -> OpportunityMethodologyContext:
+    authority = (
+        HigherTimeframeAuthority.STRICT
+        if assessment.lane is OpportunityLane.RUNNER
+        else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+        if assessment.lane
+        in {
+            OpportunityLane.NEARBY_STRUCTURED,
+            OpportunityLane.DEVELOPING,
+        }
+        else HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+        if assessment.lane.is_scalp
+        else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+    )
+    return OpportunityMethodologyContext(
+        lane=assessment.lane,
+        holding_horizon=assessment.holding_horizon,
+        higher_timeframe_authority=authority,
+    )
+
+
 def infer_candidate_methodology_context(
     candidate: TradeCandidate,
     *,
     entry_status: EntryStatus,
+    lane_horizon: LaneHorizonAssessment | None = None,
 ) -> OpportunityMethodologyContext:
-    """Infer pre-ranking lane context so broad market state cannot erase scalps."""
+    """Infer context, preferring an explicit measurable lane/horizon assessment."""
+
+    if lane_horizon is not None:
+        return methodology_context_from_lane_horizon(lane_horizon)
 
     executable = entry_status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}
     if executable:
@@ -178,4 +198,5 @@ __all__ = [
     "OpportunityMethodologyContext",
     "infer_candidate_methodology_context",
     "infer_opportunity_methodology_context",
+    "methodology_context_from_lane_horizon",
 ]
