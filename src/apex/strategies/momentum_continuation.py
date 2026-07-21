@@ -5,6 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 
 from apex.strategies.context import StrategyContext
+from apex.strategies.continuation_freshness import (
+    ContinuationFreshness,
+    measure_continuation_freshness,
+)
+from apex.strategies.continuation_participation import (
+    ContinuationParticipation,
+    ParticipationState,
+    assess_continuation_participation,
+)
 from apex.strategies.contracts import (
     EntryMode,
     InvalidationConcept,
@@ -103,8 +112,22 @@ def _candidate_for_direction(
     ):
         return None
 
+    freshness = _continuation_freshness(
+        context,
+        direction=direction,
+        current=current,
+        target=target_price,
+    )
+    if freshness is not None and not freshness.allows_new_continuation:
+        return None
+
     references = _entry_references(context, bullish=bullish)
-    entry_confirmation_complete = has_break and aligned * 2 >= total and not context.provisional
+    entry_confirmation_complete = (
+        has_break
+        and aligned * 2 >= total
+        and not context.provisional
+        and not (freshness is not None and freshness.requires_conditional_entry)
+    )
     try:
         entry_opportunities = find_entry_zones(
             current_price=current,
@@ -124,13 +147,24 @@ def _candidate_for_direction(
     entry = entry_opportunities[0]
 
     features = frame.features
+    participation = assess_continuation_participation(
+        direction=direction,
+        features=features,
+        market_evidence=context.market_evidence,
+    )
     warnings: list[str] = []
+    if participation.state is ParticipationState.CONTRADICTORY:
+        warnings.append("available participation evidence contradicts continuation quality")
     if context.provisional:
         warnings.append("active-candle evidence is provisional")
     if entry.is_extended:
         warnings.append(
             "current execution is extended; preserve the setup for pullback, retest, "
             "or renewed confirmation rather than chasing"
+        )
+    if freshness is not None and freshness.requires_conditional_entry:
+        warnings.append(
+            "continuation is mature; preserve only a conditional pullback or renewed trigger"
         )
     if not entry_confirmation_complete:
         warnings.append(
@@ -171,7 +205,10 @@ def _candidate_for_direction(
                 invalidation=invalidation_price,
                 target=target_price,
             ),
-            extension_penalty=1.0 - entry.location_quality,
+            extension_penalty=max(
+                1.0 - entry.location_quality,
+                _freshness_extension_penalty(freshness),
+            ),
             conflict_penalty=0.25 if higher_timeframe_conflict else 0.0,
         ),
         evidence=StrategyEvidence(
@@ -180,6 +217,8 @@ def _candidate_for_direction(
                 f"{aligned} of {total} available momentum measures align",
                 "entry is immediate or a shallow continuation reference near CMP",
                 "ATR-aware chase protection remains satisfied",
+                *(() if freshness is None else freshness.reasons),
+                *participation.reasons,
             ),
             warnings=tuple(warnings),
             feature_references=tuple(
@@ -198,6 +237,8 @@ def _candidate_for_direction(
         ),
         metadata={
             "decision_timeframe": frame.timeframe,
+            **_freshness_metadata(freshness),
+            **_participation_metadata(participation),
             "entry_opportunity_count": len(entry_opportunities),
             "momentum_signal_count": total,
             "aligned_momentum_count": aligned,
@@ -217,6 +258,85 @@ def _candidate_for_direction(
         entry_opportunities=entry_opportunities,
         provisional=context.provisional,
     )
+
+
+def _continuation_freshness(
+    context: StrategyContext,
+    *,
+    direction: TradeDirection,
+    current: float,
+    target: float,
+) -> ContinuationFreshness | None:
+    candles = tuple(candle for candle in context.decision_frame.recent_candles if candle.is_closed)
+    if len(candles) < 3:
+        return None
+    recent = candles[-12:]
+    bullish = direction is TradeDirection.LONG
+    impulse_origin = (
+        min(candle.low for candle in recent) if bullish else max(candle.high for candle in recent)
+    )
+    if (bullish and impulse_origin >= current) or (not bullish and impulse_origin <= current):
+        return None
+    try:
+        return measure_continuation_freshness(
+            candles=recent,
+            features=context.decision_frame.features,
+            direction=direction,
+            current_price=current,
+            impulse_origin=impulse_origin,
+            target_price=target,
+        )
+    except ValueError:
+        return None
+
+
+def _freshness_extension_penalty(
+    freshness: ContinuationFreshness | None,
+) -> float:
+    if freshness is None:
+        return 0.0
+    if freshness.requires_conditional_entry:
+        return 0.45
+    return min(0.35, freshness.objective_consumption * 0.35)
+
+
+def _freshness_metadata(
+    freshness: ContinuationFreshness | None,
+) -> dict[str, str | int | float | bool]:
+    if freshness is None:
+        return {"continuation_freshness_available": False}
+    payload: dict[str, str | int | float | bool] = {
+        "continuation_freshness_available": True,
+        "continuation_state": freshness.state.value,
+        "impulse_travel_atr": freshness.impulse_travel_atr,
+        "objective_consumption": freshness.objective_consumption,
+        "remaining_target_room_atr": freshness.remaining_target_room_atr,
+        "momentum_decelerating": freshness.momentum_decelerating,
+        "continuation_requires_conditional_entry": (freshness.requires_conditional_entry),
+    }
+    if freshness.ema_extension_atr is not None:
+        payload["ema_extension_atr"] = freshness.ema_extension_atr
+    if freshness.vwap_extension_atr is not None:
+        payload["vwap_extension_atr"] = freshness.vwap_extension_atr
+    return payload
+
+
+def _participation_metadata(
+    participation: ContinuationParticipation,
+) -> dict[str, str | int | float | bool]:
+    payload: dict[str, str | int | float | bool] = {
+        "continuation_participation_state": participation.state.value,
+        "participation_available_signal_count": participation.available_signal_count,
+        "participation_supportive_signal_count": participation.supportive_signal_count,
+        "participation_contradictory_signal_count": (participation.contradictory_signal_count),
+    }
+    if participation.relative_volume is not None:
+        payload["relative_volume"] = participation.relative_volume
+    if participation.open_interest_change is not None:
+        payload["open_interest_change"] = participation.open_interest_change
+    if participation.taker_buy_sell_ratio is not None:
+        payload["taker_buy_sell_ratio"] = participation.taker_buy_sell_ratio
+    return payload
 
 
 def _has_recent_continuation_break(context: StrategyContext, *, bullish: bool) -> bool:
