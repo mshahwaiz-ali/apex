@@ -44,6 +44,12 @@ class ManagementPolicyType(StrEnum):
     MOMENTUM_FAILURE = "momentum_failure"
 
 
+class TargetRole(StrEnum):
+    PRIMARY = "primary"
+    CONTINUATION = "continuation"
+    EXTENSION_CANDIDATE = "extension_candidate"
+
+
 class ActivationTriggerType(StrEnum):
     PRICE_TOUCH = "price_touch"
     CANDLE_CLOSE = "candle_close"
@@ -127,6 +133,11 @@ class TakeProfit:
     partial_close_pct: float = 100.0
     target_type: TargetType = TargetType.STRUCTURAL
     purpose: str = "primary structural objective"
+    target_basis: str = "strategy_supplied_structural_level"
+    target_timeframe: str | None = None
+    target_role: TargetRole = TargetRole.PRIMARY
+    synthetic: bool = False
+    runner_qualified: bool = False
 
     def __post_init__(self) -> None:
         if not self.label.strip():
@@ -144,6 +155,14 @@ class TakeProfit:
             raise ValueError("target rationale cannot be empty")
         if not self.purpose.strip():
             raise ValueError("target purpose cannot be empty")
+        if not self.target_basis.strip():
+            raise ValueError("target basis cannot be empty")
+        if self.target_timeframe is not None and not self.target_timeframe.strip():
+            raise ValueError("target timeframe cannot be blank")
+        if self.synthetic:
+            raise ValueError("discovery targets must remain strategy supplied")
+        if self.runner_qualified and self.target_role is not TargetRole.EXTENSION_CANDIDATE:
+            raise ValueError("runner qualification requires an extension target role")
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +278,8 @@ class DiscoverySetup:
     conditional_plan: ConditionalExecutionPlan | None = None
     layered_state: LayeredStateSnapshot = field(default_factory=LayeredStateSnapshot)
     methodology_scores: ScoreDimensions = field(default_factory=ScoreDimensions)
+    runner_qualified: bool = False
+    runner_qualification_reason: str = "runner not evaluated"
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():
@@ -272,6 +293,12 @@ class DiscoverySetup:
             raise ValueError("discovery setup requires at least one target")
         if not self.management_policies:
             raise ValueError("discovery setup requires management policies")
+        if not self.runner_qualification_reason.strip():
+            raise ValueError("runner qualification reason cannot be empty")
+        if self.runner_qualified and not any(
+            target.runner_qualified for target in self.take_profits
+        ):
+            raise ValueError("qualified runner requires a qualified target")
         if self.setup_expiry_seconds is not None and self.setup_expiry_seconds <= 0:
             raise ValueError("setup expiry must be positive when provided")
         if self.setup_expiry_bars is not None and self.setup_expiry_bars <= 0:
@@ -306,6 +333,7 @@ class DiscoveryAssessment:
     setup: DiscoverySetup | None
     reasons: tuple[str, ...] = ()
     developing_setup: DiscoverySetup | None = None
+    quality_shadow_diagnostics: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -316,6 +344,12 @@ class DiscoveryAssessment:
             raise ValueError("selected discovery setup cannot also have no-trade reasons")
         if self.setup is None and not self.reasons:
             raise ValueError("no-trade assessment requires a reason")
+        if self.quality_shadow_diagnostics is not None:
+            object.__setattr__(
+                self,
+                "quality_shadow_diagnostics",
+                dict(self.quality_shadow_diagnostics),
+            )
         if self.developing_setup is not None:
             if self.developing_setup.symbol != self.symbol:
                 raise ValueError("developing setup symbol must match assessment symbol")

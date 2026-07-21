@@ -20,6 +20,9 @@ from apex.application.rollout_comparison import (
     comparison_summary_payload,
     summarize_analysis_comparisons,
 )
+from apex.application.target_runner_serialization import (
+    serialize_assessment_target_runner_diagnostics,
+)
 from apex.strategies.contracts import TradeDirection
 
 
@@ -56,6 +59,7 @@ def _serialize_symbol_analysis_core(
     payload["methodology_verdict"] = verdict
     _attach_opportunity_methodology_verdict(payload, verdict)
     _attach_setup_plan(analysis, payload)
+    _attach_target_runner_diagnostics(analysis, payload)
     return payload
 
 
@@ -161,6 +165,15 @@ def serialize_scan_result(
             summarize_analysis_comparisons(comparisons)
         )
     return payload
+
+
+def _attach_target_runner_diagnostics(
+    analysis: SymbolAnalysis,
+    payload: dict[str, Any],
+) -> None:
+    payload["target_runner_diagnostics"] = serialize_assessment_target_runner_diagnostics(
+        analysis.assessment
+    )
 
 
 def _methodology_verdict(analysis: SymbolAnalysis) -> dict[str, Any]:

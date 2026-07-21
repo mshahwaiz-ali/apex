@@ -16,6 +16,7 @@ from apex.application.discovery_contracts import (
     StopLoss,
     StopQualityBand,
     TakeProfit,
+    TargetRole,
 )
 from apex.application.methodology_candidate_entry_authority import (
     CandidateEntryAuthority,
@@ -27,12 +28,21 @@ from apex.application.opportunity_portfolio import (
     portfolio_from_setups,
 )
 from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
+from apex.domain.methodology_contracts import (
+    ContinuationState,
+    HoldingHorizon,
+    RelationshipSeverity,
+    TimeframeRelationship,
+)
 from apex.scoring.contracts import (
     CandidateOutcome,
     CandidateSelectionResult,
     RankedCandidate,
 )
 from apex.scoring.quality_dimensions import derive_quality_dimensions
+from apex.scoring.quality_shadow_rollout import (
+    build_quality_shadow_rollout_diagnostics,
+)
 from apex.scoring.selection import is_entry_status_executable
 from apex.strategies import classify_candidate_actionability
 from apex.strategies.contracts import (
@@ -67,6 +77,7 @@ def build_discovery_assessment(
 
     selected = candidate_selection.selected_candidate
     developing = _best_developing_candidate(candidate_selection, selected=selected)
+    quality_shadow = build_quality_shadow_rollout_diagnostics(candidate_selection).to_dict()
     if selected is None:
         return DiscoveryAssessment(
             symbol=candidate_selection.symbol,
@@ -76,6 +87,7 @@ def build_discovery_assessment(
                 candidate_selection.no_trade_reason or "candidate selection produced no setup",
             ),
             developing_setup=(None if developing is None else _build_setup(developing)),
+            quality_shadow_diagnostics=quality_shadow,
         )
 
     return DiscoveryAssessment(
@@ -83,6 +95,7 @@ def build_discovery_assessment(
         decision_time=candidate_selection.decision_time,
         setup=_build_setup(selected),
         developing_setup=None if developing is None else _build_setup(developing),
+        quality_shadow_diagnostics=quality_shadow,
     )
 
 
@@ -144,10 +157,12 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         for opportunity in candidate.entry_opportunities
     )
     stop = _stop(candidate, preferred_entry=entry_authority.selected_entry)
+    runner_qualified, runner_reason = _runner_qualification(candidate)
     targets = _targets(
         candidate,
         stop,
         preferred_entry=entry_authority.selected_entry,
+        runner_qualified=runner_qualified,
     )
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
@@ -162,7 +177,11 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         entry=entry,
         stop_loss=stop,
         take_profits=targets,
-        management_policies=_management_policies(targets, candidate.strategy),
+        management_policies=_management_policies(
+            targets,
+            candidate.strategy,
+            runner_qualified=runner_qualified,
+        ),
         warnings=tuple(candidate.evidence.warnings),
         quality_dimensions=derive_quality_dimensions(candidate.quality),
         execution_allowed_now=is_entry_status_executable(entry_status),
@@ -181,6 +200,8 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         canonical_actionability=True,
         layered_state=candidate.layered_state,
         methodology_scores=candidate.score_dimensions,
+        runner_qualified=runner_qualified,
+        runner_qualification_reason=runner_reason,
         conditional_plan=_conditional_plan(
             candidate,
             entry_status=entry_status,
@@ -381,6 +402,7 @@ def _targets(
     stop: StopLoss,
     *,
     preferred_entry: float,
+    runner_qualified: bool,
 ) -> tuple[TakeProfit, ...]:
     preferred = preferred_entry
     levels = build_layered_targets(
@@ -390,6 +412,8 @@ def _targets(
         strategy_targets=candidate.targets.levels,
     )
     partials = _partial_close_percentages(len(levels))
+    target_timeframe = _target_timeframe(candidate)
+    runner_allowed = runner_qualified
     return tuple(
         TakeProfit(
             label=level.label,
@@ -400,6 +424,14 @@ def _targets(
             partial_close_pct=partial,
             target_type=level.kind,
             purpose=_target_purpose(level.kind, level.label),
+            target_basis=_target_basis(level.kind),
+            target_timeframe=target_timeframe,
+            target_role=_target_role(level.kind, level.label),
+            synthetic=False,
+            runner_qualified=(
+                runner_allowed
+                and _target_role(level.kind, level.label) is TargetRole.EXTENSION_CANDIDATE
+            ),
         )
         for level, partial in zip(levels, partials, strict=True)
     )
@@ -413,6 +445,37 @@ def _target_purpose(kind: TargetType, label: str) -> str:
     if label.upper() == "TP1":
         return "first structural objective"
     return "primary structural objective"
+
+
+def _target_basis(kind: TargetType) -> str:
+    return {
+        TargetType.STRUCTURAL: "strategy_supplied_structural_level",
+        TargetType.LIQUIDITY: "strategy_supplied_liquidity_level",
+        TargetType.RANGE: "strategy_supplied_range_boundary",
+        TargetType.EXPANSION: "strategy_supplied_expansion_projection",
+        TargetType.PARTIAL: "strategy_supplied_partial_objective",
+    }[kind]
+
+
+def _target_role(kind: TargetType, label: str) -> TargetRole:
+    if kind is TargetType.EXPANSION:
+        return TargetRole.EXTENSION_CANDIDATE
+    if label.upper() == "TP1":
+        return TargetRole.PRIMARY
+    return TargetRole.CONTINUATION
+
+
+def _target_timeframe(candidate: TradeCandidate) -> str | None:
+    for key in (
+        "target_timeframe",
+        "setup_timeframe",
+        "decision_timeframe",
+        "confirmation_timeframe",
+    ):
+        value = candidate.metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _expiry_reason(candidate: TradeCandidate) -> str:
@@ -442,16 +505,52 @@ def _trader_headline(status: EntryStatus) -> str:
 def _partial_close_percentages(count: int) -> tuple[float, ...]:
     if count <= 0:
         raise ValueError("target count must be positive")
+    if count > 3:
+        raise ValueError("target allocation supports at most three targets")
     if count == 1:
         return (100.0,)
     if count == 2:
         return (50.0, 50.0)
-    return (40.0, 35.0, *(25.0 / (count - 2) for _ in range(count - 2)))
+    return (40.0, 35.0, 25.0)
+
+
+def _runner_is_qualified(candidate: TradeCandidate) -> bool:
+    return _runner_qualification(candidate)[0]
+
+
+def _runner_qualification(candidate: TradeCandidate) -> tuple[bool, str]:
+    state = candidate.layered_state
+    if state.timeframe_relationship in {
+        TimeframeRelationship.COUNTERTREND_SCALP,
+        TimeframeRelationship.DIRECT_STRUCTURAL_OPPOSITION,
+        TimeframeRelationship.REVERSAL_ATTEMPT,
+    }:
+        return False, "higher-timeframe relationship forbids runner treatment"
+    if state.relationship_severity in {
+        RelationshipSeverity.STRONG,
+        RelationshipSeverity.CRITICAL,
+    }:
+        return False, "higher-timeframe conflict severity is too strong"
+    if state.continuation_state is not ContinuationState.FRESH_CONTINUATION:
+        return False, "continuation is not fresh enough for a runner"
+    if state.timeframe_relationship is not TimeframeRelationship.WITH_TREND:
+        return False, "runner requires with-trend higher-timeframe alignment"
+    if state.holding_horizon not in {
+        HoldingHorizon.MULTI_HOUR,
+        HoldingHorizon.SWING,
+        HoldingHorizon.RUNNER,
+    }:
+        return False, "holding horizon is too short for runner treatment"
+    if candidate.metadata.get("continuation_evidence_complete") is not True:
+        return False, "continuation evidence is incomplete"
+    return True, "aligned fresh continuation supports runner management"
 
 
 def _management_policies(
     targets: tuple[TakeProfit, ...],
     strategy: object | None = None,
+    *,
+    runner_qualified: bool = False,
 ) -> tuple[ManagementPolicy, ...]:
     first_target = targets[0]
     final_target = targets[-1]
@@ -474,6 +573,16 @@ def _management_policies(
         "failed_break_reclaim": "price accepts beyond the failed-break extreme again",
         "liquidity_sweep_reversal": "price accepts beyond the sweep extreme",
     }.get(family, "strategy evidence fails before the final target")
+    trailing_action = (
+        "trail the qualified runner behind the latest valid structural swing"
+        if runner_qualified
+        else "do not retain a runner; manage only the declared targets"
+    )
+    trailing_rationale = (
+        ("retain qualified continuation potential without abandoning structure",)
+        if runner_qualified
+        else ("runner qualification was not earned by the current evidence",)
+    )
     return (
         ManagementPolicy(
             kind=ManagementPolicyType.BREAKEVEN,
@@ -483,9 +592,9 @@ def _management_policies(
         ),
         ManagementPolicy(
             kind=ManagementPolicyType.TRAILING,
-            trigger=continuation,
-            action="trail behind the latest valid structural swing",
-            rationale=("retain continuation potential without abandoning structure",),
+            trigger=continuation if runner_qualified else f"{final_target.label} reached",
+            action=trailing_action,
+            rationale=trailing_rationale,
         ),
         ManagementPolicy(
             kind=ManagementPolicyType.TIME_EXIT,

@@ -845,6 +845,7 @@ class SymbolOpportunityPortfolio:
     nearby_short: TradeOpportunity | None = None
     follow_up_opportunities: tuple[TradeOpportunity, ...] = ()
     runner_plan: TradeOpportunity | None = None
+    retention_diagnostics: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -1055,33 +1056,31 @@ def portfolio_from_setups(
     collision-aware and score-dimensional ranking without changing the contract.
     """
 
+    from apex.application.portfolio_retention import (
+        build_portfolio_retention_audit,
+        portfolio_retention_audit_payload,
+    )
+
+    materialized_setups = tuple(setups)
+    retention_audit = build_portfolio_retention_audit(materialized_setups)
+    retained_ids = set(retention_audit.retained_candidate_ids)
+    retained_setups = sorted(
+        (setup for setup in materialized_setups if setup.candidate_id in retained_ids),
+        key=lambda setup: (-setup.confidence_score, setup.candidate_id),
+    )
+
     current_long: TradeOpportunity | None = None
     current_short: TradeOpportunity | None = None
     nearby_long: TradeOpportunity | None = None
     nearby_short: TradeOpportunity | None = None
     follow_ups: list[TradeOpportunity] = []
-    seen_candidate_ids: set[str] = set()
-    seen_semantic_setups: set[tuple[object, ...]] = set()
-    retained_lane_directions: set[tuple[OpportunityLane, TradeDirection]] = set()
 
-    for setup in setups:
+    for setup in retained_setups:
         if setup.symbol != symbol:
             raise ValueError("setup symbol must match portfolio symbol")
 
-        if not setup_is_portfolio_eligible(setup):
-            continue
-
-        semantic_identity = _semantic_setup_identity(setup)
-        if setup.candidate_id in seen_candidate_ids or semantic_identity in seen_semantic_setups:
-            continue
-        seen_candidate_ids.add(setup.candidate_id)
-        seen_semantic_setups.add(semantic_identity)
-
         role = classify_setup_sequence_role(setup)
         lane = classify_setup_opportunity_lane(setup, sequence_role=role)
-        lane_direction = (lane, setup.direction)
-        is_best_for_lane = lane_direction not in retained_lane_directions
-        retained_lane_directions.add(lane_direction)
         opportunity = TradeOpportunity(setup.candidate_id, setup, role, lane)
         if role is SequenceRole.CURRENT:
             if setup.direction is TradeDirection.LONG and current_long is None:
@@ -1098,15 +1097,14 @@ def portfolio_from_setups(
                 nearby_short = opportunity
                 continue
 
-        if analysis_mode is AnalysisMode.ANALYZE_FULL or is_best_for_lane:
-            follow_ups.append(
-                TradeOpportunity(
-                    setup.candidate_id,
-                    setup,
-                    SequenceRole.FOLLOW_UP,
-                    lane,
-                )
+        follow_ups.append(
+            TradeOpportunity(
+                setup.candidate_id,
+                setup,
+                SequenceRole.FOLLOW_UP,
+                lane,
             )
+        )
 
     return SymbolOpportunityPortfolio(
         symbol=symbol,
@@ -1118,6 +1116,7 @@ def portfolio_from_setups(
         nearby_long=nearby_long,
         nearby_short=nearby_short,
         follow_up_opportunities=tuple(follow_ups),
+        retention_diagnostics=portfolio_retention_audit_payload(retention_audit),
     )
 
 
@@ -1127,67 +1126,21 @@ def portfolio_from_legacy_assessment(
     cmp: float,
     analysis_mode: AnalysisMode,
 ) -> SymbolOpportunityPortfolio:
-    """Represent the current selected/developing assessment without changing behavior.
+    """Adapt legacy setup fields through the canonical portfolio selector.
 
-    This adapter is deliberately conservative: the selected setup occupies either a
-    current slot or a nearby slot according to its existing execution flag.  The
-    existing developing setup occupies an unused nearby slot, or a follow-up slot when
-    that directional nearby slot is already occupied.
+    Legacy selected and developing fields are inputs only. They cannot bypass
+    eligibility, duplicate, lane-retention, or collision handling.
     """
 
-    current_long: TradeOpportunity | None = None
-    current_short: TradeOpportunity | None = None
-    nearby_long: TradeOpportunity | None = None
-    nearby_short: TradeOpportunity | None = None
-    follow_ups: list[TradeOpportunity] = []
-
-    def place(setup: DiscoverySetup, *, developing: bool) -> None:
-        nonlocal current_long, current_short, nearby_long, nearby_short
-
-        del developing
-        if not setup_is_portfolio_eligible(setup):
-            return
-        role = classify_setup_sequence_role(setup)
-        lane = classify_setup_opportunity_lane(setup, sequence_role=role)
-        opportunity = TradeOpportunity(setup.candidate_id, setup, role, lane)
-        if role is SequenceRole.CURRENT:
-            if setup.direction is TradeDirection.LONG:
-                current_long = opportunity
-            else:
-                current_short = opportunity
-            return
-
-        if setup.direction is TradeDirection.LONG and nearby_long is None:
-            nearby_long = opportunity
-            return
-        if setup.direction is TradeDirection.SHORT and nearby_short is None:
-            nearby_short = opportunity
-            return
-
-        follow_ups.append(
-            TradeOpportunity(
-                setup.candidate_id,
-                setup,
-                SequenceRole.FOLLOW_UP,
-                lane,
-            )
-        )
-
-    if assessment.setup is not None:
-        place(assessment.setup, developing=False)
-    if assessment.developing_setup is not None:
-        place(assessment.developing_setup, developing=True)
-
-    return SymbolOpportunityPortfolio(
+    setups = tuple(
+        setup for setup in (assessment.setup, assessment.developing_setup) if setup is not None
+    )
+    return portfolio_from_setups(
+        setups,
         symbol=assessment.symbol,
         cmp=cmp,
         analysis_timestamp=assessment.decision_time,
         analysis_mode=analysis_mode,
-        current_long=current_long,
-        current_short=current_short,
-        nearby_long=nearby_long,
-        nearby_short=nearby_short,
-        follow_up_opportunities=tuple(follow_ups),
     )
 
 
@@ -1406,6 +1359,7 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
         "cmp": portfolio.cmp,
         "analysis_timestamp": portfolio.analysis_timestamp.isoformat(),
         "analysis_mode": portfolio.analysis_mode.value,
+        "retention_diagnostics": portfolio.retention_diagnostics,
         "public_decision": portfolio.public_decision.value,
         "primary_opportunity_id": (
             None

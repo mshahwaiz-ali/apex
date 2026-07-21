@@ -4,12 +4,31 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import IntEnum
 
 from apex.strategies.contracts import (
     InvalidationType,
     TargetLevel,
+    TargetType,
     TradeDirection,
 )
+
+
+class TargetSourcePriority(IntEnum):
+    STRUCTURAL = 0
+    LIQUIDITY = 1
+    RANGE = 2
+    EXPANSION = 3
+    PARTIAL = 4
+
+
+_TARGET_SOURCE_PRIORITY = {
+    TargetType.STRUCTURAL: TargetSourcePriority.STRUCTURAL,
+    TargetType.LIQUIDITY: TargetSourcePriority.LIQUIDITY,
+    TargetType.RANGE: TargetSourcePriority.RANGE,
+    TargetType.EXPANSION: TargetSourcePriority.EXPANSION,
+    TargetType.PARTIAL: TargetSourcePriority.PARTIAL,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,32 +113,106 @@ def build_layered_targets(
     preferred_entry: float,
     stop_price: float,
     strategy_targets: tuple[TargetLevel, ...],
+    tick_size: float | None = None,
 ) -> tuple[TargetLevel, ...]:
-    "Normalize strategy-supplied targets without inventing risk-multiple levels."
+    """Normalize defensible strategy targets using canonical hierarchy."""
 
     if not strategy_targets:
         raise ValueError("at least one strategy target is required")
-    if abs(preferred_entry - stop_price) <= 0.0:
+    if not math.isfinite(preferred_entry) or preferred_entry <= 0.0:
+        raise ValueError("preferred entry must be positive and finite")
+    if not math.isfinite(stop_price) or stop_price <= 0.0:
+        raise ValueError("stop price must be positive and finite")
+    if math.isclose(preferred_entry, stop_price, rel_tol=0.0, abs_tol=0.0):
         raise ValueError("stop must differ from preferred entry")
+    if tick_size is not None and (not math.isfinite(tick_size) or tick_size <= 0.0):
+        raise ValueError("tick size must be positive and finite when provided")
 
-    ordered = tuple(
+    directionally_valid = tuple(
+        level
+        for level in strategy_targets
+        if _target_is_directionally_valid(
+            direction=direction,
+            preferred_entry=preferred_entry,
+            target_price=level.price,
+        )
+    )
+    if not directionally_valid:
+        raise ValueError("at least one directionally valid target is required")
+
+    source_ordered = tuple(
         sorted(
-            strategy_targets,
+            directionally_valid,
+            key=lambda level: (
+                _TARGET_SOURCE_PRIORITY[level.kind],
+                abs(level.price - preferred_entry),
+                level.price,
+                level.label,
+            ),
+        )
+    )
+    deduplicated = _deduplicate_targets(source_ordered, tick_size=tick_size)
+    price_ordered = tuple(
+        sorted(
+            deduplicated,
             key=lambda level: abs(level.price - preferred_entry),
         )
     )
-    results: list[TargetLevel] = []
-    for index, level in enumerate(ordered, start=1):
-        results.append(
-            TargetLevel(
-                kind=level.kind,
-                price=level.price,
-                label=f"TP{index}",
-                rationale=level.rationale,
-            )
+
+    return tuple(
+        TargetLevel(
+            kind=level.kind,
+            price=level.price,
+            label=f"TP{index}",
+            rationale=level.rationale,
         )
+        for index, level in enumerate(price_ordered[:3], start=1)
+    )
 
-    return tuple(results[:3])
+
+def _target_is_directionally_valid(
+    *,
+    direction: TradeDirection,
+    preferred_entry: float,
+    target_price: float,
+) -> bool:
+    if direction is TradeDirection.LONG:
+        return target_price > preferred_entry
+    return target_price < preferred_entry
 
 
-__all__ = ["StopGeometry", "build_layered_targets", "build_stop_geometry"]
+def _deduplicate_targets(
+    targets: tuple[TargetLevel, ...],
+    *,
+    tick_size: float | None,
+) -> tuple[TargetLevel, ...]:
+    retained: list[TargetLevel] = []
+    for target in targets:
+        if not any(
+            _same_target_price(
+                target.price,
+                existing.price,
+                tick_size=tick_size,
+            )
+            for existing in retained
+        ):
+            retained.append(target)
+    return tuple(retained)
+
+
+def _same_target_price(
+    left: float,
+    right: float,
+    *,
+    tick_size: float | None,
+) -> bool:
+    tolerance = max(abs(left), abs(right), 1.0) * 1e-12 if tick_size is None else tick_size
+    return math.isclose(left, right, rel_tol=0.0, abs_tol=tolerance)
+
+
+__all__ = [
+    "StopGeometry",
+    "TargetSourcePriority",
+    "build_layered_targets",
+    "build_stop_geometry",
+]

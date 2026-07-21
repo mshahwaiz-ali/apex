@@ -33,6 +33,46 @@ class CandidateQualityComponentDerivation:
         object.__setattr__(self, "sources", MappingProxyType(dict(self.sources)))
 
 
+@dataclass(frozen=True, slots=True)
+class CandidateQualityShadowDiagnostics:
+    """Read-only legacy/decomposed comparison with no decision authority."""
+
+    legacy_values: Mapping[str, float]
+    decomposed_values: Mapping[str, float]
+    deltas: Mapping[str, float]
+    lane: OpportunityLane
+    confidence_semantics: str
+    calibrated_probability: bool
+    component_sources: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "legacy_values", MappingProxyType(dict(self.legacy_values)))
+        object.__setattr__(
+            self,
+            "decomposed_values",
+            MappingProxyType(dict(self.decomposed_values)),
+        )
+        object.__setattr__(self, "deltas", MappingProxyType(dict(self.deltas)))
+        object.__setattr__(
+            self,
+            "component_sources",
+            MappingProxyType(dict(self.component_sources)),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "version": 1,
+            "shadow_only": True,
+            "lane": self.lane.value,
+            "confidence_semantics": self.confidence_semantics,
+            "calibrated_probability": self.calibrated_probability,
+            "legacy_values": dict(self.legacy_values),
+            "decomposed_values": dict(self.decomposed_values),
+            "deltas": dict(self.deltas),
+            "component_sources": dict(self.component_sources),
+        }
+
+
 def derive_candidate_quality_components(
     *,
     candidate: TradeCandidate,
@@ -140,14 +180,20 @@ def attach_candidate_quality_components(
         data_confidence=components.data_confidence,
         overall_trade_quality=derived.overall.overall_trade_quality,
     )
+    shadow = build_candidate_quality_shadow_diagnostics(
+        candidate=candidate,
+        derived=derived,
+    )
     metadata = {
         **candidate.metadata,
         "quality_decomposition_lane": lane.value,
         "quality_confidence_semantics": derived.overall.confidence_semantics.value,
         "quality_calibrated_probability": derived.overall.calibration.calibrated,
-        "quality_component_sources": " | ".join(
-            f"{name}={source}" for name, source in sorted(derived.sources.items())
-        ),
+        "quality_component_sources": _serialize_mapping(derived.sources),
+        "quality_shadow_legacy_values": _serialize_mapping(shadow.legacy_values),
+        "quality_shadow_decomposed_values": _serialize_mapping(shadow.decomposed_values),
+        "quality_shadow_deltas": _serialize_mapping(shadow.deltas),
+        "quality_shadow_diagnostics_version": 1,
         "quality_decomposition_shadow_only": True,
     }
     return replace(
@@ -213,6 +259,150 @@ def attach_candidate_quality_components_for_candidate(
     return replace(attached, metadata=metadata)
 
 
+def build_candidate_quality_shadow_diagnostics(
+    *,
+    candidate: TradeCandidate,
+    derived: CandidateQualityComponentDerivation,
+) -> CandidateQualityShadowDiagnostics:
+    """Compare legacy raw references with the shadow decomposition."""
+
+    quality = candidate.quality
+    legacy_values = {
+        "trend_alignment": round(quality.trend_alignment * 100.0, 4),
+        "structure_quality": round(quality.structure_quality * 100.0, 4),
+        "entry_quality": round(quality.entry_quality * 100.0, 4),
+        "momentum_quality": round(quality.momentum_quality * 100.0, 4),
+        "volume_quality": round(quality.volume_quality * 100.0, 4),
+        "liquidity_quality": round(quality.liquidity_quality * 100.0, 4),
+        "target_space_quality": round(quality.target_space_quality * 100.0, 4),
+        "extension_penalty": round(quality.extension_penalty * 100.0, 4),
+        "conflict_penalty": round(quality.conflict_penalty * 100.0, 4),
+    }
+    components = derived.components
+    decomposed_values = {
+        "pattern_confidence": components.pattern_confidence,
+        "directional_alignment": components.directional_alignment,
+        "setup_quality": components.setup_quality,
+        "execution_quality": components.execution_quality,
+        "reward_quality": components.reward_quality,
+        "timing_quality": components.timing_quality,
+        "data_confidence": components.data_confidence,
+        "overall_trade_quality": derived.overall.overall_trade_quality,
+    }
+    deltas = {
+        "directional_alignment_minus_trend_alignment": round(
+            components.directional_alignment - legacy_values["trend_alignment"],
+            4,
+        ),
+        "execution_quality_minus_entry_quality": round(
+            components.execution_quality - legacy_values["entry_quality"],
+            4,
+        ),
+        "reward_quality_minus_target_space_quality": round(
+            components.reward_quality - legacy_values["target_space_quality"],
+            4,
+        ),
+        "setup_quality_minus_structure_quality_reference": round(
+            components.setup_quality - legacy_values["structure_quality"],
+            4,
+        ),
+    }
+    return CandidateQualityShadowDiagnostics(
+        legacy_values=legacy_values,
+        decomposed_values=decomposed_values,
+        deltas=deltas,
+        lane=derived.lane,
+        confidence_semantics=derived.overall.confidence_semantics.value,
+        calibrated_probability=derived.overall.calibration.calibrated,
+        component_sources=derived.sources,
+    )
+
+
+def candidate_quality_shadow_payload(
+    candidate: TradeCandidate,
+) -> dict[str, object] | None:
+    if candidate.metadata.get("quality_decomposition_shadow_only") is not True:
+        return None
+
+    dimensions = candidate.score_dimensions
+    values = {
+        "pattern_confidence": dimensions.pattern_confidence,
+        "directional_alignment": dimensions.directional_alignment,
+        "setup_quality": dimensions.setup_quality,
+        "execution_quality": dimensions.execution_quality,
+        "reward_quality": dimensions.reward_quality,
+        "timing_quality": dimensions.timing_quality,
+        "data_confidence": dimensions.data_confidence,
+        "overall_trade_quality": dimensions.overall_trade_quality,
+    }
+    if any(value is None for value in values.values()):
+        return None
+
+    lane_value = candidate.metadata.get("quality_decomposition_lane")
+    semantics = candidate.metadata.get("quality_confidence_semantics")
+    calibrated = candidate.metadata.get("quality_calibrated_probability")
+    if not isinstance(lane_value, str) or not isinstance(semantics, str):
+        return None
+    if not isinstance(calibrated, bool):
+        return None
+    try:
+        lane = OpportunityLane(lane_value)
+    except ValueError:
+        return None
+
+    quality = candidate.quality
+    legacy = {
+        "trend_alignment": round(quality.trend_alignment * 100.0, 4),
+        "structure_quality": round(quality.structure_quality * 100.0, 4),
+        "entry_quality": round(quality.entry_quality * 100.0, 4),
+        "momentum_quality": round(quality.momentum_quality * 100.0, 4),
+        "volume_quality": round(quality.volume_quality * 100.0, 4),
+        "liquidity_quality": round(quality.liquidity_quality * 100.0, 4),
+        "target_space_quality": round(quality.target_space_quality * 100.0, 4),
+        "extension_penalty": round(quality.extension_penalty * 100.0, 4),
+        "conflict_penalty": round(quality.conflict_penalty * 100.0, 4),
+    }
+    decomposed = {name: float(value) for name, value in values.items() if value is not None}
+    deltas = {
+        "directional_alignment_minus_trend_alignment": round(
+            decomposed["directional_alignment"] - legacy["trend_alignment"], 4
+        ),
+        "execution_quality_minus_entry_quality": round(
+            decomposed["execution_quality"] - legacy["entry_quality"], 4
+        ),
+        "reward_quality_minus_target_space_quality": round(
+            decomposed["reward_quality"] - legacy["target_space_quality"], 4
+        ),
+        "setup_quality_minus_structure_quality_reference": round(
+            decomposed["setup_quality"] - legacy["structure_quality"], 4
+        ),
+    }
+    sources_text = candidate.metadata.get("quality_component_sources")
+    sources = _parse_serialized_mapping(sources_text) if isinstance(sources_text, str) else {}
+    return CandidateQualityShadowDiagnostics(
+        legacy_values=legacy,
+        decomposed_values=decomposed,
+        deltas=deltas,
+        lane=lane,
+        confidence_semantics=semantics,
+        calibrated_probability=calibrated,
+        component_sources=sources,
+    ).to_dict()
+
+
+def _serialize_mapping(values: Mapping[str, object]) -> str:
+    return " | ".join(f"{name}={values[name]}" for name in sorted(values))
+
+
+def _parse_serialized_mapping(value: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for item in value.split(" | "):
+        name, separator, source = item.partition("=")
+        if separator and name:
+            result[name] = source
+    return result
+
+
 def _dimension_or_default(
     dimension: float | None,
     fallback: float,
@@ -274,8 +464,11 @@ def _bounded(value: float) -> float:
 __all__ = [
     "CandidateQualityComponentDerivation",
     "CandidateQualityLaneResolution",
+    "CandidateQualityShadowDiagnostics",
     "attach_candidate_quality_components",
     "attach_candidate_quality_components_for_candidate",
+    "build_candidate_quality_shadow_diagnostics",
+    "candidate_quality_shadow_payload",
     "derive_candidate_quality_components",
     "resolve_candidate_quality_lane",
 ]
