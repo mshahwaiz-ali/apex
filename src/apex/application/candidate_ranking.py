@@ -160,7 +160,9 @@ def build_candidate_ranking_snapshot(
     warning_threshold = _warning_threshold(candidate_selection)
 
     for item in candidate_selection.ranked_candidates:
-        if item.scored.candidate_id == selected_id:
+        is_selected = item.scored.candidate_id == selected_id
+        is_rank_primary = primary is None and item.outcome in _VIABLE_OUTCOMES
+        if is_selected or (selected_id is None and is_rank_primary):
             primary = _record(
                 item,
                 CandidateRankingRole.PRIMARY,

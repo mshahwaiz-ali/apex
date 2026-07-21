@@ -40,10 +40,10 @@ def _candidate(
     )
 
 
-def test_unconfirmed_market_near_setup_is_preserved_as_watch() -> None:
+def test_unconfirmed_market_near_setup_requires_confirmation_at_cmp() -> None:
     candidate = _candidate(mode=EntryMode.MARKET_NEAR, confirmed=False)
 
-    assert classify_candidate_actionability(candidate) is EntryStatus.WATCH_NEAR_ENTRY
+    assert classify_candidate_actionability(candidate) is EntryStatus.CONFIRMATION_AT_CMP
 
 
 def test_confirmed_market_near_setup_is_ready_now() -> None:

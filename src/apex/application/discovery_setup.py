@@ -279,8 +279,8 @@ def _conditional_plan(
         geometry_basis=entry_authority.geometry_owner,
         entry_source=_entry_source(candidate),
         trigger_matches_preferred_entry=(entry_authority.trigger_matches_selected_entry),
-        stop_basis="structural_invalidation_buffered_from_selected_entry",
-        targets_basis="strategy_supplied_targets_from_selected_entry",
+        stop_basis="structural_invalidation_buffered_from_candidate_entry",
+        targets_basis="strategy_supplied_structural_targets",
         geometry_is_trigger_relative=(entry_authority.trigger_matches_selected_entry),
     )
 

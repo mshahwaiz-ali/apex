@@ -13,6 +13,7 @@ from apex.application.decision_analysis import DEFAULT_SCAN_DISPLAY_LIMIT
 from apex.application.discovery_contracts import ScanResult, SymbolAnalysis
 from apex.application.methodology_projection import project_analysis_methodology
 from apex.application.methodology_public_enrichment import methodology_public_enrichment
+from apex.application.portfolio_ranking import portfolio_ranking_key
 from apex.application.rollout_comparison import (
     NamedAnalysisComparison,
     analysis_comparison_payload,
@@ -76,9 +77,13 @@ def serialize_scan_result(
     if normalized_direction not in {"long", "short", "both"}:
         raise ValueError("direction must be one of: long, short, both")
 
+    globally_ranked = rank_scan_analyses(result.analyses)
+    global_rank_by_symbol = {
+        analysis.symbol: index for index, analysis in enumerate(globally_ranked, start=1)
+    }
     ranked = tuple(
         analysis
-        for analysis in result.analyses
+        for analysis in globally_ranked
         if normalized_direction == "both"
         or _portfolio_has_direction(analysis, normalized_direction)
     )
@@ -88,6 +93,12 @@ def serialize_scan_result(
         _serialize_symbol_analysis_core(analysis, legacy_payload=legacy_payload)
         for analysis, legacy_payload in zip(displayed, legacy_payloads, strict=True)
     ]
+    for display_rank, (analysis, item) in enumerate(
+        zip(displayed, serialized, strict=True),
+        start=1,
+    ):
+        item["global_rank"] = global_rank_by_symbol[analysis.symbol]
+        item["display_rank"] = display_rank
     comparisons: list[NamedAnalysisComparison] = []
     if include_rollout_diagnostics:
         for index, (analysis, legacy_payload, item) in enumerate(
@@ -146,6 +157,12 @@ def serialize_scan_result(
         "runner_opportunity_count": _count_opportunity_category(displayed_opportunities, "runner"),
         "display_limit": display_limit,
         "direction_filter": normalized_direction,
+        "ranking_behavior": {
+            "mode": "global_ranked_symbols_with_lane_labeled_opportunities",
+            "direction_filter_stage": "after_global_ranking",
+            "display_limit_stage": "after_direction_filter",
+            "global_rank_is_direction_independent": True,
+        },
         "selected_setup_count": len(selected),
         "execution_ready_count": len(actionable),
         "actionable_count": len(actionable),
@@ -165,6 +182,24 @@ def serialize_scan_result(
             summarize_analysis_comparisons(comparisons)
         )
     return payload
+
+
+def scan_analysis_ranking_key(analysis: SymbolAnalysis) -> tuple[object, ...]:
+    """Return deterministic best-first scan precedence for one symbol analysis."""
+
+    portfolio = analysis.opportunity_portfolio
+    primary = None if portfolio is None else portfolio.primary_opportunity
+    if primary is None:
+        return (1, analysis.symbol)
+    return (0, *portfolio_ranking_key(primary.setup))
+
+
+def rank_scan_analyses(
+    analyses: tuple[SymbolAnalysis, ...],
+) -> tuple[SymbolAnalysis, ...]:
+    """Rank symbols globally before applying any display-only direction filter."""
+
+    return tuple(sorted(analyses, key=scan_analysis_ranking_key))
 
 
 def _attach_target_runner_diagnostics(

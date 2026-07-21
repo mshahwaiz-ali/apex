@@ -14,6 +14,10 @@ from enum import StrEnum
 from typing import Any
 
 from apex.application.discovery_contracts import DiscoveryAssessment, DiscoverySetup
+from apex.application.portfolio_ranking import (
+    portfolio_rank_components,
+    portfolio_ranking_key,
+)
 from apex.strategies.contracts import EntryMode, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
@@ -889,7 +893,7 @@ class SymbolOpportunityPortfolio:
 
     @property
     def opportunities(self) -> tuple[TradeOpportunity, ...]:
-        """Return every populated opportunity in deterministic slot order."""
+        """Return every populated opportunity in truthful recommendation order."""
 
         fixed = (
             self.current_long,
@@ -897,11 +901,12 @@ class SymbolOpportunityPortfolio:
             self.nearby_long,
             self.nearby_short,
         )
-        return (
+        populated = (
             tuple(item for item in fixed if item is not None)
             + self.follow_up_opportunities
             + (() if self.runner_plan is None else (self.runner_plan,))
         )
+        return tuple(sorted(populated, key=lambda item: portfolio_ranking_key(item.setup)))
 
     @property
     def all_opportunities(self) -> tuple[TradeOpportunity, ...]:
@@ -967,7 +972,7 @@ class SymbolOpportunityPortfolio:
 
     @property
     def primary_opportunity(self) -> TradeOpportunity | None:
-        """Return the highest-priority opportunity using stable slot precedence."""
+        """Return the top-ranked retained opportunity."""
 
         return next(iter(self.opportunities), None)
 
@@ -1046,6 +1051,7 @@ def portfolio_from_setups(
     cmp: float,
     analysis_timestamp: datetime,
     analysis_mode: AnalysisMode,
+    legacy_geometry_identity: bool = False,
 ) -> SymbolOpportunityPortfolio:
     """Classify distinct constructed setups into deterministic portfolio slots.
 
@@ -1062,12 +1068,49 @@ def portfolio_from_setups(
     )
 
     materialized_setups = tuple(setups)
-    retention_audit = build_portfolio_retention_audit(materialized_setups)
-    retained_ids = set(retention_audit.retained_candidate_ids)
-    retained_setups = sorted(
-        (setup for setup in materialized_setups if setup.candidate_id in retained_ids),
-        key=lambda setup: (-setup.confidence_score, setup.candidate_id),
+    retention_audit = build_portfolio_retention_audit(
+        materialized_setups,
+        include_sequence_role_in_geometry=not legacy_geometry_identity,
+        suppress_opposing_collisions=False,
+        suppress_same_lane_candidates=False,
+        preserve_input_order_for_equal_confidence=True,
     )
+    retained_ids = set(retention_audit.retained_candidate_ids)
+    retained_by_id: dict[str, DiscoverySetup] = {}
+    original_positions: dict[str, int] = {}
+    for position, setup in enumerate(materialized_setups):
+        if setup.candidate_id in retained_ids and setup.candidate_id not in retained_by_id:
+            retained_by_id[setup.candidate_id] = setup
+            original_positions[setup.candidate_id] = position
+    retained_setups = tuple(retained_by_id.values())
+
+    # Preserve materially distinct same-lane follow-ups, but collapse
+    # cosmetic variants that share the same entry and stop geometry.
+    materially_distinct: list[DiscoverySetup] = []
+    seen_material_geometry: set[tuple[object, ...]] = set()
+    for setup in sorted(
+        retained_setups,
+        key=lambda item: (
+            -item.confidence_score,
+            original_positions[item.candidate_id],
+        ),
+    ):
+        role = classify_setup_sequence_role(setup)
+        lane = classify_setup_opportunity_lane(setup, sequence_role=role)
+        material_geometry = (
+            setup.direction,
+            lane,
+            setup.entry.lower,
+            setup.entry.preferred,
+            setup.entry.upper,
+            setup.entry.maximum_chase_price,
+            setup.stop_loss.price,
+        )
+        if material_geometry in seen_material_geometry:
+            continue
+        seen_material_geometry.add(material_geometry)
+        materially_distinct.append(setup)
+    retained_setups = tuple(materially_distinct)
 
     current_long: TradeOpportunity | None = None
     current_short: TradeOpportunity | None = None
@@ -1097,14 +1140,20 @@ def portfolio_from_setups(
                 nearby_short = opportunity
                 continue
 
-        follow_ups.append(
-            TradeOpportunity(
-                setup.candidate_id,
-                setup,
-                SequenceRole.FOLLOW_UP,
-                lane,
+        occupied_lanes = {
+            item.effective_lane
+            for item in (current_long, current_short, nearby_long, nearby_short)
+            if item is not None
+        }
+        if analysis_mode is AnalysisMode.ANALYZE_FULL or lane not in occupied_lanes:
+            follow_ups.append(
+                TradeOpportunity(
+                    setup.candidate_id,
+                    setup,
+                    SequenceRole.FOLLOW_UP,
+                    lane,
+                )
             )
-        )
 
     return SymbolOpportunityPortfolio(
         symbol=symbol,
@@ -1133,7 +1182,14 @@ def portfolio_from_legacy_assessment(
     """
 
     setups = tuple(
-        setup for setup in (assessment.setup, assessment.developing_setup) if setup is not None
+        sorted(
+            (
+                setup
+                for setup in (assessment.setup, assessment.developing_setup)
+                if setup is not None
+            ),
+            key=lambda setup: (-setup.confidence_score, setup.candidate_id),
+        )
     )
     return portfolio_from_setups(
         setups,
@@ -1141,6 +1197,7 @@ def portfolio_from_legacy_assessment(
         cmp=cmp,
         analysis_timestamp=assessment.decision_time,
         analysis_mode=analysis_mode,
+        legacy_geometry_identity=True,
     )
 
 
@@ -1207,6 +1264,8 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
                 else {}
             ),
             "execution_allowed_now": setup.execution_allowed_now,
+            "ranking": portfolio_rank_components(setup).to_dict(),
+            "rank_score": portfolio_rank_components(setup).rank_score,
             "cmp": setup.entry.current_price,
             "cmp_actionability": {
                 "state": cmp_actionability.state.value,
@@ -1366,6 +1425,10 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
             if portfolio.primary_opportunity is None
             else portfolio.primary_opportunity.opportunity_id
         ),
+        "ranking_behavior": "global retained-opportunity rank with lane labels",
+        "ranked_opportunity_ids": [
+            opportunity.opportunity_id for opportunity in portfolio.opportunities
+        ],
         "current_long": serialize(portfolio.current_long),
         "current_short": serialize(portfolio.current_short),
         "nearby_long": serialize(portfolio.nearby_long),

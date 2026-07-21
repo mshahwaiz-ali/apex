@@ -60,7 +60,12 @@ def test_legacy_portfolio_payload_is_additive_and_deterministic() -> None:
 
     assert payload["analysis_mode"] == "analyze_full"
     assert payload["opportunity_count"] == 1
-    assert payload["current_long"] == {
+    current_long = payload["current_long"]
+    assert isinstance(current_long, dict)
+    ranking = current_long.pop("ranking")
+    rank_score = current_long.pop("rank_score")
+    assert ranking["rank_score"] == rank_score
+    assert current_long == {
         "opportunity_id": "candidate-1",
         "sequence_role": "current",
         "lane": "cmp_scalp",

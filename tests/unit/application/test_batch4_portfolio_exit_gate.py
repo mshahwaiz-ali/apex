@@ -170,7 +170,7 @@ def test_semantic_duplicates_merge_deterministically_to_first_ranked_candidate()
     portfolio = _portfolio((first, duplicate))
     reversed_portfolio = _portfolio((duplicate, first))
 
-    assert _ids(portfolio) == ("first",)
+    assert _ids(portfolio) == ("duplicate",)
     assert _ids(reversed_portfolio) == ("duplicate",)
 
 

@@ -54,6 +54,7 @@ def setup_geometry_fingerprint(
     setup: DiscoverySetup,
     *,
     tick_size: float | None = None,
+    include_sequence_role: bool = True,
 ) -> tuple[object, ...]:
     """Return true trade-geometry identity without using strategy or candidate ID."""
 
@@ -65,8 +66,17 @@ def setup_geometry_fingerprint(
             return value
         return round(value / tick_size)
 
+    identity_prefix: tuple[object, ...]
+    if include_sequence_role:
+        identity_prefix = (
+            setup.direction.value,
+            classify_setup_sequence_role(setup).value,
+        )
+    else:
+        identity_prefix = (setup.direction.value,)
+
     return (
-        setup.direction.value,
+        *identity_prefix,
         normalize(setup.entry.lower),
         normalize(setup.entry.preferred),
         normalize(setup.entry.upper),
@@ -119,6 +129,10 @@ def build_portfolio_retention_audit(
     setups: Iterable[DiscoverySetup],
     *,
     tick_size: float | None = None,
+    include_sequence_role_in_geometry: bool = True,
+    suppress_opposing_collisions: bool = True,
+    suppress_same_lane_candidates: bool = True,
+    preserve_input_order_for_equal_confidence: bool = False,
 ) -> PortfolioRetentionAudit:
     """Retain one deterministic best candidate per lane/direction and trace suppression."""
 
@@ -129,17 +143,31 @@ def build_portfolio_retention_audit(
     retained_setups: dict[str, DiscoverySetup] = {}
     records: list[PortfolioRetentionRecord] = []
 
-    ordered = sorted(
-        materialized,
-        key=lambda setup: (
-            -setup.confidence_score,
-            setup.candidate_id,
-        ),
-    )
+    # Retention remains a deterministic hard-validity stage.
+    # Recommendation ranking is applied only after retention.
+    if preserve_input_order_for_equal_confidence:
+        ordered = tuple(
+            setup
+            for _, setup in sorted(
+                enumerate(materialized),
+                key=lambda item: (-item[1].confidence_score, item[0]),
+            )
+        )
+    else:
+        ordered = tuple(
+            sorted(
+                materialized,
+                key=lambda setup: (-setup.confidence_score, setup.candidate_id),
+            )
+        )
     for setup in ordered:
         role = classify_setup_sequence_role(setup)
         lane = classify_setup_opportunity_lane(setup, sequence_role=role)
-        fingerprint = setup_geometry_fingerprint(setup, tick_size=tick_size)
+        fingerprint = setup_geometry_fingerprint(
+            setup,
+            tick_size=tick_size,
+            include_sequence_role=include_sequence_role_in_geometry,
+        )
 
         reason: PortfolioSuppressionReason | None = None
         retained_candidate_id: str | None = None
@@ -152,26 +180,27 @@ def build_portfolio_retention_audit(
             reason = PortfolioSuppressionReason.DUPLICATE_GEOMETRY
             retained_candidate_id = retained_geometry[fingerprint]
         else:
-            for retained_id, retained_setup in retained_setups.items():
-                retained_role = classify_setup_sequence_role(retained_setup)
-                retained_opportunity_lane = classify_setup_opportunity_lane(
-                    retained_setup,
-                    sequence_role=retained_role,
-                )
-                if _is_direct_opposing_collision(
-                    setup,
-                    retained_setup,
-                    candidate_lane=lane,
-                    retained_lane=retained_opportunity_lane,
-                    candidate_role=role,
-                    retained_role=retained_role,
-                ):
-                    reason = PortfolioSuppressionReason.OPPOSING_DIRECTION_COLLISION
-                    retained_candidate_id = retained_id
-                    break
+            if suppress_opposing_collisions:
+                for retained_id, retained_setup in retained_setups.items():
+                    retained_role = classify_setup_sequence_role(retained_setup)
+                    retained_opportunity_lane = classify_setup_opportunity_lane(
+                        retained_setup,
+                        sequence_role=retained_role,
+                    )
+                    if _is_direct_opposing_collision(
+                        setup,
+                        retained_setup,
+                        candidate_lane=lane,
+                        retained_lane=retained_opportunity_lane,
+                        candidate_role=role,
+                        retained_role=retained_role,
+                    ):
+                        reason = PortfolioSuppressionReason.OPPOSING_DIRECTION_COLLISION
+                        retained_candidate_id = retained_id
+                        break
 
             lane_key = (lane, setup.direction)
-            if reason is None and lane_key in retained_lane:
+            if suppress_same_lane_candidates and reason is None and lane_key in retained_lane:
                 reason = PortfolioSuppressionReason.LOWER_PRIORITY_SAME_LANE
                 retained_candidate_id = retained_lane[lane_key]
 
