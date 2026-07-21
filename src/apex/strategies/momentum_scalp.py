@@ -40,6 +40,8 @@ def _as_momentum_scalp(candidate: TradeCandidate) -> TradeCandidate:
         **dict(candidate.metadata),
         "strategy_family": StrategyType.MOMENTUM_SCALP.value,
         "source_strategy": candidate.strategy.value,
+        "aggressive_entry_permitted": True,
+        "confirmation_basis": "closed_momentum_evidence",
     }
     evidence = candidate.evidence
     return replace(

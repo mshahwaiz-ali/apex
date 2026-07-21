@@ -477,7 +477,8 @@ def _net_risk_reward(
         return None
     gross_reward = abs(target_price - preferred_entry)
     cost_distance = preferred_entry * expected_cost_pct / 100.0
-    return max(0.0, gross_reward - cost_distance) / stop_distance
+    net_risk = stop_distance + cost_distance
+    return max(0.0, gross_reward - cost_distance) / net_risk
 
 
 def _target_purpose(kind: TargetType, label: str) -> str:

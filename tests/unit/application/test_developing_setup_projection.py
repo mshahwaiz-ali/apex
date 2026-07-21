@@ -55,7 +55,7 @@ def _ranked_pending_candidate() -> RankedCandidate:
             location_quality=0.8,
             mode=EntryMode.PULLBACK,
             rationale=("wait for the structural pullback",),
-            max_chase_price=100.5,
+            max_chase_price=101.5,
         ),
         invalidation=InvalidationConcept(
             kind=InvalidationType.STRUCTURAL,

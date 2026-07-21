@@ -121,6 +121,7 @@ def evaluate_geometry_safety(
     target_quality: float,
     expected_cost_pct: float | None,
     policy: GeometrySafetyPolicy,
+    selected_entry: float | None = None,
 ) -> GeometrySafetyAssessment:
     """Evaluate one candidate against explicit lane-aware geometry policy."""
 
@@ -130,7 +131,8 @@ def evaluate_geometry_safety(
         _non_negative_finite("expected cost percentage", expected_cost_pct)
 
     lane_policy = policy.for_lane(lane)
-    selected_entry = candidate.entry.preferred
+    selected_entry = candidate.entry.preferred if selected_entry is None else selected_entry
+    _positive_finite("selected entry", selected_entry)
     tp1 = candidate.targets.levels[0]
     stop_distance = abs(selected_entry - executable_stop)
     stop_distance_pct = stop_distance / selected_entry * 100.0
@@ -142,7 +144,8 @@ def evaluate_geometry_safety(
     if expected_cost_pct is not None:
         cost_distance = selected_entry * expected_cost_pct / 100.0
         net_reward = target_distance - cost_distance
-        net_rr = net_reward / stop_distance if stop_distance > 0.0 else 0.0
+        net_risk = stop_distance + cost_distance
+        net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
 
     diagnostics = GeometrySafetyDiagnostics(
         lane=lane,

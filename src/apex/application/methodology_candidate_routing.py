@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from apex.application.methodology_adapters import strategy_evidence_observations
+from apex.application.methodology_candidate_entry_authority import (
+    resolve_candidate_entry_authority,
+)
 from apex.application.methodology_candidate_geometry_safety import (
     DEFAULT_GEOMETRY_SAFETY_POLICY,
     CandidateGeometrySafetyAudit,
@@ -43,6 +46,7 @@ from apex.domain.methodology_contracts import (
     TimeframeRelationship,
 )
 from apex.domain.methodology_htf_relationship import HtfRelationshipAssessment
+from apex.strategies.actionability import classify_candidate_actionability
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
 from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
@@ -307,6 +311,7 @@ def evaluate_methodology_candidate_routing(
     status_by_object = {
         id(item.candidate): item.status for item in analysis.candidate_actionability
     }
+    constrained_candidates: dict[int, TradeCandidate] = {}
     for strategy in analysis.evaluated_strategies:
         strategy_candidates = tuple(
             candidate
@@ -342,13 +347,25 @@ def evaluate_methodology_candidate_routing(
                 holding_horizon=context.holding_horizon,
                 policy=htf_consequence_policy,
             )
+            unconstrained_htf_consequence = htf_consequence
             htf_consequence = _enforce_verified_target_ceiling(
                 candidate,
                 consequence=htf_consequence,
             )
+            evaluated_candidate = candidate
+            if htf_consequence is not None and htf_consequence is not unconstrained_htf_consequence:
+                evaluated_candidate = replace(
+                    candidate,
+                    metadata={
+                        **candidate.metadata,
+                        "entry_confirmation_complete": False,
+                        "htf_target_ceiling_exceeded": True,
+                    },
+                )
+                constrained_candidates[id(candidate)] = evaluated_candidate
             geometry_safety_audits.append(
                 audit_candidate_geometry_safety(
-                    candidate,
+                    evaluated_candidate,
                     candidate_id=candidate_id,
                     lane=context.lane,
                     policy=geometry_safety_policy,
@@ -360,7 +377,7 @@ def evaluate_methodology_candidate_routing(
                     evaluate_strategy_eligibility(
                         strategy,
                         market_state=market_state,
-                        evidence=strategy_evidence_observations(candidate.evidence),
+                        evidence=strategy_evidence_observations(evaluated_candidate.evidence),
                         lane=context.lane,
                         direction=candidate.direction,
                         holding_horizon=context.holding_horizon,
@@ -370,6 +387,25 @@ def evaluate_methodology_candidate_routing(
                     candidate_id=candidate_id,
                 )
             )
+    if constrained_candidates:
+        analysis = replace(
+            analysis,
+            candidates=tuple(
+                constrained_candidates.get(id(candidate), candidate)
+                for candidate in analysis.candidates
+            ),
+            candidate_actionability=tuple(
+                replace(
+                    item,
+                    candidate=constrained_candidates.get(id(item.candidate), item.candidate),
+                    status=classify_candidate_actionability(
+                        constrained_candidates.get(id(item.candidate), item.candidate)
+                    ),
+                )
+                for item in analysis.candidate_actionability
+            ),
+        )
+
     return apply_methodology_candidate_routing(
         analysis,
         tuple(decisions),
@@ -390,11 +426,15 @@ def _attach_runtime_geometry_metadata(
     replacements: dict[int, TradeCandidate] = {}
     candidates: list[TradeCandidate] = []
     for candidate in analysis.candidates:
+        entry_authority = resolve_candidate_entry_authority(
+            candidate.entry,
+            candidate.metadata,
+        )
         already_buffered = candidate.metadata.get("invalidation_includes_noise_buffer") is True
         execution_buffer = 0.0 if already_buffered else runtime_context.execution_buffer
         executable_stop = derive_execution_stop_geometry(
             direction=candidate.direction,
-            preferred_entry=candidate.entry.preferred,
+            preferred_entry=entry_authority.selected_entry,
             structural_invalidation=candidate.invalidation.price,
             execution_buffer=execution_buffer,
         ).executable_stop
@@ -402,6 +442,8 @@ def _attach_runtime_geometry_metadata(
             **candidate.metadata,
             "execution_buffer": execution_buffer,
             "executable_stop": executable_stop,
+            "selected_entry": entry_authority.selected_entry,
+            "entry_geometry_owner": entry_authority.geometry_owner,
             "geometry_buffer_reason": (
                 "strategy invalidation already contains the single noise buffer"
                 if already_buffered
@@ -430,7 +472,7 @@ def _enforce_verified_target_ceiling(
     *,
     consequence: HtfConsequence | None,
 ) -> HtfConsequence | None:
-    """Reject an over-ceiling TP1 instead of fabricating a closer target."""
+    """Downgrade an over-ceiling TP1 without fabricating a closer target."""
 
     if consequence is None or consequence.target_ceiling_r_multiple is None:
         return consequence
@@ -438,28 +480,29 @@ def _enforce_verified_target_ceiling(
     executable_stop = metadata.get("executable_stop")
     if isinstance(executable_stop, bool) or not isinstance(executable_stop, int | float):
         return consequence
-    stop_distance = abs(candidate.entry.preferred - float(executable_stop))
+    entry_authority = resolve_candidate_entry_authority(candidate.entry, metadata)
+    selected_entry = entry_authority.selected_entry
+    stop_distance = abs(selected_entry - float(executable_stop))
     if stop_distance <= 0.0:
         return consequence
     tp1 = min(
         candidate.targets.levels,
-        key=lambda level: abs(level.price - candidate.entry.preferred),
+        key=lambda level: abs(level.price - selected_entry),
     )
-    risk_multiple = abs(tp1.price - candidate.entry.preferred) / stop_distance
+    risk_multiple = abs(tp1.price - selected_entry) / stop_distance
     ceiling = consequence.target_ceiling_r_multiple
     if risk_multiple <= ceiling + 1e-9:
         return consequence
     return replace(
         consequence,
-        allowed=False,
         runner_allowed=False,
         confirmation_required=True,
         reasons=(
             *consequence.reasons,
             (
                 f"nearest verified TP1 is {risk_multiple:.2f}R, above the "
-                f"{ceiling:.2f}R HTF/lane ceiling; reject rather than fabricate "
-                "a closer target"
+                f"{ceiling:.2f}R HTF/lane ceiling; retain as conditional/developing "
+                "instead of fabricating a closer target"
             ),
         ),
     )

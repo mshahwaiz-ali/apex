@@ -335,11 +335,25 @@ class TradeCandidate:
                 continue
             seen.add(key)
             if self.direction is TradeDirection.LONG:
+                if (
+                    opportunity.max_chase_price is not None
+                    and opportunity.max_chase_price < opportunity.upper
+                ):
+                    raise ValueError(
+                        "long maximum chase must be at or above every entry-zone upper bound"
+                    )
                 if self.invalidation.price >= opportunity.lower:
                     raise ValueError("long invalidation must be below every entry opportunity")
                 if any(level.price <= opportunity.upper for level in self.targets.levels):
                     raise ValueError("long targets must be above every entry opportunity")
             else:
+                if (
+                    opportunity.max_chase_price is not None
+                    and opportunity.max_chase_price > opportunity.lower
+                ):
+                    raise ValueError(
+                        "short maximum chase must be at or below every entry-zone lower bound"
+                    )
                 if self.invalidation.price <= opportunity.upper:
                     raise ValueError("short invalidation must be above every entry opportunity")
                 if any(level.price >= opportunity.lower for level in self.targets.levels):

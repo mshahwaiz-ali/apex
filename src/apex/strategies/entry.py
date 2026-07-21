@@ -54,6 +54,9 @@ class EntrySelectionConfig:
     max_atr_distance: float = 0.8
     scaled_half_width_atr: float = 0.06
     reference_half_width_atr: float = 0.03
+    market_half_width_atr: float = 0.01
+    market_tick_multiple: float = 1.0
+    market_spread_multiplier: float = 0.5
     minimum_risk_reward_improvement: float = 0.15
     default_expiry_seconds: int = 900
 
@@ -63,6 +66,9 @@ class EntrySelectionConfig:
             ("maximum ATR distance", self.max_atr_distance),
             ("scaled half-width ATR", self.scaled_half_width_atr),
             ("reference half-width ATR", self.reference_half_width_atr),
+            ("market half-width ATR", self.market_half_width_atr),
+            ("market tick multiple", self.market_tick_multiple),
+            ("market spread multiplier", self.market_spread_multiplier),
             ("minimum risk-reward improvement", self.minimum_risk_reward_improvement),
         ):
             if not math.isfinite(value) or value < 0:
@@ -86,6 +92,8 @@ def find_entry_zones(
     references: tuple[EntryReference, ...] = (),
     config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     allow_market_entry: bool = True,
+    tick_size: float | None = None,
+    spread_percentage: float | None = None,
 ) -> tuple[EntryZone, ...]:
     """Return every eligible entry opportunity in deterministic preference order."""
 
@@ -95,6 +103,10 @@ def find_entry_zones(
         direction=direction,
         invalidation_price=invalidation_price,
         target_price=target_price,
+    )
+    _validate_execution_tolerance_inputs(
+        tick_size=tick_size,
+        spread_percentage=spread_percentage,
     )
     market = _build_zone(
         current_price=current_price,
@@ -107,6 +119,8 @@ def find_entry_zones(
         rationale=("current price is technically valid and immediately actionable",),
         scaled=False,
         config=config,
+        tick_size=tick_size,
+        spread_percentage=spread_percentage,
     )
     market_rr = _risk_reward(
         price=current_price,
@@ -146,7 +160,13 @@ def find_entry_zones(
             explicit_upper=reference.zone_upper,
             explicit_max_chase=reference.max_chase_price,
             explicit_expiry_seconds=reference.expires_after_seconds,
+            tick_size=tick_size,
+            spread_percentage=spread_percentage,
         )
+        if not _maximum_chase_is_directionally_valid(zone=zone, direction=direction):
+            raise ValueError(
+                "maximum chase price must remain beyond the entry zone in the trade direction"
+            )
         if not _zone_is_directionally_valid(
             zone=zone,
             direction=direction,
@@ -205,6 +225,8 @@ def select_entry_zone(
     references: tuple[EntryReference, ...] = (),
     config: EntrySelectionConfig = DEFAULT_ENTRY_SELECTION_CONFIG,
     allow_market_entry: bool = True,
+    tick_size: float | None = None,
+    spread_percentage: float | None = None,
 ) -> EntryZone:
     """Return the preferred entry while preserving multi-entry search separately."""
 
@@ -217,6 +239,8 @@ def select_entry_zone(
         references=references,
         config=config,
         allow_market_entry=allow_market_entry,
+        tick_size=tick_size,
+        spread_percentage=spread_percentage,
     )[0]
 
 
@@ -236,6 +260,8 @@ def _build_zone(
     explicit_upper: float | None = None,
     explicit_max_chase: float | None = None,
     explicit_expiry_seconds: int | None = None,
+    tick_size: float | None = None,
+    spread_percentage: float | None = None,
 ) -> EntryZone:
     distance = abs(preferred - current_price)
     percentage_distance = distance / current_price
@@ -253,12 +279,24 @@ def _build_zone(
         max(reward_room_distance, 0.0),
         max(structure_room_distance, 0.0),
     )
+    market_half_width = min(
+        max(
+            atr * config.market_half_width_atr,
+            0.0 if tick_size is None else tick_size * config.market_tick_multiple,
+            (
+                0.0
+                if spread_percentage is None
+                else current_price * spread_percentage / 100.0 * config.market_spread_multiplier
+            ),
+        ),
+        min(risk, reward) * 0.25,
+    )
     half_width = (
         atr * config.scaled_half_width_atr
         if scaled
         else atr * config.reference_half_width_atr
         if mode is not EntryMode.MARKET_NEAR
-        else 0.0
+        else market_half_width
     )
     allowed_distance = max(allowed_distance, half_width)
     derived_max_chase = (
@@ -336,6 +374,25 @@ def _zone_is_directionally_valid(
     if direction is TradeDirection.LONG:
         return invalidation_price < zone.lower and zone.upper < target_price
     return target_price < zone.lower and zone.upper < invalidation_price
+
+
+def _maximum_chase_is_directionally_valid(*, zone: EntryZone, direction: TradeDirection) -> bool:
+    if zone.max_chase_price is None:
+        return True
+    if direction is TradeDirection.LONG:
+        return zone.max_chase_price >= zone.upper
+    return zone.max_chase_price <= zone.lower
+
+
+def _validate_execution_tolerance_inputs(
+    *, tick_size: float | None, spread_percentage: float | None
+) -> None:
+    if tick_size is not None and (not math.isfinite(tick_size) or tick_size <= 0.0):
+        raise ValueError("tick size must be positive and finite when provided")
+    if spread_percentage is not None and (
+        not math.isfinite(spread_percentage) or spread_percentage < 0.0
+    ):
+        raise ValueError("spread percentage must be finite and non-negative when provided")
 
 
 def _risk_reward(*, price: float, invalidation_price: float, target_price: float) -> float:

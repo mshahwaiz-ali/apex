@@ -6,6 +6,9 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from apex.application.methodology_candidate_entry_authority import (
+    resolve_candidate_entry_authority,
+)
 from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
 from apex.application.methodology_geometry_safety import (
     GeometrySafetyAssessment,
@@ -86,11 +89,17 @@ def audit_candidate_geometry_safety(
         )
 
     metadata = metadata_value
-    executable_stop = _execution_stop(candidate, metadata)
+    entry_authority = resolve_candidate_entry_authority(candidate.entry, candidate.metadata)
+    selected_entry = entry_authority.selected_entry
+    executable_stop = _execution_stop(
+        candidate,
+        metadata,
+        selected_entry=selected_entry,
+    )
     if executable_stop is None and runtime_context is not None:
         executable_stop = derive_execution_stop_geometry(
             direction=candidate.direction,
-            preferred_entry=candidate.entry.preferred,
+            preferred_entry=selected_entry,
             structural_invalidation=candidate.invalidation.price,
             execution_buffer=runtime_context.execution_buffer,
         ).executable_stop
@@ -123,6 +132,7 @@ def audit_candidate_geometry_safety(
         executable_stop=executable_stop,
         target_quality=candidate.quality.target_space_quality * 100.0,
         expected_cost_pct=expected_cost_pct,
+        selected_entry=selected_entry,
         policy=policy,
     )
     return CandidateGeometrySafetyAudit(
@@ -177,6 +187,8 @@ def candidate_geometry_safety_audit_payload(
 def _execution_stop(
     candidate: TradeCandidate,
     metadata: Mapping[str, object],
+    *,
+    selected_entry: float,
 ) -> float | None:
     explicit = _optional_number(metadata.get("executable_stop"))
     if explicit is not None:
@@ -187,7 +199,7 @@ def _execution_stop(
         return None
     return derive_execution_stop_geometry(
         direction=candidate.direction,
-        preferred_entry=candidate.entry.preferred,
+        preferred_entry=selected_entry,
         structural_invalidation=candidate.invalidation.price,
         execution_buffer=buffer_value,
     ).executable_stop

@@ -533,7 +533,7 @@ def test_routing_passes_layered_state_and_mild_htf_consequence(monkeypatch) -> N
     assert consequence.target_ceiling_r_multiple == 2.5
 
 
-def test_verified_tp1_above_lane_ceiling_is_rejected_not_rewritten() -> None:
+def test_verified_tp1_above_lane_ceiling_is_retained_conditionally_not_rewritten() -> None:
     target = SimpleNamespace(price=106.0)
     candidate = cast(
         TradeCandidate,
@@ -556,10 +556,13 @@ def test_verified_tp1_above_lane_ceiling_is_rejected_not_rewritten() -> None:
     enforced = _enforce_verified_target_ceiling(candidate, consequence=consequence)
 
     assert enforced is not None
-    assert enforced.allowed is False
+    assert enforced.allowed is True
+    assert enforced.runner_allowed is False
+    assert enforced.confirmation_required is True
     assert target.price == 106.0
     assert "3.00R" in enforced.reasons[-1]
     assert "2.00R" in enforced.reasons[-1]
+    assert "conditional/developing" in enforced.reasons[-1]
 
 
 def test_countertrend_relationship_rejects_non_scalp_lane(monkeypatch) -> None:

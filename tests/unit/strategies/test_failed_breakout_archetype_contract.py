@@ -45,7 +45,7 @@ def _candidate(
         location_quality=0.9,
         mode=EntryMode.SWEEP_RECOVERY,
         rationale=("return inside the failed range boundary",),
-        max_chase_price=102.0,
+        max_chase_price=98.0,
     )
     supporting = tuple(
         item

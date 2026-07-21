@@ -270,7 +270,7 @@ def test_equal_opposing_strength_retains_both_hypotheses_and_selects_determinist
     )
 
 
-def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:
+def test_provisional_nearby_candidate_is_retained_but_not_selected_for_execution() -> None:
     result = analyze_candidate_selection(
         _phase4(
             _candidate(
@@ -281,8 +281,8 @@ def test_provisional_aggressive_candidate_is_accepted_with_warning() -> None:
             )
         )
     )
-    assert result.selected_candidate is not None
-    assert result.selected_candidate.outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
+    assert result.selected_candidate is None
+    assert result.ranked_candidates[0].outcome is CandidateOutcome.ACCEPTED_WITH_WARNING
 
 
 def test_duplicate_thesis_is_grouped_not_double_selected() -> None:

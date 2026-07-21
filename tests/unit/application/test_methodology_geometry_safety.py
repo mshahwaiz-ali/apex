@@ -123,7 +123,7 @@ def test_valid_cost_adjusted_cmp_scalp_passes() -> None:
     assert result.state is GeometrySafetyState.PASS
     assert result.passed is True
     assert result.diagnostics.gross_tp1_reward_to_risk == pytest.approx(1.5)
-    assert result.diagnostics.net_tp1_reward_to_risk == pytest.approx(1.45)
+    assert result.diagnostics.net_tp1_reward_to_risk == pytest.approx(2.9 / 2.1)
 
 
 def test_low_reward_nearby_candidate_rejects_with_actual_and_required_values() -> None:

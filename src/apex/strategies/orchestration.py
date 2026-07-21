@@ -20,7 +20,7 @@ from apex.strategies.candidate_methodology_state import (
     attach_candidate_methodology_state,
 )
 from apex.strategies.context import StrategyContext
-from apex.strategies.contracts import TradeCandidate
+from apex.strategies.contracts import EntryMode, EntryZone, TradeCandidate
 from apex.strategies.diagnostics import (
     StrategyDiagnostic,
     build_strategy_diagnostics,
@@ -172,13 +172,8 @@ def analyze_strategies(
         for strategy in evaluated
         if strategy not in eligible
     }
-    candidates = tuple(
-        _normalize_candidate(
-            candidate,
-            context=context,
-            decision_regime=decision_regime,
-            execution_quality_cap_policy=execution_quality_cap_policy,
-        )
+    generated_candidates = tuple(
+        candidate
         for strategy, generator in STRATEGY_REGISTRY
         if strategy in eligible
         for candidate in run_strategy_generator(
@@ -186,6 +181,16 @@ def analyze_strategies(
             context,
             decision_time=decision_time,
         )
+    )
+    candidates = tuple(
+        _normalize_candidate(
+            entry_path,
+            context=context,
+            decision_regime=decision_regime,
+            execution_quality_cap_policy=execution_quality_cap_policy,
+        )
+        for candidate in generated_candidates
+        for entry_path in _expand_candidate_entry_paths(candidate)
     )
     diagnostics = build_strategy_diagnostics(
         context,
@@ -213,6 +218,64 @@ def analyze_strategies(
         higher_timeframe_breakout=higher_breakout,
         strategy_applicability=applicability,
         candidate_actionability=actionability,
+    )
+
+
+_ENTRY_SPECIFIC_METADATA_KEYS = {
+    "retest_trigger_level",
+    "retest_zone_low",
+    "retest_zone_high",
+    "retest_confirmation_rule",
+}
+
+
+def _expand_candidate_entry_paths(candidate: TradeCandidate) -> tuple[TradeCandidate, ...]:
+    """Give CMP and conditional entries independent candidate/actionability paths."""
+
+    opportunities = tuple(
+        sorted(
+            candidate.entry_opportunities,
+            key=lambda entry: (
+                entry.mode is not EntryMode.MARKET_NEAR,
+                entry != candidate.entry,
+            ),
+        )
+    )
+    if len(opportunities) <= 1:
+        return (candidate,)
+
+    return tuple(_candidate_for_entry_path(candidate, entry=entry) for entry in opportunities)
+
+
+def _candidate_for_entry_path(
+    candidate: TradeCandidate,
+    *,
+    entry: EntryZone,
+) -> TradeCandidate:
+    if entry == candidate.entry:
+        metadata = {
+            **candidate.metadata,
+            "entry_sequence_role": "strategy_primary",
+        }
+    else:
+        metadata = {
+            key: value
+            for key, value in candidate.metadata.items()
+            if key not in _ENTRY_SPECIFIC_METADATA_KEYS
+        }
+        metadata.update(
+            {
+                "entry_geometry_owner": "shared_entry_selector_alternative",
+                "entry_sequence_role": (
+                    "current_cmp" if entry.mode is EntryMode.MARKET_NEAR else "alternative"
+                ),
+            }
+        )
+    return replace(
+        candidate,
+        entry=entry,
+        metadata=metadata,
+        lifecycle=None,
     )
 
 

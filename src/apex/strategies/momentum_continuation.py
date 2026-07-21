@@ -148,6 +148,16 @@ def _candidate_for_direction(
             # is incomplete. Actionability classification prevents an unconfirmed
             # market-near entry from being labelled READY_NOW.
             allow_market_entry=True,
+            tick_size=frame.exchange_tick_size,
+            spread_percentage=max(
+                value
+                for value in (
+                    frame.spread_percentage,
+                    frame.order_book_spread_percentage,
+                    0.0,
+                )
+                if value is not None
+            ),
         )
     except ValueError:
         return None
