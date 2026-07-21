@@ -11,8 +11,21 @@ from apex.application.discovery_contracts import (
     StopLoss,
     TakeProfit,
 )
-from apex.application.opportunity_portfolio import SequenceRole
+from apex.application.opportunity_portfolio import OpportunityLane, SequenceRole
 from apex.cli_commands import backtesting
+from apex.domain.methodology_contracts import (
+    ContextState,
+    ContinuationState,
+    ExecutionState,
+    HoldingHorizon,
+    LayeredStateSnapshot,
+    RelationshipSeverity,
+    RiskCondition,
+    ScoreDimensions,
+    SetupState,
+    StructuralBias,
+    TimeframeRelationship,
+)
 from apex.strategies import StrategyType, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 
@@ -64,6 +77,28 @@ def _setup(
         execution_allowed_now=execution_allowed_now,
         entry_status=entry_status,
         canonical_actionability=False,
+        layered_state=LayeredStateSnapshot(
+            execution_state=ExecutionState.CLEAN,
+            setup_state=SetupState.BREAKOUT_RETEST,
+            context_state=ContextState.TRENDING_UP,
+            structural_bias=StructuralBias.BULLISH,
+            risk_condition=RiskCondition.NORMAL,
+            timeframe_relationship=TimeframeRelationship.WITH_TREND,
+            relationship_severity=RelationshipSeverity.NONE,
+            holding_horizon=HoldingHorizon.INTRADAY,
+            continuation_state=ContinuationState.FRESH_CONTINUATION,
+        ),
+        methodology_scores=ScoreDimensions(
+            pattern_confidence=80.0,
+            directional_alignment=82.0,
+            setup_quality=84.0,
+            execution_quality=86.0,
+            reward_quality=88.0,
+            timing_quality=90.0,
+            data_confidence=92.0,
+            overall_trade_quality=85.0,
+            rank_score=87.0,
+        ),
     )
 
 
@@ -89,6 +124,7 @@ def test_selects_executable_current_canonical_opportunity() -> None:
         opportunity_id="canonical",
         setup=canonical,
         sequence_role=SequenceRole.CURRENT,
+        effective_lane=OpportunityLane.CMP_SCALP,
     )
 
     decision = backtesting._select_replay_decision(_analysis(opportunity, legacy_setup=legacy))
@@ -96,6 +132,7 @@ def test_selects_executable_current_canonical_opportunity() -> None:
     assert decision.setup is canonical
     assert decision.opportunity_id == "canonical"
     assert decision.sequence_role == "current"
+    assert decision.lane == "cmp_scalp"
     assert decision.actionability_state == "execute_now"
     assert decision.reason_code == "canonical_executable_opportunity"
     assert decision.canonical_portfolio is True
@@ -137,3 +174,51 @@ def test_legacy_setup_is_used_only_when_portfolio_is_absent() -> None:
     assert decision.opportunity_id == "legacy"
     assert decision.reason_code == "legacy_selected_setup"
     assert decision.canonical_portfolio is False
+
+
+def test_calibration_record_preserves_methodology_dimensions(monkeypatch) -> None:
+    setup = _setup(
+        "canonical",
+        execution_allowed_now=True,
+        entry_status=EntryStatus.READY_NOW,
+    )
+    decision = backtesting._ReplayDecision(
+        setup=setup,
+        opportunity_id="canonical",
+        sequence_role="current",
+        lane="cmp_scalp",
+        actionability_state="execute_now",
+        reason_code="canonical_executable_opportunity",
+        canonical_portfolio=True,
+    )
+    analysis = SimpleNamespace(
+        assessment=SimpleNamespace(reasons=()),
+        opportunity_portfolio=None,
+    )
+    monkeypatch.setattr(
+        backtesting,
+        "serialize_symbol_analysis",
+        lambda _analysis: {
+            "symbol": "BTCUSDT",
+            "generated_at": "2026-07-20T12:00:00+00:00",
+            "decision": "long",
+            "methodology_version": "test-methodology",
+            "reasons": [],
+            "phase5_diagnostics": {},
+        },
+    )
+
+    record = backtesting._calibration_record(
+        analysis=analysis,
+        partition="final_test",
+        replay_decision=decision,
+    )
+
+    assert record["lane"] == "cmp_scalp"
+    assert record["methodology_version"] == "test-methodology"
+    assert record["layered_state"] == setup.layered_state.to_dict()
+    assert record["score_components"] == setup.methodology_scores.to_dict()
+    assert record["continuation_state"] == "fresh_continuation"
+    assert record["target_basis"] == ["strategy_supplied_structural_level"]
+    assert record["runner_qualified"] is False
+    assert record["rejection_reason"] is None

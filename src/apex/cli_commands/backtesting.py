@@ -32,6 +32,7 @@ from apex.backtesting.historical_signal_replay import (
     HistoricalCandleStore,
     HistoricalReplayProvider,
 )
+from apex.backtesting.methodology_segmentation import methodology_segment_metrics
 from apex.data.providers.errors import MarketDataProviderError
 from apex.data.timeframes import timeframe_delta
 from apex.presentation import OutputMode, normalize_cli_output_mode
@@ -50,6 +51,7 @@ class _ReplayDecision:
     setup: DiscoverySetup | None
     opportunity_id: str | None
     sequence_role: str | None
+    lane: str | None
     actionability_state: str | None
     reason_code: str
     canonical_portfolio: bool
@@ -76,6 +78,7 @@ def _select_replay_decision(analysis: object) -> _ReplayDecision:
             sequence_role=(
                 SequenceRole.CURRENT.value if isinstance(setup, DiscoverySetup) else None
             ),
+            lane=None,
             actionability_state=None,
             reason_code=(
                 "legacy_selected_setup"
@@ -107,6 +110,13 @@ def _select_replay_decision(analysis: object) -> _ReplayDecision:
                 setup=setup,
                 opportunity_id=str(getattr(opportunity, "opportunity_id", setup.candidate_id)),
                 sequence_role=role.value,
+                lane=_enum_value(
+                    getattr(
+                        opportunity,
+                        "effective_lane",
+                        getattr(opportunity, "lane", None),
+                    )
+                ),
                 actionability_state=actionability.state.value,
                 reason_code="canonical_executable_opportunity",
                 canonical_portfolio=True,
@@ -124,6 +134,7 @@ def _select_replay_decision(analysis: object) -> _ReplayDecision:
         setup=None,
         opportunity_id=None,
         sequence_role=None,
+        lane=None,
         actionability_state=None,
         reason_code=reason_code,
         canonical_portfolio=True,
@@ -378,6 +389,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_partitions": decision_partitions,
             "no_trade_decisions": no_trade_decisions,
             "calibration_records": calibration_records,
+            "methodology_segment_metrics": methodology_segment_metrics(calibration_records),
             "trades": _canonical_trade_records(
                 report.trades,
                 calibration_records=calibration_records,
@@ -479,8 +491,10 @@ def _calibration_record(
         "partition": partition,
         "production_decision": serialized.get("decision"),
         "strategy": None if setup is None else setup.strategy.value,
+        "direction": None if setup is None else setup.direction.value,
         "opportunity_id": resolved_decision.opportunity_id,
         "sequence_role": resolved_decision.sequence_role,
+        "lane": resolved_decision.lane,
         "actionability_state": resolved_decision.actionability_state,
         "replay_reason_code": resolved_decision.reason_code,
         "canonical_portfolio": resolved_decision.canonical_portfolio,
@@ -496,12 +510,33 @@ def _calibration_record(
             if isinstance(methodology_routing, Mapping)
             else None
         ),
+        "methodology_version": serialized.get("methodology_version"),
         "no_trade_reasons": serialized.get("reasons"),
         "zero_trade_diagnostics": zero_trade,
+        "layered_state": None if setup is None else setup.layered_state.to_dict(),
+        "score_components": None if setup is None else setup.methodology_scores.to_dict(),
+        "continuation_state": (
+            None if setup is None else setup.layered_state.continuation_state.value
+        ),
+        "runner_qualified": None if setup is None else setup.runner_qualified,
+        "runner_qualification_reason": (
+            None if setup is None else setup.runner_qualification_reason
+        ),
         "entry_geometry": None if setup is None else _jsonable(setup.entry),
         "stop_geometry": None if setup is None else _jsonable(setup.stop_loss),
         "target_geometry": None if setup is None else _jsonable(setup.take_profits),
+        "target_basis": (
+            None if setup is None else [target.target_basis for target in setup.take_profits]
+        ),
+        "rejection_reason": (resolved_decision.reason_code if setup is None else None),
     }
+
+
+def _enum_value(value: object) -> str | None:
+    if value is None:
+        return None
+    raw = getattr(value, "value", value)
+    return str(raw)
 
 
 def _jsonable(value: object) -> object:

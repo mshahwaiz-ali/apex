@@ -14,7 +14,7 @@ from typing import Any, cast
 from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
 
 ANALYSIS_RECORD_SCHEMA_VERSION = 1
-ANALYSIS_RECORD_DB_SCHEMA_VERSION = 3
+ANALYSIS_RECORD_DB_SCHEMA_VERSION = 4
 
 
 def build_analysis_record(
@@ -286,6 +286,14 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection) -> None:
             actionability_state TEXT,
             methodology_status TEXT,
             setup_expiry_seconds INTEGER,
+            methodology_version TEXT,
+            opportunity_lane TEXT,
+            layered_state_json TEXT,
+            score_components_json TEXT,
+            continuation_state TEXT,
+            target_basis_json TEXT,
+            runner_qualified INTEGER,
+            runner_qualification_reason TEXT,
             FOREIGN KEY(analysis_id) REFERENCES analysis_records(analysis_id)
         )
         """
@@ -345,6 +353,14 @@ def _ensure_opportunity_outcome_columns(connection: sqlite3.Connection) -> None:
         "actionability_state": "TEXT",
         "methodology_status": "TEXT",
         "setup_expiry_seconds": "INTEGER",
+        "methodology_version": "TEXT",
+        "opportunity_lane": "TEXT",
+        "layered_state_json": "TEXT",
+        "score_components_json": "TEXT",
+        "continuation_state": "TEXT",
+        "target_basis_json": "TEXT",
+        "runner_qualified": "INTEGER",
+        "runner_qualification_reason": "TEXT",
     }
     for name, declaration in additions.items():
         if name not in columns:
@@ -427,14 +443,32 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                 if isinstance(verdict, Mapping) and verdict.get("status") is not None
                 else None
             )
+            layered_state = setup.get("layered_state")
+            score_components = setup.get("methodology_scores") or setup.get("score_components")
+            continuation_state = (
+                layered_state.get("continuation_state")
+                if isinstance(layered_state, Mapping)
+                else setup.get("continuation_state")
+            )
+            target_basis = [
+                target.get("target_basis")
+                for target in targets
+                if isinstance(target, Mapping) and target.get("target_basis") is not None
+            ]
             connection.execute(
                 """
                 INSERT INTO opportunity_outcomes (
                     opportunity_id, analysis_id, symbol, candidate_id, direction, generated_at,
                     expiry_at, entry_low, entry_high, entry_preferred, stop_price, targets_json,
                     status, source_type, opportunity_category, sequence_role,
-                    actionability_state, methodology_status, setup_expiry_seconds
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting_entry', ?, ?, ?, ?, ?, ?)
+                    actionability_state, methodology_status, setup_expiry_seconds,
+                    methodology_version, opportunity_lane, layered_state_json,
+                    score_components_json, continuation_state, target_basis_json,
+                    runner_qualified, runner_qualification_reason
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting_entry',
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
                 ON CONFLICT(opportunity_id) DO UPDATE SET
                     candidate_id=excluded.candidate_id,
                     direction=excluded.direction,
@@ -463,6 +497,38 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                     setup_expiry_seconds=COALESCE(
                         excluded.setup_expiry_seconds,
                         opportunity_outcomes.setup_expiry_seconds
+                    ),
+                    methodology_version=COALESCE(
+                        excluded.methodology_version,
+                        opportunity_outcomes.methodology_version
+                    ),
+                    opportunity_lane=COALESCE(
+                        excluded.opportunity_lane,
+                        opportunity_outcomes.opportunity_lane
+                    ),
+                    layered_state_json=COALESCE(
+                        excluded.layered_state_json,
+                        opportunity_outcomes.layered_state_json
+                    ),
+                    score_components_json=COALESCE(
+                        excluded.score_components_json,
+                        opportunity_outcomes.score_components_json
+                    ),
+                    continuation_state=COALESCE(
+                        excluded.continuation_state,
+                        opportunity_outcomes.continuation_state
+                    ),
+                    target_basis_json=COALESCE(
+                        excluded.target_basis_json,
+                        opportunity_outcomes.target_basis_json
+                    ),
+                    runner_qualified=COALESCE(
+                        excluded.runner_qualified,
+                        opportunity_outcomes.runner_qualified
+                    ),
+                    runner_qualification_reason=COALESCE(
+                        excluded.runner_qualification_reason,
+                        opportunity_outcomes.runner_qualification_reason
                     )
                 """,
                 (
@@ -488,6 +554,26 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                     ),
                     methodology_status,
                     expiry_seconds,
+                    _optional_text(
+                        analysis.get("methodology_version")
+                        or payload.get("methodology_version")
+                        or record.get("methodology_version")
+                    ),
+                    _optional_text(opportunity.get("lane") or opportunity.get("category")),
+                    (
+                        json.dumps(layered_state, sort_keys=True)
+                        if isinstance(layered_state, Mapping)
+                        else None
+                    ),
+                    (
+                        json.dumps(score_components, sort_keys=True)
+                        if isinstance(score_components, Mapping)
+                        else None
+                    ),
+                    _optional_text(continuation_state),
+                    json.dumps(target_basis, sort_keys=True),
+                    int(bool(setup.get("runner_qualified"))),
+                    _optional_text(setup.get("runner_qualification_reason")),
                 ),
             )
 
