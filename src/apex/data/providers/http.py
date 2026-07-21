@@ -12,6 +12,32 @@ import httpx
 from apex.data.providers.errors import ProviderRequestError, ProviderResponseError
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+MAX_PROVIDER_ERROR_DETAIL_LENGTH = 240
+
+
+def _provider_error_detail(response: httpx.Response) -> str | None:
+    """Return a short, safe provider error detail when one is available."""
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    raw_message = payload.get("msg") or payload.get("message")
+    if not isinstance(raw_message, str):
+        return None
+    message = " ".join(raw_message.split()).strip()
+    if not message:
+        return None
+
+    raw_code = payload.get("code")
+    code = str(raw_code).strip() if isinstance(raw_code, (int, str)) else ""
+    detail = f"code {code}: {message}" if code else message
+    if len(detail) > MAX_PROVIDER_ERROR_DETAIL_LENGTH:
+        return f"{detail[: MAX_PROVIDER_ERROR_DETAIL_LENGTH - 1].rstrip()}…"
+    return detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,8 +124,10 @@ def request_json(
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            detail = _provider_error_detail(response)
+            detail_suffix = f" ({detail})" if detail is not None else ""
             raise ProviderRequestError(
-                f"{provider} returned HTTP {status_code} during {operation}",
+                f"{provider} returned HTTP {status_code} during {operation}{detail_suffix}",
                 provider=provider,
                 operation=operation,
                 retryable=retryable,

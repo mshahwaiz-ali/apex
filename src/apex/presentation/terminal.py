@@ -85,11 +85,14 @@ class CliProgress(AbstractContextManager["CliProgress"]):
                     self._draw(frame, self._stage)
 
     def _draw(self, frame: str, stage: str) -> None:
-        text = f"{frame} {stage}"
-        padding = " " * max(self._last_width - len(text), 0)
-        self._stream.write(f"\r{text}{padding}")
+        plain_text = f"{frame} {stage}"
+        colored_frame = typer.style(frame, fg=typer.colors.BRIGHT_GREEN)
+        padding = " " * max(self._last_width - len(plain_text), 0)
+        self._stream.write(f"\r{colored_frame} {stage}{padding}")
         self._stream.flush()
-        self._last_width = len(text)
+        # Track the visible width, excluding ANSI color sequences, so stage
+        # changes and the final clear always erase the complete progress line.
+        self._last_width = len(plain_text)
 
     def _clear_line(self) -> None:
         if self._last_width:

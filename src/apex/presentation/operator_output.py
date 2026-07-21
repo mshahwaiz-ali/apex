@@ -146,17 +146,20 @@ def _portfolio_market_snapshot(
     portfolio: Mapping[str, object],
 ) -> str:
     verdict = _mapping(payload.get("methodology_verdict"))
+    fields: list[tuple[str, object]] = [
+        ("CMP", format_price(portfolio.get("cmp"))),
+        ("Portfolio decision", humanize_code(portfolio.get("decision"))),
+        ("Analysis mode", humanize_code(portfolio.get("analysis_mode"))),
+        ("Opportunities", portfolio.get("opportunity_count")),
+        ("Methodology verdict", humanize_code(verdict.get("status"))),
+    ]
+    if not _mappings(portfolio.get("opportunities")):
+        signal_time = _signal_generated_label(payload.get("generated_at"))
+        if signal_time:
+            fields.insert(1, ("Signal generated", signal_time))
     return render_section(
         "Market snapshot",
-        render_fields(
-            (
-                ("CMP", format_price(portfolio.get("cmp"))),
-                ("Portfolio decision", humanize_code(portfolio.get("decision"))),
-                ("Analysis mode", humanize_code(portfolio.get("analysis_mode"))),
-                ("Opportunities", portfolio.get("opportunity_count")),
-                ("Methodology verdict", humanize_code(verdict.get("status"))),
-            )
-        ),
+        render_fields(fields),
     )
 
 

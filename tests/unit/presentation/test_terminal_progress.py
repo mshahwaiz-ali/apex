@@ -31,6 +31,7 @@ def test_progress_renders_stage_to_interactive_stderr_and_clears() -> None:
 
     rendered = stream.getvalue()
     assert stage in rendered
+    assert typer.style("⠋", fg=typer.colors.BRIGHT_GREEN) in rendered
     assert rendered.endswith("\r")
     assert "\n" not in rendered
     assert f"\r{' ' * (len(stage) + 2)}\r" in rendered

@@ -274,6 +274,7 @@ def test_analysis_renders_methodology_verdict_in_snapshot() -> None:
 def test_analysis_renders_truthful_no_valid_setup_plan() -> None:
     payload = {
         "symbol": "ETHUSDT",
+        "generated_at": "2026-07-22T10:15:30+00:00",
         "reasons": ["mid-range conflicting structure"],
         "methodology_verdict": {
             "status": "unavailable",
@@ -310,6 +311,8 @@ def test_analysis_renders_truthful_no_valid_setup_plan() -> None:
     assert "NO TRADE RIGHT NOW" not in text
     assert "Setup plan" in text
     assert "NO VALID SETUP YET" in text
+    assert "Signal generated" in text
+    assert "2026-07-22 10:15:30 UTC" in text
     assert "mid-range conflicting structure" in text
     assert "Long trigger" in text
     assert "Short trigger" in text

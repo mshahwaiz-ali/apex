@@ -396,7 +396,11 @@ def test_fetch_candles_retries_retryable_binance_error() -> None:
 
 def test_fetch_candles_normalizes_non_retryable_http_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, request=request)
+        return httpx.Response(
+            400,
+            json={"code": -1121, "msg": "Invalid symbol."},
+            request=request,
+        )
 
     client = httpx.Client(
         transport=httpx.MockTransport(handler),
@@ -415,6 +419,9 @@ def test_fetch_candles_normalizes_non_retryable_http_error() -> None:
     assert error.operation == "fetch candles"
     assert error.status_code == 400
     assert error.retryable is False
+    assert str(error) == (
+        "binance returned HTTP 400 during fetch candles (code -1121: Invalid symbol.)"
+    )
 
     client.close()
 
