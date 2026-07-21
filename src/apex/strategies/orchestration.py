@@ -13,6 +13,9 @@ from apex.strategies.applicability import (
     StrategyApplicabilityState,
     build_strategy_applicability,
 )
+from apex.strategies.candidate_execution_quality import (
+    attach_candidate_execution_quality,
+)
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.diagnostics import (
@@ -160,7 +163,7 @@ def analyze_strategies(
         if strategy not in eligible
     }
     candidates = tuple(
-        _normalize_candidate(candidate)
+        _normalize_candidate(candidate, context=context)
         for strategy, generator in STRATEGY_REGISTRY
         if strategy in eligible
         for candidate in run_strategy_generator(
@@ -198,5 +201,24 @@ def analyze_strategies(
     )
 
 
-def _normalize_candidate(candidate: TradeCandidate) -> TradeCandidate:
-    return replace(candidate, strategy=StrategyType(candidate.strategy.value))
+def _normalize_candidate(
+    candidate: TradeCandidate,
+    *,
+    context: StrategyContext,
+) -> TradeCandidate:
+    from apex.scoring.candidate_quality_components import (
+        attach_candidate_quality_components_for_candidate,
+    )
+
+    normalized = replace(
+        candidate,
+        strategy=StrategyType(candidate.strategy.value),
+    )
+    execution_enriched = attach_candidate_execution_quality(
+        candidate=normalized,
+        context=context,
+    )
+    return attach_candidate_quality_components_for_candidate(
+        candidate=execution_enriched,
+        context=context,
+    )
