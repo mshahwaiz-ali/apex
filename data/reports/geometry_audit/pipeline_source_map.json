@@ -1,0 +1,1199 @@
+[
+  {
+    "stage": "actionability",
+    "symbol": "ActionabilityState",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 214,
+    "kind": "class"
+  },
+  {
+    "stage": "actionability",
+    "symbol": "is_entry_status_executable",
+    "path": "src/apex/scoring/selection.py",
+    "line": 20,
+    "kind": "function"
+  },
+  {
+    "stage": "actionability",
+    "symbol": "classify_candidate_actionability",
+    "path": "src/apex/strategies/actionability.py",
+    "line": 21,
+    "kind": "function"
+  },
+  {
+    "stage": "actionability",
+    "symbol": "EntryStatus",
+    "path": "src/apex/strategies/entry_status.py",
+    "line": 6,
+    "kind": "class"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "src/apex/application/candidate_ranking.py",
+    "line": 144,
+    "kind": "reference"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "src/apex/application/discovery_analysis.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "TradeCandidate",
+    "path": "src/apex/strategies/contracts.py",
+    "line": 287,
+    "kind": "class"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "tests/unit/application/test_candidate_ranking.py",
+    "line": 7,
+    "kind": "reference"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "tests/unit/application/test_candidate_ranking_final_score.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "tests/unit/application/test_candidate_ranking_score_dimensions.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "candidate_generation",
+    "symbol": "build_candidate",
+    "path": "tests/unit/scoring/test_rank_score_penalties.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "cli_rendering",
+    "symbol": "analyze",
+    "path": "src/apex/cli_commands/analysis.py",
+    "line": 44,
+    "kind": "function"
+  },
+  {
+    "stage": "cli_rendering",
+    "symbol": "scan",
+    "path": "src/apex/cli_commands/scanner.py",
+    "line": 68,
+    "kind": "function"
+  },
+  {
+    "stage": "cli_rendering",
+    "symbol": "render_analysis",
+    "path": "src/apex/presentation/operator_output.py",
+    "line": 35,
+    "kind": "function"
+  },
+  {
+    "stage": "cli_rendering",
+    "symbol": "render_scan",
+    "path": "src/apex/presentation/operator_output.py",
+    "line": 300,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_entry_zone",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 293,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_stop",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 310,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_targets",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 356,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_entry_zone",
+    "path": "src/apex/application/rollout_comparison.py",
+    "line": 344,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_stop",
+    "path": "src/apex/application/rollout_comparison.py",
+    "line": 361,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_targets",
+    "path": "src/apex/application/rollout_comparison.py",
+    "line": 373,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "build_stop_geometry",
+    "path": "src/apex/application/trade_geometry.py",
+    "line": 40,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "build_layered_targets",
+    "path": "src/apex/application/trade_geometry.py",
+    "line": 91,
+    "kind": "function"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "EntryZone",
+    "path": "src/apex/domain/models.py",
+    "line": 161,
+    "kind": "class"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "EntryZone",
+    "path": "src/apex/strategies/contracts.py",
+    "line": 132,
+    "kind": "class"
+  },
+  {
+    "stage": "entry_and_geometry",
+    "symbol": "_targets",
+    "path": "src/apex/strategies/range_reversal.py",
+    "line": 276,
+    "kind": "function"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "src/apex/application/decision_analysis.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/decision_analysis.py",
+    "line": 22,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "src/apex/application/discovery_analysis.py",
+    "line": 57,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/discovery_analysis.py",
+    "line": 128,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/discovery_contracts.py",
+    "line": 339,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/enriched_public_output.py",
+    "line": 167,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "src/apex/application/integrated_analysis.py",
+    "line": 25,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/integrated_analysis.py",
+    "line": 159,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "src/apex/application/market_strategy_router.py",
+    "line": 200,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "src/apex/application/methodology_gate_orchestration.py",
+    "line": 16,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/methodology_gate_orchestration.py",
+    "line": 30,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "src/apex/application/methodology_portfolio_gate.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "src/apex/application/methodology_selected_strategy_gate.py",
+    "line": 9,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "src/apex/application/methodology_selected_strategy_verdict.py",
+    "line": 42,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "src/apex/application/methodology_strategy_contracts.py",
+    "line": 97,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "METHODOLOGY_INCOMPATIBLE_STATE",
+    "path": "src/apex/application/methodology_strategy_enforcement.py",
+    "line": 73,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "src/apex/application/methodology_strategy_evaluation.py",
+    "line": 31,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "src/apex/application/methodology_strategy_registry.py",
+    "line": 30,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "src/apex/application/public_output.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/public_output.py",
+    "line": 265,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/application/selected_symbol.py",
+    "line": 26,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/cli_commands/analysis.py",
+    "line": 83,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/cli_commands/backtesting.py",
+    "line": 261,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/cli_commands/scanner.py",
+    "line": 154,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/config/settings.py",
+    "line": 102,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/presentation/backtest_output.py",
+    "line": 59,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/presentation/operator_output.py",
+    "line": 871,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "src/apex/presentation/system.py",
+    "line": 157,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/application/test_enriched_public_output_contract.py",
+    "line": 72,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "tests/unit/application/test_methodology_contracts.py",
+    "line": 148,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "tests/unit/application/test_methodology_selected_strategy_gate.py",
+    "line": 18,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "strategy_verdict",
+    "path": "tests/unit/application/test_methodology_selected_strategy_verdict.py",
+    "line": 3,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "METHODOLOGY_INCOMPATIBLE_STATE",
+    "path": "tests/unit/application/test_methodology_strategy_enforcement.py",
+    "line": 67,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "tests/unit/application/test_methodology_strategy_evaluation.py",
+    "line": 33,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "mandatory_evidence",
+    "path": "tests/unit/application/test_methodology_strategy_registry.py",
+    "line": 25,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/application/test_shared_analysis_core.py",
+    "line": 39,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/application/test_shared_analysis_orchestrator.py",
+    "line": 93,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/backtesting/test_campaign_metrics.py",
+    "line": 133,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/config/test_methodology_gate_settings.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/presentation/test_backtest_output_canonical.py",
+    "line": 54,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/presentation/test_operator_output_explain_mode.py",
+    "line": 44,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "methodology_gate",
+    "path": "tests/unit/presentation/test_vnext_cli_layout.py",
+    "line": 77,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "tests/unit/scoring/test_environment_route_alignment.py",
+    "line": 7,
+    "kind": "reference"
+  },
+  {
+    "stage": "evidence_and_methodology",
+    "symbol": "market_strategy_route",
+    "path": "tests/unit/test_market_strategy_router.py",
+    "line": 3,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/application/analysis_records.py",
+    "line": 69,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/analysis_records.py",
+    "line": 505,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/application/configuration_identity.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/decision_analysis.py",
+    "line": 27,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/discovery_analysis.py",
+    "line": 33,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/application/discovery_analysis.py",
+    "line": 1081,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/discovery_contracts.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 20,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/enriched_public_output.py",
+    "line": 214,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "src/apex/application/focused_analysis.py",
+    "line": 15,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/integrated_analysis.py",
+    "line": 27,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/methodology_gate_orchestration.py",
+    "line": 54,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/methodology_opportunity_context.py",
+    "line": 8,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/methodology_portfolio_gate.py",
+    "line": 16,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 1194,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "src/apex/application/public_output.py",
+    "line": 11,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/rollout_comparison.py",
+    "line": 268,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/application/rollout_reporting.py",
+    "line": 115,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/application/selected_symbol.py",
+    "line": 10,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/backtesting/engine.py",
+    "line": 396,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/cli_commands/analysis.py",
+    "line": 89,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/cli_commands/analysis.py",
+    "line": 105,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/cli_commands/backtesting.py",
+    "line": 22,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/cli_commands/backtesting.py",
+    "line": 412,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/cli_commands/research.py",
+    "line": 86,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/cli_commands/scanner.py",
+    "line": 166,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/cli_commands/scanner.py",
+    "line": 198,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/cli_commands/system.py",
+    "line": 36,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/cli_commands/system.py",
+    "line": 62,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/config/futures_screener.py",
+    "line": 39,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/data/cache/candles.py",
+    "line": 194,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/data/providers/cached_futures_universe.py",
+    "line": 102,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "src/apex/domain/lifecycle.py",
+    "line": 353,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "src/apex/presentation/cli_information_architecture.py",
+    "line": 238,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "src/apex/presentation/discovery_output.py",
+    "line": 39,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "src/apex/presentation/operator_output.py",
+    "line": 39,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "src/apex/presentation/operator_output.py",
+    "line": 40,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/research/campaign.py",
+    "line": 74,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/research/models.py",
+    "line": 161,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "src/apex/scoring/config.py",
+    "line": 213,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_actionability_consistency_audit.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_actionability_driven_portfolio_slots.py",
+    "line": 15,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_actionability_projection_diagnostics.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_analysis_mode_propagation.py",
+    "line": 6,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_analysis_records_canonical_opportunities.py",
+    "line": 69,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_batch4_portfolio_exit_gate.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_batch5_actionability_exit_gate.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_batch5_final_regression_gate.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "tests/unit/application/test_candidate_ranking.py",
+    "line": 151,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_canonical_actionability_state.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_cmp_actionability_diagnostics.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_cmp_assessment_setup_existence.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_cmp_distance_diagnostics.py",
+    "line": 15,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_cmp_location_state.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_discovery_setup_portfolio.py",
+    "line": 16,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_enriched_public_output_contract.py",
+    "line": 20,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_entry_boundary_consistency.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "tests/unit/application/test_historical_edge_runtime_vnext.py",
+    "line": 24,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_methodology_portfolio_gate.py",
+    "line": 22,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_opportunity_duplicate_merging.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_opportunity_portfolio.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_opportunity_portfolio_selection.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_opportunity_portfolio_serialization.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_opportunity_sequence_classification.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_portfolio_authoritative_scan_ranking.py",
+    "line": 15,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_portfolio_authoritative_serialization.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_portfolio_breadth_policy.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_portfolio_text_output.py",
+    "line": 66,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_rollout_comparison.py",
+    "line": 43,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_rollout_comparison_fixtures.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_rollout_diagnostic_attachment.py",
+    "line": 22,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_scan_portfolio_ranking.py",
+    "line": 17,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_scan_portfolio_serialization.py",
+    "line": 33,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_shared_analysis_core.py",
+    "line": 13,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_shared_analysis_orchestrator.py",
+    "line": 6,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_stale_trigger_diagnostics.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/application/test_typed_actionability_state.py",
+    "line": 16,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/cli_commands/test_backtesting_canonical_selection.py",
+    "line": 14,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "tests/unit/cli_commands/test_research_campaign.py",
+    "line": 15,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "tests/unit/data/cache/test_candle_cache_hardening.py",
+    "line": 91,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "json.dumps",
+    "path": "tests/unit/data/cache/test_candles.py",
+    "line": 121,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "model_dump",
+    "path": "tests/unit/data/cache/test_candles.py",
+    "line": 255,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "tests/unit/presentation/test_canonical_actionability_output.py",
+    "line": 67,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "focused_analysis",
+    "path": "tests/unit/presentation/test_discovery_text_sections.py",
+    "line": 77,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/presentation/test_operator_output_explain_mode.py",
+    "line": 69,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/presentation/test_operator_output_portfolio.py",
+    "line": 182,
+    "kind": "reference"
+  },
+  {
+    "stage": "json_serialization",
+    "symbol": "opportunity_portfolio",
+    "path": "tests/unit/presentation/test_operator_output_scan_portfolio.py",
+    "line": 42,
+    "kind": "reference"
+  },
+  {
+    "stage": "portfolio_assignment",
+    "symbol": "build_opportunity_portfolio",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 85,
+    "kind": "function"
+  },
+  {
+    "stage": "portfolio_assignment",
+    "symbol": "SequenceRole",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 29,
+    "kind": "class"
+  },
+  {
+    "stage": "portfolio_assignment",
+    "symbol": "OpportunityLane",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 38,
+    "kind": "class"
+  },
+  {
+    "stage": "portfolio_assignment",
+    "symbol": "PortfolioDecisionState",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 58,
+    "kind": "class"
+  },
+  {
+    "stage": "portfolio_assignment",
+    "symbol": "portfolio_from_setups",
+    "path": "src/apex/application/opportunity_portfolio.py",
+    "line": 1041,
+    "kind": "function"
+  },
+  {
+    "stage": "scoring_and_selection",
+    "symbol": "CandidateOutcome",
+    "path": "src/apex/scoring/contracts.py",
+    "line": 16,
+    "kind": "class"
+  },
+  {
+    "stage": "scoring_and_selection",
+    "symbol": "RankedCandidate",
+    "path": "src/apex/scoring/contracts.py",
+    "line": 117,
+    "kind": "class"
+  },
+  {
+    "stage": "scoring_and_selection",
+    "symbol": "derive_quality_dimensions",
+    "path": "src/apex/scoring/quality_dimensions.py",
+    "line": 37,
+    "kind": "function"
+  },
+  {
+    "stage": "scoring_and_selection",
+    "symbol": "rank_candidates",
+    "path": "src/apex/scoring/ranking.py",
+    "line": 33,
+    "kind": "function"
+  },
+  {
+    "stage": "scoring_and_selection",
+    "symbol": "select_candidate",
+    "path": "src/apex/scoring/selection.py",
+    "line": 35,
+    "kind": "function"
+  },
+  {
+    "stage": "setup_conversion",
+    "symbol": "ConditionalExecutionPlan",
+    "path": "src/apex/application/discovery_contracts.py",
+    "line": 189,
+    "kind": "class"
+  },
+  {
+    "stage": "setup_conversion",
+    "symbol": "DiscoverySetup",
+    "path": "src/apex/application/discovery_contracts.py",
+    "line": 230,
+    "kind": "class"
+  },
+  {
+    "stage": "setup_conversion",
+    "symbol": "build_discovery_assessment",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 59,
+    "kind": "function"
+  },
+  {
+    "stage": "setup_conversion",
+    "symbol": "_build_setup",
+    "path": "src/apex/application/discovery_setup.py",
+    "line": 130,
+    "kind": "function"
+  }
+]
