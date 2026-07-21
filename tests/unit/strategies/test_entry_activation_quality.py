@@ -77,7 +77,7 @@ def _candidate(*, confirmed: bool, provisional: bool = False) -> TradeCandidate:
 def test_zero_width_market_entry_is_not_ready_without_confirmation() -> None:
     assert (
         classify_candidate_actionability(_candidate(confirmed=False))
-        is EntryStatus.WATCH_NEAR_ENTRY
+        is EntryStatus.CONFIRMATION_AT_CMP
     )
 
 
@@ -88,7 +88,7 @@ def test_confirmed_closed_market_entry_can_be_ready() -> None:
 def test_provisional_market_entry_cannot_be_ready() -> None:
     assert (
         classify_candidate_actionability(_candidate(confirmed=True, provisional=True))
-        is EntryStatus.WATCH_NEAR_ENTRY
+        is EntryStatus.CONFIRMATION_AT_CMP
     )
 
 
@@ -102,3 +102,45 @@ def test_shared_selector_can_withhold_unconfirmed_market_entry() -> None:
             target_price=108.0,
             allow_market_entry=False,
         )
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        EntryMode.PULLBACK,
+        EntryMode.RETEST,
+        EntryMode.SWEEP_RECOVERY,
+        EntryMode.SCALED_ENTRY,
+    ],
+)
+def test_cmp_inside_conditional_zone_is_not_misreported_as_nearby(
+    mode: EntryMode,
+) -> None:
+    candidate = _candidate(confirmed=False)
+    candidate = TradeCandidate(
+        symbol=candidate.symbol,
+        strategy=candidate.strategy,
+        direction=candidate.direction,
+        decision_time=candidate.decision_time,
+        entry=EntryZone(
+            lower=99.5,
+            upper=100.5,
+            preferred=100.0,
+            current_price=100.0,
+            distance_from_current=0.0,
+            atr_distance=0.0,
+            estimated_move_missed=0.0,
+            location_quality=1.0,
+            mode=mode,
+            rationale=("current price is inside the conditional zone",),
+            max_chase_price=101.0,
+        ),
+        invalidation=candidate.invalidation,
+        targets=candidate.targets,
+        quality=candidate.quality,
+        evidence=candidate.evidence,
+        metadata=candidate.metadata,
+        provisional=candidate.provisional,
+    )
+
+    assert classify_candidate_actionability(candidate) is EntryStatus.CONFIRMATION_AT_CMP

@@ -162,6 +162,81 @@ def test_short_geometry_is_symmetric() -> None:
     assert zone.max_chase_price == pytest.approx(99.4)
 
 
+def test_explicit_reference_geometry_remains_authoritative() -> None:
+    zone = select_entry_zone(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=96.0,
+        target_price=110.0,
+        references=(
+            EntryReference(
+                price=98.5,
+                mode=EntryMode.RETEST,
+                rationale=("generator-defined breakout retest",),
+                zone_lower=98.2,
+                zone_upper=98.8,
+                trigger_price=99.1,
+                max_chase_price=99.4,
+                expires_after_seconds=2_700,
+            ),
+        ),
+        config=EntrySelectionConfig(minimum_risk_reward_improvement=0.0),
+        allow_market_entry=False,
+    )
+
+    assert zone.lower == 98.2
+    assert zone.preferred == 98.5
+    assert zone.upper == 98.8
+    assert zone.max_chase_price == 99.4
+    assert zone.expires_after_seconds == 2_700
+
+
+def test_explicit_short_maximum_chase_is_preserved() -> None:
+    zone = select_entry_zone(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.SHORT,
+        invalidation_price=104.0,
+        target_price=92.0,
+        references=(
+            EntryReference(
+                price=101.0,
+                mode=EntryMode.RETEST,
+                rationale=("generator-defined resistance retest",),
+                zone_lower=100.8,
+                zone_upper=101.2,
+                max_chase_price=99.7,
+            ),
+        ),
+        config=EntrySelectionConfig(minimum_risk_reward_improvement=0.0),
+        allow_market_entry=False,
+    )
+
+    assert zone.lower == 100.8
+    assert zone.upper == 101.2
+    assert zone.max_chase_price == 99.7
+
+
+def test_entry_reference_rejects_partial_or_invalid_explicit_zone() -> None:
+    with pytest.raises(ValueError, match="provided together"):
+        EntryReference(
+            price=99.0,
+            mode=EntryMode.RETEST,
+            rationale=("partial zone",),
+            zone_lower=98.5,
+        )
+
+    with pytest.raises(ValueError, match="inside explicit zone"):
+        EntryReference(
+            price=99.0,
+            mode=EntryMode.RETEST,
+            rationale=("invalid preferred",),
+            zone_lower=99.2,
+            zone_upper=99.8,
+        )
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf")])
 def test_rejects_non_finite_market_geometry(value: float) -> None:
     with pytest.raises(ValueError):

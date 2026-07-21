@@ -129,6 +129,18 @@ def _candidate_for_direction(
     )
     trend_strength = frame.structure.trend.strength
     momentum_quality = _momentum_quality(context, bullish=bullish)
+    metadata: dict[str, str | int | float | bool] = {
+        "decision_timeframe": frame.timeframe,
+        "decision_atr": atr,
+        "decision_atr_percentage": atr / current * 100.0,
+        "reference_count": len(references),
+        "higher_timeframe_conflict": higher_timeframe_conflict,
+        **_selected_entry_geometry_metadata(
+            context,
+            entry_preferred=entry.preferred,
+            bullish=bullish,
+        ),
+    }
     return TradeCandidate(
         symbol=context.symbol,
         strategy=StrategyType.TREND_PULLBACK,
@@ -179,13 +191,7 @@ def _candidate_for_direction(
             feature_references=feature_refs,
             structure_references=("trend", "levels"),
         ),
-        metadata={
-            "decision_timeframe": frame.timeframe,
-            "decision_atr": atr,
-            "decision_atr_percentage": atr / current * 100.0,
-            "reference_count": len(references),
-            "higher_timeframe_conflict": higher_timeframe_conflict,
-        },
+        metadata=metadata,
         provisional=context.provisional,
     )
 
@@ -225,6 +231,9 @@ def _entry_references(
                     mode=EntryMode.RETEST,
                     rationale=("nearby structural level offers a defined retest",),
                     scaled=level.low < level.high,
+                    zone_lower=level.low,
+                    zone_upper=level.high,
+                    trigger_price=level.representative_price,
                 )
             )
     unique = {(item.price, item.mode.value, item.scaled): item for item in raw}
@@ -234,6 +243,51 @@ def _entry_references(
             key=lambda item: (abs(item.price - current), item.price, item.mode.value),
         )
     )
+
+
+def _selected_entry_geometry_metadata(
+    context: StrategyContext,
+    *,
+    entry_preferred: float,
+    bullish: bool,
+) -> dict[str, str | int | float | bool]:
+    """Describe the selected structural retest without inventing breakout data."""
+
+    expected_role = LevelRole.SUPPORT if bullish else LevelRole.RESISTANCE
+    matching = tuple(
+        level
+        for level in context.decision_frame.structure.levels
+        if level.role is expected_role
+        and level.status is not LevelStatus.BROKEN
+        and level.low <= entry_preferred <= level.high
+    )
+    if not matching:
+        return {
+            "entry_geometry_owner": "shared_entry_selector",
+            "structural_retest_geometry_available": False,
+        }
+
+    selected = min(
+        matching,
+        key=lambda level: (
+            abs(level.representative_price - entry_preferred),
+            level.high - level.low,
+            level.representative_price,
+        ),
+    )
+    return {
+        "entry_geometry_owner": "strategy_structure_level",
+        "structural_retest_geometry_available": True,
+        "retest_zone_low": selected.low,
+        "retest_zone_high": selected.high,
+        "retest_preferred_entry": selected.representative_price,
+        "retest_trigger_level": selected.representative_price,
+        "retest_penetration_allowance": selected.high - selected.low,
+        "retest_confirmation_rule": (
+            "hold_or_reclaim_above_retest_zone" if bullish else "hold_or_reject_below_retest_zone"
+        ),
+        "breakout_level_available": False,
+    }
 
 
 def _invalidation_price(context: StrategyContext, *, bullish: bool) -> float:

@@ -42,9 +42,9 @@ def classify_candidate_actionability(candidate: TradeCandidate) -> EntryStatus:
             candidate.metadata.get("entry_confirmation_complete") is True
             and not candidate.provisional
         )
-        if candidate.entry.mode is not EntryMode.MARKET_NEAR or confirmed:
+        if confirmed:
             return EntryStatus.READY_NOW
-        return EntryStatus.WATCH_NEAR_ENTRY
+        return EntryStatus.CONFIRMATION_AT_CMP
     # A missed or extended immediate entry does not invalidate a structurally
     # valid pullback/retest/sweep setup. Preserve the future entry opportunity.
     if candidate.entry.mode in _PULLBACK_MODES and (

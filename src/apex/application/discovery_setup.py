@@ -17,6 +17,10 @@ from apex.application.discovery_contracts import (
     StopQualityBand,
     TakeProfit,
 )
+from apex.application.methodology_candidate_entry_authority import (
+    CandidateEntryAuthority,
+    resolve_candidate_entry_authority,
+)
 from apex.application.opportunity_portfolio import (
     AnalysisMode,
     SymbolOpportunityPortfolio,
@@ -129,14 +133,22 @@ def _best_developing_candidate(
 
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     candidate = ranked.candidate
+    entry_authority = resolve_candidate_entry_authority(
+        candidate.entry,
+        candidate.metadata,
+    )
     entry_status = classify_candidate_actionability(candidate)
     entry = _entry_zone(candidate.entry, candidate.direction)
     entry_opportunities = tuple(
         _entry_zone(opportunity, candidate.direction)
         for opportunity in candidate.entry_opportunities
     )
-    stop = _stop(candidate)
-    targets = _targets(candidate, stop)
+    stop = _stop(candidate, preferred_entry=entry_authority.selected_entry)
+    targets = _targets(
+        candidate,
+        stop,
+        preferred_entry=entry_authority.selected_entry,
+    )
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
     return DiscoverySetup(
@@ -174,6 +186,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             entry_status=entry_status,
             entry=entry,
             stop=stop,
+            entry_authority=entry_authority,
         ),
     )
 
@@ -184,6 +197,7 @@ def _conditional_plan(
     entry_status: EntryStatus,
     entry: ActionableEntry,
     stop: StopLoss,
+    entry_authority: CandidateEntryAuthority,
 ) -> ConditionalExecutionPlan | None:
     if is_entry_status_executable(entry_status):
         return None
@@ -229,7 +243,7 @@ def _conditional_plan(
     return ConditionalExecutionPlan(
         trigger=ActivationTrigger(
             kind=trigger_kind,
-            level=entry.preferred,
+            level=entry_authority.trigger_level,
             condition=condition,
             confirmation_timeframe=confirmation_timeframe,
         ),
@@ -241,12 +255,12 @@ def _conditional_plan(
         conditional_order_eligible=conditional_order_eligible,
         recommended_order_intent=order_intent,
         reason_not_executable_now=_reason_not_executable(entry_status),
-        geometry_basis="candidate_entry_zone",
+        geometry_basis=entry_authority.geometry_owner,
         entry_source=_entry_source(candidate),
-        trigger_matches_preferred_entry=True,
-        stop_basis="structural_invalidation_buffered_from_candidate_entry",
-        targets_basis="strategy_supplied_structural_targets",
-        geometry_is_trigger_relative=True,
+        trigger_matches_preferred_entry=(entry_authority.trigger_matches_selected_entry),
+        stop_basis="structural_invalidation_buffered_from_selected_entry",
+        targets_basis="strategy_supplied_targets_from_selected_entry",
+        geometry_is_trigger_relative=(entry_authority.trigger_matches_selected_entry),
     )
 
 
@@ -280,6 +294,9 @@ def _confirmation_timeframe(candidate: TradeCandidate) -> str | None:
 def _reason_not_executable(entry_status: EntryStatus) -> str:
     reasons = {
         EntryStatus.PULLBACK_PREFERRED: ("price has not reached the preferred pullback zone"),
+        EntryStatus.CONFIRMATION_AT_CMP: (
+            "current price is inside the entry zone, but activation confirmation is incomplete"
+        ),
         EntryStatus.WATCH_NEAR_ENTRY: (
             "price is approaching the entry zone but activation is incomplete"
         ),
@@ -309,8 +326,12 @@ def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
     )
 
 
-def _stop(candidate: TradeCandidate) -> StopLoss:
-    preferred = candidate.entry.preferred
+def _stop(
+    candidate: TradeCandidate,
+    *,
+    preferred_entry: float,
+) -> StopLoss:
+    preferred = preferred_entry
     raw_atr = candidate.metadata.get("decision_atr")
     atr = (
         float(raw_atr)
@@ -355,8 +376,13 @@ def _stop(candidate: TradeCandidate) -> StopLoss:
     )
 
 
-def _targets(candidate: TradeCandidate, stop: StopLoss) -> tuple[TakeProfit, ...]:
-    preferred = candidate.entry.preferred
+def _targets(
+    candidate: TradeCandidate,
+    stop: StopLoss,
+    *,
+    preferred_entry: float,
+) -> tuple[TakeProfit, ...]:
+    preferred = preferred_entry
     levels = build_layered_targets(
         direction=candidate.direction,
         preferred_entry=preferred,
@@ -404,6 +430,8 @@ def _trader_headline(status: EntryStatus) -> str:
         return "Strong setup — aggressive execution possible"
     if status is EntryStatus.PULLBACK_PREFERRED:
         return "Strong setup — pullback/retest/reclaim pending"
+    if status is EntryStatus.CONFIRMATION_AT_CMP:
+        return "Current-price setup — confirmation required"
     if status is EntryStatus.WATCH_NEAR_ENTRY:
         return "Developing setup — watch only"
     if status in {EntryStatus.LATE_OR_CHASING, EntryStatus.INVALIDATED}:

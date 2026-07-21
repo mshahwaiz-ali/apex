@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from apex.liquidity.analysis import LiquidityAnalysisResult
 from apex.strategies import (
     EntryMode,
@@ -142,6 +144,14 @@ def test_generates_long_trend_pullback_near_current_price() -> None:
     assert candidate.direction is TradeDirection.LONG
     assert candidate.entry.mode is EntryMode.SCALED_ENTRY
     assert candidate.entry.preferred == 99.0
+    assert candidate.entry.lower == 98.9
+    assert candidate.entry.upper == 99.1
+    assert candidate.metadata["entry_geometry_owner"] == "strategy_structure_level"
+    assert candidate.metadata["retest_zone_low"] == 98.9
+    assert candidate.metadata["retest_zone_high"] == 99.1
+    assert candidate.metadata["retest_trigger_level"] == 99.0
+    assert candidate.metadata["retest_penetration_allowance"] == pytest.approx(0.2)
+    assert candidate.metadata["breakout_level_available"] is False
     assert candidate.invalidation.price < candidate.entry.lower
     assert candidate.targets.levels[0].price > candidate.entry.upper
 
@@ -157,6 +167,13 @@ def test_generates_short_trend_pullback_near_current_price() -> None:
     assert candidate.direction is TradeDirection.SHORT
     assert candidate.entry.mode is EntryMode.SCALED_ENTRY
     assert candidate.entry.preferred == 101.0
+    assert candidate.entry.lower == 100.9
+    assert candidate.entry.upper == 101.1
+    assert candidate.metadata["entry_geometry_owner"] == "strategy_structure_level"
+    assert candidate.metadata["retest_zone_low"] == 100.9
+    assert candidate.metadata["retest_zone_high"] == 101.1
+    assert candidate.metadata["retest_trigger_level"] == 101.0
+    assert candidate.metadata["retest_confirmation_rule"] == ("hold_or_reject_below_retest_zone")
     assert candidate.invalidation.price > candidate.entry.upper
     assert candidate.targets.levels[0].price < candidate.entry.lower
 

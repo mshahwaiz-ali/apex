@@ -16,12 +16,34 @@ class EntryReference:
     mode: EntryMode
     rationale: tuple[str, ...]
     scaled: bool = False
+    zone_lower: float | None = None
+    zone_upper: float | None = None
+    trigger_price: float | None = None
+    max_chase_price: float | None = None
+    expires_after_seconds: int | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.price) or self.price <= 0:
             raise ValueError("entry-reference price must be positive and finite")
         if not self.rationale:
             raise ValueError("entry-reference rationale cannot be empty")
+        for name, value in (
+            ("entry-reference zone lower", self.zone_lower),
+            ("entry-reference zone upper", self.zone_upper),
+            ("entry-reference trigger", self.trigger_price),
+            ("entry-reference maximum chase", self.max_chase_price),
+        ):
+            if value is not None and (not math.isfinite(value) or value <= 0):
+                raise ValueError(f"{name} must be positive and finite when provided")
+        if (self.zone_lower is None) is not (self.zone_upper is None):
+            raise ValueError("entry-reference zone bounds must be provided together")
+        if self.zone_lower is not None and self.zone_upper is not None:
+            if self.zone_lower > self.zone_upper:
+                raise ValueError("entry-reference zone lower cannot exceed zone upper")
+            if not self.zone_lower <= self.price <= self.zone_upper:
+                raise ValueError("entry-reference price must lie inside explicit zone")
+        if self.expires_after_seconds is not None and self.expires_after_seconds <= 0:
+            raise ValueError("entry-reference expiry must be positive when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +140,10 @@ def find_entry_zones(
             rationale=reference.rationale,
             scaled=reference.scaled,
             config=config,
+            explicit_lower=reference.zone_lower,
+            explicit_upper=reference.zone_upper,
+            explicit_max_chase=reference.max_chase_price,
+            explicit_expiry_seconds=reference.expires_after_seconds,
         )
         if not _zone_is_directionally_valid(
             zone=zone,
@@ -204,6 +230,10 @@ def _build_zone(
     rationale: tuple[str, ...],
     scaled: bool,
     config: EntrySelectionConfig,
+    explicit_lower: float | None = None,
+    explicit_upper: float | None = None,
+    explicit_max_chase: float | None = None,
+    explicit_expiry_seconds: int | None = None,
 ) -> EntryZone:
     distance = abs(preferred - current_price)
     percentage_distance = distance / current_price
@@ -223,15 +253,18 @@ def _build_zone(
     )
     half_width = atr * config.scaled_half_width_atr if scaled else 0.0
     allowed_distance = max(allowed_distance, half_width)
-    max_chase_price = (
+    derived_max_chase = (
         preferred + allowed_distance
         if direction is TradeDirection.LONG
         else preferred - allowed_distance
     )
+    lower = explicit_lower if explicit_lower is not None else preferred - half_width
+    upper = explicit_upper if explicit_upper is not None else preferred + half_width
+    max_chase_price = explicit_max_chase if explicit_max_chase is not None else derived_max_chase
     location_quality = 1.0 if allowed_distance == 0 else max(0.0, 1.0 - distance / allowed_distance)
     return EntryZone(
-        lower=preferred - half_width,
-        upper=preferred + half_width,
+        lower=lower,
+        upper=upper,
         preferred=preferred,
         current_price=current_price,
         distance_from_current=percentage_distance,
@@ -242,7 +275,11 @@ def _build_zone(
         rationale=rationale,
         is_extended=atr_distance > config.max_atr_distance,
         max_chase_price=max_chase_price,
-        expires_after_seconds=config.default_expiry_seconds,
+        expires_after_seconds=(
+            explicit_expiry_seconds
+            if explicit_expiry_seconds is not None
+            else config.default_expiry_seconds
+        ),
     )
 
 
