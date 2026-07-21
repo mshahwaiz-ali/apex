@@ -53,6 +53,7 @@ class EntrySelectionConfig:
     max_percentage_distance: float = 0.012
     max_atr_distance: float = 0.8
     scaled_half_width_atr: float = 0.06
+    reference_half_width_atr: float = 0.03
     minimum_risk_reward_improvement: float = 0.15
     default_expiry_seconds: int = 900
 
@@ -61,6 +62,7 @@ class EntrySelectionConfig:
             ("maximum percentage distance", self.max_percentage_distance),
             ("maximum ATR distance", self.max_atr_distance),
             ("scaled half-width ATR", self.scaled_half_width_atr),
+            ("reference half-width ATR", self.reference_half_width_atr),
             ("minimum risk-reward improvement", self.minimum_risk_reward_improvement),
         ):
             if not math.isfinite(value) or value < 0:
@@ -251,7 +253,13 @@ def _build_zone(
         max(reward_room_distance, 0.0),
         max(structure_room_distance, 0.0),
     )
-    half_width = atr * config.scaled_half_width_atr if scaled else 0.0
+    half_width = (
+        atr * config.scaled_half_width_atr
+        if scaled
+        else atr * config.reference_half_width_atr
+        if mode is not EntryMode.MARKET_NEAR
+        else 0.0
+    )
     allowed_distance = max(allowed_distance, half_width)
     derived_max_chase = (
         preferred + allowed_distance

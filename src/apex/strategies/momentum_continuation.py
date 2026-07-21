@@ -33,6 +33,7 @@ from apex.strategies.entry import (
     find_entry_zones,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_quality import target_space_quality
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -102,8 +103,14 @@ def _candidate_for_direction(
 
     current = context.current_price
     atr = context.atr
-    invalidation_price = _invalidation_price(context, bullish=bullish)
-    target_price = _target_price(context, bullish=bullish)
+    invalidation_price, invalidation_type = _invalidation_geometry(
+        context,
+        bullish=bullish,
+    )
+    target_price, target_type, target_rationale = _target_geometry(
+        context,
+        bullish=bullish,
+    )
     if not _valid_geometry(
         current=current,
         invalidation=invalidation_price,
@@ -179,17 +186,17 @@ def _candidate_for_direction(
         decision_time=decision_time,
         entry=entry,
         invalidation=InvalidationConcept(
-            kind=InvalidationType.VOLATILITY,
+            kind=invalidation_type,
             price=invalidation_price,
             rationale=("momentum thesis fails beyond volatility or structural support",),
         ),
         targets=TargetConcept(
             levels=(
                 TargetLevel(
-                    kind=TargetType.EXPANSION,
+                    kind=target_type,
                     price=target_price,
                     label="primary",
-                    rationale=("nearest opposing liquidity or expansion objective",),
+                    rationale=(target_rationale,),
                 ),
             )
         ),
@@ -200,10 +207,11 @@ def _candidate_for_direction(
             momentum_quality=aligned / total,
             volume_quality=_volume_quality(features.relative_volume),
             liquidity_quality=0.5,
-            target_space_quality=_target_space_quality(
+            target_space_quality=target_space_quality(
                 current=current,
                 invalidation=invalidation_price,
                 target=target_price,
+                target_type=target_type,
             ),
             extension_penalty=max(
                 1.0 - entry.location_quality,
@@ -254,6 +262,8 @@ def _candidate_for_direction(
                 )
             ),
             "decision_atr": atr,
+            "invalidation_includes_noise_buffer": True,
+            "invalidation_buffer_source": "strategy_structure_or_volatility_stop",
         },
         entry_opportunities=entry_opportunities,
         provisional=context.provisional,
@@ -384,7 +394,11 @@ def _entry_references(
     return tuple(sorted(raw, key=lambda item: (abs(item.price - current), item.price)))
 
 
-def _invalidation_price(context: StrategyContext, *, bullish: bool) -> float:
+def _invalidation_geometry(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[float, InvalidationType]:
     frame = context.decision_frame
     current = context.current_price
     role = LevelRole.SUPPORT if bullish else LevelRole.RESISTANCE
@@ -400,11 +414,17 @@ def _invalidation_price(context: StrategyContext, *, bullish: bool) -> float:
     ]
     if levels:
         anchor = max(levels) if bullish else min(levels)
-        return anchor - context.atr * 0.2 if bullish else anchor + context.atr * 0.2
-    return current - context.atr if bullish else current + context.atr
+        buffered = anchor - context.atr * 0.2 if bullish else anchor + context.atr * 0.2
+        return buffered, InvalidationType.STRUCTURAL
+    fallback = current - context.atr if bullish else current + context.atr
+    return fallback, InvalidationType.VOLATILITY
 
 
-def _target_price(context: StrategyContext, *, bullish: bool) -> float:
+def _target_geometry(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[float, TargetType, str]:
     frame = context.decision_frame
     current = context.current_price
     role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
@@ -419,20 +439,21 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         )
     ]
     if levels:
-        return min(levels) if bullish else max(levels)
-    return current + context.atr * 2.2 if bullish else current - context.atr * 2.2
+        return (
+            min(levels) if bullish else max(levels),
+            TargetType.STRUCTURAL,
+            "nearest observed opposing structural objective",
+        )
+    projected = current + context.atr * 2.2 if bullish else current - context.atr * 2.2
+    return (
+        projected,
+        TargetType.EXPANSION,
+        "2.2 ATR expansion projection; no verified opposing structure was available",
+    )
 
 
 def _volume_quality(value: float | None) -> float:
     return 0.5 if value is None else min(1.0, value / 2.0)
-
-
-def _target_space_quality(*, current: float, invalidation: float, target: float) -> float:
-    risk = abs(current - invalidation)
-    reward = abs(target - current)
-    if risk <= 0:
-        return 0.0
-    return min(1.0, reward / risk / 3.0)
 
 
 def _valid_geometry(*, current: float, invalidation: float, target: float, bullish: bool) -> bool:

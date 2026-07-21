@@ -188,6 +188,7 @@ def _portfolio_payload() -> dict[str, object]:
 
     return {
         "symbol": "BTCUSDT",
+        "generated_at": "2026-07-22T10:15:30+00:00",
         "methodology_verdict": {
             "status": "allowed",
             "allowed": True,
@@ -237,6 +238,9 @@ def test_analysis_renders_operator_context_and_geometry_without_raw_ids() -> Non
         assert opportunity_id not in text
 
     assert "Opportunity #1" in text
+    assert "Signal generated  2026-07-22 10:15:30 UTC" in text
+    assert text.index("Opportunity #1") < text.index("Signal generated")
+    assert text.index("Signal generated") < text.index("Breakout continuation")
     assert "Breakout continuation · Current · Ready now" in text
     assert "Failed breakout · Nearby · Wait for retest" in text
     assert "Mixed (moderate) · Fresh continuation" in text
@@ -246,7 +250,8 @@ def test_analysis_renders_operator_context_and_geometry_without_raw_ids() -> Non
     assert "Stop loss" in text
     assert "TP1" in text
     assert "2.00R" in text
-    assert "target quality 0.7" in text
+    assert "target quality" in text
+    assert "0.7/100" in text
     assert "Pattern confidence" in text
     assert "Setup quality" in text
     assert "Execution quality" in text

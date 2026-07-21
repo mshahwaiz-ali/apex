@@ -111,6 +111,8 @@ class StopLoss:
     quality_band: StopQualityBand = StopQualityBand.ACCEPTABLE
     invalidation_type: InvalidationType = InvalidationType.STRUCTURAL
     buffer_rationale: str = ""
+    thesis_invalidation_price: float | None = None
+    applied_buffer_distance: float = 0.0
 
     def __post_init__(self) -> None:
         _positive("stop price", self.price)
@@ -121,6 +123,11 @@ class StopLoss:
         _finite("stop quality score", self.quality_score)
         if not 0.0 <= self.quality_score <= 1.0:
             raise ValueError("stop quality score must be between zero and one")
+        if self.thesis_invalidation_price is not None:
+            _positive("thesis invalidation price", self.thesis_invalidation_price)
+        _finite("applied stop buffer distance", self.applied_buffer_distance)
+        if self.applied_buffer_distance < 0.0:
+            raise ValueError("applied stop buffer distance cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +145,8 @@ class TakeProfit:
     target_role: TargetRole = TargetRole.PRIMARY
     synthetic: bool = False
     runner_qualified: bool = False
+    net_risk_reward: float | None = None
+    expected_cost_pct: float | None = None
 
     def __post_init__(self) -> None:
         if not self.label.strip():
@@ -163,6 +172,14 @@ class TakeProfit:
             raise ValueError("discovery targets must remain strategy supplied")
         if self.runner_qualified and self.target_role is not TargetRole.EXTENSION_CANDIDATE:
             raise ValueError("runner qualification requires an extension target role")
+        if self.net_risk_reward is not None:
+            _finite("net target risk reward", self.net_risk_reward)
+            if self.net_risk_reward < 0.0:
+                raise ValueError("net target risk reward cannot be negative")
+        if self.expected_cost_pct is not None:
+            _finite("expected target cost percentage", self.expected_cost_pct)
+            if self.expected_cost_pct < 0.0:
+                raise ValueError("expected target cost percentage cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)

@@ -24,6 +24,7 @@ from apex.strategies.entry import (
     select_entry_zone,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_quality import target_space_quality
 from apex.structure.contracts import RangeBreakoutState, RangeStructure, TrendDirection
 
 _MINIMUM_RANGE_QUALITY = 0.6
@@ -156,10 +157,11 @@ def _candidate_for_direction(
             momentum_quality=_momentum_quality(context, bullish=bullish),
             volume_quality=_optional_unit(features.relative_volume, neutral=0.5),
             liquidity_quality=0.8 if false_break else 0.5,
-            target_space_quality=_target_space_quality(
+            target_space_quality=target_space_quality(
                 current=current,
                 invalidation=invalidation_price,
                 target=primary_target,
+                target_type=targets[-1].kind,
             ),
             extension_penalty=1.0 - entry.location_quality,
             conflict_penalty=0.25 if higher_timeframe_conflict else 0.0,
@@ -191,6 +193,8 @@ def _candidate_for_direction(
                 "warning_and_target_ceiling" if higher_timeframe_conflict else "aligned_or_neutral"
             ),
             "runner_allowed": not higher_timeframe_conflict,
+            "invalidation_includes_noise_buffer": True,
+            "invalidation_buffer_source": "strategy_range_boundary_0.2_atr",
         },
         provisional=context.provisional,
     )
@@ -299,14 +303,6 @@ def _targets(
         if (bullish and price > current) or (not bullish and price < current)
     )
     return tuple(sorted(valid, key=lambda level: level.price, reverse=not bullish))
-
-
-def _target_space_quality(*, current: float, invalidation: float, target: float) -> float:
-    risk = abs(current - invalidation)
-    reward = abs(target - current)
-    if risk <= 0:
-        return 0.0
-    return min(1.0, reward / risk / 3.0)
 
 
 def _optional_unit(value: float | None, *, neutral: float) -> float:

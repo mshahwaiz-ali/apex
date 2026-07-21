@@ -65,6 +65,8 @@ def build_stop_geometry(
     atr: float | None,
     minimum_buffer_pct: float = 0.10,
     structural_buffer_atr: float = 0.25,
+    invalidation_already_buffered: bool = False,
+    execution_buffer_override: float | None = None,
 ) -> StopGeometry:
     "Apply a single buffer outside raw thesis invalidation."
 
@@ -76,9 +78,19 @@ def build_stop_geometry(
             raise ValueError(f"{name} must be positive and finite")
     if atr is not None and (not math.isfinite(atr) or atr <= 0.0):
         raise ValueError("ATR must be positive and finite when provided")
+    if execution_buffer_override is not None and (
+        not math.isfinite(execution_buffer_override) or execution_buffer_override < 0.0
+    ):
+        raise ValueError("execution buffer override must be finite and non-negative")
 
     percentage_buffer = preferred_entry * minimum_buffer_pct / 100.0
-    if invalidation_type is InvalidationType.VOLATILITY:
+    if invalidation_already_buffered:
+        buffer = 0.0
+        reason = "strategy invalidation already includes the single noise buffer"
+    elif execution_buffer_override is not None:
+        buffer = execution_buffer_override
+        reason = "single shared runtime ATR/spread execution buffer"
+    elif invalidation_type is InvalidationType.VOLATILITY:
         buffer = percentage_buffer
         reason = f"single minimum {minimum_buffer_pct:g}% execution buffer"
     else:

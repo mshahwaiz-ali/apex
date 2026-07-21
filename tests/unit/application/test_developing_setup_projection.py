@@ -246,7 +246,7 @@ def test_conditional_plan_exposes_geometry_provenance() -> None:
     assert plan.trigger_matches_preferred_entry is True
     assert plan.geometry_is_trigger_relative is True
     assert plan.stop_basis == "structural_invalidation_buffered_from_candidate_entry"
-    assert plan.targets_basis == "strategy_supplied_structural_targets"
+    assert plan.targets_basis == "strategy_supplied_targets_with_explicit_provenance"
 
 
 def test_conditional_plan_serializes_geometry_provenance() -> None:

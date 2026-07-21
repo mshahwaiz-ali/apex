@@ -213,7 +213,8 @@ def test_does_not_publish_structural_trigger_outside_selected_entry_zone() -> No
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.entry.mode is EntryMode.PULLBACK
-    assert candidate.entry.lower == candidate.entry.preferred == candidate.entry.upper
+    assert candidate.entry.lower < candidate.entry.preferred < candidate.entry.upper
+    assert candidate.entry.lower <= 99.2 <= candidate.entry.upper
     assert candidate.metadata["entry_geometry_owner"] == "shared_entry_selector"
     assert candidate.metadata["structural_retest_geometry_available"] is False
     assert "retest_trigger_level" not in candidate.metadata

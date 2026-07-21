@@ -47,6 +47,7 @@ from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyC
 from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.geometry_audit import derive_execution_stop_geometry
 from apex.strategies.strategy_types import StrategyType
 
 
@@ -297,6 +298,8 @@ def evaluate_methodology_candidate_routing(
 ) -> MethodologyCandidateRoutingResult:
     """Evaluate each generated strategy from its own candidate evidence."""
 
+    analysis = _attach_runtime_geometry_metadata(analysis, geometry_runtime_context)
+
     decisions: list[StrategyEnforcementDecision] = []
     geometry_safety_audits: list[CandidateGeometrySafetyAudit] = []
     identities = candidate_identities(analysis.candidates)
@@ -339,6 +342,10 @@ def evaluate_methodology_candidate_routing(
                 holding_horizon=context.holding_horizon,
                 policy=htf_consequence_policy,
             )
+            htf_consequence = _enforce_verified_target_ceiling(
+                candidate,
+                consequence=htf_consequence,
+            )
             geometry_safety_audits.append(
                 audit_candidate_geometry_safety(
                     candidate,
@@ -368,6 +375,93 @@ def evaluate_methodology_candidate_routing(
         tuple(decisions),
         mode=mode,
         geometry_safety_audits=tuple(geometry_safety_audits),
+    )
+
+
+def _attach_runtime_geometry_metadata(
+    analysis: StrategyAnalysisResult,
+    runtime_context: GeometryRuntimeContext | None,
+) -> StrategyAnalysisResult:
+    """Persist the exact stop/cost inputs used by the geometry gate downstream."""
+
+    if runtime_context is None:
+        return analysis
+
+    replacements: dict[int, TradeCandidate] = {}
+    candidates: list[TradeCandidate] = []
+    for candidate in analysis.candidates:
+        already_buffered = candidate.metadata.get("invalidation_includes_noise_buffer") is True
+        execution_buffer = 0.0 if already_buffered else runtime_context.execution_buffer
+        executable_stop = derive_execution_stop_geometry(
+            direction=candidate.direction,
+            preferred_entry=candidate.entry.preferred,
+            structural_invalidation=candidate.invalidation.price,
+            execution_buffer=execution_buffer,
+        ).executable_stop
+        metadata = {
+            **candidate.metadata,
+            "execution_buffer": execution_buffer,
+            "executable_stop": executable_stop,
+            "geometry_buffer_reason": (
+                "strategy invalidation already contains the single noise buffer"
+                if already_buffered
+                else runtime_context.buffer_reason
+            ),
+            "observed_spread_pct": runtime_context.observed_spread_pct,
+        }
+        if runtime_context.expected_cost_pct is not None:
+            metadata["expected_cost_pct"] = runtime_context.expected_cost_pct
+        updated = replace(candidate, metadata=metadata)
+        replacements[id(candidate)] = updated
+        candidates.append(updated)
+
+    return replace(
+        analysis,
+        candidates=tuple(candidates),
+        candidate_actionability=tuple(
+            replace(item, candidate=replacements[id(item.candidate)])
+            for item in analysis.candidate_actionability
+        ),
+    )
+
+
+def _enforce_verified_target_ceiling(
+    candidate: TradeCandidate,
+    *,
+    consequence: HtfConsequence | None,
+) -> HtfConsequence | None:
+    """Reject an over-ceiling TP1 instead of fabricating a closer target."""
+
+    if consequence is None or consequence.target_ceiling_r_multiple is None:
+        return consequence
+    metadata = getattr(candidate, "metadata", {})
+    executable_stop = metadata.get("executable_stop")
+    if isinstance(executable_stop, bool) or not isinstance(executable_stop, int | float):
+        return consequence
+    stop_distance = abs(candidate.entry.preferred - float(executable_stop))
+    if stop_distance <= 0.0:
+        return consequence
+    tp1 = min(
+        candidate.targets.levels,
+        key=lambda level: abs(level.price - candidate.entry.preferred),
+    )
+    risk_multiple = abs(tp1.price - candidate.entry.preferred) / stop_distance
+    ceiling = consequence.target_ceiling_r_multiple
+    if risk_multiple <= ceiling + 1e-9:
+        return consequence
+    return replace(
+        consequence,
+        allowed=False,
+        runner_allowed=False,
+        confirmation_required=True,
+        reasons=(
+            *consequence.reasons,
+            (
+                f"nearest verified TP1 is {risk_multiple:.2f}R, above the "
+                f"{ceiling:.2f}R HTF/lane ceiling; reject rather than fabricate "
+                "a closer target"
+            ),
+        ),
     )
 
 

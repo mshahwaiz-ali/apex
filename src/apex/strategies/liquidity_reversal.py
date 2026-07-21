@@ -31,6 +31,7 @@ from apex.strategies.entry import (
     select_entry_zone,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_quality import target_space_quality
 from apex.structure.contracts import ConfirmationStatus, LevelRole, LevelStatus
 
 
@@ -83,7 +84,10 @@ def _candidate_for_direction(
     current = context.current_price
     atr = context.atr
     invalidation_price = sweep.zone.low - atr * 0.15 if bullish else sweep.zone.high + atr * 0.15
-    target_price = _target_price(context, bullish=bullish)
+    target_price, target_type, target_rationale = _target_geometry(
+        context,
+        bullish=bullish,
+    )
     if not _valid_geometry(
         current=current,
         invalidation=invalidation_price,
@@ -135,10 +139,10 @@ def _candidate_for_direction(
         targets=TargetConcept(
             levels=(
                 TargetLevel(
-                    kind=TargetType.STRUCTURAL,
+                    kind=target_type,
                     price=target_price,
                     label="primary",
-                    rationale=("nearest opposing structure or range objective",),
+                    rationale=(target_rationale,),
                 ),
             )
         ),
@@ -149,10 +153,11 @@ def _candidate_for_direction(
             momentum_quality=momentum_quality,
             volume_quality=_volume_quality(context),
             liquidity_quality=liquidity_quality,
-            target_space_quality=_target_space_quality(
+            target_space_quality=target_space_quality(
                 current=current,
                 invalidation=invalidation_price,
                 target=target_price,
+                target_type=target_type,
             ),
             extension_penalty=1.0 - entry.location_quality,
             conflict_penalty=0.0,
@@ -183,6 +188,8 @@ def _candidate_for_direction(
             "sweep_candle_index": sweep.candle_index,
             "trap_type": trap.kind.value,
             "close_recovery": sweep.close_recovery,
+            "invalidation_includes_noise_buffer": True,
+            "invalidation_buffer_source": "strategy_sweep_boundary_0.15_atr",
         },
         provisional=context.provisional,
     )
@@ -271,7 +278,11 @@ def _volume_quality(context: StrategyContext) -> float:
     return 0.5 if value is None else min(1.0, value / 2.0)
 
 
-def _target_price(context: StrategyContext, *, bullish: bool) -> float:
+def _target_geometry(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[float, TargetType, str]:
     frame = context.decision_frame
     current = context.current_price
     role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
@@ -286,23 +297,28 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         )
     ]
     if levels:
-        return min(levels) if bullish else max(levels)
+        return (
+            min(levels) if bullish else max(levels),
+            TargetType.STRUCTURAL,
+            "nearest observed opposing structural objective",
+        )
     ranges = [
         detected.high if bullish else detected.low
         for detected in frame.structure.ranges
         if (bullish and detected.high > current) or (not bullish and detected.low < current)
     ]
     if ranges:
-        return min(ranges) if bullish else max(ranges)
-    return current + context.atr * 2.2 if bullish else current - context.atr * 2.2
-
-
-def _target_space_quality(*, current: float, invalidation: float, target: float) -> float:
-    risk = abs(current - invalidation)
-    reward = abs(target - current)
-    if risk <= 0:
-        return 0.0
-    return min(1.0, reward / risk / 3.0)
+        return (
+            min(ranges) if bullish else max(ranges),
+            TargetType.RANGE,
+            "nearest observed opposing range boundary",
+        )
+    projected = current + context.atr * 2.2 if bullish else current - context.atr * 2.2
+    return (
+        projected,
+        TargetType.EXPANSION,
+        "2.2 ATR expansion projection; no verified structure or range was available",
+    )
 
 
 def _valid_geometry(*, current: float, invalidation: float, target: float, bullish: bool) -> bool:

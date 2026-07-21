@@ -286,7 +286,7 @@ def _conditional_plan(
         entry_source=_entry_source(candidate),
         trigger_matches_preferred_entry=(entry_authority.trigger_matches_selected_entry),
         stop_basis="structural_invalidation_buffered_from_candidate_entry",
-        targets_basis="strategy_supplied_structural_targets",
+        targets_basis="strategy_supplied_targets_with_explicit_provenance",
         geometry_is_trigger_relative=(entry_authority.trigger_matches_selected_entry),
     )
 
@@ -373,6 +373,12 @@ def _stop(
         atr=atr,
         minimum_buffer_pct=DEFAULT_STRUCTURAL_STOP_BUFFER_PCT,
         structural_buffer_atr=DEFAULT_STRUCTURAL_STOP_BUFFER_ATR,
+        invalidation_already_buffered=(
+            candidate.metadata.get("invalidation_includes_noise_buffer") is True
+        ),
+        execution_buffer_override=_positive_or_zero_number(
+            candidate.metadata.get("execution_buffer")
+        ),
     )
     quality_score = max(
         0.0,
@@ -400,6 +406,8 @@ def _stop(
         quality_band=quality_band,
         invalidation_type=candidate.invalidation.kind,
         buffer_rationale=geometry.buffer_reason,
+        thesis_invalidation_price=candidate.invalidation.price,
+        applied_buffer_distance=geometry.buffer,
     )
 
 
@@ -419,6 +427,7 @@ def _targets(
     )
     partials = _partial_close_percentages(len(levels))
     target_timeframe = _target_timeframe(candidate)
+    expected_cost_pct = _positive_or_zero_number(candidate.metadata.get("expected_cost_pct"))
     runner_allowed = runner_qualified
     return tuple(
         TakeProfit(
@@ -438,9 +447,37 @@ def _targets(
                 runner_allowed
                 and _target_role(level.kind, level.label) is TargetRole.EXTENSION_CANDIDATE
             ),
+            net_risk_reward=_net_risk_reward(
+                preferred_entry=preferred,
+                target_price=level.price,
+                stop_distance=stop.distance,
+                expected_cost_pct=expected_cost_pct,
+            ),
+            expected_cost_pct=expected_cost_pct,
         )
         for level, partial in zip(levels, partials, strict=True)
     )
+
+
+def _positive_or_zero_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    numeric = float(value)
+    return numeric if numeric >= 0.0 else None
+
+
+def _net_risk_reward(
+    *,
+    preferred_entry: float,
+    target_price: float,
+    stop_distance: float,
+    expected_cost_pct: float | None,
+) -> float | None:
+    if expected_cost_pct is None:
+        return None
+    gross_reward = abs(target_price - preferred_entry)
+    cost_distance = preferred_entry * expected_cost_pct / 100.0
+    return max(0.0, gross_reward - cost_distance) / stop_distance
 
 
 def _target_purpose(kind: TargetType, label: str) -> str:

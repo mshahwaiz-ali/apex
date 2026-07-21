@@ -38,6 +38,8 @@ def _opportunity(*, opportunity_id: str, category: str, state: str) -> dict[str,
 def _result(symbol: str, opportunities: list[dict[str, object]]) -> dict[str, object]:
     return {
         "symbol": symbol,
+        "display_rank": 1,
+        "generated_at": "2026-07-22T15:15:30+05:00",
         "methodology_verdict": {"status": "allowed"},
         "opportunity_portfolio": {
             "symbol": symbol,
@@ -111,6 +113,9 @@ def test_render_scan_expands_complete_portfolios_in_locked_order() -> None:
         assert raw_id not in rendered
 
     assert "Breakout retest · Current · Ready now" in rendered
+    assert "Signal generated  2026-07-22 15:15:30 UTC+05:00" in rendered
+    assert rendered.index("Rank #1") < rendered.index("Signal generated")
+    assert rendered.index("Signal generated") < rendered.index("Breakout retest")
     assert "Breakout retest · Current · Wait for retest" in rendered
     assert "Breakout retest · Nearby · Approaching entry" in rendered
     assert "Breakout retest · Follow up · Watch" in rendered

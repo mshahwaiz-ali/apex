@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import cast
 
 import apex.application.methodology_candidate_routing as candidate_routing
 from apex.application.methodology_candidate_routing import (
+    _enforce_verified_target_ceiling,
     _htf_assessment_from_layered_state,
     apply_methodology_candidate_routing,
     evaluate_methodology_candidate_routing,
     methodology_candidate_routing_payload,
 )
+from apex.application.methodology_htf_consequences import HtfConsequence
 from apex.application.methodology_opportunity_context import (
     HoldingHorizon,
     OpportunityLane,
@@ -528,6 +531,35 @@ def test_routing_passes_layered_state_and_mild_htf_consequence(monkeypatch) -> N
     assert consequence.runner_allowed is False
     assert consequence.confirmation_required is False
     assert consequence.target_ceiling_r_multiple == 2.5
+
+
+def test_verified_tp1_above_lane_ceiling_is_rejected_not_rewritten() -> None:
+    target = SimpleNamespace(price=106.0)
+    candidate = cast(
+        TradeCandidate,
+        SimpleNamespace(
+            entry=SimpleNamespace(preferred=100.0),
+            targets=SimpleNamespace(levels=(target,)),
+            metadata={"executable_stop": 98.0},
+        ),
+    )
+    consequence = HtfConsequence(
+        allowed=True,
+        runner_allowed=True,
+        confirmation_required=False,
+        target_ceiling_r_multiple=2.0,
+        holding_horizon=HoldingHorizon.SCALP,
+        exit_condition_required=False,
+        reasons=("mixed context constrains the target",),
+    )
+
+    enforced = _enforce_verified_target_ceiling(candidate, consequence=consequence)
+
+    assert enforced is not None
+    assert enforced.allowed is False
+    assert target.price == 106.0
+    assert "3.00R" in enforced.reasons[-1]
+    assert "2.00R" in enforced.reasons[-1]
 
 
 def test_countertrend_relationship_rejects_non_scalp_lane(monkeypatch) -> None:

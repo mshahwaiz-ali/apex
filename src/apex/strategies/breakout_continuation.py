@@ -25,6 +25,7 @@ from apex.strategies.entry import (
     select_entry_zone,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_quality import target_space_quality
 from apex.structure.contracts import (
     BreakDirection,
     BreakQuality,
@@ -99,7 +100,10 @@ def _candidate_for_direction(
     invalidation_price = (
         break_event.broken_level - atr * 0.15 if bullish else break_event.broken_level + atr * 0.15
     )
-    target_price = _target_price(context, bullish=bullish)
+    target_price, target_type, target_rationale = _target_geometry(
+        context,
+        bullish=bullish,
+    )
     if not _valid_geometry(
         current=current,
         invalidation=invalidation_price,
@@ -146,10 +150,10 @@ def _candidate_for_direction(
         targets=TargetConcept(
             levels=(
                 TargetLevel(
-                    kind=TargetType.LIQUIDITY,
+                    kind=target_type,
                     price=target_price,
                     label="primary",
-                    rationale=("nearest opposing liquidity or structural objective",),
+                    rationale=(target_rationale,),
                 ),
             )
         ),
@@ -160,10 +164,11 @@ def _candidate_for_direction(
             momentum_quality=_momentum_quality(context, bullish=bullish),
             volume_quality=volume_quality,
             liquidity_quality=0.6,
-            target_space_quality=_target_space_quality(
+            target_space_quality=target_space_quality(
                 current=current,
                 invalidation=invalidation_price,
                 target=target_price,
+                target_type=target_type,
             ),
             extension_penalty=min(1.0, extension_atr / maximum_extension_atr),
             conflict_penalty=0.25 if higher_timeframe_conflict else 0.0,
@@ -192,6 +197,8 @@ def _candidate_for_direction(
             "break_quality": break_event.quality.value,
             "extension_atr": extension_atr,
             "higher_timeframe_conflict": higher_timeframe_conflict,
+            "invalidation_includes_noise_buffer": True,
+            "invalidation_buffer_source": "strategy_break_level_0.15_atr",
         },
         provisional=context.provisional,
     )
@@ -246,7 +253,11 @@ def _momentum_quality(context: StrategyContext, *, bullish: bool) -> float:
     return aligned / len(signals)
 
 
-def _target_price(context: StrategyContext, *, bullish: bool) -> float:
+def _target_geometry(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[float, TargetType, str]:
     frame = context.decision_frame
     current = context.current_price
     liquidity_side = LiquiditySide.BUY_SIDE if bullish else LiquiditySide.SELL_SIDE
@@ -261,7 +272,11 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         )
     ]
     if liquidity_prices:
-        return min(liquidity_prices) if bullish else max(liquidity_prices)
+        return (
+            min(liquidity_prices) if bullish else max(liquidity_prices),
+            TargetType.LIQUIDITY,
+            "nearest observed opposing liquidity objective",
+        )
 
     role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
     level_prices = [
@@ -275,16 +290,17 @@ def _target_price(context: StrategyContext, *, bullish: bool) -> float:
         )
     ]
     if level_prices:
-        return min(level_prices) if bullish else max(level_prices)
-    return current + context.atr * 2.5 if bullish else current - context.atr * 2.5
-
-
-def _target_space_quality(*, current: float, invalidation: float, target: float) -> float:
-    risk = abs(current - invalidation)
-    reward = abs(target - current)
-    if risk <= 0:
-        return 0.0
-    return min(1.0, reward / risk / 3.0)
+        return (
+            min(level_prices) if bullish else max(level_prices),
+            TargetType.STRUCTURAL,
+            "nearest observed opposing structural objective",
+        )
+    projected = current + context.atr * 2.5 if bullish else current - context.atr * 2.5
+    return (
+        projected,
+        TargetType.EXPANSION,
+        "2.5 ATR expansion projection; no verified structural obstacle was available",
+    )
 
 
 def _valid_geometry(*, current: float, invalidation: float, target: float, bullish: bool) -> bool:

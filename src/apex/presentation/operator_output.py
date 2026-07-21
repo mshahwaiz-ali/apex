@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 
 from apex.presentation import (
     UNAVAILABLE,
@@ -78,13 +79,41 @@ def _portfolio_analysis_sections(
 
     sections = [_portfolio_market_snapshot(payload, portfolio)]
     if current:
-        sections.append(_opportunity_group("Current opportunities", current, symbol=symbol))
+        sections.append(
+            _opportunity_group(
+                "Current opportunities",
+                current,
+                symbol=symbol,
+                generated_at=payload.get("generated_at"),
+            )
+        )
     if nearby:
-        sections.append(_opportunity_group("Nearby opportunity", nearby, symbol=symbol))
+        sections.append(
+            _opportunity_group(
+                "Nearby opportunity",
+                nearby,
+                symbol=symbol,
+                generated_at=payload.get("generated_at"),
+            )
+        )
     if follow_up:
-        sections.append(_opportunity_group("Follow-up opportunity", follow_up, symbol=symbol))
+        sections.append(
+            _opportunity_group(
+                "Follow-up opportunity",
+                follow_up,
+                symbol=symbol,
+                generated_at=payload.get("generated_at"),
+            )
+        )
     if runner:
-        sections.append(_opportunity_group("Runner management", runner, symbol=symbol))
+        sections.append(
+            _opportunity_group(
+                "Runner management",
+                runner,
+                symbol=symbol,
+                generated_at=payload.get("generated_at"),
+            )
+        )
 
     if not all_opportunities:
         setup_plan = _setup_plan_section(payload)
@@ -136,12 +165,14 @@ def _opportunity_group(
     opportunities: Sequence[Mapping[str, object]],
     *,
     symbol: str,
+    generated_at: object = None,
 ) -> str:
     cards = [
         _opportunity_card(
             opportunity,
             index=index,
             symbol=symbol,
+            generated_at=generated_at,
         )
         for index, opportunity in enumerate(opportunities, start=1)
     ]
@@ -153,6 +184,7 @@ def _opportunity_card(
     *,
     index: int,
     symbol: str,
+    generated_at: object = None,
 ) -> str:
     setup = _mapping(opportunity.get("setup")) or opportunity
     entry = _mapping(setup.get("entry"))
@@ -185,10 +217,11 @@ def _opportunity_card(
     if warnings:
         fields.append(("Main risk", warnings[0]))
 
-    header_lines = [
-        f"▶  Opportunity #{index}  {symbol} — {direction}",
-        f"   {_opportunity_context_line(opportunity, setup)}",
-    ]
+    header_lines = [f"▶  Opportunity #{index}  {symbol} — {direction}"]
+    signal_time = _signal_generated_label(generated_at)
+    if signal_time:
+        header_lines.append(f"   Signal generated  {signal_time}")
+    header_lines.append(f"   {_opportunity_context_line(opportunity, setup)}")
     relationship_line = _opportunity_relationship_line(setup)
     if relationship_line:
         header_lines.append(f"   {relationship_line}")
@@ -545,10 +578,11 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
         if isinstance(display_rank, int) and not isinstance(display_rank, bool)
         else f"Opportunity #{index}"
     )
-    header_lines = [
-        f"▶  {rank_label}  {symbol} — {direction.upper()}",
-        f"   {_opportunity_context_line(opportunity, setup)}",
-    ]
+    header_lines = [f"▶  {rank_label}  {symbol} — {direction.upper()}"]
+    signal_time = _signal_generated_label(source.get("generated_at"))
+    if signal_time:
+        header_lines.append(f"   Signal generated  {signal_time}")
+    header_lines.append(f"   {_opportunity_context_line(opportunity, setup)}")
     relationship_line = _opportunity_relationship_line(setup)
     if relationship_line:
         header_lines.append(f"   {relationship_line}")
@@ -570,6 +604,23 @@ def _opportunity_context_line(
     return " · ".join(
         value for value in (strategy, lane, actionability) if value and value != UNAVAILABLE
     )
+
+
+def _signal_generated_label(value: object) -> str | None:
+    """Render the immutable analysis timestamp without hiding its timezone."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    try:
+        timestamp = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return raw
+    timezone = timestamp.strftime("%Z")
+    if not timezone and timestamp.utcoffset() is not None:
+        offset = timestamp.strftime("%z")
+        timezone = f"UTC{offset[:3]}:{offset[3:]}" if offset != "+0000" else "UTC"
+    return f"{timestamp:%Y-%m-%d %H:%M:%S} {timezone}".rstrip()
 
 
 def _opportunity_relationship_line(setup: Mapping[str, object]) -> str:
@@ -1876,13 +1927,16 @@ def _target_label(
     target_quality: object = None,
 ) -> str:
     price = target.get("price")
-    rr = format_ratio(target.get("risk_reward"))
+    gross_rr = format_ratio(target.get("gross_risk_reward") or target.get("risk_reward"))
+    net_rr = format_ratio(target.get("net_risk_reward"))
     move = _move_pct(price, reference)
     suffixes: list[str] = []
     if move is not None:
         suffixes.append(f"{move:+.2f}%")
-    if rr != UNAVAILABLE:
-        suffixes.append(f"{rr}R")
+    if gross_rr != UNAVAILABLE:
+        suffixes.append(f"{gross_rr}R gross")
+    if net_rr != UNAVAILABLE:
+        suffixes.append(f"{net_rr}R net")
 
     quality = _quality(target_quality)
     if target_quality is not None and quality != UNAVAILABLE:
