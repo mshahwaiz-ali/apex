@@ -140,8 +140,10 @@ def format_price(value: object, *, decimals: int | None = None) -> str:
     precision = decimals
     if precision is None:
         absolute = abs(number)
-        if absolute >= 1:
+        if absolute >= 100:
             precision = 2
+        elif absolute >= 1:
+            precision = 3
         elif absolute >= 0.1:
             precision = 4
         elif absolute >= 0.01:

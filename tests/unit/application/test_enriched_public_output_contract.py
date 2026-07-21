@@ -14,6 +14,7 @@ from apex.application.discovery_contracts import (
     TakeProfit,
 )
 from apex.application.enriched_public_output import (
+    _no_trade_summary,
     serialize_scan_result,
     serialize_symbol_analysis,
 )
@@ -192,6 +193,35 @@ def test_no_valid_setup_still_has_truthful_setup_plan() -> None:
         "no clear target room",
     ]
     assert "fabricated" in plan["notice"]
+
+
+def test_ranked_no_trade_summary_does_not_claim_geometry_failure() -> None:
+    payload = {
+        "phase5_diagnostics": {
+            "zero_trade_diagnostics": {
+                "selection_summary": {
+                    "raw_candidate_count": 4,
+                    "retained_candidate_count": 1,
+                    "ranked_count": 1,
+                    "rejected_count": 1,
+                },
+                "top_rejected_reasons": [
+                    {
+                        "reason": "Market environment is explicitly untradeable for new candidates",
+                        "count": 1,
+                    }
+                ],
+            }
+        }
+    }
+
+    current_state, main_risk = _no_trade_summary(payload, [])
+
+    assert current_state == (
+        "1 candidate(s) were ranked; none cleared the final selection requirements."
+    )
+    assert "geometry" not in current_state
+    assert main_risk == "Market environment is explicitly untradeable for new candidates"
 
 
 def test_missing_methodology_gate_is_explicitly_non_authoritative() -> None:

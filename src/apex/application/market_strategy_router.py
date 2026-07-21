@@ -9,6 +9,7 @@ from apex.market_environment import (
     ConflictState,
     ExtensionState,
     HigherTimeframeBias,
+    InputCompleteness,
     MarketEnvironment,
     MarketRegime,
     VolatilityState,
@@ -125,11 +126,15 @@ def route_market_strategies(environment: MarketEnvironment) -> MarketStrategyRou
     all_strategies = tuple(StrategyType)
     reasons: list[str] = []
     codes: list[str] = []
-    if not environment.tradeable or environment.primary_regime in {
-        MarketRegime.UNTRADEABLE,
-        MarketRegime.UNKNOWN,
-        MarketRegime.NOISY,
-    }:
+    if (
+        environment.input_completeness is InputCompleteness.INSUFFICIENT
+        or environment.primary_regime
+        in {
+            MarketRegime.UNTRADEABLE,
+            MarketRegime.UNKNOWN,
+            MarketRegime.NOISY,
+        }
+    ):
         return MarketStrategyRoute(
             allowed_strategies=(),
             blocked_strategies=all_strategies,
@@ -146,6 +151,13 @@ def route_market_strategies(environment: MarketEnvironment) -> MarketStrategyRou
     score = max(environment.long_suitability_score, environment.short_suitability_score)
     codes.append("REGIME_ROUTE_APPLIED")
     reasons.append(f"{environment.primary_regime.value} strategy route applied")
+
+    if not environment.tradeable:
+        codes.append("ENVIRONMENT_TRADEABILITY_WARNING")
+        reasons.append(
+            "Fused alignment or conflict thresholds were not met; candidate-specific "
+            "evidence and geometry remain authoritative"
+        )
 
     if environment.conflict_state is not ConflictState.NONE:
         score -= environment.conflict_score * 0.35

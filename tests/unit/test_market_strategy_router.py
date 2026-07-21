@@ -67,6 +67,38 @@ def test_untradeable_environment_blocks_all_routes() -> None:
     assert route.routing_score == 0.0
 
 
+def test_threshold_only_untradeable_environment_remains_candidate_routable() -> None:
+    route = route_market_strategies(
+        _environment(
+            tradeable=False,
+            primary_regime=MarketRegime.EXHAUSTION_DOWN,
+            alignment_score=54.1,
+            long_suitability_score=45.9,
+            short_suitability_score=54.1,
+            conflict_state=ConflictState.EXTENSION_WARNING,
+            conflict_score=20.0,
+            extension_state=ExtensionState.EXTREME,
+        )
+    )
+
+    assert StrategyType.EXHAUSTION_REVERSAL in route.allowed_strategies
+    assert StrategyType.TREND_PULLBACK in route.allowed_strategies
+    assert "ENVIRONMENT_ROUTE_BLOCKED" not in route.reason_codes
+    assert "ENVIRONMENT_TRADEABILITY_WARNING" in route.reason_codes
+
+
+def test_insufficient_environment_data_still_blocks_all_routes() -> None:
+    route = route_market_strategies(
+        _environment(
+            tradeable=False,
+            input_completeness=InputCompleteness.INSUFFICIENT,
+        )
+    )
+
+    assert route.allowed_strategies == ()
+    assert "ENVIRONMENT_ROUTE_BLOCKED" in route.reason_codes
+
+
 def test_failed_breakout_keeps_trend_pullback_fallback() -> None:
     route = route_market_strategies(_environment(primary_regime=MarketRegime.FAILED_BREAKOUT_UP))
 

@@ -171,6 +171,7 @@ def _direction_conflicts(preferred_direction: str, direction: TradeDirection) ->
 
 def _warning_penalty(reason_codes: Sequence[str]) -> float:
     warning_codes = {
+        "ENVIRONMENT_TRADEABILITY_WARNING",
         "ROUTE_CONFLICT_PENALTY",
         "CHASE_STRATEGIES_BLOCKED",
         "EXTREME_VOLATILITY_ROUTE_REDUCTION",

@@ -19,13 +19,14 @@ def _snapshot(
     direction: MarketStateDirection,
     active: tuple[MarketStateTag, ...] | None = None,
     tradeable: bool = True,
+    environment_regime: MarketRegime = MarketRegime.RANGE,
 ) -> MarketStateSnapshot:
     return MarketStateSnapshot(
         primary_state=primary,
         active_states=active or (primary,),
         direction=direction,
         decision_regime="stable_range",
-        environment_regime=MarketRegime.RANGE,
+        environment_regime=environment_regime,
         tradeable=tradeable,
         confidence_score=70.0 if tradeable else 0.0,
         reason_codes=("MARKET_STATE_CLASSIFIED",),
@@ -84,8 +85,29 @@ def test_untradeable_state_maps_to_chaotic_with_direct_opposition() -> None:
             primary=MarketStateTag.UNTRADEABLE,
             direction=MarketStateDirection.UNKNOWN,
             tradeable=False,
+            environment_regime=MarketRegime.UNTRADEABLE,
         )
     )
 
     assert classification.primary is PrimaryMarketState.CHAOTIC
     assert SecondaryMarketCondition.DIRECT_STRUCTURAL_OPPOSITION in classification.secondary
+
+
+def test_threshold_only_untradeable_state_is_not_direct_structural_opposition() -> None:
+    classification = adapt_market_state(
+        _snapshot(
+            primary=MarketStateTag.UNTRADEABLE,
+            direction=MarketStateDirection.SHORT,
+            active=(
+                MarketStateTag.UNTRADEABLE,
+                MarketStateTag.EXHAUSTION,
+                MarketStateTag.EXTENSION_WARNING,
+                MarketStateTag.CONFLICT_WARNING,
+            ),
+            tradeable=False,
+            environment_regime=MarketRegime.EXHAUSTION_DOWN,
+        )
+    )
+
+    assert SecondaryMarketCondition.DIRECT_STRUCTURAL_OPPOSITION not in classification.secondary
+    assert SecondaryMarketCondition.MILD_HTF_CONFLICT in classification.secondary

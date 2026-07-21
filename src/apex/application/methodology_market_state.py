@@ -12,6 +12,7 @@ from apex.application.methodology_strategy_contracts import (
     PrimaryMarketState,
     SecondaryMarketCondition,
 )
+from apex.market_environment import MarketRegime
 
 _PRIMARY_BY_TAG_AND_DIRECTION: dict[
     tuple[MarketStateTag, MarketStateDirection], PrimaryMarketState
@@ -66,7 +67,7 @@ def adapt_market_state(snapshot: MarketStateSnapshot) -> MarketStateClassificati
         )
     if MarketStateTag.CONFLICT_WARNING in active:
         secondary.append(SecondaryMarketCondition.MILD_HTF_CONFLICT)
-    if not snapshot.tradeable:
+    if _has_direct_structural_opposition(snapshot):
         secondary.append(SecondaryMarketCondition.DIRECT_STRUCTURAL_OPPOSITION)
 
     evidence_ids = tuple(dict.fromkeys((*snapshot.reason_codes, *snapshot.active_states)))
@@ -78,6 +79,16 @@ def adapt_market_state(snapshot: MarketStateSnapshot) -> MarketStateClassificati
         secondary=tuple(dict.fromkeys(secondary)),
         evidence_ids=normalized_ids,
         reason="; ".join(snapshot.reasons),
+    )
+
+
+def _has_direct_structural_opposition(snapshot: MarketStateSnapshot) -> bool:
+    """Keep broad tradeability thresholds distinct from structural opposition."""
+
+    return (
+        MarketStateTag.CHAOTIC_VOLATILITY in snapshot.active_states
+        or snapshot.environment_regime
+        in {MarketRegime.UNTRADEABLE, MarketRegime.UNKNOWN, MarketRegime.NOISY}
     )
 
 

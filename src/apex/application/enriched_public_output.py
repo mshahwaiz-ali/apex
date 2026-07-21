@@ -374,8 +374,8 @@ def _no_trade_summary(
         )
     elif rejected_count > 0:
         current_state = (
-            f"{ranked_count} candidate(s) were ranked; no candidate satisfied "
-            "the complete execution and risk geometry."
+            f"{ranked_count} candidate(s) were ranked; none cleared the final "
+            "selection requirements."
         )
     else:
         current_state = primary_reason or fallback

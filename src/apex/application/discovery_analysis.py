@@ -462,9 +462,16 @@ def _zero_trade_diagnostics(
         for strategy, diagnostic in strategy_diagnostics.items()
     }
     ranked_outcomes = Counter(item.outcome.value for item in selection.ranked_candidates)
-    rejected_reasons = Counter(
-        reason for item in selection.rejected_candidates for reason in item.reasons
-    )
+    rejected_reasons: list[dict[str, Any]] = []
+    seen_rejected_reasons: set[str] = set()
+    for item in selection.rejected_candidates:
+        alignment = item.scored.environment_route_alignment
+        item_reasons = (() if alignment is None else tuple(alignment.reasons)) + tuple(item.reasons)
+        for reason in item_reasons:
+            if not reason or reason in seen_rejected_reasons:
+                continue
+            seen_rejected_reasons.add(reason)
+            rejected_reasons.append({"reason": reason, "count": 1})
     selected = selection.selected_candidate
     developing = assessment.developing_setup
     methodology_input_count = int(
@@ -515,9 +522,7 @@ def _zero_trade_diagnostics(
         "canonical_family_distribution": dict(sorted(family_counts.items())),
         "ranked_outcome_distribution": dict(sorted(ranked_outcomes.items())),
         "strategy_rejection_code_distribution": dict(sorted(rejection_codes.items())),
-        "top_rejected_reasons": [
-            {"reason": reason, "count": count} for reason, count in rejected_reasons.most_common(8)
-        ],
+        "top_rejected_reasons": rejected_reasons[:8],
         "strategy_diagnostics": strategy_summary,
         "methodology_shadow_vs_enforce": {
             "mode": methodology_routing.mode.value,
