@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 
+import apex.application.methodology_candidate_routing as candidate_routing
 from apex.application.methodology_candidate_routing import (
     apply_methodology_candidate_routing,
     evaluate_methodology_candidate_routing,
@@ -52,6 +53,7 @@ def _candidate(
             evidence=StrategyEvidence(
                 supporting=("price structure supports the setup",),
                 structure_references=("structure reference",),
+                liquidity_references=("liquidity reference",),
             ),
             entry=_Entry(entry_mode),
         ),
@@ -211,7 +213,12 @@ def test_candidate_lane_context_prevents_broad_state_from_vetoing_local_scalp() 
         "trend_pullback:long:0",
         "range_reversal:long:0",
     }
-    assert all(item.action is StrategyEnforcementAction.ALLOW for item in result.decisions)
+    decisions = {item.strategy: item for item in result.decisions}
+    assert decisions[StrategyType.TREND_PULLBACK].action is StrategyEnforcementAction.DEFER
+    assert decisions[StrategyType.TREND_PULLBACK].reason_codes == (
+        "METHODOLOGY_METADATA_INCOMPLETE",
+    )
+    assert decisions[StrategyType.RANGE_REVERSAL].action is StrategyEnforcementAction.ALLOW
 
 
 def test_prohibited_chaotic_state_still_suppresses_candidate_lanes() -> None:
@@ -221,9 +228,17 @@ def test_prohibited_chaotic_state_still_suppresses_candidate_lanes() -> None:
         mode=MethodologyGateMode.ENFORCE,
     )
 
-    assert result.analysis.candidates == ()
-    assert result.suppressed_candidate_count == 2
-    assert all(item.action is StrategyEnforcementAction.SUPPRESS for item in result.decisions)
+    assert tuple(item.strategy for item in result.analysis.candidates) == (
+        StrategyType.TREND_PULLBACK,
+    )
+    assert result.suppressed_candidate_count == 1
+    decisions = {item.strategy: item for item in result.decisions}
+    assert decisions[StrategyType.TREND_PULLBACK].action is StrategyEnforcementAction.DEFER
+    assert decisions[StrategyType.TREND_PULLBACK].reason_codes == (
+        "METHODOLOGY_METADATA_INCOMPLETE",
+    )
+    assert decisions[StrategyType.RANGE_REVERSAL].action is StrategyEnforcementAction.SUPPRESS
+    assert decisions[StrategyType.RANGE_REVERSAL].reason_codes == ("METHODOLOGY_PROHIBITED_STATE",)
 
 
 def test_nearby_structured_retest_is_a_scalp_not_a_runner_veto() -> None:
@@ -254,3 +269,154 @@ def test_nearby_structured_retest_is_a_scalp_not_a_runner_veto() -> None:
     assert result.suppressed_candidate_count == 0
     assert result.decisions[0].action is StrategyEnforcementAction.ALLOW
     assert result.decisions[0].reason_codes == ("METHODOLOGY_COMPATIBLE_WITH_CONSTRAINTS",)
+
+
+def test_routing_passes_measurable_lane_horizon_into_shared_context(
+    monkeypatch: object,
+) -> None:
+    candidate = _candidate(StrategyType.TREND_PULLBACK)
+    analysis = StrategyAnalysisResult(
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 18, tzinfo=UTC),
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+        eligible_strategies=(StrategyType.TREND_PULLBACK,),
+        candidate_actionability=(
+            CandidateActionability(
+                candidate=candidate,
+                status=EntryStatus.READY_NOW,
+            ),
+        ),
+    )
+    sentinel = object()
+    captured: dict[str, object] = {}
+
+    def fake_assessment(
+        candidate_arg: TradeCandidate,
+        *,
+        entry_status: object,
+    ) -> object:
+        assert candidate_arg is candidate
+        assert entry_status is EntryStatus.READY_NOW
+        return sentinel
+
+    original_infer = candidate_routing.infer_candidate_methodology_context
+
+    def capture_context(
+        candidate_arg: TradeCandidate,
+        *,
+        entry_status: EntryStatus,
+        lane_horizon: object | None = None,
+    ) -> object:
+        captured["candidate"] = candidate_arg
+        captured["entry_status"] = entry_status
+        captured["lane_horizon"] = lane_horizon
+        return original_infer(
+            candidate_arg,
+            entry_status=entry_status,
+            lane_horizon=None,
+        )
+
+    monkeypatch.setattr(
+        candidate_routing,
+        "_candidate_lane_horizon_assessment",
+        fake_assessment,
+    )
+    monkeypatch.setattr(
+        candidate_routing,
+        "infer_candidate_methodology_context",
+        capture_context,
+    )
+
+    result = evaluate_methodology_candidate_routing(
+        analysis,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.SHADOW,
+    )
+
+    assert result.input_candidate_count == 1
+    assert captured == {
+        "candidate": candidate,
+        "entry_status": EntryStatus.READY_NOW,
+        "lane_horizon": sentinel,
+    }
+
+
+def test_routing_preserves_legacy_context_when_measurement_is_unavailable(
+    monkeypatch: object,
+) -> None:
+    candidate = _candidate(StrategyType.TREND_PULLBACK)
+    analysis = StrategyAnalysisResult(
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 18, tzinfo=UTC),
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+        eligible_strategies=(StrategyType.TREND_PULLBACK,),
+        candidate_actionability=(
+            CandidateActionability(
+                candidate=candidate,
+                status=EntryStatus.READY_NOW,
+            ),
+        ),
+    )
+    captured: dict[str, object] = {}
+    original_infer = candidate_routing.infer_candidate_methodology_context
+
+    def unavailable(
+        candidate_arg: TradeCandidate,
+        *,
+        entry_status: object,
+    ) -> None:
+        assert candidate_arg is candidate
+        assert entry_status is EntryStatus.READY_NOW
+        return None
+
+    def capture_context(
+        candidate_arg: TradeCandidate,
+        *,
+        entry_status: EntryStatus,
+        lane_horizon: object | None = None,
+    ) -> object:
+        captured["lane_horizon"] = lane_horizon
+        return original_infer(
+            candidate_arg,
+            entry_status=entry_status,
+            lane_horizon=None,
+        )
+
+    monkeypatch.setattr(
+        candidate_routing,
+        "_candidate_lane_horizon_assessment",
+        unavailable,
+    )
+    monkeypatch.setattr(
+        candidate_routing,
+        "infer_candidate_methodology_context",
+        capture_context,
+    )
+
+    result = evaluate_methodology_candidate_routing(
+        analysis,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.SHADOW,
+    )
+
+    assert result.input_candidate_count == 1
+    assert captured["lane_horizon"] is None
+
+
+def test_geometry_safety_audit_is_shadow_only_and_preserved_in_payload() -> None:
+    result = evaluate_methodology_candidate_routing(
+        _analysis(),
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.SHADOW,
+    )
+
+    assert len(result.analysis.candidates) == 2
+    assert len(result.geometry_safety_audits) == 2
+    assert all(item.assessment is None for item in result.geometry_safety_audits)
+    payload = methodology_candidate_routing_payload(result)
+    audits = cast(list[dict[str, object]], payload["geometry_safety_audits"])
+    assert len(audits) == 2
+    assert all(item["shadow_only"] is True for item in audits)
+    assert all(item["available"] is False for item in audits)

@@ -5,6 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from apex.application.methodology_adapters import strategy_evidence_observations
+from apex.application.methodology_candidate_geometry_safety import (
+    CandidateGeometrySafetyAudit,
+    audit_candidate_geometry_safety,
+    candidate_geometry_safety_audit_payload,
+)
+from apex.application.methodology_candidate_lane_horizon import (
+    measure_candidate_lane_horizon,
+)
+from apex.application.methodology_lane_horizon import LaneHorizonAssessment
 from apex.application.methodology_opportunity_context import (
     infer_candidate_methodology_context,
 )
@@ -20,6 +29,7 @@ from apex.application.methodology_strategy_evaluation import evaluate_strategy_e
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
 from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
+from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
 
@@ -55,6 +65,33 @@ class MethodologyRoutingParityAudit:
             raise ValueError("methodology parity audit requires reason codes")
 
 
+def _candidate_lane_horizon_assessment(
+    candidate: TradeCandidate,
+    *,
+    entry_status: EntryStatus,
+) -> LaneHorizonAssessment | None:
+    """Return a measurable assessment when complete inputs are available.
+
+    AttributeError is treated as unavailable so lightweight test doubles and
+    legacy callers retain the previous inference path. Real candidate
+    validation errors are not swallowed.
+    """
+
+    try:
+        metadata = candidate.metadata
+    except AttributeError:
+        return None
+
+    runner_authority_value = metadata.get("runner_authority")
+    runner_authority = runner_authority_value if isinstance(runner_authority_value, bool) else None
+    measurement = measure_candidate_lane_horizon(
+        candidate,
+        entry_status=entry_status,
+        runner_authority=runner_authority,
+    )
+    return measurement.assessment
+
+
 @dataclass(frozen=True, slots=True)
 class MethodologyCandidateRoutingResult:
     """Candidate-routing outcome with deterministic audit metadata."""
@@ -66,6 +103,7 @@ class MethodologyCandidateRoutingResult:
     suppressed_candidate_count: int
     suppressed_strategies: tuple[StrategyType, ...]
     reason_codes: tuple[str, ...]
+    geometry_safety_audits: tuple[CandidateGeometrySafetyAudit, ...] = ()
 
     def __post_init__(self) -> None:
         if self.input_candidate_count < 0:
@@ -99,6 +137,7 @@ def evaluate_methodology_candidate_routing(
     """Evaluate each generated strategy from its own candidate evidence."""
 
     decisions: list[StrategyEnforcementDecision] = []
+    geometry_safety_audits: list[CandidateGeometrySafetyAudit] = []
     identities = candidate_identities(analysis.candidates)
     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
     status_by_object = {
@@ -121,11 +160,24 @@ def evaluate_methodology_candidate_routing(
             )
             continue
         for candidate in strategy_candidates:
+            entry_status = status_by_object[id(candidate)]
+            lane_horizon = _candidate_lane_horizon_assessment(
+                candidate,
+                entry_status=entry_status,
+            )
             context = infer_candidate_methodology_context(
                 candidate,
-                entry_status=status_by_object[id(candidate)],
+                entry_status=entry_status,
+                lane_horizon=lane_horizon,
             )
             candidate_id = identity_by_object[id(candidate)]
+            geometry_safety_audits.append(
+                audit_candidate_geometry_safety(
+                    candidate,
+                    candidate_id=candidate_id,
+                    lane=context.lane,
+                )
+            )
             decisions.append(
                 derive_strategy_enforcement(
                     evaluate_strategy_eligibility(
@@ -143,6 +195,7 @@ def evaluate_methodology_candidate_routing(
         analysis,
         tuple(decisions),
         mode=mode,
+        geometry_safety_audits=tuple(geometry_safety_audits),
     )
 
 
@@ -151,6 +204,7 @@ def apply_methodology_candidate_routing(
     decisions: tuple[StrategyEnforcementDecision, ...],
     *,
     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
+    geometry_safety_audits: tuple[CandidateGeometrySafetyAudit, ...] = (),
 ) -> MethodologyCandidateRoutingResult:
     """Suppress explicit strategy conflicts before ranking when enforcement is enabled.
 
@@ -169,6 +223,7 @@ def apply_methodology_candidate_routing(
             suppressed_candidate_count=0,
             suppressed_strategies=(),
             reason_codes=("METHODOLOGY_CANDIDATE_ROUTING_SHADOW",),
+            geometry_safety_audits=geometry_safety_audits,
         )
 
     identities = candidate_identities(analysis.candidates)
@@ -229,6 +284,7 @@ def apply_methodology_candidate_routing(
             if newly_suppressed
             else "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE",
         ),
+        geometry_safety_audits=geometry_safety_audits,
     )
 
 
@@ -309,6 +365,9 @@ def methodology_candidate_routing_payload(
         "suppressed_strategies": [item.value for item in result.suppressed_strategies],
         "reason_codes": list(result.reason_codes),
         "strategy_decisions": [strategy_enforcement_payload(item) for item in result.decisions],
+        "geometry_safety_audits": [
+            candidate_geometry_safety_audit_payload(item) for item in result.geometry_safety_audits
+        ],
         "suppressed_candidates": [
             {
                 "candidate_id": item.candidate_id,
