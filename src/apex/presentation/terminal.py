@@ -112,6 +112,10 @@ def emit_terminal(text: str) -> None:
             typer.secho(line, fg=typer.colors.CYAN, bold=True)
         elif line.startswith("┌─"):
             typer.secho(line, fg=typer.colors.BRIGHT_CYAN, bold=True)
+        elif line.startswith("▶") and line.rstrip().endswith("— LONG"):
+            typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
+        elif line.startswith("▶") and line.rstrip().endswith("— SHORT"):
+            typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
         elif line.startswith("▶"):
             typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
         elif line.startswith("!"):

@@ -74,16 +74,17 @@ def _portfolio_analysis_sections(
     follow_up = _mappings(portfolio.get("follow_up_opportunities"))
     runner = _mappings(portfolio.get("runner_opportunities"))
     all_opportunities = _mappings(portfolio.get("opportunities"))
+    symbol = str(portfolio.get("symbol") or payload.get("symbol") or "Unknown market")
 
     sections = [_portfolio_market_snapshot(payload, portfolio)]
     if current:
-        sections.append(_opportunity_group("Current opportunities", current))
+        sections.append(_opportunity_group("Current opportunities", current, symbol=symbol))
     if nearby:
-        sections.append(_opportunity_group("Nearby opportunity", nearby))
+        sections.append(_opportunity_group("Nearby opportunity", nearby, symbol=symbol))
     if follow_up:
-        sections.append(_opportunity_group("Follow-up opportunity", follow_up))
+        sections.append(_opportunity_group("Follow-up opportunity", follow_up, symbol=symbol))
     if runner:
-        sections.append(_opportunity_group("Runner management", runner))
+        sections.append(_opportunity_group("Runner management", runner, symbol=symbol))
 
     if not all_opportunities:
         setup_plan = _setup_plan_section(payload)
@@ -133,31 +134,39 @@ def _portfolio_market_snapshot(
 def _opportunity_group(
     title: str,
     opportunities: Sequence[Mapping[str, object]],
+    *,
+    symbol: str,
 ) -> str:
     cards = [
-        _opportunity_card(opportunity, index=index)
+        _opportunity_card(
+            opportunity,
+            index=index,
+            symbol=symbol,
+        )
         for index, opportunity in enumerate(opportunities, start=1)
     ]
     return render_section(title, ("\n  " + "·" * 72 + "\n\n").join(cards))
 
 
-def _opportunity_card(opportunity: Mapping[str, object], *, index: int) -> str:
+def _opportunity_card(
+    opportunity: Mapping[str, object],
+    *,
+    index: int,
+    symbol: str,
+) -> str:
     setup = _mapping(opportunity.get("setup")) or opportunity
     entry = _mapping(setup.get("entry"))
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     quality = _mapping(setup.get("quality_dimensions"))
     reference = _number(entry.get("preferred")) or _number(entry.get("current_price"))
+    direction = humanize_code(opportunity.get("direction") or setup.get("direction")).upper()
     fields: list[tuple[str, object]] = [
-        ("Role", humanize_code(opportunity.get("sequence_role"))),
-        ("Side", humanize_code(opportunity.get("direction"))),
-        ("Strategy", humanize_code(opportunity.get("strategy"))),
-        ("Actionability", _actionability_label(setup)),
         ("CMP", format_price(entry.get("current_price"))),
-        _entry_field(entry),
-        ("Preferred entry", format_price(entry.get("preferred"))),
+        ("Ideal entry", format_price(entry.get("preferred"))),
+        ("Entry range", _price_range(entry.get("lower"), entry.get("upper"))),
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
-        ("Stop / invalidation", _price_with_move(stop.get("price"), reference)),
+        ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
     for target_index, target in enumerate(targets[:3], start=1):
         fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
@@ -180,7 +189,8 @@ def _opportunity_card(opportunity: Mapping[str, object], *, index: int) -> str:
         fields.append(("Main risk", warnings[0]))
     return "\n".join(
         (
-            f"▶  #{index}  {opportunity.get('opportunity_id') or 'Opportunity'}",
+            f"▶  #{index}  {symbol} — {direction}",
+            f"   Opportunity {opportunity.get('opportunity_id') or 'Opportunity'}",
             render_fields(fields),
         )
     )
@@ -501,24 +511,16 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
     quality = _mapping(setup.get("quality_dimensions"))
-    verdict = _mapping(opportunity.get("methodology_verdict"))
-    cmp_value = _number(entry.get("current_price"))
     preferred = _number(entry.get("preferred"))
-    reference = preferred or cmp_value
+    reference = preferred or _number(entry.get("current_price"))
     symbol = str(item.get("symbol") or source.get("symbol") or "Unknown market")
     direction = humanize_code(opportunity.get("direction") or setup.get("direction"))
-    action = _actionability_label(setup)
     fields: list[tuple[str, object]] = [
-        ("Action", action),
-        ("Strategy", humanize_code(opportunity.get("strategy") or setup.get("strategy"))),
-        ("State", humanize_code(canonical_actionability_state(setup))),
-        ("Methodology", humanize_code(verdict.get("status"))),
         ("CMP", format_price(entry.get("current_price"))),
-        _entry_field(entry),
-        ("Preferred", format_price(entry.get("preferred"))),
-        ("Entry distance", _signed_move_label(preferred, cmp_value)),
+        ("Ideal entry", format_price(entry.get("preferred"))),
+        ("Entry range", _price_range(entry.get("lower"), entry.get("upper"))),
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
-        ("Stop", _price_with_move(stop.get("price"), reference)),
+        ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
     for target_index, target in enumerate(targets[:3], start=1):
         fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
@@ -532,7 +534,7 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
     identity = opportunity.get("opportunity_id") or f"opportunity-{index}"
     return "\n".join(
         (
-            f"▶  #{index}  {symbol} — {action.upper()} {direction.upper()}",
+            f"▶  #{index}  {symbol} — {direction.upper()}",
             f"   Opportunity {identity}",
             render_fields(fields),
         )

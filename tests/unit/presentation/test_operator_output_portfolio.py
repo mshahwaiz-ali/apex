@@ -223,11 +223,15 @@ def test_analysis_renders_each_opportunity_identity_and_geometry() -> None:
         assert opportunity_id in text
 
     assert "Maximum chase" in text
-    assert "Stop / invalidation" in text
+    assert "Ideal entry" in text
+    assert "Entry range" in text
+    assert "Stop loss" in text
     assert "TP1" in text
     assert "Trade quality" in text
     assert "Execution quality" in text
     assert "Main risk" in text
+    assert "BTCUSDT — LONG" in text
+    assert "BTCUSDT — SHORT" in text
 
 
 def test_analysis_renders_methodology_verdict_in_snapshot() -> None:

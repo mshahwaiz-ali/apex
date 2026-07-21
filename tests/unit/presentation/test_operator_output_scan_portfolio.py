@@ -111,9 +111,15 @@ def test_render_scan_expands_complete_portfolios_in_locked_order() -> None:
     assert "btc-confirm" in rendered
     assert "btc-nearby" in rendered
     assert "btc-follow" in rendered
-    assert "Entry distance" in rendered
+    assert "Ideal entry" in rendered
+    assert "Entry range" in rendered
     assert "Maximum chase" in rendered
-    assert "Methodology" in rendered
+    assert "Entry distance" not in rendered
+    assert "  Action      " not in rendered
+    assert "  Strategy    " not in rendered
+    assert "  State       " not in rendered
+    assert rendered.count("Methodology") == 1  # Scan-summary gate only, not every card.
+    assert "BTCUSDT — LONG" in rendered
     assert "Quality" in rendered
     assert "Setup" in rendered
     assert "Execution" in rendered

@@ -131,6 +131,10 @@ Normal text output is organized into:
 5. No Current Trade — Setup Plans
 6. Failures, when present
 
+Opportunity headers show `LONG` in green and `SHORT` in red on color-capable terminals. Cards
+show CMP, ideal entry, entry range, maximum chase, stop-loss, and every available target up to
+TP3; JSON retains the complete strategy, state, methodology, and diagnostic contracts.
+
 Counts distinguish attempted, successfully analyzed, failed, displayed, and retained-opportunity
 totals. A per-symbol data failure does not stop the rest of the scan.
 

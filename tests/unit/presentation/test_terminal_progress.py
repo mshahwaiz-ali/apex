@@ -6,8 +6,9 @@ import time
 from io import StringIO
 
 import pytest
+import typer
 
-from apex.presentation.terminal import CliProgress
+from apex.presentation.terminal import CliProgress, emit_terminal
 
 
 class _TTYStream(StringIO):
@@ -61,3 +62,22 @@ def test_progress_clears_when_command_body_raises() -> None:
     assert rendered.endswith("\r")
     assert "\n" not in rendered
     assert f"\r{' ' * (len(stage) + 2)}\r" in rendered
+
+
+def test_opportunity_headers_color_long_green_and_short_red(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None, bool]] = []
+
+    def capture(line: str, *, fg: str | None = None, bold: bool = False) -> None:
+        calls.append((line, fg, bold))
+
+    monkeypatch.setattr(typer, "secho", capture)
+    monkeypatch.setattr(typer, "echo", lambda line: None)
+
+    emit_terminal("▶  #1  BTCUSDT — LONG\n▶  #2  ETHUSDT — SHORT")
+
+    assert calls == [
+        ("▶  #1  BTCUSDT — LONG", typer.colors.BRIGHT_GREEN, True),
+        ("▶  #2  ETHUSDT — SHORT", typer.colors.BRIGHT_RED, True),
+    ]
