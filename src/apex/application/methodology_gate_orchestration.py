@@ -95,6 +95,19 @@ def apply_configured_methodology_gate(
             portfolio,
             suppression_reasons=reasons,
         )
+        original_id = (
+            None if analysis.assessment.setup is None else analysis.assessment.setup.candidate_id
+        )
+        filtered_id = None if assessment.setup is None else assessment.setup.candidate_id
+        if filtered_id != original_id:
+            methodology = project_analysis_methodology(
+                replace(
+                    analysis,
+                    assessment=assessment,
+                    opportunity_portfolio=portfolio,
+                    methodology=None,
+                )
+            )
 
     gate_payload: dict[str, Any] = {
         "mode": normalized_mode.value,

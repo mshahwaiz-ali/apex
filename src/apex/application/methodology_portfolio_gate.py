@@ -80,8 +80,16 @@ def assessment_from_portfolio(
     current = portfolio.current_opportunities
     nearby = portfolio.nearby_opportunities
     follow_up = portfolio.follow_up_opportunities
-    selected = None if not current else current[0].setup
-    developing_opportunity = nearby[0] if nearby else follow_up[0] if follow_up else None
+    executable_follow_up = next(
+        (item for item in follow_up if item.setup.execution_allowed_now),
+        None,
+    )
+    selected_opportunity = current[0] if current else executable_follow_up
+    selected = None if selected_opportunity is None else selected_opportunity.setup
+    developing_opportunity = next(
+        (item for item in (*nearby, *follow_up) if not item.setup.execution_allowed_now),
+        None,
+    )
     developing = None if developing_opportunity is None else developing_opportunity.setup
 
     if selected is not None:

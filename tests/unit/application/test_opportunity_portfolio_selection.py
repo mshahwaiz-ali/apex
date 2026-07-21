@@ -13,10 +13,12 @@ from apex.application.discovery_contracts import (
 )
 from apex.application.opportunity_portfolio import (
     AnalysisMode,
+    OpportunityLane,
     SequenceRole,
+    opportunity_portfolio_payload,
     portfolio_from_setups,
 )
-from apex.strategies.contracts import TradeDirection
+from apex.strategies.contracts import EntryMode, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
@@ -145,3 +147,47 @@ def test_selector_rejects_cross_symbol_setup() -> None:
         assert str(exc) == "setup symbol must match portfolio symbol"
     else:
         raise AssertionError("expected cross-symbol setup rejection")
+
+
+def test_scan_retains_best_candidate_for_each_material_lane() -> None:
+    cmp_scalp = _setup("cmp-long", TradeDirection.LONG, executable=True)
+    confirmation_scalp = replace(
+        cmp_scalp,
+        candidate_id="confirmation-long",
+        confidence_score=68.0,
+        entry=ActionableEntry(99.25, 101.25, 100.25, 100.0, 102.25, True),
+        stop_loss=StopLoss(97.25, 3.0, 3.0, ("confirmation structure",)),
+        canonical_actionability=True,
+        entry_mode=EntryMode.MARKET_NEAR,
+        confirmation_required=True,
+        confirmation_complete=False,
+        provisional=True,
+    )
+
+    portfolio = portfolio_from_setups(
+        (cmp_scalp, confirmation_scalp),
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.SCAN_CMP_FIRST,
+    )
+
+    assert portfolio.current_long is not None
+    assert portfolio.current_long.effective_lane is OpportunityLane.CMP_SCALP
+    assert tuple(item.opportunity_id for item in portfolio.follow_up_opportunities) == (
+        "confirmation-long",
+    )
+    assert portfolio.follow_up_opportunities[0].effective_lane is OpportunityLane.CONFIRMATION_SCALP
+    assert tuple(
+        (item.effective_lane, item.direction) for item in portfolio.best_opportunities_by_lane
+    ) == (
+        (OpportunityLane.CMP_SCALP, TradeDirection.LONG),
+        (OpportunityLane.CONFIRMATION_SCALP, TradeDirection.LONG),
+    )
+
+    payload = opportunity_portfolio_payload(portfolio)
+    assert set(payload["best_opportunities_by_lane"]) == {
+        "cmp_scalp",
+        "confirmation_scalp",
+    }
+    assert payload["follow_up_opportunities"][0]["lane"] == "confirmation_scalp"

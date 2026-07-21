@@ -2,9 +2,9 @@
 
 ## Status
 
-- **Phase:** Methodology redesign and rejection-trace planning
-- **Coding:** Not started
-- **Repository writes:** None
+- **Phase:** Incremental methodology implementation
+- **Coding:** In progress — Batches 0–3 implemented; Batch 4/5 correctness work underway
+- **Repository writes:** Scoped local implementation; no commit or push in this batch
 - **Source of truth:** GitHub `main`
 - **Primary goal:** Make Apex discover valid Binance USDT perpetual-futures scalp opportunities near current market price while preserving strict risk control, transparent rejection diagnostics, and independent runner qualification.
 

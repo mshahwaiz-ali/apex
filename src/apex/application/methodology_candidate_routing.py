@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from apex.application.methodology_adapters import strategy_evidence_observations
+from apex.application.methodology_opportunity_context import (
+    infer_candidate_methodology_context,
+)
 from apex.application.methodology_selected_strategy_gate import MethodologyGateMode
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_enforcement import (
@@ -78,8 +81,11 @@ class MethodologyCandidateRoutingResult:
             )
         if len(set(self.suppressed_strategies)) != len(self.suppressed_strategies):
             raise ValueError("suppressed strategies must be unique")
-        if len({item.strategy for item in self.decisions}) != len(self.decisions):
-            raise ValueError("methodology candidate decisions must be unique by strategy")
+        decision_keys = tuple((item.strategy, item.candidate_id) for item in self.decisions)
+        if len(set(decision_keys)) != len(decision_keys):
+            raise ValueError(
+                "methodology candidate decisions must be unique by strategy and candidate"
+            )
         if not self.reason_codes:
             raise ValueError("methodology candidate routing requires reason codes")
 
@@ -93,22 +99,46 @@ def evaluate_methodology_candidate_routing(
     """Evaluate each generated strategy from its own candidate evidence."""
 
     decisions: list[StrategyEnforcementDecision] = []
+    identities = candidate_identities(analysis.candidates)
+    identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+    status_by_object = {
+        id(item.candidate): item.status for item in analysis.candidate_actionability
+    }
     for strategy in analysis.evaluated_strategies:
-        evidence = tuple(
-            observation
+        strategy_candidates = tuple(
+            candidate
             for candidate in analysis.candidates
             if StrategyType(candidate.strategy.value) is strategy
-            for observation in strategy_evidence_observations(candidate.evidence)
         )
-        decisions.append(
-            derive_strategy_enforcement(
-                evaluate_strategy_eligibility(
-                    strategy,
-                    market_state=market_state,
-                    evidence=evidence,
+        if not strategy_candidates:
+            decisions.append(
+                derive_strategy_enforcement(
+                    evaluate_strategy_eligibility(
+                        strategy,
+                        market_state=market_state,
+                    )
                 )
             )
-        )
+            continue
+        for candidate in strategy_candidates:
+            context = infer_candidate_methodology_context(
+                candidate,
+                entry_status=status_by_object[id(candidate)],
+            )
+            candidate_id = identity_by_object[id(candidate)]
+            decisions.append(
+                derive_strategy_enforcement(
+                    evaluate_strategy_eligibility(
+                        strategy,
+                        market_state=market_state,
+                        evidence=strategy_evidence_observations(candidate.evidence),
+                        lane=context.lane,
+                        direction=candidate.direction,
+                        holding_horizon=context.holding_horizon,
+                    ),
+                    candidate_id=candidate_id,
+                )
+            )
     return apply_methodology_candidate_routing(
         analysis,
         tuple(decisions),
@@ -141,9 +171,12 @@ def apply_methodology_candidate_routing(
             reason_codes=("METHODOLOGY_CANDIDATE_ROUTING_SHADOW",),
         )
 
-    decision_by_strategy = {item.strategy: item for item in decisions}
     identities = candidate_identities(analysis.candidates)
     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+    decision_by_candidate = {
+        item.candidate_id: item for item in decisions if item.candidate_id is not None
+    }
+    decision_by_strategy = {item.strategy: item for item in decisions if item.candidate_id is None}
     status_by_object = {
         id(item.candidate): item.status for item in analysis.candidate_actionability
     }
@@ -152,7 +185,10 @@ def apply_methodology_candidate_routing(
     suppressed_strategies: list[StrategyType] = []
     for candidate in analysis.candidates:
         strategy = StrategyType(candidate.strategy.value)
-        decision = decision_by_strategy.get(strategy)
+        decision = decision_by_candidate.get(
+            identity_by_object[id(candidate)],
+            decision_by_strategy.get(strategy),
+        )
         if decision is None or decision.action is not StrategyEnforcementAction.SUPPRESS:
             retained.append(candidate)
             continue

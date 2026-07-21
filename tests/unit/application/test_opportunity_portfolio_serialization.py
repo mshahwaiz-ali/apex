@@ -63,6 +63,7 @@ def test_legacy_portfolio_payload_is_additive_and_deterministic() -> None:
     assert payload["current_long"] == {
         "opportunity_id": "candidate-1",
         "sequence_role": "current",
+        "lane": "cmp_scalp",
         "direction": "long",
         "strategy": StrategyType.BREAKOUT_CONTINUATION.value,
         "strategy_family": StrategyType.BREAKOUT_CONTINUATION.canonical_family.value,
@@ -151,3 +152,4 @@ def test_legacy_portfolio_payload_is_additive_and_deterministic() -> None:
     assert payload["current_short"] is None
     assert payload["nearby_long"] is None
     assert payload["follow_up_opportunities"] == []
+    assert list(payload["best_opportunities_by_lane"]) == ["cmp_scalp"]

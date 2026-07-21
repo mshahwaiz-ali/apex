@@ -10,14 +10,20 @@ from apex.application.methodology_candidate_routing import (
     methodology_candidate_routing_payload,
 )
 from apex.application.methodology_selected_strategy_gate import MethodologyGateMode
+from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_enforcement import (
     StrategyEnforcementAction,
     StrategyEnforcementDecision,
 )
 from apex.strategies.analysis import CandidateActionability, StrategyAnalysisResult
-from apex.strategies.contracts import StrategyEvidence, TradeCandidate, TradeDirection
+from apex.strategies.contracts import EntryMode, StrategyEvidence, TradeCandidate, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
+
+
+@dataclass(frozen=True)
+class _Entry:
+    mode: EntryMode
 
 
 @dataclass(frozen=True)
@@ -27,9 +33,15 @@ class _Candidate:
     direction: TradeDirection
     decision_time: datetime
     evidence: StrategyEvidence
+    entry: _Entry
+    provisional: bool = False
 
 
-def _candidate(strategy: StrategyType) -> TradeCandidate:
+def _candidate(
+    strategy: StrategyType,
+    *,
+    entry_mode: EntryMode = EntryMode.MARKET_NEAR,
+) -> TradeCandidate:
     return cast(
         TradeCandidate,
         _Candidate(
@@ -41,6 +53,7 @@ def _candidate(strategy: StrategyType) -> TradeCandidate:
                 supporting=("price structure supports the setup",),
                 structure_references=("structure reference",),
             ),
+            entry=_Entry(entry_mode),
         ),
     )
 
@@ -183,3 +196,61 @@ def test_missing_market_state_defers_and_preserves_candidates() -> None:
 
     assert len(result.analysis.candidates) == 2
     assert result.suppressed_candidate_count == 0
+
+
+def test_candidate_lane_context_prevents_broad_state_from_vetoing_local_scalp() -> None:
+    result = evaluate_methodology_candidate_routing(
+        _analysis(),
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.ENFORCE,
+    )
+
+    assert len(result.analysis.candidates) == 2
+    assert result.suppressed_candidate_count == 0
+    assert {item.candidate_id for item in result.decisions} == {
+        "trend_pullback:long:0",
+        "range_reversal:long:0",
+    }
+    assert all(item.action is StrategyEnforcementAction.ALLOW for item in result.decisions)
+
+
+def test_prohibited_chaotic_state_still_suppresses_candidate_lanes() -> None:
+    result = evaluate_methodology_candidate_routing(
+        _analysis(),
+        market_state=PrimaryMarketState.CHAOTIC,
+        mode=MethodologyGateMode.ENFORCE,
+    )
+
+    assert result.analysis.candidates == ()
+    assert result.suppressed_candidate_count == 2
+    assert all(item.action is StrategyEnforcementAction.SUPPRESS for item in result.decisions)
+
+
+def test_nearby_structured_retest_is_a_scalp_not_a_runner_veto() -> None:
+    candidate = _candidate(
+        StrategyType.BREAKOUT_RETEST,
+        entry_mode=EntryMode.RETEST,
+    )
+    analysis = StrategyAnalysisResult(
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 18, tzinfo=UTC),
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.BREAKOUT_RETEST,),
+        eligible_strategies=(StrategyType.BREAKOUT_RETEST,),
+        candidate_actionability=(
+            CandidateActionability(
+                candidate=candidate,
+                status=EntryStatus.PULLBACK_PREFERRED,
+            ),
+        ),
+    )
+
+    result = evaluate_methodology_candidate_routing(
+        analysis,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.ENFORCE,
+    )
+
+    assert result.suppressed_candidate_count == 0
+    assert result.decisions[0].action is StrategyEnforcementAction.ALLOW
+    assert result.decisions[0].reason_codes == ("METHODOLOGY_COMPATIBLE_WITH_CONSTRAINTS",)

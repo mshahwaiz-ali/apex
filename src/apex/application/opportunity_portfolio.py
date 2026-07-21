@@ -16,6 +16,7 @@ from typing import Any
 from apex.application.discovery_contracts import DiscoveryAssessment, DiscoverySetup
 from apex.strategies.contracts import EntryMode, TradeDirection
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.strategy_types import StrategyType
 
 
 class AnalysisMode(StrEnum):
@@ -32,6 +33,26 @@ class SequenceRole(StrEnum):
     NEARBY = "nearby"
     FOLLOW_UP = "follow_up"
     RUNNER = "runner"
+
+
+class OpportunityLane(StrEnum):
+    """Methodology lane used to retain materially different trade horizons."""
+
+    CMP_SCALP = "cmp_scalp"
+    CONFIRMATION_SCALP = "confirmation_scalp"
+    PULLBACK_SCALP = "pullback_scalp"
+    NEARBY_STRUCTURED = "nearby_structured"
+    RUNNER = "runner"
+    DEVELOPING = "developing"
+
+    @property
+    def is_scalp(self) -> bool:
+        return self in {
+            OpportunityLane.CMP_SCALP,
+            OpportunityLane.CONFIRMATION_SCALP,
+            OpportunityLane.PULLBACK_SCALP,
+            OpportunityLane.NEARBY_STRUCTURED,
+        }
 
 
 class PortfolioDecisionState(StrEnum):
@@ -771,6 +792,7 @@ class TradeOpportunity:
     opportunity_id: str
     setup: DiscoverySetup
     sequence_role: SequenceRole
+    lane: OpportunityLane | None = None
 
     def __post_init__(self) -> None:
         if not self.opportunity_id.strip():
@@ -786,12 +808,26 @@ class TradeOpportunity:
                 )
         if not setup_is_portfolio_eligible(self.setup):
             raise ValueError("invalidated or chased setups cannot be portfolio opportunities")
+        if (
+            self.sequence_role is SequenceRole.RUNNER
+            and self.effective_lane is not OpportunityLane.RUNNER
+        ):
+            raise ValueError("runner opportunities must use the runner lane")
 
     @property
     def direction(self) -> TradeDirection:
         """Return the wrapped setup direction."""
 
         return self.setup.direction
+
+    @property
+    def effective_lane(self) -> OpportunityLane:
+        """Return the explicit lane or derive it from immutable setup semantics."""
+
+        return self.lane or classify_setup_opportunity_lane(
+            self.setup,
+            sequence_role=self.sequence_role,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -872,6 +908,20 @@ class SymbolOpportunityPortfolio:
         return self.opportunities
 
     @property
+    def best_opportunities_by_lane(self) -> tuple[TradeOpportunity, ...]:
+        """Return the highest-ranked retained opportunity per lane and direction."""
+
+        retained: list[TradeOpportunity] = []
+        seen: set[tuple[OpportunityLane, TradeDirection]] = set()
+        for opportunity in self.opportunities:
+            key = (opportunity.effective_lane, opportunity.direction)
+            if key in seen:
+                continue
+            seen.add(key)
+            retained.append(opportunity)
+        return tuple(retained)
+
+    @property
     def current_opportunities(self) -> tuple[TradeOpportunity, ...]:
         """Return executable CMP opportunities in deterministic side order."""
 
@@ -927,6 +977,50 @@ def _semantic_setup_identity(setup: DiscoverySetup) -> tuple[object, ...]:
     )
 
 
+_SCALP_STRATEGIES = {
+    StrategyType.MOMENTUM_SCALP,
+    StrategyType.VWAP_RECLAIM_REJECTION,
+    StrategyType.RANGE_REVERSAL,
+    StrategyType.FAILED_BREAKOUT_REVERSAL,
+    StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+    StrategyType.EXHAUSTION_REVERSAL,
+}
+
+
+def classify_setup_opportunity_lane(
+    setup: DiscoverySetup,
+    *,
+    sequence_role: SequenceRole,
+) -> OpportunityLane:
+    """Assign one deterministic methodology lane without using score thresholds."""
+
+    if sequence_role is SequenceRole.RUNNER:
+        return OpportunityLane.RUNNER
+    if sequence_role is SequenceRole.FOLLOW_UP:
+        return OpportunityLane.DEVELOPING
+
+    if sequence_role is SequenceRole.NEARBY:
+        if setup.entry_mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}:
+            return OpportunityLane.PULLBACK_SCALP
+        if setup.strategy in _SCALP_STRATEGIES:
+            return OpportunityLane.PULLBACK_SCALP
+        return OpportunityLane.NEARBY_STRUCTURED
+
+    assessment = build_actionability_state_assessment(
+        setup,
+        sequence_role=sequence_role,
+    )
+    confirmation_pending = assessment.state in {
+        ActionabilityState.EXECUTE_ON_MICRO_CONFIRMATION,
+        ActionabilityState.PLACE_LIMIT_WITH_ACTIVATION,
+        ActionabilityState.RETEST_PREFERRED,
+        ActionabilityState.RECLAIM_REQUIRED,
+    }
+    if setup.confirmation_required and not setup.confirmation_complete:
+        confirmation_pending = True
+    return OpportunityLane.CONFIRMATION_SCALP if confirmation_pending else OpportunityLane.CMP_SCALP
+
+
 def portfolio_from_setups(
     setups: Iterable[DiscoverySetup],
     *,
@@ -951,6 +1045,7 @@ def portfolio_from_setups(
     follow_ups: list[TradeOpportunity] = []
     seen_candidate_ids: set[str] = set()
     seen_semantic_setups: set[tuple[object, ...]] = set()
+    retained_lane_directions: set[tuple[OpportunityLane, TradeDirection]] = set()
 
     for setup in setups:
         if setup.symbol != symbol:
@@ -966,7 +1061,11 @@ def portfolio_from_setups(
         seen_semantic_setups.add(semantic_identity)
 
         role = classify_setup_sequence_role(setup)
-        opportunity = TradeOpportunity(setup.candidate_id, setup, role)
+        lane = classify_setup_opportunity_lane(setup, sequence_role=role)
+        lane_direction = (lane, setup.direction)
+        is_best_for_lane = lane_direction not in retained_lane_directions
+        retained_lane_directions.add(lane_direction)
+        opportunity = TradeOpportunity(setup.candidate_id, setup, role, lane)
         if role is SequenceRole.CURRENT:
             if setup.direction is TradeDirection.LONG and current_long is None:
                 current_long = opportunity
@@ -982,13 +1081,15 @@ def portfolio_from_setups(
                 nearby_short = opportunity
                 continue
 
-        follow_ups.append(
-            TradeOpportunity(
-                setup.candidate_id,
-                setup,
-                SequenceRole.FOLLOW_UP,
+        if analysis_mode is AnalysisMode.ANALYZE_FULL or is_best_for_lane:
+            follow_ups.append(
+                TradeOpportunity(
+                    setup.candidate_id,
+                    setup,
+                    SequenceRole.FOLLOW_UP,
+                    lane,
+                )
             )
-        )
 
     return SymbolOpportunityPortfolio(
         symbol=symbol,
@@ -999,9 +1100,7 @@ def portfolio_from_setups(
         current_short=current_short,
         nearby_long=nearby_long,
         nearby_short=nearby_short,
-        follow_up_opportunities=(
-            tuple(follow_ups) if analysis_mode is AnalysisMode.ANALYZE_FULL else ()
-        ),
+        follow_up_opportunities=tuple(follow_ups),
     )
 
 
@@ -1032,7 +1131,8 @@ def portfolio_from_legacy_assessment(
         if not setup_is_portfolio_eligible(setup):
             return
         role = classify_setup_sequence_role(setup)
-        opportunity = TradeOpportunity(setup.candidate_id, setup, role)
+        lane = classify_setup_opportunity_lane(setup, sequence_role=role)
+        opportunity = TradeOpportunity(setup.candidate_id, setup, role, lane)
         if role is SequenceRole.CURRENT:
             if setup.direction is TradeDirection.LONG:
                 current_long = opportunity
@@ -1052,6 +1152,7 @@ def portfolio_from_legacy_assessment(
                 setup.candidate_id,
                 setup,
                 SequenceRole.FOLLOW_UP,
+                lane,
             )
         )
 
@@ -1120,6 +1221,7 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
         return {
             "opportunity_id": opportunity.opportunity_id,
             "sequence_role": opportunity.sequence_role.value,
+            "lane": opportunity.effective_lane.value,
             "direction": setup.direction.value,
             "strategy": setup.strategy.value,
             "strategy_family": setup.strategy.canonical_family.value,
@@ -1276,6 +1378,12 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
             ),
         }
 
+    best_by_lane: dict[str, list[dict[str, Any]]] = {}
+    for opportunity in portfolio.best_opportunities_by_lane:
+        serialized = serialize(opportunity)
+        assert serialized is not None
+        best_by_lane.setdefault(opportunity.effective_lane.value, []).append(serialized)
+
     return {
         "symbol": portfolio.symbol,
         "cmp": portfolio.cmp,
@@ -1295,6 +1403,7 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
             serialize(opportunity) for opportunity in portfolio.follow_up_opportunities
         ],
         "runner_plan": serialize(portfolio.runner_plan),
+        "best_opportunities_by_lane": best_by_lane,
         "opportunity_count": len(portfolio.opportunities),
     }
 
@@ -1316,6 +1425,7 @@ __all__ = [
     "CmpZonePosition",
     "EntryBoundaryConsistencyAudit",
     "EntryBoundaryConsistencyCode",
+    "OpportunityLane",
     "PortfolioDecisionState",
     "SequenceRole",
     "SetupExistenceAssessment",
@@ -1334,6 +1444,7 @@ __all__ = [
     "build_setup_existence_assessment",
     "build_stale_trigger_diagnostics",
     "classify_cmp_location_state",
+    "classify_setup_opportunity_lane",
     "classify_setup_sequence_role",
     "opportunity_portfolio_payload",
     "portfolio_from_legacy_assessment",

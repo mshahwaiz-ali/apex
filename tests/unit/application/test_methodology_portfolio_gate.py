@@ -240,6 +240,38 @@ def test_nearby_setup_survives_when_all_current_opportunities_are_suppressed() -
     assert synchronized.developing_setup.candidate_id == "nearby-long"
 
 
+def test_executable_follow_up_is_promoted_when_fixed_current_slot_is_removed() -> None:
+    portfolio = _portfolio()
+    alternative = _setup(
+        "alternative-current-long",
+        direction=TradeDirection.LONG,
+        strategy=StrategyType.VWAP_RECLAIM_REJECTION,
+        executable=True,
+    )
+    portfolio = SymbolOpportunityPortfolio(
+        symbol=portfolio.symbol,
+        cmp=portfolio.cmp,
+        analysis_timestamp=portfolio.analysis_timestamp,
+        analysis_mode=portfolio.analysis_mode,
+        follow_up_opportunities=(_opportunity(alternative, SequenceRole.FOLLOW_UP),),
+    )
+    assessment = DiscoveryAssessment(
+        symbol=portfolio.symbol,
+        decision_time=portfolio.analysis_timestamp,
+        setup=alternative,
+    )
+
+    synchronized = assessment_from_portfolio(
+        assessment,
+        portfolio,
+        suppression_reasons=("fixed current slot was suppressed",),
+    )
+
+    assert synchronized.setup is not None
+    assert synchronized.setup.candidate_id == "alternative-current-long"
+    assert synchronized.developing_setup is None
+
+
 def test_all_suppressed_results_in_no_trade_assessment() -> None:
     portfolio = _portfolio()
     assessment = _assessment(portfolio)

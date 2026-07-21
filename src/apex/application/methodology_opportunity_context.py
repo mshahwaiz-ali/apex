@@ -7,28 +7,14 @@ from enum import StrEnum
 
 from apex.application.opportunity_portfolio import (
     ActionabilityState,
+    OpportunityLane,
     SequenceRole,
     TradeOpportunity,
     build_actionability_state_assessment,
 )
+from apex.strategies.contracts import EntryMode, TradeCandidate
+from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
-
-
-class OpportunityLane(StrEnum):
-    CMP_SCALP = "cmp_scalp"
-    CONFIRMATION_SCALP = "confirmation_scalp"
-    PULLBACK_SCALP = "pullback_scalp"
-    NEARBY_STRUCTURED = "nearby_structured"
-    RUNNER = "runner"
-    DEVELOPING = "developing"
-
-    @property
-    def is_scalp(self) -> bool:
-        return self in {
-            OpportunityLane.CMP_SCALP,
-            OpportunityLane.CONFIRMATION_SCALP,
-            OpportunityLane.PULLBACK_SCALP,
-        }
 
 
 class HoldingHorizon(StrEnum):
@@ -61,6 +47,48 @@ _SCALP_STRATEGIES = {
 }
 
 
+def infer_candidate_methodology_context(
+    candidate: TradeCandidate,
+    *,
+    entry_status: EntryStatus,
+) -> OpportunityMethodologyContext:
+    """Infer pre-ranking lane context so broad market state cannot erase scalps."""
+
+    executable = entry_status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}
+    if executable:
+        confirmation_pending = candidate.provisional or candidate.entry.mode in {
+            EntryMode.RETEST,
+            EntryMode.SWEEP_RECOVERY,
+            EntryMode.MOMENTUM_CONTINUATION,
+        }
+        lane = (
+            OpportunityLane.CONFIRMATION_SCALP
+            if confirmation_pending
+            else OpportunityLane.CMP_SCALP
+        )
+        return OpportunityMethodologyContext(
+            lane=lane,
+            holding_horizon=HoldingHorizon.SCALP,
+            higher_timeframe_authority=HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING,
+        )
+
+    pullback = candidate.entry.mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}
+    lane = (
+        OpportunityLane.PULLBACK_SCALP
+        if pullback or candidate.strategy in _SCALP_STRATEGIES
+        else OpportunityLane.NEARBY_STRUCTURED
+    )
+    return OpportunityMethodologyContext(
+        lane=lane,
+        holding_horizon=HoldingHorizon.SHORT if lane.is_scalp else HoldingHorizon.STRUCTURED,
+        higher_timeframe_authority=(
+            HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+            if lane.is_scalp
+            else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+        ),
+    )
+
+
 def infer_opportunity_methodology_context(
     opportunity: TradeOpportunity,
 ) -> OpportunityMethodologyContext:
@@ -72,6 +100,39 @@ def infer_opportunity_methodology_context(
         )
 
     setup = opportunity.setup
+    if opportunity.lane is not None:
+        lane = opportunity.effective_lane
+        if lane is OpportunityLane.RUNNER:
+            return OpportunityMethodologyContext(
+                lane=lane,
+                holding_horizon=HoldingHorizon.RUNNER,
+                higher_timeframe_authority=HigherTimeframeAuthority.STRICT,
+            )
+        if lane is OpportunityLane.DEVELOPING:
+            return OpportunityMethodologyContext(
+                lane=lane,
+                holding_horizon=HoldingHorizon.STRUCTURED,
+                higher_timeframe_authority=HigherTimeframeAuthority.CONTEXTUAL_PENALTY,
+            )
+        return OpportunityMethodologyContext(
+            lane=lane,
+            holding_horizon=(
+                HoldingHorizon.SHORT
+                if lane
+                in {
+                    OpportunityLane.PULLBACK_SCALP,
+                    OpportunityLane.NEARBY_STRUCTURED,
+                }
+                else HoldingHorizon.SCALP
+                if lane.is_scalp
+                else HoldingHorizon.STRUCTURED
+            ),
+            higher_timeframe_authority=(
+                HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+                if lane.is_scalp
+                else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+            ),
+        )
     assessment = build_actionability_state_assessment(
         setup,
         sequence_role=opportunity.sequence_role,
@@ -85,11 +146,7 @@ def infer_opportunity_methodology_context(
         )
 
     if opportunity.sequence_role is SequenceRole.NEARBY:
-        lane = (
-            OpportunityLane.PULLBACK_SCALP
-            if setup.strategy in _SCALP_STRATEGIES
-            else OpportunityLane.NEARBY_STRUCTURED
-        )
+        lane = opportunity.effective_lane
         return OpportunityMethodologyContext(
             lane=lane,
             holding_horizon=HoldingHorizon.SHORT if lane.is_scalp else HoldingHorizon.STRUCTURED,
@@ -119,5 +176,6 @@ __all__ = [
     "HoldingHorizon",
     "OpportunityLane",
     "OpportunityMethodologyContext",
+    "infer_candidate_methodology_context",
     "infer_opportunity_methodology_context",
 ]

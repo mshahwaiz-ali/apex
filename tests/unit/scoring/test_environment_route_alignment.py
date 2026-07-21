@@ -5,9 +5,11 @@ from datetime import UTC, datetime
 import pytest
 
 from apex.application.market_strategy_router import MarketStrategyRoute, PreferredDirection
-from apex.scoring.config import DEFAULT_SCORING_CONFIG
+from apex.scoring import analyze_candidate_selection
+from apex.scoring.config import DEFAULT_SCORING_CONFIG, ScoringConfig
 from apex.scoring.contracts import EnvironmentRouteAlignmentState
 from apex.scoring.environment_route import apply_environment_route_alignment
+from apex.scoring.rank_score import final_rank_score, rank_penalty_score
 from apex.scoring.scorer import score_candidates
 from apex.strategies import (
     EntryMode,
@@ -15,6 +17,7 @@ from apex.strategies import (
     InvalidationConcept,
     InvalidationType,
     RawQualityMetrics,
+    StrategyAnalysisResult,
     StrategyEvidence,
     StrategyType,
     TargetConcept,
@@ -120,7 +123,9 @@ def test_lower_priority_alternative_remains_rankable_with_modest_penalty() -> No
 
     adjusted = apply_environment_route_alignment(scored, route=_route())
 
-    assert adjusted[0].final_score == pytest.approx(scored[0].final_score - 6.0)
+    assert adjusted[0].final_score == scored[0].final_score
+    assert rank_penalty_score(adjusted[0]) == pytest.approx(6.0)
+    assert final_rank_score(adjusted[0]) < final_rank_score(scored[0])
     assert adjusted[0].environment_route_alignment is not None
     assert (
         adjusted[0].environment_route_alignment.state
@@ -144,7 +149,8 @@ def test_direction_conflict_receives_larger_explicit_penalty() -> None:
 
     adjusted = apply_environment_route_alignment(scored, route=_route())
 
-    assert adjusted[0].final_score == pytest.approx(scored[0].final_score - 12.8)
+    assert adjusted[0].final_score == scored[0].final_score
+    assert rank_penalty_score(adjusted[0]) == pytest.approx(12.8)
     assert adjusted[0].environment_route_alignment is not None
     assert (
         adjusted[0].environment_route_alignment.state
@@ -174,3 +180,25 @@ def test_explicitly_blocked_environment_is_terminal_and_diagnostic() -> None:
     assert adjusted[0].environment_route_alignment is not None
     assert adjusted[0].environment_route_alignment.state is EnvironmentRouteAlignmentState.BLOCKED
     assert "CANDIDATE_ENVIRONMENT_BLOCKED" in (adjusted[0].environment_route_alignment.reason_codes)
+
+
+def test_soft_route_preference_cannot_turn_valid_candidate_into_rejection() -> None:
+    candidate = _candidate(
+        StrategyType.BREAKOUT_CONTINUATION,
+        direction=TradeDirection.SHORT,
+    )
+    analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.BREAKOUT_CONTINUATION,),
+    )
+
+    result = analyze_candidate_selection(
+        analysis,
+        config=ScoringConfig(minimum_accept_score=75.0, warning_accept_score=70.0),
+        environment_route=_route(),
+    )
+
+    assert result.ranked_candidates[0].final_score == pytest.approx(76.7)
+    assert result.ranked_candidates[0].outcome.value == "accepted"

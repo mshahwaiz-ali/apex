@@ -119,16 +119,22 @@ def _adjust_candidate(
         reason_codes=tuple(dict.fromkeys(reason_codes)),
         reasons=tuple(dict.fromkeys(reasons)),
     )
-    if penalty == 0.0:
+    if penalty < _BLOCKED_ENVIRONMENT_PENALTY:
         return ScoredCandidate(
             candidate_id=item.candidate_id,
             candidate=item.candidate,
             breakdown=item.breakdown,
             normalized_metrics=item.normalized_metrics,
-            notes=item.notes,
+            notes=(
+                item.notes
+                if penalty == 0.0
+                else (*item.notes, "market environment route ranking preference attached")
+            ),
             environment_route_alignment=alignment,
         )
 
+    # An explicitly blocked environment is a hard rejection. All other route
+    # differences are ranking preferences and must not lower the approval score.
     penalty_points = dict(item.breakdown.penalty_points)
     penalty_points["environment_route_alignment"] = penalty
     total_penalty = item.breakdown.total_penalty + penalty

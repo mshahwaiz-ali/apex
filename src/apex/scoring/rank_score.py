@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from apex.scoring.contracts import ScoredCandidate
+from apex.scoring.contracts import EnvironmentRouteAlignmentState, ScoredCandidate
 
 RANK_SCORE_WEIGHTS = {
     "opportunity_score": 0.25,
@@ -68,9 +68,13 @@ def unpenalized_rank_score(item: ScoredCandidate) -> float:
 
 
 def rank_penalty_score(item: ScoredCandidate) -> float:
-    """Return the already-modeled transparent penalty deduction."""
+    """Return hard score deductions plus soft environment ranking preference."""
 
-    return round(item.breakdown.total_penalty, 6)
+    route_penalty = 0.0
+    alignment = item.environment_route_alignment
+    if alignment is not None and alignment.state is not EnvironmentRouteAlignmentState.BLOCKED:
+        route_penalty = max(0.0, -alignment.score_adjustment)
+    return round(item.breakdown.total_penalty + route_penalty, 6)
 
 
 def final_rank_score(item: ScoredCandidate) -> float:

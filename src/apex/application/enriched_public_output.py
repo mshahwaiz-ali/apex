@@ -97,12 +97,9 @@ def serialize_scan_result(
                     report=report,
                 )
             )
-    actionable = [item for item in serialized if item.get("setup") is not None]
-    developing = [
-        item
-        for item in serialized
-        if item.get("setup") is None and item.get("developing_setup") is not None
-    ]
+    selected = [item for item in serialized if item.get("setup") is not None]
+    actionable = [item for item in serialized if item.get("result_group") == "actionable"]
+    developing = [item for item in serialized if item.get("result_group") == "developing"]
     no_trade = [
         item
         for item in serialized
@@ -143,7 +140,7 @@ def serialize_scan_result(
         "runner_opportunity_count": _count_opportunity_category(displayed_opportunities, "runner"),
         "display_limit": display_limit,
         "direction_filter": normalized_direction,
-        "selected_setup_count": len(actionable),
+        "selected_setup_count": len(selected),
         "execution_ready_count": len(actionable),
         "actionable_count": len(actionable),
         "developing_count": len(developing),
@@ -407,6 +404,17 @@ def _project_portfolio(analysis: SymbolAnalysis, payload: dict[str, Any]) -> Non
         "runner_opportunities": (
             [] if portfolio.runner_plan is None else [_serialize_opportunity(portfolio.runner_plan)]
         ),
+        "best_opportunities_by_lane": {
+            lane: [
+                _serialize_opportunity(opportunity)
+                for opportunity in portfolio.best_opportunities_by_lane
+                if opportunity.effective_lane.value == lane
+            ]
+            for lane in dict.fromkeys(
+                opportunity.effective_lane.value
+                for opportunity in portfolio.best_opportunities_by_lane
+            )
+        },
         "opportunities": [
             _serialize_opportunity(opportunity) for opportunity in portfolio.opportunities
         ],
@@ -427,7 +435,11 @@ def _project_portfolio(analysis: SymbolAnalysis, payload: dict[str, Any]) -> Non
     payload["strategy"] = effective.get("strategy")
     payload["confidence_score"] = effective.get("confidence_score")
     payload["quality_score"] = effective.get("confidence_score")
-    payload["result_group"] = "actionable" if primary is not None else "developing"
+    payload["result_group"] = (
+        "actionable"
+        if primary is not None and primary.setup.execution_allowed_now
+        else "developing"
+    )
 
 
 def _serialize_opportunity(opportunity: Any) -> dict[str, Any]:
@@ -439,6 +451,7 @@ def _serialize_opportunity(opportunity: Any) -> dict[str, Any]:
         "opportunity_id": opportunity.opportunity_id,
         "category": opportunity.sequence_role.value,
         "sequence_role": opportunity.sequence_role.value,
+        "lane": opportunity.effective_lane.value,
         "direction": opportunity.direction.value,
         "strategy": setup.get("strategy"),
         "entry_status": setup.get("entry_status"),
