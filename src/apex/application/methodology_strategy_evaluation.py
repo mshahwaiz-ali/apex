@@ -14,6 +14,17 @@ from apex.strategies.contracts import TradeDirection
 from apex.strategies.strategy_types import StrategyType
 
 
+class EligibilityStage(StrEnum):
+    DATA = "data"
+    TRADABILITY = "tradability"
+    MANDATORY_EVIDENCE = "mandatory_evidence"
+    GEOMETRY = "geometry"
+    EXECUTION_STATE = "execution_state"
+    MARKET_STATE = "market_state"
+    LANE_EXCEPTION = "lane_exception"
+    COMPLETE = "complete"
+
+
 class StrategyEligibilityState(StrEnum):
     COMPATIBLE = "compatible"
     INCOMPATIBLE_STATE = "incompatible_state"
@@ -34,6 +45,8 @@ class StrategyEligibilityEvaluation:
     direction: TradeDirection | None = None
     holding_horizon: HoldingHorizon | None = None
     runner_allowed: bool = True
+    stage: EligibilityStage = EligibilityStage.COMPLETE
+    htf_directional_conflict: bool = False
 
     def __post_init__(self) -> None:
         if not self.reasons:
@@ -52,6 +65,13 @@ def evaluate_strategy_eligibility(
     lane: OpportunityLane | None = None,
     direction: TradeDirection | None = None,
     holding_horizon: HoldingHorizon | None = None,
+    data_fresh: bool = True,
+    tradable: bool = True,
+    geometry_valid: bool = True,
+    stop_valid: bool = True,
+    has_target: bool = True,
+    execution_chaos: bool = False,
+    htf_directional_conflict: bool = False,
 ) -> StrategyEligibilityEvaluation:
     """Evaluate one strategy without changing live routing or candidate approval."""
 
@@ -59,14 +79,104 @@ def evaluate_strategy_eligibility(
     present = tuple(dict.fromkeys(item.family for item in evidence))
     missing = tuple(family for family in declaration.mandatory_evidence if family not in present)
 
+    if not data_fresh:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=("data stage rejected candidate; market data is stale",),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.DATA,
+            htf_directional_conflict=htf_directional_conflict,
+        )
+    if not tradable:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.PROHIBITED_STATE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=("tradability stage rejected candidate; market is not tradable",),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.TRADABILITY,
+            htf_directional_conflict=htf_directional_conflict,
+        )
+
+    if missing:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=missing,
+            reasons=(
+                "mandatory_evidence stage rejected candidate; missing families: "
+                + ", ".join(item.value for item in missing),
+            ),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.MANDATORY_EVIDENCE,
+            htf_directional_conflict=htf_directional_conflict,
+        )
+    if not geometry_valid or not stop_valid or not has_target:
+        geometry_reasons = []
+        if not geometry_valid:
+            geometry_reasons.append("invalid entry geometry")
+        if not stop_valid:
+            geometry_reasons.append("invalid stop geometry")
+        if not has_target:
+            geometry_reasons.append("missing target geometry")
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.PROHIBITED_STATE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=(),
+            reasons=("geometry stage rejected candidate; " + ", ".join(geometry_reasons),),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.GEOMETRY,
+            htf_directional_conflict=htf_directional_conflict,
+        )
+    if execution_chaos:
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.PROHIBITED_STATE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=(),
+            reasons=("execution_state stage rejected candidate; true local chaos",),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.EXECUTION_STATE,
+            htf_directional_conflict=htf_directional_conflict,
+        )
     if market_state is None:
         return StrategyEligibilityEvaluation(
             strategy=strategy,
             state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
             market_state=None,
             present_evidence=present,
-            missing_mandatory_evidence=missing,
-            reasons=("canonical market state is unavailable",),
+            missing_mandatory_evidence=(),
+            reasons=("market_state stage rejected candidate; canonical state is unavailable",),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
         )
     if market_state in declaration.prohibited_states:
         return StrategyEligibilityEvaluation(
@@ -116,18 +226,6 @@ def evaluate_strategy_eligibility(
             direction=direction,
             holding_horizon=holding_horizon,
         )
-    if missing:
-        return StrategyEligibilityEvaluation(
-            strategy=strategy,
-            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
-            market_state=market_state,
-            present_evidence=present,
-            missing_mandatory_evidence=missing,
-            reasons=(
-                "canonical evidence metadata is missing mandatory families: "
-                + ", ".join(item.value for item in missing),
-            ),
-        )
     return StrategyEligibilityEvaluation(
         strategy=strategy,
         state=StrategyEligibilityState.COMPATIBLE,
@@ -138,6 +236,11 @@ def evaluate_strategy_eligibility(
             f"{strategy.value} is compatible with {market_state.value} and has "
             "all mandatory evidence families",
         ),
+        lane=lane,
+        direction=direction,
+        holding_horizon=holding_horizon,
+        stage=EligibilityStage.COMPLETE,
+        htf_directional_conflict=htf_directional_conflict,
     )
 
 
@@ -176,10 +279,13 @@ def strategy_eligibility_evaluation_payload(
         if evaluation.holding_horizon is None
         else evaluation.holding_horizon.value,
         "runner_allowed": evaluation.runner_allowed,
+        "stage": evaluation.stage.value,
+        "htf_directional_conflict": evaluation.htf_directional_conflict,
     }
 
 
 __all__ = [
+    "EligibilityStage",
     "StrategyEligibilityEvaluation",
     "StrategyEligibilityState",
     "evaluate_strategy_eligibility",
