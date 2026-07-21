@@ -107,10 +107,13 @@ def test_render_scan_expands_complete_portfolios_in_locked_order() -> None:
     assert enter_heading < confirmation_heading
     assert confirmation_heading < nearby_heading
     assert nearby_heading < developing_heading
-    assert "btc-now" in rendered
-    assert "btc-confirm" in rendered
-    assert "btc-nearby" in rendered
-    assert "btc-follow" in rendered
+    for raw_id in ("btc-now", "btc-confirm", "btc-nearby", "btc-follow"):
+        assert raw_id not in rendered
+
+    assert "Breakout retest · Current · Ready now" in rendered
+    assert "Breakout retest · Current · Wait for retest" in rendered
+    assert "Breakout retest · Nearby · Approaching entry" in rendered
+    assert "Breakout retest · Follow up · Watch" in rendered
     assert "Ideal entry" in rendered
     assert "Entry range" in rendered
     assert "Maximum chase" in rendered
@@ -120,11 +123,11 @@ def test_render_scan_expands_complete_portfolios_in_locked_order() -> None:
     assert "  State       " not in rendered
     assert rendered.count("Methodology") == 1  # Scan-summary gate only, not every card.
     assert "BTCUSDT — LONG" in rendered
-    assert "Quality" in rendered
-    assert "Setup" in rendered
-    assert "Execution" in rendered
-    assert "Target" in rendered
-    assert "/100" in rendered
+    assert "Setup quality" in rendered
+    assert "Execution quality" in rendered
+    assert "Target quality" in rendered
+    assert "0.8" in rendered
+    assert "0.7" in rendered
     assert "No current trade — Setup plans (1)" in rendered
     assert "ETHUSDT — NO VALID SETUP YET" in rendered
     assert "Showing 3 of 6 filtered symbols." in rendered

@@ -188,10 +188,18 @@ def scan_analysis_ranking_key(analysis: SymbolAnalysis) -> tuple[object, ...]:
     """Return deterministic best-first scan precedence for one symbol analysis."""
 
     portfolio = analysis.opportunity_portfolio
-    primary = None if portfolio is None else portfolio.primary_opportunity
+    if portfolio is None:
+        return (1, analysis.symbol)
+    primary = portfolio.primary_opportunity
     if primary is None:
         return (1, analysis.symbol)
-    return (0, *portfolio_ranking_key(primary.setup))
+    return (
+        0,
+        *portfolio_ranking_key(
+            primary.setup,
+            policy=portfolio.ranking_policy,
+        ),
+    )
 
 
 def rank_scan_analyses(

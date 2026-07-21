@@ -81,6 +81,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                         candle_limit=candle_limit,
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
                         methodology_gate_mode=context.settings.methodology_gate_mode,
+                        methodology_settings=context.settings.methodology,
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
                     )

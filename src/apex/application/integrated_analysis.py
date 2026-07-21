@@ -26,6 +26,7 @@ from apex.application.market_strategy_router import route_market_strategies
 from apex.application.methodology_market_state import adapt_market_state
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import load_symbol_file
+from apex.config.methodology import MethodologySettings
 from apex.data.providers.base import FuturesEvidenceProvider, MarketDataProvider
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
@@ -157,6 +158,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    methodology_settings: MethodologySettings | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
@@ -194,6 +196,7 @@ def analyze_symbol(
         market_strategy_route=route,
         methodology_market_state=methodology_state.primary,
         methodology_gate_mode=methodology_gate_mode,
+        methodology_settings=methodology_settings,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
     )

@@ -6,14 +6,50 @@ invalid setup, replaces a methodology gate, or fabricates unavailable evidence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from apex.application.discovery_contracts import DiscoverySetup
+from apex.config.methodology import PortfolioRankingWeightSettings
 from apex.domain.methodology_contracts import (
     RelationshipSeverity,
     TimeframeRelationship,
 )
 from apex.strategies.entry_status import EntryStatus
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioRankingPolicy:
+    """Immutable runtime weights used by every portfolio ranking surface."""
+
+    execution_precedence: float = 0.22
+    tp1_reward_quality: float = 0.20
+    target_quality: float = 0.12
+    setup_quality: float = 0.12
+    execution_quality: float = 0.12
+    htf_alignment: float = 0.08
+    timing_quality: float = 0.05
+    data_confidence: float = 0.04
+    overall_trade_quality: float = 0.05
+
+    def __post_init__(self) -> None:
+        values = tuple(float(getattr(self, item.name)) for item in fields(self))
+        if any(value < 0.0 for value in values):
+            raise ValueError("portfolio ranking weights cannot be negative")
+        if abs(sum(values) - 1.0) > 1e-9:
+            raise ValueError("portfolio ranking weights must sum to 1.0")
+
+
+def portfolio_ranking_policy_from_settings(
+    settings: PortfolioRankingWeightSettings,
+) -> PortfolioRankingPolicy:
+    """Build the runtime policy from validated configuration."""
+
+    return PortfolioRankingPolicy(**settings.model_dump())
+
+
+DEFAULT_PORTFOLIO_RANKING_POLICY = portfolio_ranking_policy_from_settings(
+    PortfolioRankingWeightSettings()
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +146,11 @@ def _htf_alignment(setup: DiscoverySetup) -> float | None:
     return max(0.0, relationship_score - severity_penalty)
 
 
-def portfolio_rank_components(setup: DiscoverySetup) -> PortfolioRankComponents:
+def portfolio_rank_components(
+    setup: DiscoverySetup,
+    *,
+    policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY,
+) -> PortfolioRankComponents:
     """Build truthful rank inputs from already-available setup evidence."""
 
     quality = setup.quality_dimensions
@@ -140,15 +180,15 @@ def portfolio_rank_components(setup: DiscoverySetup) -> PortfolioRankComponents:
     htf_alignment = _htf_alignment(setup)
 
     weighted_components = (
-        (execution_precedence, 0.22),
-        (tp1_reward_quality, 0.20),
-        (target_quality, 0.12),
-        (setup_quality, 0.12),
-        (execution_quality, 0.12),
-        (htf_alignment, 0.08),
-        (timing_quality, 0.05),
-        (data_confidence, 0.04),
-        (overall_trade_quality, 0.05),
+        (execution_precedence, policy.execution_precedence),
+        (tp1_reward_quality, policy.tp1_reward_quality),
+        (target_quality, policy.target_quality),
+        (setup_quality, policy.setup_quality),
+        (execution_quality, policy.execution_quality),
+        (htf_alignment, policy.htf_alignment),
+        (timing_quality, policy.timing_quality),
+        (data_confidence, policy.data_confidence),
+        (overall_trade_quality, policy.overall_trade_quality),
     )
     available = tuple((value, weight) for value, weight in weighted_components if value is not None)
     available_weight = sum(weight for _, weight in available)
@@ -176,10 +216,14 @@ def _sortable_component(value: float | None) -> tuple[int, float]:
     return (0, -value)
 
 
-def portfolio_ranking_key(setup: DiscoverySetup) -> tuple[object, ...]:
+def portfolio_ranking_key(
+    setup: DiscoverySetup,
+    *,
+    policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY,
+) -> tuple[object, ...]:
     """Return deterministic best-first precedence with a stable identity tie-breaker."""
 
-    components = portfolio_rank_components(setup)
+    components = portfolio_rank_components(setup, policy=policy)
     return (
         -components.rank_score,
         -components.execution_precedence,
@@ -200,7 +244,10 @@ def portfolio_ranking_key(setup: DiscoverySetup) -> tuple[object, ...]:
 
 
 __all__ = [
+    "DEFAULT_PORTFOLIO_RANKING_POLICY",
     "PortfolioRankComponents",
+    "PortfolioRankingPolicy",
     "portfolio_rank_components",
     "portfolio_ranking_key",
+    "portfolio_ranking_policy_from_settings",
 ]

@@ -16,6 +16,9 @@ from apex.strategies.applicability import (
 from apex.strategies.candidate_execution_quality import (
     attach_candidate_execution_quality,
 )
+from apex.strategies.candidate_methodology_state import (
+    attach_candidate_methodology_state,
+)
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.diagnostics import (
@@ -24,6 +27,10 @@ from apex.strategies.diagnostics import (
     has_higher_timeframe_breakout,
 )
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.execution_quality import (
+    DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
+    ExecutionQualityCapPolicy,
+)
 from apex.strategies.registry import STRATEGY_REGISTRY, run_strategy_generator
 from apex.strategies.strategy_types import StrategyType
 from apex.structure.regime import MarketRegime, classify_market_regime
@@ -141,6 +148,9 @@ def analyze_strategies(
     context: StrategyContext,
     *,
     decision_time: datetime,
+    execution_quality_cap_policy: ExecutionQualityCapPolicy = (
+        DEFAULT_EXECUTION_QUALITY_CAP_POLICY
+    ),
 ) -> StrategyAnalysisResult:
     """Route registered strategies before generation and retain valid candidates."""
 
@@ -163,7 +173,12 @@ def analyze_strategies(
         if strategy not in eligible
     }
     candidates = tuple(
-        _normalize_candidate(candidate, context=context)
+        _normalize_candidate(
+            candidate,
+            context=context,
+            decision_regime=decision_regime,
+            execution_quality_cap_policy=execution_quality_cap_policy,
+        )
         for strategy, generator in STRATEGY_REGISTRY
         if strategy in eligible
         for candidate in run_strategy_generator(
@@ -205,6 +220,8 @@ def _normalize_candidate(
     candidate: TradeCandidate,
     *,
     context: StrategyContext,
+    decision_regime: MarketRegime,
+    execution_quality_cap_policy: ExecutionQualityCapPolicy,
 ) -> TradeCandidate:
     from apex.scoring.candidate_quality_components import (
         attach_candidate_quality_components_for_candidate,
@@ -214,9 +231,15 @@ def _normalize_candidate(
         candidate,
         strategy=StrategyType(candidate.strategy.value),
     )
-    execution_enriched = attach_candidate_execution_quality(
+    methodology_enriched = attach_candidate_methodology_state(
         candidate=normalized,
         context=context,
+        regime=decision_regime,
+    )
+    execution_enriched = attach_candidate_execution_quality(
+        candidate=methodology_enriched,
+        context=context,
+        cap_policy=execution_quality_cap_policy,
     )
     return attach_candidate_quality_components_for_candidate(
         candidate=execution_enriched,

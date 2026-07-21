@@ -7,7 +7,9 @@ from dataclasses import dataclass, replace
 from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import TradeCandidate, TradeDirection
 from apex.strategies.execution_quality import (
+    DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
     CappedExecutionQualityResult,
+    ExecutionQualityCapPolicy,
     ExecutionQualityConstraints,
     ExecutionQualityInputs,
     apply_execution_quality_caps,
@@ -28,6 +30,7 @@ def evaluate_candidate_execution_quality(
     *,
     candidate: TradeCandidate,
     context: StrategyContext,
+    cap_policy: ExecutionQualityCapPolicy = DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
 ) -> CandidateExecutionQuality:
     """Evaluate execution quality from canonical candidate and decision-frame facts."""
 
@@ -60,7 +63,7 @@ def evaluate_candidate_execution_quality(
         spread_slippage_available=spread_available,
     )
     raw = calculate_execution_quality(inputs)
-    capped = apply_execution_quality_caps(raw, constraints)
+    capped = apply_execution_quality_caps(raw, constraints, policy=cap_policy)
     return CandidateExecutionQuality(
         inputs=inputs,
         constraints=constraints,
@@ -72,12 +75,14 @@ def attach_candidate_execution_quality(
     *,
     candidate: TradeCandidate,
     context: StrategyContext,
+    cap_policy: ExecutionQualityCapPolicy = DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
 ) -> TradeCandidate:
     """Return a frozen candidate copy with truthful execution-quality authority."""
 
     evaluated = evaluate_candidate_execution_quality(
         candidate=candidate,
         context=context,
+        cap_policy=cap_policy,
     )
     result = evaluated.result
     score_dimensions = replace(

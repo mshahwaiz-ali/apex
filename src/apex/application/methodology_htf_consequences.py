@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
-from apex.application.methodology_htf_relationship import (
-    HtfRelationshipAssessment,
-)
 from apex.application.methodology_opportunity_context import (
     HoldingHorizon,
     OpportunityLane,
@@ -15,6 +13,30 @@ from apex.domain.methodology_contracts import (
     RelationshipSeverity,
     TimeframeRelationship,
 )
+from apex.domain.methodology_htf_relationship import (
+    HtfRelationshipAssessment,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class HtfConsequencePolicy:
+    countertrend_scalp_target_ceiling_r: float = 1.5
+    reversal_attempt_target_ceiling_r: float = 2.0
+    mixed_mild_target_ceiling_r: float = 2.5
+    mixed_constrained_target_ceiling_r: float = 2.0
+
+    def __post_init__(self) -> None:
+        values = (
+            self.countertrend_scalp_target_ceiling_r,
+            self.reversal_attempt_target_ceiling_r,
+            self.mixed_mild_target_ceiling_r,
+            self.mixed_constrained_target_ceiling_r,
+        )
+        if any(not math.isfinite(value) or value <= 0.0 for value in values):
+            raise ValueError("HTF consequence target ceilings must be positive and finite")
+
+
+DEFAULT_HTF_CONSEQUENCE_POLICY = HtfConsequencePolicy()
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +61,7 @@ def apply_htf_consequences(
     *,
     lane: OpportunityLane | None,
     holding_horizon: HoldingHorizon | None,
+    policy: HtfConsequencePolicy = DEFAULT_HTF_CONSEQUENCE_POLICY,
 ) -> HtfConsequence:
     if assessment.hard_reject:
         return HtfConsequence(
@@ -57,7 +80,9 @@ def apply_htf_consequences(
             allowed=scalp_lane,
             runner_allowed=False,
             confirmation_required=True,
-            target_ceiling_r_multiple=1.5 if scalp_lane else None,
+            target_ceiling_r_multiple=(
+                policy.countertrend_scalp_target_ceiling_r if scalp_lane else None
+            ),
             holding_horizon=(HoldingHorizon.SCALP if scalp_lane else holding_horizon),
             exit_condition_required=True,
             reasons=(
@@ -71,7 +96,7 @@ def apply_htf_consequences(
             allowed=True,
             runner_allowed=False,
             confirmation_required=True,
-            target_ceiling_r_multiple=2.0,
+            target_ceiling_r_multiple=policy.reversal_attempt_target_ceiling_r,
             holding_horizon=holding_horizon,
             exit_condition_required=True,
             reasons=(
@@ -85,7 +110,11 @@ def apply_htf_consequences(
             allowed=True,
             runner_allowed=False,
             confirmation_required=not mild,
-            target_ceiling_r_multiple=2.5 if mild else 2.0,
+            target_ceiling_r_multiple=(
+                policy.mixed_mild_target_ceiling_r
+                if mild
+                else policy.mixed_constrained_target_ceiling_r
+            ),
             holding_horizon=holding_horizon,
             exit_condition_required=True,
             reasons=(
@@ -133,7 +162,9 @@ def htf_consequence_payload(
 
 
 __all__ = [
+    "DEFAULT_HTF_CONSEQUENCE_POLICY",
     "HtfConsequence",
+    "HtfConsequencePolicy",
     "apply_htf_consequences",
     "htf_consequence_payload",
 ]

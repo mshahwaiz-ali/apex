@@ -45,8 +45,19 @@ def _setup(
             }
         ],
         "quality_dimensions": {
-            "overall_trade_quality": 0.78,
+            "pattern_confidence": 0.76,
+            "directional_alignment": 0.64,
+            "setup_quality": 0.81,
             "execution_quality": 0.72,
+            "target_quality": 0.74,
+            "timing_quality": 0.69,
+            "data_confidence": 0.93,
+            "overall_trade_quality": 0.78,
+        },
+        "layered_state": {
+            "timeframe_relationship": "mixed",
+            "relationship_severity": "moderate",
+            "continuation_state": "fresh_continuation",
         },
         "warnings": ["liquidity can deteriorate"],
     }
@@ -65,6 +76,9 @@ def _opportunity(
         "sequence_role": role,
         "direction": setup["direction"],
         "strategy": setup["strategy"],
+        "lane": role,
+        "rank_score": 82.5,
+        "ranking": {"rank_score": 82.5},
         "setup": setup,
     }
 
@@ -211,7 +225,7 @@ def test_analysis_renders_complete_portfolio_sections() -> None:
     assert "Setup plan" in text
 
 
-def test_analysis_renders_each_opportunity_identity_and_geometry() -> None:
+def test_analysis_renders_operator_context_and_geometry_without_raw_ids() -> None:
     text = render_analysis(_portfolio_payload())
 
     for opportunity_id in (
@@ -220,15 +234,26 @@ def test_analysis_renders_each_opportunity_identity_and_geometry() -> None:
         "btc-follow-up-long",
         "btc-runner-long",
     ):
-        assert opportunity_id in text
+        assert opportunity_id not in text
 
+    assert "Opportunity #1" in text
+    assert "Breakout continuation · Current · Ready now" in text
+    assert "Failed breakout · Nearby · Wait for retest" in text
+    assert "Mixed (moderate) · Fresh continuation" in text
     assert "Maximum chase" in text
     assert "Ideal entry" in text
     assert "Entry range" in text
     assert "Stop loss" in text
     assert "TP1" in text
-    assert "Trade quality" in text
+    assert "2.00R" in text
+    assert "target quality 0.7" in text
+    assert "Pattern confidence" in text
+    assert "Setup quality" in text
     assert "Execution quality" in text
+    assert "Target quality" in text
+    assert "HTF alignment" in text
+    assert "Overall trade quality" in text
+    assert "Rank score" in text
     assert "Main risk" in text
     assert "BTCUSDT — LONG" in text
     assert "BTCUSDT — SHORT" in text

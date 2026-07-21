@@ -1,6 +1,7 @@
 import pytest
 
 from apex.strategies.execution_quality import (
+    ExecutionQualityCapPolicy,
     ExecutionQualityConstraints,
     ExecutionQualityInputs,
     apply_execution_quality_caps,
@@ -124,3 +125,27 @@ def test_cap_never_inflates_a_lower_raw_score() -> None:
     assert result.uncapped_score == pytest.approx(0.2)
     assert result.applied_cap == pytest.approx(0.55)
     assert result.final_score == pytest.approx(0.2)
+
+
+def test_custom_policy_changes_only_the_configured_active_cap() -> None:
+    result = apply_execution_quality_caps(
+        _perfect_result(),
+        ExecutionQualityConstraints(trigger_complete=False),
+        policy=ExecutionQualityCapPolicy(trigger_incomplete=0.72),
+    )
+
+    assert result.applied_cap == pytest.approx(0.72)
+    assert result.final_score == pytest.approx(0.72)
+
+
+def test_default_policy_preserves_historical_cap_values() -> None:
+    policy = ExecutionQualityCapPolicy()
+
+    assert policy.provisional_evidence == pytest.approx(0.65)
+    assert policy.trigger_incomplete == pytest.approx(0.55)
+    assert policy.data_stale == pytest.approx(0.25)
+    assert policy.data_degraded == pytest.approx(0.50)
+    assert policy.outside_entry_zone == pytest.approx(0.60)
+    assert policy.chase_limit_violated == pytest.approx(0.20)
+    assert policy.stop_infeasible == pytest.approx(0.00)
+    assert policy.spread_slippage_unavailable == pytest.approx(0.75)

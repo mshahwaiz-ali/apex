@@ -13,6 +13,7 @@ from apex.application import decision_analysis, selected_symbol
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.cli_commands import analysis as analysis_cli
 from apex.cli_commands import scanner as scanner_cli
+from apex.config import MethodologySettings
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG
 
 
@@ -52,11 +53,39 @@ def test_selected_symbol_delegates_to_canonical_analysis_core(monkeypatch: Any) 
                 "generated_at": None,
                 "strategy_routing": None,
                 "methodology_gate_mode": "enforce",
+                "methodology_settings": None,
                 "analysis_mode": AnalysisMode.ANALYZE_FULL,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
             },
         )
     ]
+
+
+def test_selected_symbol_forwards_explicit_methodology_settings(
+    monkeypatch: Any,
+) -> None:
+    calls: list[dict[str, object]] = []
+    settings = MethodologySettings()
+
+    def fake_analyze_symbol(
+        symbol: str,
+        received_provider: object,
+        **kwargs: object,
+    ) -> object:
+        del symbol, received_provider
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(selected_symbol, "analyze_symbol", fake_analyze_symbol)
+
+    selected_symbol.analyze_selected_symbol(
+        "BTCUSDT",
+        object(),  # type: ignore[arg-type]
+        timeframes=("1m", "15m"),
+        methodology_settings=settings,
+    )
+
+    assert calls[0]["methodology_settings"] is settings
 
 
 def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any) -> None:
@@ -101,6 +130,7 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "strategy_routing": None,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
+                "methodology_settings": None,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),
@@ -116,6 +146,7 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "strategy_routing": None,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
+                "methodology_settings": None,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),

@@ -126,19 +126,27 @@ def format_amount(value: object, *, currency: str | None = None, decimals: int =
 
 
 def format_price(value: object, *, decimals: int | None = None) -> str:
-    """Format a market price with useful precision and no scientific notation."""
+    """Format a market price with adaptive readable precision.
+
+    Explicit ``decimals`` remains authoritative for exchange-aware callers.
+    Without it, the terminal uses stable magnitude-based readability while
+    preserving the original numeric value everywhere outside text rendering.
+    """
 
     number = _finite_number(value)
     if number is None:
         return UNAVAILABLE
+
     precision = decimals
     if precision is None:
         absolute = abs(number)
-        if absolute >= 1_000:
+        if absolute >= 1:
             precision = 2
-        elif absolute >= 1:
+        elif absolute >= 0.1:
             precision = 4
         elif absolute >= 0.01:
+            precision = 5
+        elif absolute >= 0.001:
             precision = 6
         else:
             precision = 8

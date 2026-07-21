@@ -55,6 +55,9 @@ from apex.application.historical_edge_runtime import (
 )
 from apex.application.market_intelligence import build_market_intelligence
 from apex.application.market_strategy_router import MarketStrategyRoute
+from apex.application.methodology_candidate_geometry_safety import (
+    geometry_safety_policy_from_settings,
+)
 from apex.application.methodology_candidate_routing import (
     MethodologyCandidateRoutingResult,
     apply_methodology_candidate_routing,
@@ -88,6 +91,7 @@ from apex.application.methodology_geometry_runtime import (
     GeometryExecutionCosts,
     build_geometry_runtime_context,
 )
+from apex.application.methodology_htf_consequences import HtfConsequencePolicy
 from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
 from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
@@ -106,10 +110,12 @@ from apex.application.opportunity_portfolio import (
     classify_setup_sequence_role,
     opportunity_portfolio_payload,
 )
+from apex.application.portfolio_ranking import portfolio_ranking_policy_from_settings
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
 )
+from apex.config.methodology import MethodologySettings
 from apex.data.providers.base import MarketDataProvider
 from apex.scoring.contracts import CandidateSelectionResult
 from apex.strategies import (
@@ -120,6 +126,7 @@ from apex.strategies import (
 )
 from apex.strategies.analysis import StrategyAnalysisResult
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.execution_quality import ExecutionQualityCapPolicy
 
 
 def analyze_symbol(
@@ -135,6 +142,7 @@ def analyze_symbol(
     market_strategy_route: MarketStrategyRoute | None = None,
     methodology_market_state: PrimaryMarketState | None = None,
     methodology_gate_mode: str = "shadow",
+    methodology_settings: MethodologySettings | None = None,
     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
@@ -155,7 +163,15 @@ def analyze_symbol(
         received_at=decision_time,
         futures_evidence_enabled=futures_evidence_enabled,
     )
-    strategy_analysis = analyze_strategies(context, decision_time=decision_time)
+    resolved_methodology_settings = methodology_settings or MethodologySettings()
+    execution_quality_cap_policy = ExecutionQualityCapPolicy(
+        **resolved_methodology_settings.execution_quality_caps.model_dump()
+    )
+    strategy_analysis = analyze_strategies(
+        context,
+        decision_time=decision_time,
+        execution_quality_cap_policy=execution_quality_cap_policy,
+    )
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
     geometry_runtime_context = build_geometry_runtime_context(
         context,
@@ -166,6 +182,10 @@ def analyze_symbol(
         market_state=methodology_market_state,
         mode=methodology_gate_mode,
         geometry_runtime_context=geometry_runtime_context,
+        geometry_safety_policy=geometry_safety_policy_from_settings(resolved_methodology_settings),
+        htf_consequence_policy=HtfConsequencePolicy(
+            **resolved_methodology_settings.htf_consequences.model_dump()
+        ),
     )
     methodology_parity = _methodology_parity_diagnostics(
         routed,
@@ -223,6 +243,9 @@ def analyze_symbol(
         selection,
         cmp=portfolio_cmp,
         analysis_mode=analysis_mode,
+        ranking_policy=portfolio_ranking_policy_from_settings(
+            resolved_methodology_settings.ranking_weights
+        ),
     )
     ranking = build_candidate_ranking_snapshot(selection)
     candlestick_patterns = detect_contextual_candlesticks(context)

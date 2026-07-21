@@ -29,6 +29,7 @@ from apex.application.opportunity_portfolio import (
     PortfolioDecisionState,
     SymbolOpportunityPortfolio,
 )
+from apex.config.methodology import MethodologySettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -66,6 +67,7 @@ def analyze_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    methodology_settings: MethodologySettings | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
@@ -82,6 +84,7 @@ def analyze_symbol(
         strategy_routing=strategy_routing,
         market_environment_config=market_environment_config,
         methodology_gate_mode=methodology_gate_mode,
+        methodology_settings=methodology_settings,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
     )
@@ -129,6 +132,7 @@ def scan_symbols(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
+    methodology_settings: MethodologySettings | None = None,
     futures_evidence_enabled: bool = True,
 ) -> DiscoveryScanResult:
     """Analyze each symbol once with canonical routing, gating, and ranking."""
@@ -147,6 +151,7 @@ def scan_symbols(
                 "strategy_routing": strategy_routing,
                 "market_environment_config": market_environment_config,
                 "methodology_gate_mode": methodology_gate_mode,
+                "methodology_settings": methodology_settings,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             }
             if not futures_evidence_enabled:

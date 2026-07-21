@@ -12,6 +12,7 @@ from apex.application.discovery_contracts import (
     TakeProfit,
 )
 from apex.application.portfolio_ranking import (
+    PortfolioRankingPolicy,
     portfolio_rank_components,
     portfolio_ranking_key,
 )
@@ -158,3 +159,51 @@ def test_unavailable_rank_evidence_remains_explicitly_unavailable() -> None:
     assert payload["data_confidence"] is None
     assert payload["htf_alignment"] is None
     assert 0.0 <= components.rank_score <= 100.0
+
+
+def test_custom_policy_can_intentionally_change_recommendation_order() -> None:
+    executable = _setup(
+        "executable",
+        execution_allowed_now=True,
+        risk_reward=1.0,
+        target_quality=50.0,
+    )
+    nearby = _setup(
+        "nearby",
+        execution_allowed_now=False,
+        risk_reward=3.0,
+        target_quality=100.0,
+    )
+    reward_first = PortfolioRankingPolicy(
+        execution_precedence=0.0,
+        tp1_reward_quality=1.0,
+        target_quality=0.0,
+        setup_quality=0.0,
+        execution_quality=0.0,
+        htf_alignment=0.0,
+        timing_quality=0.0,
+        data_confidence=0.0,
+        overall_trade_quality=0.0,
+    )
+
+    assert portfolio_ranking_key(
+        nearby,
+        policy=reward_first,
+    ) < portfolio_ranking_key(
+        executable,
+        policy=reward_first,
+    )
+
+
+def test_default_policy_preserves_historical_weights() -> None:
+    policy = PortfolioRankingPolicy()
+
+    assert policy.execution_precedence == 0.22
+    assert policy.tp1_reward_quality == 0.20
+    assert policy.target_quality == 0.12
+    assert policy.setup_quality == 0.12
+    assert policy.execution_quality == 0.12
+    assert policy.htf_alignment == 0.08
+    assert policy.timing_quality == 0.05
+    assert policy.data_confidence == 0.04
+    assert policy.overall_trade_quality == 0.05

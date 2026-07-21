@@ -27,6 +27,10 @@ from apex.application.opportunity_portfolio import (
     SymbolOpportunityPortfolio,
     portfolio_from_setups,
 )
+from apex.application.portfolio_ranking import (
+    DEFAULT_PORTFOLIO_RANKING_POLICY,
+    PortfolioRankingPolicy,
+)
 from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
 from apex.domain.methodology_contracts import (
     ContinuationState,
@@ -104,6 +108,7 @@ def build_opportunity_portfolio(
     *,
     cmp: float,
     analysis_mode: AnalysisMode,
+    ranking_policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY,
 ) -> SymbolOpportunityPortfolio:
     """Build a diagnostic portfolio from accepted ranked candidates.
 
@@ -123,6 +128,7 @@ def build_opportunity_portfolio(
         cmp=cmp,
         analysis_timestamp=candidate_selection.decision_time,
         analysis_mode=analysis_mode,
+        ranking_policy=ranking_policy,
     )
 
 

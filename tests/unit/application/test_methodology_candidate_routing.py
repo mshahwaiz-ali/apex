@@ -1,20 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import cast
 
 import apex.application.methodology_candidate_routing as candidate_routing
 from apex.application.methodology_candidate_routing import (
+    _htf_assessment_from_layered_state,
     apply_methodology_candidate_routing,
     evaluate_methodology_candidate_routing,
     methodology_candidate_routing_payload,
+)
+from apex.application.methodology_opportunity_context import (
+    HoldingHorizon,
+    OpportunityLane,
 )
 from apex.application.methodology_selected_strategy_gate import MethodologyGateMode
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_enforcement import (
     StrategyEnforcementAction,
     StrategyEnforcementDecision,
+)
+from apex.domain.methodology_contracts import (
+    ContextState,
+    ExecutionState,
+    LayeredStateSnapshot,
+    RelationshipSeverity,
+    SetupState,
+    TimeframeRelationship,
 )
 from apex.strategies.analysis import CandidateActionability, StrategyAnalysisResult
 from apex.strategies.contracts import EntryMode, StrategyEvidence, TradeCandidate, TradeDirection
@@ -36,12 +49,14 @@ class _Candidate:
     evidence: StrategyEvidence
     entry: _Entry
     provisional: bool = False
+    layered_state: LayeredStateSnapshot = field(default_factory=LayeredStateSnapshot)
 
 
 def _candidate(
     strategy: StrategyType,
     *,
     entry_mode: EntryMode = EntryMode.MARKET_NEAR,
+    layered_state: LayeredStateSnapshot | None = None,
 ) -> TradeCandidate:
     return cast(
         TradeCandidate,
@@ -56,6 +71,7 @@ def _candidate(
                 liquidity_references=("liquidity reference",),
             ),
             entry=_Entry(entry_mode),
+            layered_state=(LayeredStateSnapshot() if layered_state is None else layered_state),
         ),
     )
 
@@ -436,3 +452,126 @@ def test_geometry_coverage_reports_missing_inputs_and_blocks_enforcement_readine
     assert coverage["unavailable_count"] == 2
     assert coverage["enforcement_ready"] is False
     assert coverage["missing_measurement_counts"] == {"metadata": 2}
+
+
+def _layered_state(
+    relationship: TimeframeRelationship,
+    severity: RelationshipSeverity,
+) -> LayeredStateSnapshot:
+    return LayeredStateSnapshot(
+        execution_state=ExecutionState.CLEAN,
+        setup_state=SetupState.PULLBACK,
+        context_state=ContextState.TRENDING_UP,
+        timeframe_relationship=relationship,
+        relationship_severity=severity,
+    )
+
+
+def test_unavailable_htf_state_preserves_legacy_routing() -> None:
+    assert _htf_assessment_from_layered_state(LayeredStateSnapshot()) is None
+
+
+def test_mild_mixed_htf_state_reconstructs_constrained_assessment() -> None:
+    assessment = _htf_assessment_from_layered_state(
+        _layered_state(
+            TimeframeRelationship.MIXED,
+            RelationshipSeverity.MILD,
+        )
+    )
+
+    assert assessment is not None
+    assert assessment.confirmation_required is False
+    assert assessment.target_ceiling_required is True
+    assert assessment.hard_reject is False
+
+
+def test_routing_passes_layered_state_and_mild_htf_consequence(monkeypatch) -> None:
+    layered = _layered_state(
+        TimeframeRelationship.MIXED,
+        RelationshipSeverity.MILD,
+    )
+    candidate = _candidate(
+        StrategyType.TREND_PULLBACK,
+        layered_state=layered,
+    )
+    analysis = StrategyAnalysisResult(
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 18, tzinfo=UTC),
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+        eligible_strategies=(StrategyType.TREND_PULLBACK,),
+        candidate_actionability=(
+            CandidateActionability(candidate=candidate, status=EntryStatus.READY_NOW),
+        ),
+    )
+    captured: dict[str, object] = {}
+    original = candidate_routing.evaluate_strategy_eligibility
+
+    def capture(*args: object, **kwargs: object) -> object:
+        captured["layered_state"] = kwargs.get("layered_state")
+        captured["htf_consequence"] = kwargs.get("htf_consequence")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(candidate_routing, "evaluate_strategy_eligibility", capture)
+
+    result = evaluate_methodology_candidate_routing(
+        analysis,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.SHADOW,
+    )
+
+    assert result.input_candidate_count == 1
+    assert captured["layered_state"] is layered
+    consequence = captured["htf_consequence"]
+    assert consequence is not None
+    assert consequence.allowed is True
+    assert consequence.runner_allowed is False
+    assert consequence.confirmation_required is False
+    assert consequence.target_ceiling_r_multiple == 2.5
+
+
+def test_countertrend_relationship_rejects_non_scalp_lane(monkeypatch) -> None:
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.CLEAN,
+        setup_state=SetupState.RANGE,
+        context_state=ContextState.RANGE_BOUND,
+        timeframe_relationship=TimeframeRelationship.COUNTERTREND_SCALP,
+        relationship_severity=RelationshipSeverity.STRONG,
+    )
+    candidate = _candidate(
+        StrategyType.RANGE_REVERSAL,
+        layered_state=layered,
+    )
+    analysis = StrategyAnalysisResult(
+        symbol="BTCUSDT",
+        decision_time=datetime(2026, 7, 18, tzinfo=UTC),
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.RANGE_REVERSAL,),
+        eligible_strategies=(StrategyType.RANGE_REVERSAL,),
+        candidate_actionability=(
+            CandidateActionability(candidate=candidate, status=EntryStatus.READY_NOW),
+        ),
+    )
+
+    monkeypatch.setattr(
+        candidate_routing,
+        "infer_candidate_methodology_context",
+        lambda *args, **kwargs: type(
+            "_Context",
+            (),
+            {
+                "lane": OpportunityLane.RUNNER,
+                "holding_horizon": HoldingHorizon.RUNNER,
+            },
+        )(),
+    )
+
+    result = evaluate_methodology_candidate_routing(
+        analysis,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.ENFORCE,
+    )
+
+    assert result.suppressed_candidate_count == 1
+    assert result.decisions[0].action is StrategyEnforcementAction.SUPPRESS
+    assert result.decisions[0].reason_codes == ("METHODOLOGY_PROHIBITED_STATE",)

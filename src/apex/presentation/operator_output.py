@@ -169,31 +169,30 @@ def _opportunity_card(
         ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
     for target_index, target in enumerate(targets[:3], start=1):
-        fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
-    fields.extend(_conditional_opportunity_fields(setup))
-    fields.extend(
-        (
+        fields.append(
             (
-                "Trade quality",
-                _quality(
-                    quality.get("overall_trade_quality")
-                    or quality.get("setup_quality")
-                    or setup.get("confidence_score")
+                f"TP{target_index}",
+                _target_label(
+                    target,
+                    reference=reference,
+                    target_quality=quality.get("target_quality") if target_index == 1 else None,
                 ),
-            ),
-            ("Execution quality", _quality(quality.get("execution_quality"))),
+            )
         )
-    )
+    fields.extend(_conditional_opportunity_fields(setup))
+    fields.extend(_opportunity_quality_fields(opportunity, setup, quality))
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
         fields.append(("Main risk", warnings[0]))
-    return "\n".join(
-        (
-            f"▶  #{index}  {symbol} — {direction}",
-            f"   Opportunity {opportunity.get('opportunity_id') or 'Opportunity'}",
-            render_fields(fields),
-        )
-    )
+
+    header_lines = [
+        f"▶  Opportunity #{index}  {symbol} — {direction}",
+        f"   {_opportunity_context_line(opportunity, setup)}",
+    ]
+    relationship_line = _opportunity_relationship_line(setup)
+    if relationship_line:
+        header_lines.append(f"   {relationship_line}")
+    return "\n".join((*header_lines, render_fields(fields)))
 
 
 def _conditional_opportunity_fields(
@@ -253,7 +252,6 @@ def _setup_plan_section(payload: Mapping[str, object]) -> str:
                 (
                     ("Status", humanize_code(plan.get("status"))),
                     ("Opportunities", plan.get("opportunity_count")),
-                    ("Primary opportunity", plan.get("primary_opportunity_id")),
                 )
             ),
         )
@@ -523,40 +521,104 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
         ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
     for target_index, target in enumerate(targets[:3], start=1):
-        fields.append((f"TP{target_index}", _target_label(target, reference=reference)))
-    fields.append(("Quality", _quality_dimensions_label(quality, setup)))
+        fields.append(
+            (
+                f"TP{target_index}",
+                _target_label(
+                    target,
+                    reference=reference,
+                    target_quality=quality.get("target_quality") if target_index == 1 else None,
+                ),
+            )
+        )
+    fields.extend(_opportunity_quality_fields(opportunity, setup, quality))
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
         fields.append(("Main risk", warnings[0]))
     data_warning = data_quality_warning(source)
     if data_warning:
         fields.append(("Data warning", data_warning))
-    identity = opportunity.get("opportunity_id") or f"opportunity-{index}"
-    return "\n".join(
-        (
-            f"▶  #{index}  {symbol} — {direction.upper()}",
-            f"   Opportunity {identity}",
-            render_fields(fields),
-        )
+
+    display_rank = source.get("display_rank")
+    rank_label = (
+        f"Rank #{display_rank}"
+        if isinstance(display_rank, int) and not isinstance(display_rank, bool)
+        else f"Opportunity #{index}"
     )
+    header_lines = [
+        f"▶  {rank_label}  {symbol} — {direction.upper()}",
+        f"   {_opportunity_context_line(opportunity, setup)}",
+    ]
+    relationship_line = _opportunity_relationship_line(setup)
+    if relationship_line:
+        header_lines.append(f"   {relationship_line}")
+    return "\n".join((*header_lines, render_fields(fields)))
 
 
-def _quality_dimensions_label(
-    quality: Mapping[str, object],
+def _opportunity_context_line(
+    opportunity: Mapping[str, object],
     setup: Mapping[str, object],
 ) -> str:
-    setup_quality = (
-        quality.get("setup_quality")
-        or quality.get("overall_trade_quality")
-        or setup.get("confidence_score")
+    strategy = humanize_code(opportunity.get("strategy") or setup.get("strategy"))
+    lane = humanize_code(
+        opportunity.get("lane")
+        or opportunity.get("effective_lane")
+        or opportunity.get("category")
+        or opportunity.get("sequence_role")
     )
+    actionability = _actionability_label(setup)
     return " · ".join(
-        (
-            f"Setup {_quality(setup_quality)}",
-            f"Execution {_quality(quality.get('execution_quality'))}",
-            f"Target {_quality(quality.get('target_quality'))}",
-        )
+        value for value in (strategy, lane, actionability) if value and value != UNAVAILABLE
     )
+
+
+def _opportunity_relationship_line(setup: Mapping[str, object]) -> str:
+    layered = _mapping(setup.get("layered_state"))
+    relationship = humanize_code(layered.get("timeframe_relationship"))
+    severity = humanize_code(layered.get("relationship_severity"))
+    continuation = humanize_code(
+        layered.get("continuation_state") or setup.get("continuation_state")
+    )
+
+    relationship_label = relationship
+    if (
+        relationship
+        and relationship != UNAVAILABLE
+        and severity
+        and severity not in {UNAVAILABLE, "None"}
+    ):
+        relationship_label = f"{relationship} ({severity.lower()})"
+
+    return " · ".join(
+        value for value in (relationship_label, continuation) if value and value != UNAVAILABLE
+    )
+
+
+def _opportunity_quality_fields(
+    opportunity: Mapping[str, object],
+    setup: Mapping[str, object],
+    quality: Mapping[str, object],
+) -> tuple[tuple[str, object], ...]:
+    ranking = _mapping(opportunity.get("ranking"))
+    fields: list[tuple[str, object]] = []
+    values = (
+        ("Pattern confidence", quality.get("pattern_confidence")),
+        ("Setup quality", quality.get("setup_quality")),
+        ("Execution quality", quality.get("execution_quality")),
+        ("Target quality", quality.get("target_quality") or quality.get("reward_quality")),
+        ("HTF alignment", quality.get("directional_alignment")),
+        ("Timing quality", quality.get("timing_quality")),
+        ("Data confidence", quality.get("data_confidence")),
+        ("Overall trade quality", quality.get("overall_trade_quality")),
+        ("Rank score", opportunity.get("rank_score") or ranking.get("rank_score")),
+    )
+    for label, value in values:
+        if value is not None:
+            fields.append((label, _quality(value)))
+
+    if not fields:
+        fields.append(("Trade quality", _quality(setup.get("confidence_score"))))
+    return tuple(fields)
 
 
 def _signed_move_label(price: float | None, reference: float | None) -> str:
@@ -1807,15 +1869,29 @@ def _screening_lanes(screening: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def _target_label(target: Mapping[str, object], *, reference: float | None) -> str:
+def _target_label(
+    target: Mapping[str, object],
+    *,
+    reference: float | None,
+    target_quality: object = None,
+) -> str:
     price = target.get("price")
     rr = format_ratio(target.get("risk_reward"))
     move = _move_pct(price, reference)
-    suffixes = []
+    suffixes: list[str] = []
     if move is not None:
         suffixes.append(f"{move:+.2f}%")
     if rr != UNAVAILABLE:
         suffixes.append(f"{rr}R")
+
+    quality = _quality(target_quality)
+    if target_quality is not None and quality != UNAVAILABLE:
+        suffixes.append(f"target quality {quality}")
+
+    purpose = target.get("purpose")
+    if _available_output_value(purpose):
+        suffixes.append(_clean(purpose))
+
     suffix = " • " + " • ".join(suffixes) if suffixes else ""
     return f"{format_price(price)}{suffix}"
 

@@ -86,6 +86,38 @@ strategy_routing:
     - vwap_reclaim_rejection
     - momentum_scalp
     - exhaustion_reversal
+methodology:
+  lane_geometry:
+    cmp_scalp: {minimum_tp1_reward_to_risk: 1.00, maximum_stop_distance_pct: 2.0, minimum_target_quality: 45.0}
+    confirmation_scalp: {minimum_tp1_reward_to_risk: 1.00, maximum_stop_distance_pct: 2.0, minimum_target_quality: 45.0}
+    pullback_scalp: {minimum_tp1_reward_to_risk: 1.20, maximum_stop_distance_pct: 2.5, minimum_target_quality: 50.0}
+    nearby_structured: {minimum_tp1_reward_to_risk: 1.25, maximum_stop_distance_pct: 6.0, minimum_target_quality: 50.0}
+    runner: {minimum_tp1_reward_to_risk: 1.80, maximum_stop_distance_pct: 8.0, minimum_target_quality: 60.0}
+    developing: {minimum_tp1_reward_to_risk: 1.25, maximum_stop_distance_pct: 6.0, minimum_target_quality: 50.0}
+  execution_quality_caps:
+    provisional_evidence: 0.65
+    trigger_incomplete: 0.55
+    data_stale: 0.25
+    data_degraded: 0.50
+    outside_entry_zone: 0.60
+    chase_limit_violated: 0.20
+    stop_infeasible: 0.00
+    spread_slippage_unavailable: 0.75
+  htf_consequences:
+    countertrend_scalp_target_ceiling_r: 1.5
+    reversal_attempt_target_ceiling_r: 2.0
+    mixed_mild_target_ceiling_r: 2.5
+    mixed_constrained_target_ceiling_r: 2.0
+  ranking_weights:
+    execution_precedence: 0.22
+    tp1_reward_quality: 0.20
+    target_quality: 0.12
+    setup_quality: 0.12
+    execution_quality: 0.12
+    htf_alignment: 0.08
+    timing_quality: 0.05
+    data_confidence: 0.04
+    overall_trade_quality: 0.05
 analysis_timeframes:
   - 1m
   - 3m

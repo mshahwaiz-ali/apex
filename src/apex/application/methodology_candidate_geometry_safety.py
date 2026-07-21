@@ -14,19 +14,30 @@ from apex.application.methodology_geometry_safety import (
     evaluate_geometry_safety,
 )
 from apex.application.opportunity_portfolio import OpportunityLane
+from apex.config.methodology import MethodologySettings
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.geometry_audit import derive_execution_stop_geometry
 
-DEFAULT_GEOMETRY_SAFETY_POLICY = GeometrySafetyPolicy(
-    lanes={
-        OpportunityLane.CMP_SCALP: LaneGeometryPolicy(1.00, 2.0, 45.0),
-        OpportunityLane.CONFIRMATION_SCALP: LaneGeometryPolicy(1.00, 2.0, 45.0),
-        OpportunityLane.PULLBACK_SCALP: LaneGeometryPolicy(1.20, 2.5, 50.0),
-        OpportunityLane.NEARBY_STRUCTURED: LaneGeometryPolicy(1.25, 6.0, 50.0),
-        OpportunityLane.RUNNER: LaneGeometryPolicy(1.80, 8.0, 60.0),
-        OpportunityLane.DEVELOPING: LaneGeometryPolicy(1.25, 6.0, 50.0),
-    }
-)
+
+def geometry_safety_policy_from_settings(
+    settings: MethodologySettings,
+) -> GeometrySafetyPolicy:
+    """Convert validated methodology settings into the runtime geometry policy."""
+
+    return GeometrySafetyPolicy(
+        lanes={
+            lane: LaneGeometryPolicy(
+                minimum_tp1_reward_to_risk=config.minimum_tp1_reward_to_risk,
+                maximum_stop_distance_pct=config.maximum_stop_distance_pct,
+                minimum_target_quality=config.minimum_target_quality,
+            )
+            for lane in OpportunityLane
+            for config in (settings.lane_geometry[lane.value],)
+        }
+    )
+
+
+DEFAULT_GEOMETRY_SAFETY_POLICY = geometry_safety_policy_from_settings(MethodologySettings())
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,4 +226,5 @@ __all__ = [
     "CandidateGeometrySafetyAudit",
     "audit_candidate_geometry_safety",
     "candidate_geometry_safety_audit_payload",
+    "geometry_safety_policy_from_settings",
 ]

@@ -15,6 +15,8 @@ from typing import Any
 
 from apex.application.discovery_contracts import DiscoveryAssessment, DiscoverySetup
 from apex.application.portfolio_ranking import (
+    DEFAULT_PORTFOLIO_RANKING_POLICY,
+    PortfolioRankingPolicy,
     portfolio_rank_components,
     portfolio_ranking_key,
 )
@@ -843,6 +845,7 @@ class SymbolOpportunityPortfolio:
     cmp: float
     analysis_timestamp: datetime
     analysis_mode: AnalysisMode
+    ranking_policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY
     current_long: TradeOpportunity | None = None
     current_short: TradeOpportunity | None = None
     nearby_long: TradeOpportunity | None = None
@@ -906,7 +909,15 @@ class SymbolOpportunityPortfolio:
             + self.follow_up_opportunities
             + (() if self.runner_plan is None else (self.runner_plan,))
         )
-        return tuple(sorted(populated, key=lambda item: portfolio_ranking_key(item.setup)))
+        return tuple(
+            sorted(
+                populated,
+                key=lambda item: portfolio_ranking_key(
+                    item.setup,
+                    policy=self.ranking_policy,
+                ),
+            )
+        )
 
     @property
     def all_opportunities(self) -> tuple[TradeOpportunity, ...]:
@@ -1051,6 +1062,7 @@ def portfolio_from_setups(
     cmp: float,
     analysis_timestamp: datetime,
     analysis_mode: AnalysisMode,
+    ranking_policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY,
     legacy_geometry_identity: bool = False,
 ) -> SymbolOpportunityPortfolio:
     """Classify distinct constructed setups into deterministic portfolio slots.
@@ -1160,6 +1172,7 @@ def portfolio_from_setups(
         cmp=cmp,
         analysis_timestamp=analysis_timestamp,
         analysis_mode=analysis_mode,
+        ranking_policy=ranking_policy,
         current_long=current_long,
         current_short=current_short,
         nearby_long=nearby_long,
@@ -1264,8 +1277,14 @@ def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict
                 else {}
             ),
             "execution_allowed_now": setup.execution_allowed_now,
-            "ranking": portfolio_rank_components(setup).to_dict(),
-            "rank_score": portfolio_rank_components(setup).rank_score,
+            "ranking": portfolio_rank_components(
+                setup,
+                policy=portfolio.ranking_policy,
+            ).to_dict(),
+            "rank_score": portfolio_rank_components(
+                setup,
+                policy=portfolio.ranking_policy,
+            ).rank_score,
             "cmp": setup.entry.current_price,
             "cmp_actionability": {
                 "state": cmp_actionability.state.value,

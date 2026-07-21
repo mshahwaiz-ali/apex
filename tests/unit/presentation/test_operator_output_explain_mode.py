@@ -131,8 +131,10 @@ def test_scan_explain_uses_same_canonical_diagnostics_without_changing_cards() -
     normal = render_scan(payload)
     explained = render_scan(payload, explain=True)
 
-    assert "btc-current" in normal
+    assert "btc-current" not in normal
     assert "btc-current" in explained
+    assert "Breakout retest · Current · Execute now" in normal
+    assert "Breakout retest · Current · Execute now" in explained
     assert "Methodology enforcement" not in normal
     assert "Methodology enforcement" in explained
     assert "Opportunity portfolio" in explained

@@ -9,6 +9,7 @@ from typing import Any
 from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import normalize_market_symbol
+from apex.config.methodology import MethodologySettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -24,6 +25,7 @@ def analyze_selected_symbol(
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     methodology_gate_mode: str = "shadow",
+    methodology_settings: MethodologySettings | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     futures_evidence_enabled: bool = True,
 ) -> SymbolAnalysis:
@@ -38,6 +40,7 @@ def analyze_selected_symbol(
         "generated_at": generated_at,
         "strategy_routing": strategy_routing,
         "methodology_gate_mode": methodology_gate_mode,
+        "methodology_settings": methodology_settings,
         "market_environment_config": market_environment_config,
         "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }

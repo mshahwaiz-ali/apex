@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from apex.application.methodology_htf_consequences import (
+    HtfConsequencePolicy,
     apply_htf_consequences,
     htf_consequence_payload,
 )
@@ -160,3 +161,27 @@ def test_payload_is_explicit() -> None:
     assert payload["runner_allowed"] is False
     assert payload["target_ceiling_r_multiple"] == 1.5
     assert payload["holding_horizon"] == "scalp"
+
+
+def test_custom_policy_controls_live_target_ceilings() -> None:
+    assessment = classify_htf_relationship(
+        HtfRelationshipInput(
+            trade_direction=TradeDirection.SHORT,
+            structural_bias=StructuralBias.BULLISH,
+        )
+    )
+    policy = HtfConsequencePolicy(
+        countertrend_scalp_target_ceiling_r=1.25,
+        reversal_attempt_target_ceiling_r=1.75,
+        mixed_mild_target_ceiling_r=3.1,
+        mixed_constrained_target_ceiling_r=1.9,
+    )
+
+    result = apply_htf_consequences(
+        assessment,
+        lane=OpportunityLane.NEARBY_STRUCTURED,
+        holding_horizon=HoldingHorizon.SHORT,
+        policy=policy,
+    )
+
+    assert result.target_ceiling_r_multiple == 3.1

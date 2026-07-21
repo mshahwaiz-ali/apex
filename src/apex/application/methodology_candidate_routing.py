@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 
 from apex.application.methodology_adapters import strategy_evidence_observations
 from apex.application.methodology_candidate_geometry_safety import (
+    DEFAULT_GEOMETRY_SAFETY_POLICY,
     CandidateGeometrySafetyAudit,
     audit_candidate_geometry_safety,
     candidate_geometry_safety_audit_payload,
@@ -14,8 +15,17 @@ from apex.application.methodology_candidate_lane_horizon import (
     measure_candidate_lane_horizon,
 )
 from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
+from apex.application.methodology_geometry_safety import GeometrySafetyPolicy
+from apex.application.methodology_htf_consequences import (
+    DEFAULT_HTF_CONSEQUENCE_POLICY,
+    HtfConsequence,
+    HtfConsequencePolicy,
+    apply_htf_consequences,
+)
 from apex.application.methodology_lane_horizon import LaneHorizonAssessment
 from apex.application.methodology_opportunity_context import (
+    HoldingHorizon,
+    OpportunityLane,
     infer_candidate_methodology_context,
 )
 from apex.application.methodology_selected_strategy_gate import MethodologyGateMode
@@ -27,6 +37,12 @@ from apex.application.methodology_strategy_enforcement import (
     strategy_enforcement_payload,
 )
 from apex.application.methodology_strategy_evaluation import evaluate_strategy_eligibility
+from apex.domain.methodology_contracts import (
+    LayeredStateSnapshot,
+    RelationshipSeverity,
+    TimeframeRelationship,
+)
+from apex.domain.methodology_htf_relationship import HtfRelationshipAssessment
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
 from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
@@ -91,6 +107,118 @@ def _candidate_lane_horizon_assessment(
         runner_authority=runner_authority,
     )
     return measurement.assessment
+
+
+_DEFAULT_LAYERED_STATE = LayeredStateSnapshot()
+
+
+def _candidate_layered_state(
+    candidate: TradeCandidate,
+) -> LayeredStateSnapshot | None:
+    try:
+        layered_state = candidate.layered_state
+    except AttributeError:
+        return None
+    return None if layered_state == _DEFAULT_LAYERED_STATE else layered_state
+
+
+def _htf_assessment_from_layered_state(
+    layered_state: LayeredStateSnapshot | None,
+) -> HtfRelationshipAssessment | None:
+    if layered_state is None:
+        return None
+
+    relationship = layered_state.timeframe_relationship
+    severity = layered_state.relationship_severity
+    if (
+        relationship is TimeframeRelationship.UNAVAILABLE
+        or severity is RelationshipSeverity.UNAVAILABLE
+    ):
+        return None
+
+    if relationship is TimeframeRelationship.WITH_TREND:
+        return HtfRelationshipAssessment(
+            relationship=relationship,
+            severity=severity,
+            runner_allowed=True,
+            confirmation_required=False,
+            target_ceiling_required=False,
+            hard_reject=False,
+            reasons=("trade direction aligns with higher-timeframe structure",),
+        )
+    if relationship is TimeframeRelationship.MIXED:
+        mild = severity is RelationshipSeverity.MILD
+        return HtfRelationshipAssessment(
+            relationship=relationship,
+            severity=severity,
+            runner_allowed=False,
+            confirmation_required=not mild,
+            target_ceiling_required=True,
+            hard_reject=False,
+            reasons=(
+                "higher-timeframe relationship is mixed and requires constrained target authority",
+            ),
+        )
+    if relationship is TimeframeRelationship.COUNTERTREND_SCALP:
+        return HtfRelationshipAssessment(
+            relationship=relationship,
+            severity=severity,
+            runner_allowed=False,
+            confirmation_required=True,
+            target_ceiling_required=True,
+            hard_reject=False,
+            reasons=(
+                "trade opposes confirmed higher-timeframe continuation; "
+                "scalp-only treatment required",
+            ),
+        )
+    if relationship is TimeframeRelationship.REVERSAL_ATTEMPT:
+        return HtfRelationshipAssessment(
+            relationship=relationship,
+            severity=severity,
+            runner_allowed=False,
+            confirmation_required=True,
+            target_ceiling_required=True,
+            hard_reject=False,
+            reasons=("trade depends on an unconfirmed higher-timeframe reversal attempt",),
+        )
+    if relationship is TimeframeRelationship.STRUCTURAL_REVERSAL_CONFIRMED:
+        return HtfRelationshipAssessment(
+            relationship=relationship,
+            severity=severity,
+            runner_allowed=True,
+            confirmation_required=False,
+            target_ceiling_required=False,
+            hard_reject=False,
+            reasons=("higher-timeframe structural reversal is confirmed",),
+        )
+    return HtfRelationshipAssessment(
+        relationship=relationship,
+        severity=severity,
+        runner_allowed=False,
+        confirmation_required=True,
+        target_ceiling_required=True,
+        hard_reject=True,
+        reasons=("nearby opposing higher-timeframe structure destroys usable reward space",),
+    )
+
+
+def _candidate_htf_consequence(
+    layered_state: LayeredStateSnapshot | None,
+    *,
+    lane: OpportunityLane | None,
+    holding_horizon: HoldingHorizon | None,
+    policy: HtfConsequencePolicy,
+) -> HtfConsequence | None:
+    assessment = _htf_assessment_from_layered_state(layered_state)
+    if assessment is None:
+        return None
+    return apply_htf_consequences(
+        assessment,
+        lane=lane,
+        holding_horizon=holding_horizon,
+        policy=policy,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +292,8 @@ def evaluate_methodology_candidate_routing(
     market_state: PrimaryMarketState | None,
     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
     geometry_runtime_context: GeometryRuntimeContext | None = None,
+    geometry_safety_policy: GeometrySafetyPolicy = DEFAULT_GEOMETRY_SAFETY_POLICY,
+    htf_consequence_policy: HtfConsequencePolicy = DEFAULT_HTF_CONSEQUENCE_POLICY,
 ) -> MethodologyCandidateRoutingResult:
     """Evaluate each generated strategy from its own candidate evidence."""
 
@@ -202,11 +332,19 @@ def evaluate_methodology_candidate_routing(
                 lane_horizon=lane_horizon,
             )
             candidate_id = identity_by_object[id(candidate)]
+            layered_state = _candidate_layered_state(candidate)
+            htf_consequence = _candidate_htf_consequence(
+                layered_state,
+                lane=context.lane,
+                holding_horizon=context.holding_horizon,
+                policy=htf_consequence_policy,
+            )
             geometry_safety_audits.append(
                 audit_candidate_geometry_safety(
                     candidate,
                     candidate_id=candidate_id,
                     lane=context.lane,
+                    policy=geometry_safety_policy,
                     runtime_context=geometry_runtime_context,
                 )
             )
@@ -219,6 +357,8 @@ def evaluate_methodology_candidate_routing(
                         lane=context.lane,
                         direction=candidate.direction,
                         holding_horizon=context.holding_horizon,
+                        layered_state=layered_state,
+                        htf_consequence=htf_consequence,
                     ),
                     candidate_id=candidate_id,
                 )

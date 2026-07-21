@@ -168,25 +168,64 @@ class CappedExecutionQualityResult:
             raise ValueError("capped execution quality requires explanatory reasons")
 
 
-_CAP_RULES: tuple[tuple[str, float, str], ...] = (
-    ("provisional_evidence", 0.65, "active-candle evidence is provisional"),
-    ("trigger_incomplete", 0.55, "entry trigger or confirmation is incomplete"),
-    ("data_stale", 0.25, "market data is stale"),
-    ("data_degraded", 0.50, "market data quality is degraded"),
-    ("outside_entry_zone", 0.60, "current price is outside the canonical entry zone"),
-    ("chase_limit_violated", 0.20, "current price violated the maximum chase boundary"),
-    ("stop_infeasible", 0.00, "stop geometry is infeasible"),
-    (
-        "spread_slippage_unavailable",
-        0.75,
-        "spread and slippage evidence is unavailable",
-    ),
-)
+@dataclass(frozen=True, slots=True)
+class ExecutionQualityCapPolicy:
+    """Runtime hard-cap policy resolved from validated configuration."""
+
+    provisional_evidence: float = 0.65
+    trigger_incomplete: float = 0.55
+    data_stale: float = 0.25
+    data_degraded: float = 0.50
+    outside_entry_zone: float = 0.60
+    chase_limit_violated: float = 0.20
+    stop_infeasible: float = 0.00
+    spread_slippage_unavailable: float = 0.75
+
+    def __post_init__(self) -> None:
+        for item in fields(self):
+            _unit_interval(item.name.replace("_", " "), getattr(self, item.name))
+
+    def rules(self) -> tuple[tuple[str, float, str], ...]:
+        return (
+            (
+                "provisional_evidence",
+                self.provisional_evidence,
+                "active-candle evidence is provisional",
+            ),
+            (
+                "trigger_incomplete",
+                self.trigger_incomplete,
+                "entry trigger or confirmation is incomplete",
+            ),
+            ("data_stale", self.data_stale, "market data is stale"),
+            ("data_degraded", self.data_degraded, "market data quality is degraded"),
+            (
+                "outside_entry_zone",
+                self.outside_entry_zone,
+                "current price is outside the canonical entry zone",
+            ),
+            (
+                "chase_limit_violated",
+                self.chase_limit_violated,
+                "current price violated the maximum chase boundary",
+            ),
+            ("stop_infeasible", self.stop_infeasible, "stop geometry is infeasible"),
+            (
+                "spread_slippage_unavailable",
+                self.spread_slippage_unavailable,
+                "spread and slippage evidence is unavailable",
+            ),
+        )
+
+
+DEFAULT_EXECUTION_QUALITY_CAP_POLICY = ExecutionQualityCapPolicy()
 
 
 def apply_execution_quality_caps(
     result: ExecutionQualityResult,
     constraints: ExecutionQualityConstraints,
+    *,
+    policy: ExecutionQualityCapPolicy = DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
 ) -> CappedExecutionQualityResult:
     """Apply the strictest relevant execution cap without hiding raw quality."""
 
@@ -201,7 +240,7 @@ def apply_execution_quality_caps(
         "stop_infeasible": not constraints.stop_feasible,
         "spread_slippage_unavailable": not constraints.spread_slippage_available,
     }
-    for key, cap, reason in _CAP_RULES:
+    for key, cap, reason in policy.rules():
         if flags[key]:
             active.append((cap, reason))
 
@@ -234,8 +273,10 @@ def execution_quality_weights() -> Mapping[str, float]:
 
 
 __all__ = [
+    "DEFAULT_EXECUTION_QUALITY_CAP_POLICY",
     "CappedExecutionQualityResult",
     "ExecutionQualityBreakdown",
+    "ExecutionQualityCapPolicy",
     "ExecutionQualityConstraints",
     "ExecutionQualityInputs",
     "ExecutionQualityResult",

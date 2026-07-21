@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from apex.config.futures_screener import FuturesScreenerSettings
+from apex.config.methodology import MethodologySettings
 from apex.data.timeframes import timeframe_delta
 from apex.market_environment.config import MarketEnvironmentConfig
 from apex.strategies import StrategyType
@@ -127,6 +128,7 @@ class FileSettings(BaseModel):
     cache_enabled: bool = True
     methodology_gate_mode: MethodologyGateModeSetting = "shadow"
     market_environment: MarketEnvironmentConfig = Field(default_factory=MarketEnvironmentConfig)
+    methodology: MethodologySettings = Field(default_factory=MethodologySettings)
     futures_evidence_enabled: bool = True
     outcome_tracking_enabled: bool = True
     rollout_diagnostics_enabled: bool = False
