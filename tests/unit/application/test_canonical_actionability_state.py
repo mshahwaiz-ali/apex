@@ -205,3 +205,22 @@ def test_stale_trigger_cannot_remain_executable() -> None:
     assert assessment.state is ActionabilityState.DEVELOPING
     assert assessment.has_blocking_issue is True
     assert assessment.basis is ActionabilityClassificationBasis.STALE_OR_EXPIRED_TRIGGER
+
+
+def test_nearby_role_cannot_hide_confirmed_cmp_activation() -> None:
+    setup = _setup(
+        current_price=100.0,
+        confirmation_complete=True,
+        entry_status=EntryStatus.READY_NOW,
+        execution_allowed_now=True,
+    )
+
+    assessment = build_actionability_state_assessment(
+        setup,
+        sequence_role=SequenceRole.NEARBY,
+        cmp_distance=build_cmp_distance_diagnostics(setup),
+    )
+
+    assert assessment.state is ActionabilityState.EXECUTE_NOW
+    assert assessment.basis is ActionabilityClassificationBasis.CONFIRMED_INSIDE_ZONE
+    assert assessment.has_blocking_issue is False

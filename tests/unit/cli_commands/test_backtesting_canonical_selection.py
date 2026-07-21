@@ -222,3 +222,33 @@ def test_calibration_record_preserves_methodology_dimensions(monkeypatch) -> Non
     assert record["target_basis"] == ["strategy_supplied_structural_level"]
     assert record["runner_qualified"] is False
     assert record["rejection_reason"] is None
+
+
+def test_live_snapshot_and_backtest_selection_preserve_canonical_decision() -> None:
+    live_setup = _setup(
+        "closed-candle-canonical",
+        execution_allowed_now=True,
+        entry_status=EntryStatus.READY_NOW,
+    )
+    opportunity = SimpleNamespace(
+        opportunity_id="closed-candle-canonical",
+        setup=live_setup,
+        sequence_role=SequenceRole.CURRENT,
+        effective_lane=OpportunityLane.CMP_SCALP,
+    )
+    live_analysis = _analysis(opportunity)
+
+    replay = backtesting._select_replay_decision(live_analysis)
+
+    assert replay.setup is live_setup
+    assert replay.opportunity_id == live_setup.candidate_id
+    assert replay.sequence_role == SequenceRole.CURRENT.value
+    assert replay.lane == OpportunityLane.CMP_SCALP.value
+    assert replay.actionability_state == "execute_now"
+    assert replay.setup.direction is live_setup.direction
+    assert replay.setup.strategy is live_setup.strategy
+    assert replay.setup.entry == live_setup.entry
+    assert replay.setup.stop_loss == live_setup.stop_loss
+    assert replay.setup.take_profits == live_setup.take_profits
+    assert replay.setup.layered_state == live_setup.layered_state
+    assert replay.setup.methodology_scores == live_setup.methodology_scores

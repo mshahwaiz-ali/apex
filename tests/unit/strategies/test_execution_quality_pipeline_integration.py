@@ -47,8 +47,25 @@ def test_generated_candidates_flow_through_context_aware_normalization() -> None
 
 
 def test_actionability_uses_execution_quality_enriched_candidates() -> None:
-    source = ORCHESTRATION.read_text(encoding="utf-8")
-    generation_index = source.index("_normalize_candidate(candidate, context=context)")
-    actionability_index = source.index("actionability = tuple(")
+    tree = ast.parse(ORCHESTRATION.read_text(encoding="utf-8"))
+    analyze = _function(tree, "analyze_strategies")
 
-    assert generation_index < actionability_index
+    normalize_calls = [
+        node
+        for node in ast.walk(analyze)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_normalize_candidate"
+    ]
+    actionability_assignments = [
+        node
+        for node in analyze.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "actionability" for target in node.targets
+        )
+    ]
+
+    assert len(normalize_calls) == 1
+    assert len(actionability_assignments) == 1
+    assert normalize_calls[0].lineno < actionability_assignments[0].lineno

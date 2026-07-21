@@ -190,6 +190,7 @@ def _entry_model(status: EntryStatus) -> str:
         EntryStatus.READY_NOW: "immediate_entry",
         EntryStatus.AGGRESSIVE_NOW: "aggressive_entry",
         EntryStatus.PULLBACK_PREFERRED: "pullback_entry",
+        EntryStatus.CONFIRMATION_AT_CMP: "confirmation_entry",
         EntryStatus.WATCH_NEAR_ENTRY: "developing_future_entry",
         EntryStatus.LATE_OR_CHASING: "preferred_nearby_entry",
         EntryStatus.INVALIDATED: "developing_future_entry",
