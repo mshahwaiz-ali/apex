@@ -7,6 +7,10 @@ from enum import StrEnum
 from typing import Any
 
 from apex.application.methodology_contracts import EvidenceFamily, EvidenceObservation
+from apex.application.methodology_htf_consequences import (
+    HtfConsequence,
+    htf_consequence_payload,
+)
 from apex.application.methodology_opportunity_context import HoldingHorizon, OpportunityLane
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_layer_requirements import (
@@ -57,6 +61,7 @@ class StrategyEligibilityEvaluation:
     stage: EligibilityStage = EligibilityStage.COMPLETE
     htf_directional_conflict: bool = False
     layered_state: LayeredStateSnapshot | None = None
+    htf_consequence: HtfConsequence | None = None
 
     def __post_init__(self) -> None:
         if not self.reasons:
@@ -83,6 +88,7 @@ def evaluate_strategy_eligibility(
     execution_chaos: bool = False,
     htf_directional_conflict: bool = False,
     layered_state: LayeredStateSnapshot | None = None,
+    htf_consequence: HtfConsequence | None = None,
 ) -> StrategyEligibilityEvaluation:
     """Evaluate one strategy without changing live routing or candidate approval."""
 
@@ -258,6 +264,49 @@ def evaluate_strategy_eligibility(
                 htf_directional_conflict=htf_directional_conflict,
                 layered_state=layered_state,
             )
+        if htf_consequence is not None:
+            if not htf_consequence.allowed:
+                return StrategyEligibilityEvaluation(
+                    strategy=strategy,
+                    state=StrategyEligibilityState.PROHIBITED_STATE,
+                    market_state=market_state,
+                    present_evidence=present,
+                    missing_mandatory_evidence=(),
+                    reasons=htf_consequence.reasons,
+                    lane=lane,
+                    direction=direction,
+                    holding_horizon=holding_horizon,
+                    runner_allowed=False,
+                    stage=EligibilityStage.MARKET_STATE,
+                    htf_directional_conflict=True,
+                    layered_state=layered_state,
+                    htf_consequence=htf_consequence,
+                )
+            constrained = (
+                htf_consequence.confirmation_required
+                or htf_consequence.target_ceiling_r_multiple is not None
+                or not htf_consequence.runner_allowed
+            )
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=(
+                    StrategyEligibilityState.COMPATIBLE_WITH_CONSTRAINTS
+                    if constrained
+                    else StrategyEligibilityState.COMPATIBLE
+                ),
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=htf_consequence.reasons,
+                lane=lane,
+                direction=direction,
+                holding_horizon=htf_consequence.holding_horizon,
+                runner_allowed=htf_consequence.runner_allowed,
+                stage=EligibilityStage.COMPLETE,
+                htf_directional_conflict=constrained,
+                layered_state=layered_state,
+                htf_consequence=htf_consequence,
+            )
         return StrategyEligibilityEvaluation(
             strategy=strategy,
             state=StrategyEligibilityState.COMPATIBLE,
@@ -409,6 +458,11 @@ def strategy_eligibility_evaluation_payload(
         "htf_directional_conflict": evaluation.htf_directional_conflict,
         "layered_state": (
             None if evaluation.layered_state is None else evaluation.layered_state.to_dict()
+        ),
+        "htf_consequence": (
+            None
+            if evaluation.htf_consequence is None
+            else htf_consequence_payload(evaluation.htf_consequence)
         ),
     }
 

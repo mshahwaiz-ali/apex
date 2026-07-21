@@ -5,6 +5,10 @@ from apex.application.methodology_contracts import (
     EvidenceFamily,
     EvidenceObservation,
 )
+from apex.application.methodology_opportunity_context import (
+    HoldingHorizon,
+    OpportunityLane,
+)
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
 from apex.application.methodology_strategy_evaluation import (
     EligibilityStage,
@@ -365,3 +369,139 @@ def test_legacy_call_without_layered_state_keeps_existing_behavior() -> None:
 
     assert result.state is StrategyEligibilityState.INCOMPATIBLE_STATE
     assert result.layered_state is None
+
+
+def test_htf_consequence_can_constrain_layered_candidate() -> None:
+    from apex.application.methodology_htf_consequences import apply_htf_consequences
+    from apex.application.methodology_htf_relationship import (
+        HtfRelationshipInput,
+        classify_htf_relationship,
+    )
+    from apex.domain.methodology_contracts import StructuralBias
+    from apex.strategies.contracts import TradeDirection
+
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.EXPANDING,
+        setup_state=SetupState.BREAKOUT,
+        context_state=ContextState.TRENDING_UP,
+    )
+    consequence = apply_htf_consequences(
+        classify_htf_relationship(
+            HtfRelationshipInput(
+                trade_direction=TradeDirection.SHORT,
+                structural_bias=StructuralBias.BULLISH,
+                confirmed_continuation=True,
+            )
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        holding_horizon=HoldingHorizon.SCALP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        direction=TradeDirection.SHORT,
+        holding_horizon=HoldingHorizon.SCALP,
+        layered_state=layered,
+        htf_consequence=consequence,
+    )
+
+    assert result.state is StrategyEligibilityState.COMPATIBLE_WITH_CONSTRAINTS
+    assert result.runner_allowed is False
+    assert result.htf_consequence is consequence
+
+
+def test_direct_htf_opposition_rejects_layered_candidate() -> None:
+    from apex.application.methodology_htf_consequences import apply_htf_consequences
+    from apex.application.methodology_htf_relationship import (
+        HtfRelationshipInput,
+        classify_htf_relationship,
+    )
+    from apex.domain.methodology_contracts import StructuralBias
+    from apex.strategies.contracts import TradeDirection
+
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.EXPANDING,
+        setup_state=SetupState.BREAKOUT,
+        context_state=ContextState.TRENDING_UP,
+    )
+    consequence = apply_htf_consequences(
+        classify_htf_relationship(
+            HtfRelationshipInput(
+                trade_direction=TradeDirection.SHORT,
+                structural_bias=StructuralBias.BULLISH,
+                nearby_opposing_structure=True,
+            )
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        holding_horizon=HoldingHorizon.SCALP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        direction=TradeDirection.SHORT,
+        holding_horizon=HoldingHorizon.SCALP,
+        layered_state=layered,
+        htf_consequence=consequence,
+    )
+
+    assert result.state is StrategyEligibilityState.PROHIBITED_STATE
+    assert result.stage is EligibilityStage.MARKET_STATE
+    assert result.runner_allowed is False
+
+
+def test_payload_contains_htf_consequence() -> None:
+    from apex.application.methodology_htf_consequences import apply_htf_consequences
+    from apex.application.methodology_htf_relationship import (
+        HtfRelationshipInput,
+        classify_htf_relationship,
+    )
+    from apex.domain.methodology_contracts import StructuralBias
+    from apex.strategies.contracts import TradeDirection
+
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.EXPANDING,
+        setup_state=SetupState.BREAKOUT,
+        context_state=ContextState.TRENDING_UP,
+    )
+    consequence = apply_htf_consequences(
+        classify_htf_relationship(
+            HtfRelationshipInput(
+                trade_direction=TradeDirection.SHORT,
+                structural_bias=StructuralBias.BULLISH,
+                confirmed_continuation=True,
+            )
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        holding_horizon=HoldingHorizon.SCALP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        direction=TradeDirection.SHORT,
+        holding_horizon=HoldingHorizon.SCALP,
+        layered_state=layered,
+        htf_consequence=consequence,
+    )
+    payload = strategy_eligibility_evaluation_payload(result)
+
+    assert payload["htf_consequence"]["allowed"] is True
+    assert payload["htf_consequence"]["runner_allowed"] is False
+    assert payload["htf_consequence"]["target_ceiling_r_multiple"] == 1.5
