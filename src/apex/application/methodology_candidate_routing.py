@@ -13,6 +13,7 @@ from apex.application.methodology_candidate_geometry_safety import (
 from apex.application.methodology_candidate_lane_horizon import (
     measure_candidate_lane_horizon,
 )
+from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
 from apex.application.methodology_lane_horizon import LaneHorizonAssessment
 from apex.application.methodology_opportunity_context import (
     infer_candidate_methodology_context,
@@ -93,6 +94,35 @@ def _candidate_lane_horizon_assessment(
 
 
 @dataclass(frozen=True, slots=True)
+class GeometrySafetyCoverage:
+    """Aggregate shadow-audit coverage without affecting eligibility."""
+
+    candidate_count: int
+    available_count: int
+    unavailable_count: int
+    pass_count: int
+    reject_count: int
+    incomplete_count: int
+    missing_measurement_counts: tuple[tuple[str, int], ...]
+
+    def __post_init__(self) -> None:
+        counts = (
+            self.candidate_count,
+            self.available_count,
+            self.unavailable_count,
+            self.pass_count,
+            self.reject_count,
+            self.incomplete_count,
+        )
+        if any(value < 0 for value in counts):
+            raise ValueError("geometry coverage counts cannot be negative")
+        if self.available_count + self.unavailable_count != self.candidate_count:
+            raise ValueError("geometry coverage availability counts must balance")
+        if self.pass_count + self.reject_count + self.incomplete_count != self.available_count:
+            raise ValueError("geometry coverage state counts must balance")
+
+
+@dataclass(frozen=True, slots=True)
 class MethodologyCandidateRoutingResult:
     """Candidate-routing outcome with deterministic audit metadata."""
 
@@ -133,6 +163,7 @@ def evaluate_methodology_candidate_routing(
     *,
     market_state: PrimaryMarketState | None,
     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
+    geometry_runtime_context: GeometryRuntimeContext | None = None,
 ) -> MethodologyCandidateRoutingResult:
     """Evaluate each generated strategy from its own candidate evidence."""
 
@@ -176,6 +207,7 @@ def evaluate_methodology_candidate_routing(
                     candidate,
                     candidate_id=candidate_id,
                     lane=context.lane,
+                    runtime_context=geometry_runtime_context,
                 )
             )
             decisions.append(
@@ -340,11 +372,48 @@ def methodology_routing_parity_payload(
     }
 
 
+def geometry_safety_coverage(
+    audits: tuple[CandidateGeometrySafetyAudit, ...],
+) -> GeometrySafetyCoverage:
+    """Summarize shadow geometry availability and states."""
+
+    missing: dict[str, int] = {}
+    available = 0
+    passed = 0
+    rejected = 0
+    incomplete = 0
+    for audit in audits:
+        for measurement in audit.missing_measurements:
+            missing[measurement] = missing.get(measurement, 0) + 1
+        assessment = audit.assessment
+        if assessment is None:
+            continue
+        available += 1
+        state = assessment.state.value
+        if state == "pass":
+            passed += 1
+        elif state == "reject":
+            rejected += 1
+        else:
+            incomplete += 1
+
+    return GeometrySafetyCoverage(
+        candidate_count=len(audits),
+        available_count=available,
+        unavailable_count=len(audits) - available,
+        pass_count=passed,
+        reject_count=rejected,
+        incomplete_count=incomplete,
+        missing_measurement_counts=tuple(sorted(missing.items())),
+    )
+
+
 def methodology_candidate_routing_payload(
     result: MethodologyCandidateRoutingResult,
 ) -> dict[str, object]:
     """Serialize routing decisions and suppressed candidates for audit."""
 
+    coverage = geometry_safety_coverage(result.geometry_safety_audits)
     newly_suppressed = (
         result.analysis.suppressed_candidates[-result.suppressed_candidate_count :]
         if result.suppressed_candidate_count
@@ -365,6 +434,20 @@ def methodology_candidate_routing_payload(
         "suppressed_strategies": [item.value for item in result.suppressed_strategies],
         "reason_codes": list(result.reason_codes),
         "strategy_decisions": [strategy_enforcement_payload(item) for item in result.decisions],
+        "geometry_safety_coverage": {
+            "candidate_count": coverage.candidate_count,
+            "available_count": coverage.available_count,
+            "unavailable_count": coverage.unavailable_count,
+            "pass_count": coverage.pass_count,
+            "reject_count": coverage.reject_count,
+            "incomplete_count": coverage.incomplete_count,
+            "missing_measurement_counts": dict(coverage.missing_measurement_counts),
+            "enforcement_ready": (
+                coverage.candidate_count > 0
+                and coverage.unavailable_count == 0
+                and coverage.incomplete_count == 0
+            ),
+        },
         "geometry_safety_audits": [
             candidate_geometry_safety_audit_payload(item) for item in result.geometry_safety_audits
         ],
@@ -387,11 +470,13 @@ def methodology_candidate_routing_payload(
 
 
 __all__ = [
+    "GeometrySafetyCoverage",
     "MethodologyCandidateRoutingResult",
     "MethodologyRoutingParityAudit",
     "apply_methodology_candidate_routing",
     "evaluate_methodology_candidate_routing",
     "evaluate_methodology_routing_parity",
+    "geometry_safety_coverage",
     "methodology_candidate_routing_payload",
     "methodology_routing_parity_payload",
 ]

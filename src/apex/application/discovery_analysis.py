@@ -79,6 +79,15 @@ from apex.application.methodology_contracts import (
     TargetCandidate,
     TargetRole,
 )
+from apex.application.methodology_geometry_enforcement import (
+    GeometrySafetyGateMode,
+    apply_geometry_safety_enforcement,
+    geometry_safety_enforcement_payload,
+)
+from apex.application.methodology_geometry_runtime import (
+    GeometryExecutionCosts,
+    build_geometry_runtime_context,
+)
 from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
 from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
@@ -126,6 +135,8 @@ def analyze_symbol(
     market_strategy_route: MarketStrategyRoute | None = None,
     methodology_market_state: PrimaryMarketState | None = None,
     methodology_gate_mode: str = "shadow",
+    geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+    geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
@@ -146,16 +157,25 @@ def analyze_symbol(
     )
     strategy_analysis = analyze_strategies(context, decision_time=decision_time)
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
+    geometry_runtime_context = build_geometry_runtime_context(
+        context,
+        execution_costs=geometry_execution_costs,
+    )
     methodology_routing = evaluate_methodology_candidate_routing(
         routed,
         market_state=methodology_market_state,
         mode=methodology_gate_mode,
+        geometry_runtime_context=geometry_runtime_context,
     )
     methodology_parity = _methodology_parity_diagnostics(
         routed,
         methodology_routing,
     )
-    eligible_routed = methodology_routing.analysis
+    geometry_enforcement = apply_geometry_safety_enforcement(
+        methodology_routing,
+        mode=geometry_safety_mode,
+    )
+    eligible_routed = geometry_enforcement.analysis
     market_intelligence = build_market_intelligence(context, dict(regimes))
     selection = analyze_futures_phase5(
         eligible_routed,
@@ -220,6 +240,7 @@ def analyze_symbol(
         "candidate_count": len(selection.all_scored_candidates),
         "raw_candidate_count": len(strategy_analysis.candidates),
         "retained_candidate_count": len(eligible_routed.candidates),
+        "geometry_safety_enforcement": geometry_safety_enforcement_payload(geometry_enforcement),
         "ranked_count": len(selection.ranked_candidates),
         "rejected_count": len(selection.rejected_candidates),
         "selected": selection.selected_candidate is not None,

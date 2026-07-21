@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
 from apex.application.methodology_geometry_safety import (
     GeometrySafetyAssessment,
     GeometrySafetyPolicy,
@@ -57,6 +58,7 @@ def audit_candidate_geometry_safety(
     candidate_id: str,
     lane: OpportunityLane,
     policy: GeometrySafetyPolicy = DEFAULT_GEOMETRY_SAFETY_POLICY,
+    runtime_context: GeometryRuntimeContext | None = None,
 ) -> CandidateGeometrySafetyAudit:
     """Derive a truthful shadow assessment from explicit candidate measurements."""
 
@@ -74,7 +76,16 @@ def audit_candidate_geometry_safety(
 
     metadata = metadata_value
     executable_stop = _execution_stop(candidate, metadata)
+    if executable_stop is None and runtime_context is not None:
+        executable_stop = derive_execution_stop_geometry(
+            direction=candidate.direction,
+            preferred_entry=candidate.entry.preferred,
+            structural_invalidation=candidate.invalidation.price,
+            execution_buffer=runtime_context.execution_buffer,
+        ).executable_stop
     expected_cost_pct = _expected_cost_pct(metadata)
+    if expected_cost_pct is None and runtime_context is not None:
+        expected_cost_pct = runtime_context.expected_cost_pct
 
     missing: list[str] = []
     if executable_stop is None:

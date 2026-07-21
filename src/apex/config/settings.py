@@ -89,6 +89,32 @@ DEFAULT_STRATEGY_ROUTING: dict[str, list[str]] = {
 _VALID_STRATEGY_ROUTE_KEYS = frozenset(DEFAULT_STRATEGY_ROUTING)
 
 
+class GeometryExecutionSettings(BaseModel):
+    """Optional live execution-cost assumptions for geometry auditing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    entry_fee_pct: float | None = Field(default=None, ge=0)
+    exit_fee_pct: float | None = Field(default=None, ge=0)
+    entry_slippage_pct: float | None = Field(default=None, ge=0)
+    exit_slippage_pct: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _validate_complete_enabled_costs(self) -> Self:
+        values = (
+            self.entry_fee_pct,
+            self.exit_fee_pct,
+            self.entry_slippage_pct,
+            self.exit_slippage_pct,
+        )
+        if self.enabled and any(value is None for value in values):
+            raise ValueError(
+                "enabled geometry execution costs require entry/exit fees and slippage"
+            )
+        return self
+
+
 class FileSettings(BaseModel):
     """Validated settings loaded from the default YAML file."""
 
@@ -104,6 +130,7 @@ class FileSettings(BaseModel):
     futures_evidence_enabled: bool = True
     outcome_tracking_enabled: bool = True
     rollout_diagnostics_enabled: bool = False
+    geometry_execution: GeometryExecutionSettings = Field(default_factory=GeometryExecutionSettings)
     futures_screener: FuturesScreenerSettings = Field(default_factory=FuturesScreenerSettings)
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))

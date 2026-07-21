@@ -420,3 +420,19 @@ def test_geometry_safety_audit_is_shadow_only_and_preserved_in_payload() -> None
     assert len(audits) == 2
     assert all(item["shadow_only"] is True for item in audits)
     assert all(item["available"] is False for item in audits)
+
+
+def test_geometry_coverage_reports_missing_inputs_and_blocks_enforcement_readiness() -> None:
+    result = evaluate_methodology_candidate_routing(
+        _analysis(),
+        market_state=PrimaryMarketState.TRENDING_UP,
+        mode=MethodologyGateMode.SHADOW,
+    )
+
+    payload = methodology_candidate_routing_payload(result)
+    coverage = cast(dict[str, object], payload["geometry_safety_coverage"])
+    assert coverage["candidate_count"] == 2
+    assert coverage["available_count"] == 0
+    assert coverage["unavailable_count"] == 2
+    assert coverage["enforcement_ready"] is False
+    assert coverage["missing_measurement_counts"] == {"metadata": 2}
