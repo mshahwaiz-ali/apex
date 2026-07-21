@@ -67,6 +67,8 @@ class CandidateRankingRecord:
     score_band: str
     quality_label: CandidateQualityLabel
     score_dimensions: CandidateScoreDimensions
+    methodology_state: Mapping[str, str]
+    methodology_scores: Mapping[str, float | None]
     outcome: str
     primary_reason_code: str | None
     secondary_reason_codes: tuple[str, ...]
@@ -308,6 +310,8 @@ def _record(
             role=role,
         ),
         score_dimensions=score_dimensions(item.scored),
+        methodology_state=item.candidate.layered_state.to_dict(),
+        methodology_scores=item.candidate.score_dimensions.to_dict(),
         outcome=item.outcome.value,
         primary_reason_code=reason_codes[0] if reason_codes else None,
         secondary_reason_codes=reason_codes[1:],
@@ -419,6 +423,8 @@ def _record_payload(item: CandidateRankingRecord) -> dict[str, object]:
             "timing_score": item.score_dimensions.timing_score,
             "trade_quality_score": item.score_dimensions.trade_quality_score,
         },
+        "methodology_state": dict(item.methodology_state),
+        "methodology_scores": dict(item.methodology_scores),
         "outcome": item.outcome,
         "primary_reason_code": item.primary_reason_code,
         "secondary_reason_codes": list(item.secondary_reason_codes),

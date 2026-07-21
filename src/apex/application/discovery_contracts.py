@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.domain.methodology_contracts import (
+    LayeredStateSnapshot,
+    ScoreDimensions,
+)
 from apex.domain.models import Candle
 from apex.scoring.quality_dimensions import CandidateQualityDimensions
 from apex.strategies.contracts import (
@@ -253,6 +257,8 @@ class DiscoverySetup:
     provisional: bool = False
     canonical_actionability: bool = False
     conditional_plan: ConditionalExecutionPlan | None = None
+    layered_state: LayeredStateSnapshot = field(default_factory=LayeredStateSnapshot)
+    methodology_scores: ScoreDimensions = field(default_factory=ScoreDimensions)
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():

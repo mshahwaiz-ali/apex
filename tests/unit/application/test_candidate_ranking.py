@@ -1,11 +1,19 @@
 """Tests for typed primary and alternative candidate ranking snapshots."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from apex.application.candidate_ranking import (
     CandidateRankingRole,
     build_candidate_ranking_snapshot,
     candidate_ranking_payload,
+)
+from apex.domain.methodology_contracts import (
+    ContextState,
+    ExecutionState,
+    LayeredStateSnapshot,
+    ScoreDimensions,
+    SetupState,
 )
 from apex.scoring import analyze_candidate_selection
 from apex.scoring.config import ScoringConfig
@@ -224,3 +232,62 @@ def test_rejected_payload_exposes_exact_threshold_and_penalties() -> None:
     assert rejected["primary_reason_code"] == "SCORE_BELOW_WARNING_THRESHOLD"
     assert rejected["secondary_reason_codes"] == []
     assert rejected["reason_codes"] == ["SCORE_BELOW_WARNING_THRESHOLD"]
+
+
+def test_payload_projects_layered_methodology_contracts() -> None:
+    candidate = replace(
+        _candidate(StrategyType.TREND_PULLBACK, quality=0.95),
+        layered_state=LayeredStateSnapshot(
+            execution_state=ExecutionState.CLEAN,
+            setup_state=SetupState.PULLBACK,
+            context_state=ContextState.TRENDING_UP,
+        ),
+        score_dimensions=ScoreDimensions(
+            pattern_confidence=76.0,
+            setup_quality=81.0,
+            execution_quality=43.0,
+            reward_quality=69.0,
+            overall_trade_quality=64.0,
+        ),
+    )
+    strategy_analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(candidate,),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+    )
+
+    payload = candidate_ranking_payload(
+        build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
+    )
+    primary = payload["primary"]
+    assert isinstance(primary, dict)
+    assert primary["methodology_state"]["execution_state"] == "clean"
+    assert primary["methodology_state"]["setup_state"] == "pullback"
+    assert primary["methodology_state"]["context_state"] == "trending_up"
+    assert primary["methodology_scores"]["pattern_confidence"] == 76.0
+    assert primary["methodology_scores"]["execution_quality"] == 43.0
+    assert "score_dimensions" in primary
+    assert set(primary["score_dimensions"]) == {
+        "opportunity_score",
+        "setup_score",
+        "timing_score",
+        "trade_quality_score",
+    }
+
+
+def test_payload_defaults_do_not_infer_layered_state_or_scores() -> None:
+    strategy_analysis = StrategyAnalysisResult(
+        symbol="BTC/USDT",
+        decision_time=NOW,
+        candidates=(_candidate(StrategyType.TREND_PULLBACK, quality=0.95),),
+        evaluated_strategies=(StrategyType.TREND_PULLBACK,),
+    )
+
+    payload = candidate_ranking_payload(
+        build_candidate_ranking_snapshot(analyze_candidate_selection(strategy_analysis))
+    )
+    primary = payload["primary"]
+    assert isinstance(primary, dict)
+    assert set(primary["methodology_state"].values()) == {"unavailable"}
+    assert set(primary["methodology_scores"].values()) == {None}

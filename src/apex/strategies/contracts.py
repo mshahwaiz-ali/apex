@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
 
+from apex.domain.methodology_contracts import (
+    LayeredStateSnapshot,
+    ScoreDimensions,
+)
 from apex.strategies.strategy_types import StrategyType
 
 
@@ -298,6 +302,8 @@ class TradeCandidate:
     entry_opportunities: tuple[EntryZone, ...] = ()
     lifecycle: CandidateLifecycle | None = None
     provisional: bool = False
+    layered_state: LayeredStateSnapshot = field(default_factory=LayeredStateSnapshot)
+    score_dimensions: ScoreDimensions = field(default_factory=ScoreDimensions)
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():

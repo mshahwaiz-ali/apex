@@ -167,6 +167,8 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         ),
         provisional=candidate.provisional,
         canonical_actionability=True,
+        layered_state=candidate.layered_state,
+        methodology_scores=candidate.score_dimensions,
         conditional_plan=_conditional_plan(
             candidate,
             entry_status=entry_status,
