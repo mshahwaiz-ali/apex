@@ -30,6 +30,9 @@ build/
 # Runtime data
 /data/*
 !/data/.gitkeep
+!/data/reports/
+!/data/reports/geometry_audit/
+!/data/reports/geometry_audit/*.json
 /logs/*
 !/logs/.gitkeep
 /cache/
