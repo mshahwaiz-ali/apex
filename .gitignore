@@ -31,8 +31,11 @@ build/
 /data/*
 !/data/.gitkeep
 !/data/reports/
+/data/reports/*
 !/data/reports/geometry_audit/
+/data/reports/geometry_audit/*
 !/data/reports/geometry_audit/*.json
+!/data/reports/geometry_audit/*.md
 /logs/*
 !/logs/.gitkeep
 /cache/
