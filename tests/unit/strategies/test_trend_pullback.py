@@ -25,7 +25,11 @@ from apex.structure.contracts import (
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
-def _structure(*, bullish: bool) -> StructureAnalysisResult:
+def _structure(
+    *,
+    bullish: bool,
+    broad_overlapping_level: bool = False,
+) -> StructureAnalysisResult:
     trend = TrendDirection.BULLISH if bullish else TrendDirection.BEARISH
     levels = (
         StructureLevel(
@@ -40,8 +44,24 @@ def _structure(*, bullish: bool) -> StructureAnalysisResult:
         ),
         StructureLevel(
             representative_price=99.0 if bullish else 101.0,
-            low=98.9 if bullish else 100.9,
-            high=99.1 if bullish else 101.1,
+            low=(
+                98.5
+                if bullish and broad_overlapping_level
+                else 100.2
+                if not bullish and broad_overlapping_level
+                else 98.9
+                if bullish
+                else 100.9
+            ),
+            high=(
+                99.8
+                if bullish and broad_overlapping_level
+                else 101.5
+                if not bullish and broad_overlapping_level
+                else 99.1
+                if bullish
+                else 101.1
+            ),
             role=LevelRole.SUPPORT if bullish else LevelRole.RESISTANCE,
             status=LevelStatus.ACTIVE,
             touches=1,
@@ -85,6 +105,7 @@ def _frame(
     role: TimeframeRole,
     active: bool = False,
     sparse_features: bool = False,
+    broad_overlapping_level: bool = False,
 ) -> TimeframeContext:
     features = (
         FeatureSnapshot(atr=2.0, ema_fast=99.5 if bullish else 100.5)
@@ -106,7 +127,10 @@ def _frame(
         role=role,
         current_price=100.0,
         features=features,
-        structure=_structure(bullish=bullish),
+        structure=_structure(
+            bullish=bullish,
+            broad_overlapping_level=broad_overlapping_level,
+        ),
         liquidity=LiquidityAnalysisResult(zones=(), sweeps=(), traps=()),
         active_candle=active,
     )
@@ -118,6 +142,7 @@ def _context(
     contradiction: bool = False,
     active: bool = False,
     sparse_features: bool = False,
+    broad_overlapping_level: bool = False,
 ) -> StrategyContext:
     return StrategyContext(
         symbol="BTC/USDT",
@@ -128,6 +153,7 @@ def _context(
                 role=TimeframeRole.ENTRY,
                 active=active,
                 sparse_features=sparse_features,
+                broad_overlapping_level=broad_overlapping_level,
             ),
         ),
     )
@@ -176,6 +202,21 @@ def test_generates_short_trend_pullback_near_current_price() -> None:
     assert candidate.metadata["retest_confirmation_rule"] == ("hold_or_reject_below_retest_zone")
     assert candidate.invalidation.price > candidate.entry.upper
     assert candidate.targets.levels[0].price < candidate.entry.lower
+
+
+def test_does_not_publish_structural_trigger_outside_selected_entry_zone() -> None:
+    candidates = generate_trend_pullback_candidates(
+        _context(bullish=True, broad_overlapping_level=True),
+        decision_time=NOW,
+    )
+
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.entry.mode is EntryMode.PULLBACK
+    assert candidate.entry.lower == candidate.entry.preferred == candidate.entry.upper
+    assert candidate.metadata["entry_geometry_owner"] == "shared_entry_selector"
+    assert candidate.metadata["structural_retest_geometry_available"] is False
+    assert "retest_trigger_level" not in candidate.metadata
 
 
 def test_marks_strong_higher_timeframe_contradiction() -> None:

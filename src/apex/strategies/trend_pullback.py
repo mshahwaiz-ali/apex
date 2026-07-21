@@ -137,6 +137,8 @@ def _candidate_for_direction(
         "higher_timeframe_conflict": higher_timeframe_conflict,
         **_selected_entry_geometry_metadata(
             context,
+            entry_lower=entry.lower,
+            entry_upper=entry.upper,
             entry_preferred=entry.preferred,
             bullish=bullish,
         ),
@@ -248,6 +250,8 @@ def _entry_references(
 def _selected_entry_geometry_metadata(
     context: StrategyContext,
     *,
+    entry_lower: float,
+    entry_upper: float,
     entry_preferred: float,
     bullish: bool,
 ) -> dict[str, str | int | float | bool]:
@@ -260,6 +264,7 @@ def _selected_entry_geometry_metadata(
         if level.role is expected_role
         and level.status is not LevelStatus.BROKEN
         and level.low <= entry_preferred <= level.high
+        and entry_lower <= level.representative_price <= entry_upper
     )
     if not matching:
         return {
