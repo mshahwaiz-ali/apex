@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -19,7 +20,7 @@ from apex.application.opportunity_portfolio import (
     SymbolOpportunityPortfolio,
     TradeOpportunity,
 )
-from apex.strategies.contracts import TradeDirection
+from apex.strategies.contracts import EntryMode, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
@@ -116,3 +117,27 @@ def test_current_portfolio_setup_is_canonical_over_legacy_setup() -> None:
     assert payload["developing_setup"] is None
     assert payload["legacy_assessment"]["setup"]["candidate_id"] == "legacy"
     assert payload["portfolio_decision"] == "actionable_at_cmp"
+
+
+def test_confirmation_pending_current_setup_serializes_truthful_decision() -> None:
+    confirmation = replace(
+        _setup("confirmation", executable=False),
+        entry_status=EntryStatus.WATCH_NEAR_ENTRY,
+        entry_mode=EntryMode.RETEST,
+        confirmation_required=True,
+        provisional=True,
+        canonical_actionability=True,
+    )
+    portfolio = SymbolOpportunityPortfolio(
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+        current_long=TradeOpportunity("confirmation", confirmation, SequenceRole.CURRENT),
+    )
+
+    payload = serialize_symbol_analysis(_analysis(legacy_setup=None, portfolio=portfolio))
+
+    assert payload["portfolio_decision"] == "confirmation_at_cmp"
+    current = payload["opportunity_portfolio"]["current_long"]
+    assert current["execution_allowed_now"] is False

@@ -143,6 +143,9 @@ def test_scan_counts_symbols_and_opportunities_separately() -> None:
         )
     )
 
+    assert payload["schema_version"] == 5
+    assert payload["attempted_symbol_count"] == 2
+    assert payload["failed_symbol_count"] == 0
     assert payload["total_symbol_count"] == 2
     assert payload["filtered_symbol_count"] == 2
     assert payload["displayed_symbol_count"] == 2
@@ -154,6 +157,21 @@ def test_scan_counts_symbols_and_opportunities_separately() -> None:
     assert payload["runner_opportunity_count"] == 0
     assert payload["long_candidate_count"] == 1
     assert payload["short_candidate_count"] == 0
+
+
+def test_scan_reports_failed_symbols_separately_from_completed_analyses() -> None:
+    payload = serialize_scan_result(
+        ScanResult(
+            generated_at=NOW,
+            analyses=(_analysis_with_setup(),),
+            failures={"NEWUSDT": "insufficient candle history"},
+        )
+    )
+
+    assert payload["attempted_symbol_count"] == 2
+    assert payload["total_analysis_count"] == 1
+    assert payload["failed_symbol_count"] == 1
+    assert payload["failures"] == {"NEWUSDT": "insufficient candle history"}
 
 
 def test_no_valid_setup_still_has_truthful_setup_plan() -> None:

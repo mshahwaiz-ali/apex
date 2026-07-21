@@ -22,7 +22,7 @@ from apex.application.opportunity_portfolio import (
     TradeOpportunity,
     portfolio_from_legacy_assessment,
 )
-from apex.strategies.contracts import TradeDirection
+from apex.strategies.contracts import EntryMode, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
 
@@ -145,6 +145,33 @@ def test_portfolio_public_decision_prefers_current_over_nearby() -> None:
     assert portfolio.has_direction(TradeDirection.LONG)
     assert portfolio.has_direction(TradeDirection.SHORT)
     assert portfolio.all_opportunities == portfolio.opportunities
+
+
+def test_confirmation_pending_current_opportunity_is_not_actionable_at_cmp() -> None:
+    setup = replace(
+        _setup("confirmation-long", TradeDirection.LONG, executable=False),
+        entry_status=EntryStatus.WATCH_NEAR_ENTRY,
+        entry_mode=EntryMode.RETEST,
+        confirmation_required=True,
+        confirmation_complete=False,
+        provisional=True,
+        canonical_actionability=True,
+    )
+    portfolio = SymbolOpportunityPortfolio(
+        symbol="BTCUSDT",
+        cmp=100.0,
+        analysis_timestamp=NOW,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+        current_long=TradeOpportunity(
+            setup.candidate_id,
+            setup,
+            SequenceRole.CURRENT,
+        ),
+    )
+
+    assert portfolio.current_opportunities
+    assert portfolio.execution_ready_opportunities == ()
+    assert portfolio.public_decision is PortfolioDecisionState.CONFIRMATION_AT_CMP
 
 
 def test_portfolio_public_decision_preserves_nearby_setup_without_current_trade() -> None:

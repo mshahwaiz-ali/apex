@@ -59,6 +59,7 @@ class PortfolioDecisionState(StrEnum):
     """Highest-priority public state represented by a symbol portfolio."""
 
     ACTIONABLE_AT_CMP = "actionable_at_cmp"
+    CONFIRMATION_AT_CMP = "confirmation_at_cmp"
     NEARBY_SETUP_AVAILABLE = "nearby_setup_available"
     FOLLOW_UP_AVAILABLE = "follow_up_available"
     RUNNER_MANAGEMENT = "runner_management"
@@ -923,9 +924,23 @@ class SymbolOpportunityPortfolio:
 
     @property
     def current_opportunities(self) -> tuple[TradeOpportunity, ...]:
-        """Return executable CMP opportunities in deterministic side order."""
+        """Return CMP opportunities, including confirmation-pending setups."""
 
         return tuple(item for item in (self.current_long, self.current_short) if item is not None)
+
+    @property
+    def execution_ready_opportunities(self) -> tuple[TradeOpportunity, ...]:
+        """Return current opportunities that actually authorize execution now."""
+
+        return tuple(
+            opportunity
+            for opportunity in self.current_opportunities
+            if opportunity.setup.execution_allowed_now
+            and not build_actionability_state_assessment(
+                opportunity.setup,
+                sequence_role=SequenceRole.CURRENT,
+            ).has_blocking_issue
+        )
 
     @property
     def nearby_opportunities(self) -> tuple[TradeOpportunity, ...]:
@@ -937,8 +952,10 @@ class SymbolOpportunityPortfolio:
     def public_decision(self) -> PortfolioDecisionState:
         """Return the canonical public decision represented by populated slots."""
 
-        if self.current_opportunities:
+        if self.execution_ready_opportunities:
             return PortfolioDecisionState.ACTIONABLE_AT_CMP
+        if self.current_opportunities:
+            return PortfolioDecisionState.CONFIRMATION_AT_CMP
         if self.nearby_opportunities:
             return PortfolioDecisionState.NEARBY_SETUP_AVAILABLE
         if self.follow_up_opportunities:

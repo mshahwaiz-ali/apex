@@ -113,7 +113,7 @@ def serialize_scan_result(
         opportunity for analysis in ranked for opportunity in _analysis_opportunities(analysis)
     ]
     payload = {
-        "schema_version": 4,
+        "schema_version": 5,
         "generated_at": result.generated_at.isoformat(),
         "best_overall": valid[0] if valid else None,
         "best_actionable": actionable[0] if actionable else None,
@@ -123,6 +123,8 @@ def serialize_scan_result(
         "unavailable_setups": [],
         "no_trade_results": no_trade,
         "results": serialized,
+        "attempted_symbol_count": len(result.analyses) + len(result.failures),
+        "failed_symbol_count": len(result.failures),
         "total_analysis_count": len(result.analyses),
         "displayed_analysis_count": len(serialized),
         "total_symbol_count": len(result.analyses),

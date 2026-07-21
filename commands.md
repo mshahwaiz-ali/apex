@@ -131,7 +131,18 @@ Normal text output is organized into:
 5. No Current Trade — Setup Plans
 6. Failures, when present
 
-Counts distinguish symbols from opportunities.
+Counts distinguish attempted, successfully analyzed, failed, displayed, and retained-opportunity
+totals. A per-symbol data failure does not stop the rest of the scan.
+
+In JSON, `portfolio_decision` distinguishes execution from monitoring:
+
+- `actionable_at_cmp` means at least one current opportunity actually authorizes execution;
+- `confirmation_at_cmp` means price is at the setup area but its required confirmation is incomplete;
+- `nearby_setup_available` means measurable geometry exists away from CMP;
+- `follow_up_available`, `runner_management`, and `no_valid_setup` describe the remaining portfolio states.
+
+Use `execution_ready`, not opportunity count alone, when deciding whether an order may be placed.
+Scan schema version 5 introduces the `confirmation_at_cmp` decision value.
 
 ### Outcome tracking
 
