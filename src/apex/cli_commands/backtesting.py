@@ -19,6 +19,9 @@ from apex.application import (
     serialize_symbol_analysis,
 )
 from apex.application.discovery_contracts import DiscoverySetup
+from apex.application.methodology_geometry_runtime import (
+    geometry_execution_costs_from_settings,
+)
 from apex.application.opportunity_portfolio import (
     ActionabilityState,
     SequenceRole,
@@ -270,6 +273,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
                     market_environment_config=context.settings.market_environment,
                     methodology_gate_mode=context.settings.methodology_gate_mode,
+                    methodology_settings=context.settings.methodology,
+                    geometry_safety_mode=(
+                        context.settings.methodology_gate_mode
+                        if context.settings.geometry_execution.enabled
+                        else "shadow"
+                    ),
+                    geometry_execution_costs=geometry_execution_costs_from_settings(
+                        context.settings.geometry_execution
+                    ),
                     futures_evidence_enabled=context.settings.futures_evidence_enabled,
                 )
                 replay_decision = _select_replay_decision(analysis)

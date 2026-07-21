@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import Any
 
 from apex.application.decision_analysis import SymbolAnalysis, analyze_symbol
+from apex.application.methodology_geometry_enforcement import GeometrySafetyGateMode
+from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import normalize_market_symbol
 from apex.config.methodology import MethodologySettings
@@ -26,6 +28,8 @@ def analyze_selected_symbol(
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
     methodology_gate_mode: str = "shadow",
     methodology_settings: MethodologySettings | None = None,
+    geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+    geometry_execution_costs: GeometryExecutionCosts | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     futures_evidence_enabled: bool = True,
 ) -> SymbolAnalysis:
@@ -41,6 +45,8 @@ def analyze_selected_symbol(
         "strategy_routing": strategy_routing,
         "methodology_gate_mode": methodology_gate_mode,
         "methodology_settings": methodology_settings,
+        "geometry_safety_mode": geometry_safety_mode,
+        "geometry_execution_costs": geometry_execution_costs,
         "market_environment_config": market_environment_config,
         "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }

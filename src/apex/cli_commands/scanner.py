@@ -24,6 +24,9 @@ from apex.application.enriched_public_output import (
     serialize_scan_result,
     serialize_symbol_analysis,
 )
+from apex.application.methodology_geometry_runtime import (
+    geometry_execution_costs_from_settings,
+)
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
 from apex.presentation.terminal import cli_progress, emit_terminal
@@ -153,6 +156,14 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
                         methodology_gate_mode=context.settings.methodology_gate_mode,
                         methodology_settings=context.settings.methodology,
+                        geometry_safety_mode=(
+                            context.settings.methodology_gate_mode
+                            if context.settings.geometry_execution.enabled
+                            else "shadow"
+                        ),
+                        geometry_execution_costs=geometry_execution_costs_from_settings(
+                            context.settings.geometry_execution
+                        ),
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
                     )

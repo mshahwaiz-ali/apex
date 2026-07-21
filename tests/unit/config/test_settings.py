@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -205,3 +206,13 @@ def test_load_settings_accepts_rollout_diagnostics_switch(tmp_path) -> None:
     settings = load_settings(tmp_path)
 
     assert settings.rollout_diagnostics_enabled is True
+
+
+def test_repository_default_enables_explicit_geometry_cost_assumptions() -> None:
+    settings = load_settings(Path("config"))
+
+    assert settings.geometry_execution.enabled is True
+    assert settings.geometry_execution.entry_fee_pct == 0.05
+    assert settings.geometry_execution.exit_fee_pct == 0.05
+    assert settings.geometry_execution.entry_slippage_pct == 0.02
+    assert settings.geometry_execution.exit_slippage_pct == 0.02

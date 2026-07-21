@@ -62,6 +62,11 @@ def test_context_adapter_keeps_nearby_structured_contextual() -> None:
     assert context.higher_timeframe_authority is HigherTimeframeAuthority.CONTEXTUAL_PENALTY
 
 
+def test_nearby_structured_lane_is_not_a_scalp_exception() -> None:
+    assert OpportunityLane.NEARBY_STRUCTURED.is_scalp is False
+    assert OpportunityLane.PULLBACK_SCALP.is_scalp is True
+
+
 def test_candidate_context_prefers_measured_assessment() -> None:
     assessment = LaneHorizonAssessment(
         lane=OpportunityLane.CMP_SCALP,

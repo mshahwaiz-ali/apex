@@ -18,6 +18,9 @@ from apex.application import (
 )
 from apex.application.discovery_contracts import SymbolAnalysis
 from apex.application.enriched_public_output import serialize_symbol_analysis
+from apex.application.methodology_geometry_runtime import (
+    geometry_execution_costs_from_settings,
+)
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.methodology_selected_entry_output import render_discovery_analysis
@@ -42,7 +45,11 @@ def register_analysis_commands(app: typer.Typer) -> None:
 
     @app.command("analyze")
     def analyze(
-        symbol: str = typer.Argument(..., help="Any provider-supported futures market symbol."),
+        symbol: str = typer.Argument(
+            ...,
+            metavar="SYMBOL",
+            help="Any provider-supported futures market symbol.",
+        ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
         explain: bool = typer.Option(
             False,
@@ -82,6 +89,14 @@ def register_analysis_commands(app: typer.Typer) -> None:
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
                         methodology_gate_mode=context.settings.methodology_gate_mode,
                         methodology_settings=context.settings.methodology,
+                        geometry_safety_mode=(
+                            context.settings.methodology_gate_mode
+                            if context.settings.geometry_execution.enabled
+                            else "shadow"
+                        ),
+                        geometry_execution_costs=geometry_execution_costs_from_settings(
+                            context.settings.geometry_execution
+                        ),
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
                     )

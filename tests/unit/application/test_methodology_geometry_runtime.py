@@ -71,7 +71,7 @@ def test_runtime_context_exposes_only_explicit_round_trip_costs() -> None:
         ),
     )
 
-    assert result.expected_cost_pct == pytest.approx(0.10)
+    assert result.expected_cost_pct == pytest.approx(0.25)
 
 
 def test_missing_spread_does_not_fabricate_execution_costs() -> None:

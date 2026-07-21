@@ -23,6 +23,8 @@ from apex.application.market_state import (
     market_state_payload,
 )
 from apex.application.market_strategy_router import route_market_strategies
+from apex.application.methodology_geometry_enforcement import GeometrySafetyGateMode
+from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.methodology_market_state import adapt_market_state
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import load_symbol_file
@@ -159,6 +161,8 @@ def analyze_symbol(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
     methodology_settings: MethodologySettings | None = None,
+    geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+    geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
@@ -197,6 +201,8 @@ def analyze_symbol(
         methodology_market_state=methodology_state.primary,
         methodology_gate_mode=methodology_gate_mode,
         methodology_settings=methodology_settings,
+        geometry_safety_mode=geometry_safety_mode,
+        geometry_execution_costs=geometry_execution_costs,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
     )

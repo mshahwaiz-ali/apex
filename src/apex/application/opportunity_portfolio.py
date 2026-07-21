@@ -57,7 +57,6 @@ class OpportunityLane(StrEnum):
             OpportunityLane.CMP_SCALP,
             OpportunityLane.CONFIRMATION_SCALP,
             OpportunityLane.PULLBACK_SCALP,
-            OpportunityLane.NEARBY_STRUCTURED,
         }
 
 

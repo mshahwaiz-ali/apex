@@ -9,9 +9,13 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from apex.application import decision_analysis, selected_symbol
+from apex.application.methodology_geometry_enforcement import GeometrySafetyGateMode
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.cli_commands import analysis as analysis_cli
+from apex.cli_commands import backtesting as backtesting_cli
 from apex.cli_commands import scanner as scanner_cli
 from apex.config import MethodologySettings
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG
@@ -54,6 +58,8 @@ def test_selected_symbol_delegates_to_canonical_analysis_core(monkeypatch: Any) 
                 "strategy_routing": None,
                 "methodology_gate_mode": "enforce",
                 "methodology_settings": None,
+                "geometry_safety_mode": GeometrySafetyGateMode.SHADOW,
+                "geometry_execution_costs": None,
                 "analysis_mode": AnalysisMode.ANALYZE_FULL,
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
             },
@@ -131,6 +137,8 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
                 "methodology_settings": None,
+                "geometry_safety_mode": GeometrySafetyGateMode.SHADOW,
+                "geometry_execution_costs": None,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),
@@ -147,6 +155,8 @@ def test_scan_delegates_every_symbol_to_canonical_analysis_core(monkeypatch: Any
                 "market_environment_config": DEFAULT_MARKET_ENVIRONMENT_CONFIG,
                 "methodology_gate_mode": "enforce",
                 "methodology_settings": None,
+                "geometry_safety_mode": GeometrySafetyGateMode.SHADOW,
+                "geometry_execution_costs": None,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             },
         ),
@@ -169,6 +179,41 @@ def test_scan_and_analyze_cli_forward_the_same_candle_limit() -> None:
     assert scan_value.id == "candle_limit"
     assert isinstance(analyze_value, ast.Name)
     assert analyze_value.id == "candle_limit"
+
+
+@pytest.mark.parametrize(
+    ("function", "call_name"),
+    [
+        (analysis_cli.register_analysis_commands, "analyze_selected_symbol"),
+        (scanner_cli.register_scanner_commands, "scan_symbols"),
+        (backtesting_cli.register_backtesting_commands, "analyze_selected_symbol"),
+    ],
+)
+def test_live_and_backtest_commands_forward_geometry_and_methodology_configuration(
+    function: Callable[..., object],
+    call_name: str,
+) -> None:
+    tree = ast.parse(inspect.getsource(function))
+    calls = [
+        item
+        for item in ast.walk(tree)
+        if isinstance(item, ast.Call)
+        and isinstance(item.func, ast.Name)
+        and item.func.id == call_name
+    ]
+    assert len(calls) == 1
+    keywords = {item.arg for item in calls[0].keywords}
+    assert {
+        "methodology_settings",
+        "geometry_safety_mode",
+        "geometry_execution_costs",
+    } <= keywords
+
+
+def test_decision_core_does_not_reapply_legacy_strategy_level_gate() -> None:
+    source = inspect.getsource(decision_analysis.analyze_symbol)
+
+    assert "apply_configured_methodology_gate" not in source
 
 
 def _call_keyword_value(

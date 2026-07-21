@@ -19,9 +19,8 @@ from apex.application.market_strategy_router import (
     market_strategy_route_payload,
     route_market_strategies,
 )
-from apex.application.methodology_gate_orchestration import (
-    apply_configured_methodology_gate,
-)
+from apex.application.methodology_geometry_enforcement import GeometrySafetyGateMode
+from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.methodology_setup_maturity import derive_setup_maturity
 from apex.application.methodology_strategy_contracts import SetupMaturity
 from apex.application.opportunity_portfolio import (
@@ -68,6 +67,8 @@ def analyze_symbol(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
     methodology_settings: MethodologySettings | None = None,
+    geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+    geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
 ) -> SymbolAnalysis:
@@ -85,6 +86,8 @@ def analyze_symbol(
         market_environment_config=market_environment_config,
         methodology_gate_mode=methodology_gate_mode,
         methodology_settings=methodology_settings,
+        geometry_safety_mode=geometry_safety_mode,
+        geometry_execution_costs=geometry_execution_costs,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
     )
@@ -111,13 +114,10 @@ def analyze_symbol(
         market_state=base.market_state,
         market_strategy_route=route,
     )
-    return cast(
-        SymbolAnalysis,
-        apply_configured_methodology_gate(
-            analysis,
-            mode=methodology_gate_mode,
-        ),
-    )
+    # Candidate-specific methodology routing is already enforced inside the
+    # canonical discovery core. Reapplying the legacy strategy-level gate here
+    # would collapse layered state back into one broad market-state verdict.
+    return analysis
 
 
 def scan_symbols(
@@ -133,6 +133,8 @@ def scan_symbols(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     methodology_gate_mode: str = "shadow",
     methodology_settings: MethodologySettings | None = None,
+    geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+    geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
 ) -> DiscoveryScanResult:
     """Analyze each symbol once with canonical routing, gating, and ranking."""
@@ -152,6 +154,8 @@ def scan_symbols(
                 "market_environment_config": market_environment_config,
                 "methodology_gate_mode": methodology_gate_mode,
                 "methodology_settings": methodology_settings,
+                "geometry_safety_mode": geometry_safety_mode,
+                "geometry_execution_costs": geometry_execution_costs,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             }
             if not futures_evidence_enabled:

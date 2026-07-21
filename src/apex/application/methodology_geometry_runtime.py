@@ -70,7 +70,9 @@ class GeometryRuntimeContext:
 
     @property
     def expected_cost_pct(self) -> float | None:
-        return None if self.execution_costs is None else self.execution_costs.total_pct
+        if self.execution_costs is None:
+            return None
+        return self.execution_costs.total_pct + self.observed_spread_pct
 
 
 DEFAULT_EXECUTION_BUFFER_POLICY = ExecutionBufferPolicy(

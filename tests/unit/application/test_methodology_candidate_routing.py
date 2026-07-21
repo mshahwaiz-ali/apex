@@ -257,7 +257,7 @@ def test_prohibited_chaotic_state_still_suppresses_candidate_lanes() -> None:
     assert decisions[StrategyType.RANGE_REVERSAL].reason_codes == ("METHODOLOGY_PROHIBITED_STATE",)
 
 
-def test_nearby_structured_retest_is_a_scalp_not_a_runner_veto() -> None:
+def test_nearby_structured_retest_defers_without_layered_state() -> None:
     candidate = _candidate(
         StrategyType.BREAKOUT_RETEST,
         entry_mode=EntryMode.RETEST,
@@ -283,8 +283,8 @@ def test_nearby_structured_retest_is_a_scalp_not_a_runner_veto() -> None:
     )
 
     assert result.suppressed_candidate_count == 0
-    assert result.decisions[0].action is StrategyEnforcementAction.ALLOW
-    assert result.decisions[0].reason_codes == ("METHODOLOGY_COMPATIBLE_WITH_CONSTRAINTS",)
+    assert result.decisions[0].action is StrategyEnforcementAction.DEFER
+    assert result.decisions[0].reason_codes == ("METHODOLOGY_METADATA_INCOMPLETE",)
 
 
 def test_routing_passes_measurable_lane_horizon_into_shared_context(

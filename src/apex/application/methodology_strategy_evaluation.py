@@ -362,6 +362,29 @@ def evaluate_strategy_eligibility(
             missing_mandatory_evidence=missing,
             reasons=(f"{strategy.value} prohibits market state {market_state.value}",),
         )
+    if (
+        direction is not None
+        and lane is not None
+        and not lane.is_scalp
+        and holding_horizon is not HoldingHorizon.RUNNER
+    ):
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=(),
+            reasons=(
+                "candidate layered state is unavailable; broad market state is "
+                "context only and cannot suppress a structured candidate",
+            ),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            runner_allowed=False,
+            stage=EligibilityStage.MARKET_STATE,
+            htf_directional_conflict=htf_directional_conflict,
+        )
     if market_state not in declaration.compatible_states:
         scalp_context = (
             lane is not None
