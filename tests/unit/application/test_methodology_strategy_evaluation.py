@@ -13,6 +13,12 @@ from apex.application.methodology_strategy_evaluation import (
     evaluate_strategy_registry,
     strategy_eligibility_evaluation_payload,
 )
+from apex.domain.methodology_contracts import (
+    ContextState,
+    ExecutionState,
+    LayeredStateSnapshot,
+    SetupState,
+)
 from apex.strategies.strategy_types import StrategyType
 
 
@@ -255,3 +261,107 @@ def test_htf_disagreement_alone_is_not_execution_chaos() -> None:
     assert result.stage is EligibilityStage.COMPLETE
     assert result.htf_directional_conflict is True
     assert payload["htf_directional_conflict"] is True
+
+
+def test_layered_state_replaces_universal_primary_state_authority() -> None:
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.EXPANDING,
+        setup_state=SetupState.BREAKOUT,
+        context_state=ContextState.COMPRESSED,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.COMPRESSING,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        layered_state=layered,
+    )
+
+    assert result.state is StrategyEligibilityState.COMPATIBLE
+    assert result.stage is EligibilityStage.COMPLETE
+    assert result.layered_state is layered
+    assert "context only" in result.reasons[0]
+
+
+def test_layered_setup_mismatch_rejects_at_setup_stage() -> None:
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.CLEAN,
+        setup_state=SetupState.RANGE,
+        context_state=ContextState.TRENDING_UP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.BREAKOUT_RETEST,
+        market_state=PrimaryMarketState.POST_BREAKOUT,
+        evidence=_evidence(
+            EvidenceFamily.STRUCTURE,
+            EvidenceFamily.LIQUIDITY,
+        ),
+        layered_state=layered,
+    )
+
+    assert result.state is StrategyEligibilityState.INCOMPATIBLE_STATE
+    assert result.stage is EligibilityStage.SETUP_STATE
+    assert "range is not compatible" in result.reasons[0]
+
+
+def test_layered_local_chaos_remains_hard_rejection() -> None:
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.CHAOTIC,
+        setup_state=SetupState.BREAKOUT,
+        context_state=ContextState.TRENDING_UP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        layered_state=layered,
+    )
+
+    assert result.state is StrategyEligibilityState.PROHIBITED_STATE
+    assert result.stage is EligibilityStage.EXECUTION_STATE
+    assert result.runner_allowed is False
+
+
+def test_layered_state_payload_is_candidate_specific() -> None:
+    layered = LayeredStateSnapshot(
+        execution_state=ExecutionState.REVERSAL_TRANSITION,
+        setup_state=SetupState.REVERSAL_ATTEMPT,
+        context_state=ContextState.TRENDING_UP,
+    )
+
+    result = evaluate_strategy_eligibility(
+        StrategyType.MOMENTUM_SCALP,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.MOMENTUM,
+            EvidenceFamily.PARTICIPATION,
+        ),
+        layered_state=layered,
+    )
+    payload = strategy_eligibility_evaluation_payload(result)
+
+    assert payload["layered_state"]["execution_state"] == "reversal_transition"
+    assert payload["layered_state"]["setup_state"] == "reversal_attempt"
+    assert payload["layered_state"]["context_state"] == "trending_up"
+
+
+def test_legacy_call_without_layered_state_keeps_existing_behavior() -> None:
+    result = evaluate_strategy_eligibility(
+        StrategyType.RANGE_REVERSAL,
+        market_state=PrimaryMarketState.TRENDING_UP,
+        evidence=_evidence(
+            EvidenceFamily.STRUCTURE,
+            EvidenceFamily.LIQUIDITY,
+        ),
+    )
+
+    assert result.state is StrategyEligibilityState.INCOMPATIBLE_STATE
+    assert result.layered_state is None

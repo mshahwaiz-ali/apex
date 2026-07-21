@@ -9,7 +9,15 @@ from typing import Any
 from apex.application.methodology_contracts import EvidenceFamily, EvidenceObservation
 from apex.application.methodology_opportunity_context import HoldingHorizon, OpportunityLane
 from apex.application.methodology_strategy_contracts import PrimaryMarketState
+from apex.application.methodology_strategy_layer_requirements import (
+    strategy_layer_requirements,
+)
 from apex.application.methodology_strategy_registry import strategy_eligibility
+from apex.domain.methodology_contracts import (
+    ExecutionState,
+    LayeredStateSnapshot,
+    SetupState,
+)
 from apex.strategies.contracts import TradeDirection
 from apex.strategies.strategy_types import StrategyType
 
@@ -20,6 +28,7 @@ class EligibilityStage(StrEnum):
     MANDATORY_EVIDENCE = "mandatory_evidence"
     GEOMETRY = "geometry"
     EXECUTION_STATE = "execution_state"
+    SETUP_STATE = "setup_state"
     MARKET_STATE = "market_state"
     LANE_EXCEPTION = "lane_exception"
     COMPLETE = "complete"
@@ -47,6 +56,7 @@ class StrategyEligibilityEvaluation:
     runner_allowed: bool = True
     stage: EligibilityStage = EligibilityStage.COMPLETE
     htf_directional_conflict: bool = False
+    layered_state: LayeredStateSnapshot | None = None
 
     def __post_init__(self) -> None:
         if not self.reasons:
@@ -72,6 +82,7 @@ def evaluate_strategy_eligibility(
     has_target: bool = True,
     execution_chaos: bool = False,
     htf_directional_conflict: bool = False,
+    layered_state: LayeredStateSnapshot | None = None,
 ) -> StrategyEligibilityEvaluation:
     """Evaluate one strategy without changing live routing or candidate approval."""
 
@@ -150,6 +161,121 @@ def evaluate_strategy_eligibility(
             stage=EligibilityStage.GEOMETRY,
             htf_directional_conflict=htf_directional_conflict,
         )
+    if layered_state is not None:
+        requirements = strategy_layer_requirements(strategy)
+        if layered_state.execution_state is ExecutionState.UNAVAILABLE:
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=(
+                    "execution_state stage rejected candidate; "
+                    "candidate execution state is unavailable",
+                ),
+                lane=lane,
+                direction=direction,
+                holding_horizon=holding_horizon,
+                runner_allowed=False,
+                stage=EligibilityStage.EXECUTION_STATE,
+                htf_directional_conflict=htf_directional_conflict,
+                layered_state=layered_state,
+            )
+        if layered_state.execution_state in requirements.prohibited_execution_states:
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=StrategyEligibilityState.PROHIBITED_STATE,
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=(
+                    "execution_state stage rejected candidate; "
+                    f"{layered_state.execution_state.value} is prohibited "
+                    f"for {strategy.value}",
+                ),
+                lane=lane,
+                direction=direction,
+                holding_horizon=holding_horizon,
+                runner_allowed=False,
+                stage=EligibilityStage.EXECUTION_STATE,
+                htf_directional_conflict=htf_directional_conflict,
+                layered_state=layered_state,
+            )
+        if layered_state.execution_state not in requirements.execution_states:
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=StrategyEligibilityState.INCOMPATIBLE_STATE,
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=(
+                    "execution_state stage rejected candidate; "
+                    f"{layered_state.execution_state.value} is not compatible "
+                    f"with {strategy.value}",
+                ),
+                lane=lane,
+                direction=direction,
+                holding_horizon=holding_horizon,
+                stage=EligibilityStage.EXECUTION_STATE,
+                htf_directional_conflict=htf_directional_conflict,
+                layered_state=layered_state,
+            )
+        if layered_state.setup_state is SetupState.UNAVAILABLE:
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=StrategyEligibilityState.INSUFFICIENT_EVIDENCE_METADATA,
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=(
+                    "setup_state stage rejected candidate; candidate setup state is unavailable",
+                ),
+                lane=lane,
+                direction=direction,
+                holding_horizon=holding_horizon,
+                runner_allowed=False,
+                stage=EligibilityStage.SETUP_STATE,
+                htf_directional_conflict=htf_directional_conflict,
+                layered_state=layered_state,
+            )
+        if layered_state.setup_state not in requirements.setup_states:
+            return StrategyEligibilityEvaluation(
+                strategy=strategy,
+                state=StrategyEligibilityState.INCOMPATIBLE_STATE,
+                market_state=market_state,
+                present_evidence=present,
+                missing_mandatory_evidence=(),
+                reasons=(
+                    "setup_state stage rejected candidate; "
+                    f"{layered_state.setup_state.value} is not compatible "
+                    f"with {strategy.value}",
+                ),
+                lane=lane,
+                direction=direction,
+                holding_horizon=holding_horizon,
+                stage=EligibilityStage.SETUP_STATE,
+                htf_directional_conflict=htf_directional_conflict,
+                layered_state=layered_state,
+            )
+        return StrategyEligibilityEvaluation(
+            strategy=strategy,
+            state=StrategyEligibilityState.COMPATIBLE,
+            market_state=market_state,
+            present_evidence=present,
+            missing_mandatory_evidence=(),
+            reasons=(
+                f"{strategy.value} satisfies candidate execution and setup "
+                "layers; primary market state is retained as context only",
+            ),
+            lane=lane,
+            direction=direction,
+            holding_horizon=holding_horizon,
+            stage=EligibilityStage.COMPLETE,
+            htf_directional_conflict=htf_directional_conflict,
+            layered_state=layered_state,
+        )
+
     if execution_chaos:
         return StrategyEligibilityEvaluation(
             strategy=strategy,
@@ -281,6 +407,9 @@ def strategy_eligibility_evaluation_payload(
         "runner_allowed": evaluation.runner_allowed,
         "stage": evaluation.stage.value,
         "htf_directional_conflict": evaluation.htf_directional_conflict,
+        "layered_state": (
+            None if evaluation.layered_state is None else evaluation.layered_state.to_dict()
+        ),
     }
 
 
