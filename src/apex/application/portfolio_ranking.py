@@ -15,6 +15,7 @@ from apex.domain.methodology_contracts import (
     TimeframeRelationship,
 )
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.strategy_types import StrategyType
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +114,12 @@ def _tp1_reward_quality(setup: DiscoverySetup) -> float:
     """Map TP1 R:R to a bounded rank input without hiding poor geometry."""
 
     tp1_rr = setup.take_profits[0].risk_reward
+    if setup.strategy is StrategyType.MOMENTUM_SCALP:
+        # Scalp quality peaks at an achievable 1.5R. Distant nominal reward is
+        # progressively less useful because the holding horizon is deliberately short.
+        if tp1_rr <= 1.5:
+            return round(min(100.0, max(0.0, (tp1_rr - 0.5) * 100.0)), 4)
+        return round(max(20.0, 100.0 - (tp1_rr - 1.5) * 40.0), 4)
     # 1R is only middling, 2R is strong, and 3R reaches the cap.
     return round(min(100.0, max(0.0, tp1_rr / 3.0 * 100.0)), 4)
 
@@ -227,7 +234,7 @@ def portfolio_ranking_key(
     return (
         -components.rank_score,
         -components.execution_precedence,
-        -setup.take_profits[0].risk_reward,
+        -components.tp1_reward_quality,
         _sortable_component(components.target_quality),
         _sortable_component(components.setup_quality),
         _sortable_component(components.execution_quality),

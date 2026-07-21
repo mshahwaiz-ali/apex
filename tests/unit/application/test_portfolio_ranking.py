@@ -165,13 +165,13 @@ def test_custom_policy_can_intentionally_change_recommendation_order() -> None:
     executable = _setup(
         "executable",
         execution_allowed_now=True,
-        risk_reward=1.0,
+        risk_reward=0.9,
         target_quality=50.0,
     )
     nearby = _setup(
         "nearby",
         execution_allowed_now=False,
-        risk_reward=3.0,
+        risk_reward=1.5,
         target_quality=100.0,
     )
     reward_first = PortfolioRankingPolicy(
@@ -193,6 +193,17 @@ def test_custom_policy_can_intentionally_change_recommendation_order() -> None:
         executable,
         policy=reward_first,
     )
+
+
+def test_distant_scalp_tp_is_not_rewarded_like_achievable_tp1() -> None:
+    achievable = _setup("achievable", risk_reward=1.5)
+    distant = _setup("distant", risk_reward=3.0)
+
+    assert (
+        portfolio_rank_components(achievable).tp1_reward_quality
+        > portfolio_rank_components(distant).tp1_reward_quality
+    )
+    assert portfolio_ranking_key(achievable) < portfolio_ranking_key(distant)
 
 
 def test_default_policy_preserves_historical_weights() -> None:

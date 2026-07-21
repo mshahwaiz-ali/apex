@@ -222,6 +222,11 @@ class StrategyContext:
                     return frame
         return self.frames[0]
 
+    def frame_for_role(self, role: TimeframeRole) -> TimeframeContext | None:
+        """Return the configured frame for one analytical role, when available."""
+
+        return next((frame for frame in self.frames if frame.role is role), None)
+
     @property
     def current_price(self) -> float:
         return self.decision_frame.current_price

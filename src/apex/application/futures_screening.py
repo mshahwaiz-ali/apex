@@ -820,6 +820,15 @@ def score_futures_opportunity(
         extension_excess * 4.0 + expansion_excess * 3.0,
     )
     total -= overextension_penalty
+    pump_rejection_penalty = 0.0
+    if acceleration >= 60.0 and features.wick_intensity >= 0.45:
+        pump_rejection_penalty = min(
+            20.0,
+            (acceleration - 60.0) * 0.20
+            + (features.wick_intensity - 0.45) * 30.0
+            + max(0.0, features.ema_distance_atr - 1.0) * 4.0,
+        )
+        total -= pump_rejection_penalty
 
     reasons: list[str] = []
     cautions: list[str] = []
@@ -843,6 +852,11 @@ def score_futures_opportunity(
     if overextension_penalty >= 4:
         cautions.append(
             f"overextension reduced shortlist score by {overextension_penalty:.1f} points"
+        )
+    if pump_rejection_penalty > 0:
+        cautions.append(
+            f"accelerated high-wick move reduced shortlist score by "
+            f"{pump_rejection_penalty:.1f} points"
         )
     if noise_quality < 45:
         cautions.append("recent candles contain elevated wick or range noise")
@@ -879,7 +893,12 @@ def classify_discovery_lanes(
     """Classify screening candidates into transparent discovery lanes."""
 
     lanes: list[FuturesDiscoveryLaneSignal] = []
-    if features.directional_persistence >= 0.67 and opportunity.entry_freshness >= 45:
+    if (
+        features.directional_persistence >= 0.67
+        and opportunity.entry_freshness >= 45
+        and features.wick_intensity < 0.45
+        and features.ema_distance_atr <= 1.5
+    ):
         lanes.append(
             FuturesDiscoveryLaneSignal(
                 lane=FuturesDiscoveryLane.TREND_CONTINUATION,

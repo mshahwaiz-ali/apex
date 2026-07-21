@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from apex.strategies.context import StrategyContext
+from apex.strategies.context import StrategyContext, TimeframeContext, TimeframeRole
 from apex.strategies.continuation_freshness import (
     ContinuationFreshness,
     measure_continuation_freshness,
@@ -90,10 +90,19 @@ def _candidate_for_direction(
     frame = context.decision_frame
     accepted = _BULLISH_TRENDS if bullish else _BEARISH_TRENDS
     has_trend = frame.structure.trend.direction in accepted
-    has_break = _has_recent_continuation_break(context, bullish=bullish)
+    break_age = _recent_continuation_break_age(context, bullish=bullish)
+    has_break = break_age is not None
     if not has_trend and not has_break:
         return None
     higher_timeframe_conflict = context.higher_timeframe_contradiction(bullish=bullish)
+    setup_direction_confirmed, immediate_timeframe_conflict = _immediate_timeframe_authority(
+        context,
+        bullish=bullish,
+    )
+    lower_trigger_confirmed, lower_trigger_opposed = _lower_timeframe_trigger(
+        context,
+        bullish=bullish,
+    )
 
     aligned, total = _momentum_alignment(context, bullish=bullish)
     if total == 0 or aligned == 0:
@@ -127,11 +136,25 @@ def _candidate_for_direction(
     )
     if freshness is not None and not freshness.allows_new_continuation:
         return None
+    if _directional_rejection_after_impulse(context, bullish=bullish):
+        return None
+
+    features = frame.features
+    participation = assess_continuation_participation(
+        direction=direction,
+        features=features,
+        market_evidence=context.market_evidence,
+    )
 
     references = _entry_references(context, bullish=bullish)
     entry_confirmation_complete = (
         has_break
         and aligned * 2 >= total
+        and setup_direction_confirmed
+        and lower_trigger_confirmed
+        and not lower_trigger_opposed
+        and not immediate_timeframe_conflict
+        and participation.state is not ParticipationState.CONTRADICTORY
         and not context.provisional
         and not (freshness is not None and freshness.requires_conditional_entry)
     )
@@ -163,12 +186,6 @@ def _candidate_for_direction(
         return None
     entry = entry_opportunities[0]
 
-    features = frame.features
-    participation = assess_continuation_participation(
-        direction=direction,
-        features=features,
-        market_evidence=context.market_evidence,
-    )
     warnings: list[str] = []
     if participation.state is ParticipationState.CONTRADICTORY:
         warnings.append("available participation evidence contradicts continuation quality")
@@ -189,6 +206,17 @@ def _candidate_for_direction(
         )
     if higher_timeframe_conflict:
         warnings.append("higher-timeframe trend conflicts with the decision-frame momentum thesis")
+    if immediate_timeframe_conflict:
+        warnings.append(
+            "15m/30m structure directly opposes immediate continuation; renewed local "
+            "confirmation is required"
+        )
+    elif not setup_direction_confirmed:
+        warnings.append("15m setup direction is not confirmed for immediate continuation")
+    if lower_trigger_opposed:
+        warnings.append("1m timing directly opposes the 3m continuation trigger")
+    elif not lower_trigger_confirmed:
+        warnings.append("3m refinement trigger is not confirmed for immediate continuation")
     return TradeCandidate(
         symbol=context.symbol,
         strategy=StrategyType.MOMENTUM_BREAKOUT,
@@ -261,7 +289,12 @@ def _candidate_for_direction(
             "momentum_signal_count": total,
             "aligned_momentum_count": aligned,
             "recent_continuation_break": has_break,
+            **({"continuation_break_age_bars": break_age} if break_age is not None else {}),
             "higher_timeframe_conflict": higher_timeframe_conflict,
+            "setup_direction_confirmed": setup_direction_confirmed,
+            "immediate_timeframe_conflict": immediate_timeframe_conflict,
+            "lower_timeframe_trigger_confirmed": lower_trigger_confirmed,
+            "lower_timeframe_trigger_opposed": lower_trigger_opposed,
             "entry_confirmation_complete": entry_confirmation_complete,
             "entry_confirmation_reason": (
                 "confirmed structural break, majority momentum alignment, and closed evidence"
@@ -359,14 +392,134 @@ def _participation_metadata(
     return payload
 
 
-def _has_recent_continuation_break(context: StrategyContext, *, bullish: bool) -> bool:
+def _recent_continuation_break_age(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+    maximum_age_bars: int = 3,
+) -> int | None:
+    """Return the newest intact confirmed break age; stale breaks are not triggers."""
+
     direction = BreakDirection.BULLISH if bullish else BreakDirection.BEARISH
-    return any(
-        item.direction is direction
+    candles = tuple(candle for candle in context.decision_frame.recent_candles if candle.is_closed)
+    if not candles:
+        return None
+    newest_index = len(candles) - 1
+    eligible = tuple(
+        item
+        for item in context.decision_frame.structure.breaks
+        if item.direction is direction
         and item.quality in {BreakQuality.VALID, BreakQuality.STRONG}
         and item.confirmation is ConfirmationStatus.CONFIRMED
-        for item in context.decision_frame.structure.breaks
+        and 0 <= newest_index - item.candle_index <= maximum_age_bars
     )
+    for item in sorted(eligible, key=lambda event: event.candle_index, reverse=True):
+        subsequent = candles[item.candle_index + 1 :]
+        held = all(
+            candle.close >= item.broken_level if bullish else candle.close <= item.broken_level
+            for candle in subsequent
+        )
+        current_holds = (
+            context.current_price >= item.broken_level
+            if bullish
+            else context.current_price <= item.broken_level
+        )
+        if held and current_holds:
+            return newest_index - item.candle_index
+    return None
+
+
+def _immediate_timeframe_authority(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[bool, bool]:
+    """Apply 15m setup authority and 30m session opposition to immediate entries."""
+
+    aligned = _BULLISH_TRENDS if bullish else _BEARISH_TRENDS
+    opposed = _BEARISH_TRENDS if bullish else _BULLISH_TRENDS
+    setup = context.frame_for_role(TimeframeRole.SETUP)
+    intraday = context.frame_for_role(TimeframeRole.INTRADAY)
+    setup_confirmed = setup is not None and setup.structure.trend.direction in aligned
+    direct_opposition = any(
+        frame is not None and frame.structure.trend.direction in opposed
+        for frame in (setup, intraday)
+    )
+    return setup_confirmed, direct_opposition
+
+
+def _lower_timeframe_trigger(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> tuple[bool, bool]:
+    """Require a 3m trigger and prevent a directly opposing 1m timing signal."""
+
+    aligned_trends = _BULLISH_TRENDS if bullish else _BEARISH_TRENDS
+    opposed_trends = _BEARISH_TRENDS if bullish else _BULLISH_TRENDS
+    refinement = context.frame_for_role(TimeframeRole.REFINEMENT)
+    timing = context.frame_for_role(TimeframeRole.TIMING)
+
+    def momentum_votes(frame: TimeframeContext) -> tuple[int, int]:
+        features = frame.features
+        values = tuple(
+            value
+            for value in (
+                features.rate_of_change,
+                features.macd_histogram,
+                features.rsi_slope,
+            )
+            if value is not None
+        )
+        votes = sum(value > 0 if bullish else value < 0 for value in values)
+        return votes, len(values)
+
+    refinement_votes = (0, 0) if refinement is None else momentum_votes(refinement)
+    trigger_confirmed = refinement is not None and (
+        refinement.structure.trend.direction in aligned_trends
+        or (refinement_votes[1] >= 2 and refinement_votes[0] * 2 >= refinement_votes[1])
+    )
+    timing_votes = (0, 0) if timing is None else momentum_votes(timing)
+    timing_opposed = timing is not None and (
+        timing.structure.trend.direction in opposed_trends
+        and (
+            timing_votes[1] == 0 or (timing_votes[1] >= 2 and timing_votes[0] * 2 < timing_votes[1])
+        )
+    )
+    return trigger_confirmed, timing_opposed
+
+
+def _directional_rejection_after_impulse(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> bool:
+    """Reject late continuation after an ATR-sized pump/dump prints rejection."""
+
+    candles = tuple(candle for candle in context.decision_frame.recent_candles if candle.is_closed)
+    if len(candles) < 4:
+        return False
+    recent = candles[-6:]
+    origin = (
+        min(candle.low for candle in recent) if bullish else max(candle.high for candle in recent)
+    )
+    travel = (
+        context.current_price - origin if bullish else origin - context.current_price
+    ) / context.atr
+    if travel < 1.5:
+        return False
+    last = recent[-1]
+    body = max(abs(last.close - last.open), context.atr * 0.05)
+    rejection_wick = (
+        last.high - max(last.open, last.close) if bullish else min(last.open, last.close) - last.low
+    )
+    bodies = tuple(
+        max(0.0, candle.close - candle.open) if bullish else max(0.0, candle.open - candle.close)
+        for candle in recent[-3:]
+    )
+    decelerating = bodies[0] > bodies[1] > bodies[2]
+    opposing_close = last.close < last.open if bullish else last.close > last.open
+    return rejection_wick >= body * 1.5 and (decelerating or opposing_close)
 
 
 def _momentum_alignment(context: StrategyContext, *, bullish: bool) -> tuple[int, int]:

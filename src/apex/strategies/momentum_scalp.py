@@ -5,12 +5,20 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 
-from apex.strategies.context import StrategyContext
-from apex.strategies.contracts import StrategyEvidence, TradeCandidate
+from apex.strategies.context import StrategyContext, TimeframeRole
+from apex.strategies.contracts import (
+    StrategyEvidence,
+    TargetConcept,
+    TargetLevel,
+    TargetType,
+    TradeCandidate,
+    TradeDirection,
+)
 from apex.strategies.momentum_continuation import (
     generate_momentum_continuation_candidates,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.structure.contracts import LevelRole, LevelStatus
 
 
 def generate_momentum_scalp_candidates(
@@ -25,28 +33,44 @@ def generate_momentum_scalp_candidates(
         decision_time=decision_time,
     )
     return tuple(
-        _as_momentum_scalp(candidate)
+        _as_momentum_scalp(candidate, context=context)
         for candidate in candidates
         if candidate.entry.atr_distance <= 0.6
         and candidate.entry.location_quality >= 0.65
         and not candidate.entry.is_extended
         and candidate.metadata.get("entry_confirmation_complete") is True
         and not candidate.provisional
+        and _scalp_targets(candidate, context=context)
     )
 
 
-def _as_momentum_scalp(candidate: TradeCandidate) -> TradeCandidate:
+def _as_momentum_scalp(
+    candidate: TradeCandidate,
+    *,
+    context: StrategyContext,
+) -> TradeCandidate:
+    targets = _scalp_targets(candidate, context=context)
+    if not targets:
+        raise ValueError("momentum scalp requires a verified nearby microstructure target")
     metadata = {
         **dict(candidate.metadata),
         "strategy_family": StrategyType.MOMENTUM_SCALP.value,
         "source_strategy": candidate.strategy.value,
         "aggressive_entry_permitted": True,
         "confirmation_basis": "closed_momentum_evidence",
+        "target_timeframe": targets[0].rationale[-1],
+        "expected_bars_to_target": _expected_bars_to_target(
+            candidate,
+            target=targets[0],
+            context=context,
+        ),
+        "scalp_target_horizon_atr": abs(targets[0].price - candidate.entry.preferred) / context.atr,
     }
     evidence = candidate.evidence
     return replace(
         candidate,
         strategy=StrategyType.MOMENTUM_SCALP,
+        targets=TargetConcept(levels=targets),
         evidence=StrategyEvidence(
             supporting=tuple(
                 dict.fromkeys(
@@ -65,3 +89,89 @@ def _as_momentum_scalp(candidate: TradeCandidate) -> TradeCandidate:
         ),
         metadata=metadata,
     )
+
+
+def _scalp_targets(
+    candidate: TradeCandidate,
+    *,
+    context: StrategyContext,
+) -> tuple[TargetLevel, ...]:
+    """Build TP1 from microstructure and optional TP2 from 15m structure."""
+
+    bullish = candidate.direction is TradeDirection.LONG
+    preferred = candidate.entry.preferred
+    execution_anchor = (
+        max(preferred, context.current_price) if bullish else min(preferred, context.current_price)
+    )
+    opposing_role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
+
+    def prices_for_roles(
+        roles: tuple[TimeframeRole, ...], *, maximum_atr: float
+    ) -> list[tuple[float, str]]:
+        prices: list[tuple[float, str]] = []
+        for role in roles:
+            frame = context.frame_for_role(role)
+            if frame is None:
+                continue
+            for level in frame.structure.levels:
+                price = level.representative_price
+                directional = price > execution_anchor if bullish else price < execution_anchor
+                distance_atr = abs(price - preferred) / context.atr
+                if (
+                    level.role is opposing_role
+                    and level.status is not LevelStatus.BROKEN
+                    and directional
+                    and distance_atr <= maximum_atr
+                ):
+                    prices.append((price, frame.timeframe))
+        return prices
+
+    micro = prices_for_roles(
+        (TimeframeRole.TIMING, TimeframeRole.REFINEMENT, TimeframeRole.ENTRY),
+        maximum_atr=1.5,
+    )
+    if not micro:
+        return ()
+    micro_price, micro_timeframe = min(
+        micro,
+        key=lambda item: (abs(item[0] - preferred), item[0]),
+    )
+    targets = [
+        TargetLevel(
+            kind=TargetType.STRUCTURAL,
+            price=micro_price,
+            label="scalp_microstructure",
+            rationale=(
+                "nearest verified 1m/3m/5m opposing structure",
+                micro_timeframe,
+            ),
+        )
+    ]
+    setup = prices_for_roles((TimeframeRole.SETUP,), maximum_atr=2.25)
+    beyond_micro = [
+        item for item in setup if (item[0] > micro_price if bullish else item[0] < micro_price)
+    ]
+    if beyond_micro:
+        setup_price, setup_timeframe = min(
+            beyond_micro,
+            key=lambda item: (abs(item[0] - preferred), item[0]),
+        )
+        targets.append(
+            TargetLevel(
+                kind=TargetType.STRUCTURAL,
+                price=setup_price,
+                label="setup_structure",
+                rationale=("15m setup-frame structural objective", setup_timeframe),
+            )
+        )
+    return tuple(targets)
+
+
+def _expected_bars_to_target(
+    candidate: TradeCandidate,
+    *,
+    target: TargetLevel,
+    context: StrategyContext,
+) -> int:
+    distance_atr = abs(target.price - candidate.entry.preferred) / context.atr
+    return min(6, max(1, round(distance_atr * 4)))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from apex.application.futures_screening import (
@@ -214,6 +215,32 @@ def test_discovery_lanes_explain_shortlist_route() -> None:
         FuturesDiscoveryLane.RELATIVE_STRENGTH_WEAKNESS,
     }
     assert all(item.reason for item in lanes)
+
+
+def test_accelerated_high_wick_pump_is_not_labelled_clean_continuation() -> None:
+    config = FuturesScreenerConfig(shortlist_size=1, ticker_prefilter_size=1)
+    base = extract_opportunity_features(_candles("AAAUSDT", step=0.6, volume_step=150.0, wick=0.02))
+    clean = replace(
+        base,
+        return_5m_pct=3.0,
+        wick_intensity=0.20,
+        ema_distance_atr=1.0,
+    )
+    rejection = replace(
+        base,
+        return_5m_pct=3.0,
+        wick_intensity=0.65,
+        ema_distance_atr=1.8,
+    )
+    ticker = _ticker("AAAUSDT", movement=9.0)
+
+    clean_score = score_futures_opportunity(ticker, clean, config)
+    rejection_score = score_futures_opportunity(ticker, rejection, config)
+    rejection_lanes = classify_discovery_lanes(ticker, rejection, rejection_score)
+
+    assert rejection_score.total < clean_score.total
+    assert any("high-wick move" in caution for caution in rejection_score.cautions)
+    assert FuturesDiscoveryLane.TREND_CONTINUATION not in {item.lane for item in rejection_lanes}
 
 
 def test_relative_strength_lane_uses_benchmark_return_when_available() -> None:
