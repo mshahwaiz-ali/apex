@@ -1,0 +1,91 @@
+╭───────────────────────── APEX BACKTEST • RE/USDT ──────────────────────────╮
+╰────────────────────────────────────────────────────────────────────────────╯
+
+┌─ Verdict ───────────────────────────────────────────────────────────────────
+▶  INSUFFICIENT EXECUTED TRADES — NO PERFORMANCE CONCLUSION
+  Replay timeframe    15m
+  Decision points     3
+  Signals generated   0
+  Trades executed     0
+  No-trade decisions  3
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Test configuration ────────────────────────────────────────────────────────
+  Replay timeframe  15m
+  Replay candles    20
+  Decision points   3
+  Methodology gate  enforce
+  Fee               0.0400%
+  Slippage          0.0200%
+  Funding           0.0000%
+  Holding window    20
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Performance after modeled costs ───────────────────────────────────────────
+  Win rate          0.0%
+  Expectancy        +0.000R
+  Net P&L           +0.0000
+  Profit factor     Unavailable
+  Average win       +0.0000
+  Average loss      +0.0000
+  Maximum drawdown  +0.0000
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Outcome distribution ──────────────────────────────────────────────────────
+  Target exits    0
+  Stop exits      0
+  Expired setups  0
+  Missed entries  0
+  TP1 hit rate    0.0%
+  TP2 hit rate    0.0%
+  TP3 hit rate    0.0%
+  Stop rate       0.0%
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Risk and excursion ────────────────────────────────────────────────────────
+  Average MFE  +0.000R
+  Average MAE  +0.000R
+  Best MFE     +0.000R
+  Worst MAE    +0.000R
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Partition performance ─────────────────────────────────────────────────────
+Training
+  Trades         0
+  Win rate       0.0%
+  Expectancy     +0.000R
+  Profit factor  Unavailable
+  Drawdown       +0.0000
+
+Validation
+  Trades         0
+  Win rate       0.0%
+  Expectancy     +0.000R
+  Profit factor  Unavailable
+  Drawdown       +0.0000
+
+Final test
+  Trades         0
+  Win rate       0.0%
+  Expectancy     +0.000R
+  Profit factor  Unavailable
+  Drawdown       +0.0000
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Trade record ──────────────────────────────────────────────────────────────
+No executed trades.
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ No-trade decisions ────────────────────────────────────────────────────────
+2026-07-21T19:29:59.999000+00:00 — canonical_no_executable_opportunity; all 4 generated candidates were rejected by geometry safety
+2026-07-22T00:29:59.999000+00:00 — canonical_no_executable_opportunity; all 2 generated candidates were rejected by geometry safety
+2026-07-22T05:29:59.999000+00:00 — canonical_opportunity_pending_activation; valid setups exist, but none has a currently executable entry
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Robustness checks ─────────────────────────────────────────────────────────
+  Calibration authority        Not promoted
+  Deflated Sharpe probability  0.0%
+  Backtest overfitting risk    100.0%
+  Skipped signals              0
+  Dataset fingerprint          4322faf88bc6…
+└─────────────────────────────────────────────────────────────────────────────

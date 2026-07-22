@@ -41,5 +41,10 @@ build/
 /cache/
 *.log
 
+# Versioned backtest evidence
+!/backtest-samples/
+!/backtest-samples/logs/
+!/backtest-samples/logs/**
+
 # Generated reports
 /reports/
