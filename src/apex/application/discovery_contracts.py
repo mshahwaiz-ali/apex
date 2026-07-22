@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
+from apex.application.methodology_identity import METHODOLOGY_VERSION
 from apex.application.methodology_snapshot import MethodologySnapshot
 from apex.domain.methodology_contracts import (
     LayeredStateSnapshot,
@@ -61,6 +62,23 @@ class RecommendedOrderIntent(StrEnum):
     STOP = "stop"
     LIMIT = "limit"
     ALERT_ONLY = "alert_only"
+
+
+class SetupValidity(StrEnum):
+    """Structural validity of the trade thesis."""
+
+    VALID = "valid"
+    INVALID = "invalid"
+    EXPIRED = "expired"
+
+
+class ExecutionAuthority(StrEnum):
+    """What the canonical setup authorizes at the decision time."""
+
+    EXECUTE_NOW = "execute_now"
+    CONDITIONAL_FUTURE = "conditional_future"
+    MONITOR_ONLY = "monitor_only"
+    PROHIBITED = "prohibited"
 
 
 def _finite(name: str, value: float) -> None:
@@ -282,6 +300,11 @@ class DiscoverySetup:
     warnings: tuple[str, ...] = ()
     quality_dimensions: CandidateQualityDimensions | None = None
     execution_allowed_now: bool = False
+    future_activation_allowed: bool = False
+    setup_validity: SetupValidity = SetupValidity.VALID
+    execution_authority: ExecutionAuthority = ExecutionAuthority.MONITOR_ONLY
+    strategy_version: str = "strategy-contract-v1"
+    methodology_version: str = METHODOLOGY_VERSION
     entry_opportunities: tuple[ActionableEntry, ...] = ()
     setup_expiry_seconds: int | None = None
     setup_expiry_bars: int | None = None
@@ -312,6 +335,8 @@ class DiscoverySetup:
             raise ValueError("discovery setup requires management policies")
         if not self.runner_qualification_reason.strip():
             raise ValueError("runner qualification reason cannot be empty")
+        if not self.strategy_version.strip() or not self.methodology_version.strip():
+            raise ValueError("strategy and methodology versions cannot be empty")
         if self.runner_qualified and not any(
             target.runner_qualified for target in self.take_profits
         ):
@@ -322,8 +347,34 @@ class DiscoverySetup:
             raise ValueError("setup bar expiry must be positive when provided")
         if self.setup_expiry_seconds is not None and not self.setup_expiry_reason.strip():
             raise ValueError("setup expiry reason is required when expiry is provided")
+        if self.execution_allowed_now and self.future_activation_allowed:
+            raise ValueError("setup cannot authorize current and future execution together")
         if self.execution_allowed_now and self.conditional_plan is not None:
             raise ValueError("executable setup cannot also expose a conditional execution plan")
+        if self.future_activation_allowed and self.conditional_plan is None:
+            raise ValueError("future-authorized setup requires a conditional execution plan")
+        derived_validity = (
+            SetupValidity.INVALID
+            if self.entry_status is EntryStatus.INVALIDATED
+            else self.setup_validity
+        )
+        expected_authority = (
+            ExecutionAuthority.PROHIBITED
+            if derived_validity is not SetupValidity.VALID
+            else (
+                ExecutionAuthority.EXECUTE_NOW
+                if self.execution_allowed_now
+                else (
+                    ExecutionAuthority.CONDITIONAL_FUTURE
+                    if self.future_activation_allowed
+                    else ExecutionAuthority.MONITOR_ONLY
+                )
+            )
+        )
+        # Canonical projections are derived from setup state. This keeps legacy
+        # constructors and dataclasses.replace() from carrying stale authority.
+        object.__setattr__(self, "setup_validity", derived_validity)
+        object.__setattr__(self, "execution_authority", expected_authority)
         partial_total = sum(target.partial_close_pct for target in self.take_profits)
         if not math.isclose(partial_total, 100.0, rel_tol=0.0, abs_tol=1e-9):
             raise ValueError("take-profit partial percentages must sum to 100")

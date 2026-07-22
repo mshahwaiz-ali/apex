@@ -11,10 +11,12 @@ from apex.application.discovery_contracts import (
     ConditionalExecutionPlan,
     DiscoveryAssessment,
     DiscoverySetup,
+    ExecutionAuthority,
     ManagementPolicy,
     ManagementPolicyType,
     PreEntryInvalidation,
     RecommendedOrderIntent,
+    SetupValidity,
     StopLoss,
     StopQualityBand,
     TakeProfit,
@@ -225,6 +227,28 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     entry_opportunities = (entry, *raw_entry_opportunities[1:]) if raw_entry_opportunities else ()
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
+    conditional_plan = _conditional_plan(
+        candidate,
+        entry_status=entry_status,
+        entry=entry,
+        stop=stop,
+        entry_authority=entry_authority,
+    )
+    execution_allowed_now = is_entry_status_executable(entry_status)
+    future_activation_allowed = (
+        not execution_allowed_now
+        and conditional_plan is not None
+        and entry_status is not EntryStatus.INVALIDATED
+    )
+    execution_authority = (
+        ExecutionAuthority.EXECUTE_NOW
+        if execution_allowed_now
+        else (
+            ExecutionAuthority.CONDITIONAL_FUTURE
+            if future_activation_allowed
+            else ExecutionAuthority.MONITOR_ONLY
+        )
+    )
     return DiscoverySetup(
         symbol=candidate.symbol,
         direction=candidate.direction,
@@ -243,7 +267,11 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         ),
         warnings=tuple(candidate.evidence.warnings),
         quality_dimensions=_canonical_quality_dimensions(candidate),
-        execution_allowed_now=is_entry_status_executable(entry_status),
+        execution_allowed_now=execution_allowed_now,
+        future_activation_allowed=future_activation_allowed,
+        setup_validity=SetupValidity.VALID,
+        execution_authority=execution_authority,
+        strategy_version=str(candidate.metadata.get("strategy_version", "strategy-contract-v1")),
         entry_opportunities=entry_opportunities,
         setup_expiry_seconds=expiry_seconds,
         setup_expiry_bars=None if lifecycle is None else lifecycle.expires_after_bars,
@@ -261,13 +289,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         methodology_scores=candidate.score_dimensions,
         runner_qualified=runner_qualified,
         runner_qualification_reason=runner_reason,
-        conditional_plan=_conditional_plan(
-            candidate,
-            entry_status=entry_status,
-            entry=entry,
-            stop=stop,
-            entry_authority=entry_authority,
-        ),
+        conditional_plan=conditional_plan,
     )
 
 
