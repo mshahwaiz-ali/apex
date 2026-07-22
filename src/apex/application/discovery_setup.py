@@ -164,7 +164,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     )
     entry_status = classify_candidate_actionability(candidate)
     entry = _entry_zone(candidate.entry, candidate.direction)
-    entry_opportunities = tuple(
+    raw_entry_opportunities = tuple(
         _entry_zone(opportunity, candidate.direction)
         for opportunity in candidate.entry_opportunities
     )
@@ -187,6 +187,10 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         or DEFAULT_MINIMUM_CHASE_NET_R,
         expected_cost_pct=_positive_or_zero_number(candidate.metadata.get("expected_cost_pct")),
     )
+    # The first strategy opportunity is the same canonical entry represented
+    # by ``entry``.  Publish the post-policy version in both places so clients
+    # never receive two different maximum-chase boundaries for one setup.
+    entry_opportunities = (entry, *raw_entry_opportunities[1:]) if raw_entry_opportunities else ()
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
     return DiscoverySetup(

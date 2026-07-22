@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -83,6 +84,7 @@ from apex.application.methodology_contracts import (
     TargetRole,
 )
 from apex.application.methodology_geometry_enforcement import (
+    GeometrySafetyEnforcementResult,
     GeometrySafetyGateMode,
     apply_geometry_safety_enforcement,
     geometry_safety_enforcement_payload,
@@ -127,6 +129,27 @@ from apex.strategies import (
 from apex.strategies.analysis import StrategyAnalysisResult
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.execution_quality import ExecutionQualityCapPolicy
+
+
+def _apply_geometry_no_trade_reason(
+    selection: CandidateSelectionResult,
+    enforcement: GeometrySafetyEnforcementResult,
+) -> CandidateSelectionResult:
+    """Preserve the real terminal cause when geometry removed every candidate."""
+
+    if (
+        selection.selected_candidate is not None
+        or selection.ranked_candidates
+        or enforcement.rejected_candidate_count == 0
+    ):
+        return selection
+    return replace(
+        selection,
+        no_trade_reason=(
+            f"all {enforcement.rejected_candidate_count} generated candidates "
+            "were rejected by geometry safety"
+        ),
+    )
 
 
 def analyze_symbol(
@@ -210,6 +233,7 @@ def analyze_symbol(
         regime=str(intelligence_regime["state"]),
         archetype=str(market_intelligence["archetype"]),
     )
+    selection = _apply_geometry_no_trade_reason(selection, geometry_enforcement)
     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
     counterfactual_mode = "enforce" if methodology_routing.mode.value == "shadow" else "shadow"
     counterfactual_routing = apply_methodology_candidate_routing(

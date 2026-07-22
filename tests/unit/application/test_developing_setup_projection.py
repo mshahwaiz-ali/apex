@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from apex.application.discovery_analysis import serialize_symbol_analysis
+import pytest
+
+from apex.application.discovery_analysis import (
+    _apply_geometry_no_trade_reason,
+    serialize_symbol_analysis,
+)
 from apex.application.discovery_contracts import SymbolAnalysis
 from apex.application.discovery_setup import _build_setup, build_discovery_assessment
 from apex.application.public_output import serialize_symbol_analysis as serialize_public_analysis
@@ -177,6 +182,45 @@ def test_public_maximum_chase_preserves_configured_minimum_net_r() -> None:
 
     assert setup.entry.upper <= chase < ranked.candidate.entry.max_chase_price  # type: ignore[operator]
     assert net_r >= 1.25 - 1e-9
+
+
+def test_primary_entry_opportunity_uses_same_post_policy_chase_boundary() -> None:
+    ranked = _ranked_pending_candidate()
+    candidate = replace(
+        ranked.candidate,
+        entry_opportunities=(ranked.candidate.entry,),
+        targets=replace(
+            ranked.candidate.targets,
+            levels=(replace(ranked.candidate.targets.levels[0], price=106.0),),
+        ),
+        metadata={
+            "expected_cost_pct": 0.10,
+            "geometry_minimum_tp1_reward_to_risk": 1.25,
+        },
+    )
+
+    setup = _build_setup(replace(ranked, scored=replace(ranked.scored, candidate=candidate)))
+
+    assert setup.entry_opportunities[0].maximum_chase_price == pytest.approx(
+        setup.entry.maximum_chase_price
+    )
+
+
+def test_geometry_rejection_replaces_false_no_candidates_reason() -> None:
+    selection = replace(
+        _selection(),
+        all_scored_candidates=(),
+        ranked_candidates=(),
+        selected_candidate=None,
+        no_trade_reason="no strategy candidates were generated",
+    )
+    enforcement = type("_Enforcement", (), {"rejected_candidate_count": 3})()
+
+    updated = _apply_geometry_no_trade_reason(selection, enforcement)  # type: ignore[arg-type]
+
+    assert updated.no_trade_reason == (
+        "all 3 generated candidates were rejected by geometry safety"
+    )
 
 
 def _analysis() -> SymbolAnalysis:

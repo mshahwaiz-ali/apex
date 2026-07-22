@@ -591,7 +591,18 @@ def _attach_runtime_geometry_metadata(
             candidate.metadata,
         )
         already_buffered = candidate.metadata.get("invalidation_includes_noise_buffer") is True
-        execution_buffer = 0.0 if already_buffered else runtime_context.execution_buffer
+        # Some strategies place invalidation 0.15--0.20 ATR beyond a structure
+        # and correctly declare that a buffer is already present.  That does
+        # not mean the stop meets the shared 0.25 ATR execution-noise floor.
+        # Top up only the missing distance from the canonical selected entry;
+        # this avoids both the former zero-buffer contradiction and double
+        # buffering a structural stop that is already far enough away.
+        existing_stop_distance = abs(entry_authority.selected_entry - candidate.invalidation.price)
+        execution_buffer = (
+            max(0.0, runtime_context.execution_buffer - existing_stop_distance)
+            if already_buffered
+            else runtime_context.execution_buffer
+        )
         executable_stop = derive_execution_stop_geometry(
             direction=candidate.direction,
             preferred_entry=entry_authority.selected_entry,
@@ -605,7 +616,9 @@ def _attach_runtime_geometry_metadata(
             "selected_entry": entry_authority.selected_entry,
             "entry_geometry_owner": entry_authority.geometry_owner,
             "geometry_buffer_reason": (
-                "strategy invalidation already contains the single noise buffer"
+                "strategy buffer was topped up to the shared runtime noise floor"
+                if already_buffered and execution_buffer > 0.0
+                else "strategy invalidation already satisfies the shared runtime noise floor"
                 if already_buffered
                 else runtime_context.buffer_reason
             ),

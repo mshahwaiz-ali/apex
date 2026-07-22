@@ -14,12 +14,14 @@ from tests.unit.strategies.test_candidate_execution_quality import _context as q
 import apex.application.methodology_candidate_routing as candidate_routing
 from apex.application.methodology_candidate_routing import (
     _apply_post_routing_quality_caps,
+    _attach_runtime_geometry_metadata,
     _enforce_verified_target_ceiling,
     _htf_assessment_from_layered_state,
     apply_methodology_candidate_routing,
     evaluate_methodology_candidate_routing,
     methodology_candidate_routing_payload,
 )
+from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
 from apex.application.methodology_htf_consequences import HtfConsequence
 from apex.application.methodology_opportunity_context import (
     HoldingHorizon,
@@ -605,6 +607,41 @@ def test_post_routing_confirmation_change_refreshes_quality_cap() -> None:
     assert before_overall is not None
     assert refreshed.score_dimensions.overall_trade_quality < before_overall
     assert refreshed.metadata["post_routing_quality_refreshed"] is True
+
+
+def test_runtime_geometry_tops_up_partially_buffered_stop_to_shared_floor() -> None:
+    candidate = replace(
+        quality_candidate(invalidation=99.7),
+        metadata={
+            **quality_candidate(invalidation=99.7).metadata,
+            "invalidation_includes_noise_buffer": True,
+        },
+    )
+    analysis = StrategyAnalysisResult(
+        symbol=candidate.symbol,
+        decision_time=candidate.decision_time,
+        candidates=(candidate,),
+        evaluated_strategies=(candidate.strategy,),
+        eligible_strategies=(candidate.strategy,),
+        candidate_actionability=(
+            CandidateActionability(candidate=candidate, status=EntryStatus.READY_NOW),
+        ),
+    )
+    runtime = GeometryRuntimeContext(
+        decision_atr=2.0,
+        observed_spread_pct=0.0,
+        execution_buffer=0.5,
+        execution_costs=None,
+        spread_source="test",
+        buffer_reason="test shared runtime floor",
+    )
+
+    updated = _attach_runtime_geometry_metadata(analysis, runtime)
+    enriched = updated.candidates[0]
+
+    assert enriched.metadata["execution_buffer"] == pytest.approx(0.2)
+    assert enriched.metadata["executable_stop"] == pytest.approx(99.5)
+    assert "topped up" in str(enriched.metadata["geometry_buffer_reason"])
 
 
 def test_countertrend_relationship_rejects_non_scalp_lane(monkeypatch) -> None:

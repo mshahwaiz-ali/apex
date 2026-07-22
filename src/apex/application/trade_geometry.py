@@ -84,12 +84,18 @@ def build_stop_geometry(
         raise ValueError("execution buffer override must be finite and non-negative")
 
     percentage_buffer = preferred_entry * minimum_buffer_pct / 100.0
-    if invalidation_already_buffered:
+    if execution_buffer_override is not None:
+        buffer = execution_buffer_override
+        reason = (
+            "strategy buffer topped up to the single shared runtime ATR/spread floor"
+            if invalidation_already_buffered and buffer > 0.0
+            else "strategy invalidation already satisfies the single shared noise floor"
+            if invalidation_already_buffered
+            else "single shared runtime ATR/spread execution buffer"
+        )
+    elif invalidation_already_buffered:
         buffer = 0.0
         reason = "strategy invalidation already includes the single noise buffer"
-    elif execution_buffer_override is not None:
-        buffer = execution_buffer_override
-        reason = "single shared runtime ATR/spread execution buffer"
     elif invalidation_type is InvalidationType.VOLATILITY:
         buffer = percentage_buffer
         reason = f"single minimum {minimum_buffer_pct:g}% execution buffer"

@@ -54,6 +54,22 @@ def test_strategy_buffered_invalidation_does_not_receive_another_buffer() -> Non
     assert "already includes" in geometry.buffer_reason
 
 
+def test_strategy_buffered_invalidation_accepts_only_missing_runtime_top_up() -> None:
+    geometry = build_stop_geometry(
+        direction=TradeDirection.LONG,
+        preferred_entry=100.0,
+        invalidation_price=99.7,
+        invalidation_type=InvalidationType.STRUCTURAL,
+        atr=2.0,
+        invalidation_already_buffered=True,
+        execution_buffer_override=0.2,
+    )
+
+    assert geometry.buffer == pytest.approx(0.2)
+    assert geometry.price == pytest.approx(99.5)
+    assert "topped up" in geometry.buffer_reason
+
+
 def test_runtime_execution_buffer_is_the_single_stop_buffer_authority() -> None:
     geometry = build_stop_geometry(
         direction=TradeDirection.SHORT,
