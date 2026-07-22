@@ -55,6 +55,8 @@ class CandidateGeometrySafetyAudit:
     assessment: GeometrySafetyAssessment | None
     missing_measurements: tuple[str, ...]
     reasons: tuple[str, ...]
+    measured_lane: OpportunityLane | None = None
+    measured_assessment: GeometrySafetyAssessment | None = None
 
     def __post_init__(self) -> None:
         if not self.candidate_id.strip():
@@ -67,6 +69,8 @@ class CandidateGeometrySafetyAudit:
             raise ValueError("complete geometry audit cannot contain missing measurements")
         if self.assessment is None and not self.missing_measurements:
             raise ValueError("unavailable geometry audit requires missing measurements")
+        if self.measured_assessment is not None and self.measured_lane is None:
+            raise ValueError("measured geometry assessment requires measured lane")
 
 
 def audit_candidate_geometry_safety(
@@ -129,17 +133,33 @@ def audit_candidate_geometry_safety(
             ),
         )
 
+    decision_atr = (
+        runtime_context.decision_atr
+        if runtime_context is not None
+        else _optional_number(metadata.get("decision_atr"))
+    )
     assessment = evaluate_geometry_safety(
         candidate,
         lane=lane,
         executable_stop=executable_stop,
         target_quality=candidate.quality.target_space_quality * 100.0,
         expected_cost_pct=expected_cost_pct,
-        decision_atr=(
-            runtime_context.decision_atr
-            if runtime_context is not None
-            else _optional_number(metadata.get("decision_atr"))
-        ),
+        decision_atr=decision_atr,
+        selected_entry=selected_entry,
+        policy=policy,
+    )
+    measured_lane = measured_geometry_lane(
+        candidate,
+        legacy_lane=lane,
+        decision_atr=decision_atr,
+    )
+    measured_assessment = evaluate_geometry_safety(
+        candidate,
+        lane=measured_lane,
+        executable_stop=executable_stop,
+        target_quality=candidate.quality.target_space_quality * 100.0,
+        expected_cost_pct=expected_cost_pct,
+        decision_atr=decision_atr,
         selected_entry=selected_entry,
         policy=policy,
     )
@@ -149,7 +169,30 @@ def audit_candidate_geometry_safety(
         assessment=assessment,
         missing_measurements=(),
         reasons=assessment.reasons,
+        measured_lane=measured_lane,
+        measured_assessment=measured_assessment,
     )
+
+
+def measured_geometry_lane(
+    candidate: TradeCandidate,
+    *,
+    legacy_lane: OpportunityLane,
+    decision_atr: float | None,
+) -> OpportunityLane:
+    """Map measured TP1 travel to an existing canonical policy lane."""
+
+    if decision_atr is None or decision_atr <= 0.0:
+        return legacy_lane
+    distance = abs(candidate.targets.levels[0].price - candidate.entry.preferred)
+    expected_bars = max(1, min(64, math.ceil(distance / decision_atr)))
+    if expected_bars <= 3:
+        return legacy_lane if legacy_lane.is_scalp else OpportunityLane.CONFIRMATION_SCALP
+    if expected_bars <= 8:
+        return OpportunityLane.NEARBY_STRUCTURED
+    if expected_bars <= 20:
+        return OpportunityLane.DEVELOPING
+    return OpportunityLane.RUNNER
 
 
 def candidate_geometry_safety_audit_payload(
@@ -182,17 +225,38 @@ def candidate_geometry_safety_audit_payload(
             "maximum_tp1_distance_atr": item.maximum_tp1_distance_atr,
         }
 
+    measured = audit.measured_assessment
+    legacy_codes = [] if assessment is None else [item.value for item in assessment.rejection_codes]
+    measured_codes = [] if measured is None else [item.value for item in measured.rejection_codes]
+    legacy_maximum_tp1_distance_atr = (
+        None if assessment is None else assessment.diagnostics.maximum_tp1_distance_atr
+    )
+    measured_maximum_tp1_distance_atr = (
+        None if measured is None else measured.diagnostics.maximum_tp1_distance_atr
+    )
+
     return {
         "candidate_id": audit.candidate_id,
         "lane": audit.lane.value,
         "available": assessment is not None,
         "state": None if assessment is None else assessment.state.value,
         "missing_measurements": list(audit.missing_measurements),
-        "rejection_codes": (
-            [] if assessment is None else [item.value for item in assessment.rejection_codes]
-        ),
+        "rejection_codes": legacy_codes,
         "reasons": list(audit.reasons),
         "diagnostics": diagnostics,
+        "legacy_geometry_passed": None if assessment is None else assessment.passed,
+        "measured_geometry_lane": (
+            None if audit.measured_lane is None else audit.measured_lane.value
+        ),
+        "measured_geometry_passed": None if measured is None else measured.passed,
+        "would_change_geometry_result": (
+            None if assessment is None or measured is None else assessment.passed != measured.passed
+        ),
+        "legacy_geometry_rejection_codes": legacy_codes,
+        "measured_geometry_rejection_codes": measured_codes,
+        "legacy_maximum_tp1_distance_atr": legacy_maximum_tp1_distance_atr,
+        "measured_maximum_tp1_distance_atr": measured_maximum_tp1_distance_atr,
+        "measured_geometry_reasons": ([] if measured is None else list(measured.reasons)),
         "shadow_only": True,
     }
 
@@ -252,4 +316,5 @@ __all__ = [
     "audit_candidate_geometry_safety",
     "candidate_geometry_safety_audit_payload",
     "geometry_safety_policy_from_settings",
+    "measured_geometry_lane",
 ]

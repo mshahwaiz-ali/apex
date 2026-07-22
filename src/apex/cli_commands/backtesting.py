@@ -19,6 +19,7 @@ from apex.application import (
     normalize_market_symbol,
     serialize_symbol_analysis,
 )
+from apex.application.candidate_metadata_shadow import shadow_metadata_from_mapping
 from apex.application.candidate_ranking import CandidateRankingRecord, CandidateRankingSnapshot
 from apex.application.canonical_opportunity_selection import (
     CanonicalOpportunityDecision,
@@ -892,8 +893,12 @@ def _ranking_diagnostics(
 ) -> dict[str, object]:
     risk = abs(entry - stop)
     target_payload = record.targets[0] if record.targets else {}
+    shadow_metadata = shadow_metadata_from_mapping(
+        record.metadata,
+        entry_horizon=record.entry.get("horizon"),
+    )
     combined = {
-        "metadata": dict(record.metadata),
+        "metadata": shadow_metadata,
         "evidence": dict(record.evidence),
         "methodology_state": dict(record.methodology_state),
         "methodology_scores": dict(record.methodology_scores),
@@ -946,12 +951,48 @@ def _ranking_diagnostics(
         "confirmation": _confirmation_diagnostics(combined),
         "ranking_outcome": record.outcome,
         "reason_codes": list(record.reason_codes),
+        "execution_timeframe": shadow_metadata.get("execution_timeframe"),
+        "setup_timeframe": shadow_metadata.get("setup_timeframe"),
+        "invalidation_timeframe": shadow_metadata.get("invalidation_timeframe"),
+        "target_timeframe": shadow_metadata.get("target_timeframe"),
+        "expected_bars_to_target": shadow_metadata.get("expected_bars_to_target"),
+        "decision_atr": shadow_metadata.get("decision_atr"),
+        "lifecycle_model": shadow_metadata.get("lifecycle_model"),
+        "legacy_context_lane": shadow_metadata.get("legacy_context_lane"),
+        "measured_context_lane": shadow_metadata.get("measured_context_lane"),
+        "legacy_holding_horizon": shadow_metadata.get("legacy_holding_horizon"),
+        "measured_holding_horizon": shadow_metadata.get("measured_holding_horizon"),
+        "would_change_lane": shadow_metadata.get("would_change_lane"),
+        "would_change_geometry_result": shadow_metadata.get("would_change_geometry_result"),
     }
 
 
 def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object]:
     diagnostics = audit.get("diagnostics")
     diagnostic_values = diagnostics if isinstance(diagnostics, Mapping) else {}
+    candidate_id = audit.get("candidate_id")
+    strategy = (
+        candidate_id.split(":", maxsplit=1)[0]
+        if isinstance(candidate_id, str) and ":" in candidate_id
+        else None
+    )
+    raw_geometry = diagnostic_values.get("geometry_audit")
+    geometry_values = raw_geometry if isinstance(raw_geometry, Mapping) else diagnostic_values
+    shadow_source = dict(geometry_values)
+    legacy_lane = (
+        audit.get("lane")
+        or audit.get("context_lane")
+        or diagnostic_values.get("geometry_lane")
+        or diagnostic_values.get("context_lane")
+    )
+    if isinstance(legacy_lane, str):
+        shadow_source.setdefault("context_lane", legacy_lane)
+    shadow_metadata = shadow_metadata_from_mapping(
+        shadow_source,
+        strategy=strategy,
+        entry_price=geometry_values.get("selected_entry"),
+        target_price=geometry_values.get("tp1_price"),
+    )
     state = audit.get("state")
     missing = audit.get("missing_measurements")
     rejection_codes = audit.get("rejection_codes")
@@ -973,6 +1014,27 @@ def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object
             list(missing) if isinstance(missing, (list, tuple)) else []
         ),
         "confirmation": _confirmation_diagnostics(diagnostic_values),
+        "execution_timeframe": shadow_metadata.get("execution_timeframe"),
+        "setup_timeframe": shadow_metadata.get("setup_timeframe"),
+        "invalidation_timeframe": shadow_metadata.get("invalidation_timeframe"),
+        "target_timeframe": shadow_metadata.get("target_timeframe"),
+        "expected_bars_to_target": shadow_metadata.get("expected_bars_to_target"),
+        "decision_atr": shadow_metadata.get("decision_atr"),
+        "lifecycle_model": shadow_metadata.get("lifecycle_model"),
+        "legacy_context_lane": shadow_metadata.get("legacy_context_lane"),
+        "measured_context_lane": shadow_metadata.get("measured_context_lane"),
+        "legacy_holding_horizon": shadow_metadata.get("legacy_holding_horizon"),
+        "measured_holding_horizon": shadow_metadata.get("measured_holding_horizon"),
+        "would_change_lane": shadow_metadata.get("would_change_lane"),
+        "legacy_geometry_passed": audit.get("legacy_geometry_passed"),
+        "measured_geometry_lane": audit.get("measured_geometry_lane"),
+        "measured_geometry_passed": audit.get("measured_geometry_passed"),
+        "would_change_geometry_result": audit.get("would_change_geometry_result"),
+        "legacy_geometry_rejection_codes": audit.get("legacy_geometry_rejection_codes", []),
+        "measured_geometry_rejection_codes": audit.get("measured_geometry_rejection_codes", []),
+        "legacy_maximum_tp1_distance_atr": audit.get("legacy_maximum_tp1_distance_atr"),
+        "measured_maximum_tp1_distance_atr": audit.get("measured_maximum_tp1_distance_atr"),
+        "measured_geometry_reasons": audit.get("measured_geometry_reasons", []),
     }
 
 

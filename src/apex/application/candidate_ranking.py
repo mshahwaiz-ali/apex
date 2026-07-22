@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from apex.application.candidate_metadata_shadow import enrich_candidate_metadata
 from apex.scoring import (
     CandidateOutcome,
     CandidateSelectionResult,
@@ -323,7 +324,7 @@ def _record(
         invalidation=_invalidation_payload(item.candidate),
         targets=_target_payloads(item.candidate),
         evidence=_evidence_payload(item.candidate),
-        metadata=dict(item.candidate.metadata),
+        metadata=enrich_candidate_metadata(item.candidate),
         provisional=item.candidate.provisional,
     )
 
@@ -337,6 +338,8 @@ def _entry_payload(candidate: Any) -> dict[str, Any]:
         "current_price": entry.current_price,
         "maximum_chase_price": entry.max_chase_price,
         "mode": entry.mode.value,
+        "horizon": entry.horizon.value,
+        "expires_after_seconds": entry.expires_after_seconds,
         "distance_from_current": entry.distance_from_current,
         "atr_distance": entry.atr_distance,
         "estimated_move_missed": entry.estimated_move_missed,
