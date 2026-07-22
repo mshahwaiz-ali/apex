@@ -26,6 +26,13 @@ def render_backtest(payload: Mapping[str, object]) -> str:
     partitions = _mapping(payload.get("metrics_by_partition"))
     trade_records = _sequence(payload.get("trades"))
     no_trade_records = _sequence(payload.get("no_trade_decisions"))
+    conditional = _mapping(payload.get("conditional_replay"))
+    conditional_metrics = _mapping(conditional.get("metrics"))
+    conditional_outcomes = _mapping(conditional.get("outcome_distribution"))
+    shadow = _mapping(payload.get("shadow_replay"))
+    shadow_metrics = _mapping(shadow.get("metrics"))
+    shadow_accuracy = _mapping(shadow.get("direction_accuracy"))
+    shadow_excursions = _mapping(shadow.get("risk_and_excursion"))
     symbol = str(payload.get("symbol") or "Unknown market")
     trades = _number(metrics.get("total_trades"))
     expectancy = _number(metrics.get("expectancy"))
@@ -112,6 +119,47 @@ def render_backtest(payload: Mapping[str, object]) -> str:
         render_section(
             "No-trade decisions",
             _render_no_trades(no_trade_records) if no_trade_records else "None.",
+        ),
+        render_section(
+            "Conditional replay (diagnostic only)",
+            render_fields(
+                (
+                    ("Pending signals", conditional.get("signal_count")),
+                    ("Resolved outcomes", conditional_metrics.get("total_trades")),
+                    ("Targets", conditional_outcomes.get("target")),
+                    ("Stops", conditional_outcomes.get("stop")),
+                    ("Pre-entry invalidations", conditional_outcomes.get("pre_entry_invalidated")),
+                    ("Activation expiries", conditional_outcomes.get("activation_expired")),
+                    ("Missed entries", conditional_outcomes.get("missed_entry")),
+                    (
+                        "Win rate",
+                        format_percentage(conditional_metrics.get("win_rate"), ratio=True),
+                    ),
+                    ("Expectancy", _r(_number(conditional_metrics.get("expectancy")))),
+                )
+            ),
+        ),
+        render_section(
+            "Candidate shadow replay (diagnostic only)",
+            render_fields(
+                (
+                    ("Candidate signals", shadow.get("signal_count")),
+                    ("Resolved outcomes", shadow_metrics.get("total_trades")),
+                    (
+                        "Direction accuracy",
+                        format_percentage(shadow_accuracy.get("accuracy"), ratio=True),
+                    ),
+                    (
+                        "Forward-path MFE",
+                        _r(_number(shadow_excursions.get("average_counterfactual_path_mfe_r"))),
+                    ),
+                    (
+                        "Forward-path MAE",
+                        _r(_number(shadow_excursions.get("average_counterfactual_path_mae_r"))),
+                    ),
+                    ("Source mix", _join_mapping(shadow.get("source_distribution"))),
+                )
+            ),
         ),
         render_section(
             "Robustness checks",
@@ -392,6 +440,12 @@ def _join(value: object) -> str:
     if not isinstance(value, Sequence) or isinstance(value, str | bytes):
         return UNAVAILABLE
     return ", ".join(str(item) for item in value) or UNAVAILABLE
+
+
+def _join_mapping(value: object) -> str:
+    if not isinstance(value, Mapping) or not value:
+        return UNAVAILABLE
+    return ", ".join(f"{key}: {item}" for key, item in sorted(value.items()))
 
 
 def _short_hash(value: object) -> str:

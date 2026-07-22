@@ -1,6 +1,0 @@
-Usage: apex backtest [OPTIONS] SYMBOL
-Try 'apex backtest --help' for help.
-╭─ Error ──────────────────────────────────────────────────────────────────────╮
-│ Invalid value: maximum chase price must remain beyond the entry zone in the  │
-│ trade direction                                                              │
-╰──────────────────────────────────────────────────────────────────────────────╯

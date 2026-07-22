@@ -1,5 +1,0 @@
-Usage: apex backtest [OPTIONS] SYMBOL
-Try 'apex backtest --help' for help.
-╭─ Error ──────────────────────────────────────────────────────────────────────╮
-│ Invalid value: candle series cannot contain multiple active candles          │
-╰──────────────────────────────────────────────────────────────────────────────╯

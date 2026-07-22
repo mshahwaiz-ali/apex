@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 
 from apex.backtesting.contracts import (
+    BacktestActivationType,
     BacktestConfig,
     BacktestOutcome,
     BacktestReport,
@@ -39,6 +40,30 @@ def simulate_trade(
     partials = signal.partial_close_percentages
     max_candles = min(len(candles), config.maximum_holding_candles)
 
+    path_mfe_r = 0.0
+    path_mae_r = 0.0
+    for candle in candles[:max_candles]:
+        favorable_r, adverse_r = _candle_excursions_r(
+            signal,
+            candle,
+            signal.entry_price,
+        )
+        path_mfe_r = max(path_mfe_r, favorable_r)
+        path_mae_r = max(path_mae_r, adverse_r)
+    final_close = candles[max_candles - 1].close
+    direction_correct = (
+        final_close > signal.entry_price
+        if signal.direction is TradeDirection.LONG
+        else final_close < signal.entry_price
+    )
+    metadata = {
+        **({} if metadata is None else dict(metadata)),
+        "counterfactual_path_mfe_r": path_mfe_r,
+        "counterfactual_path_mae_r": path_mae_r,
+        "direction_correct_at_horizon": direction_correct,
+    }
+
+    activated = signal.activation_type is None
     entered = False
     next_target_index = 0
     remaining_quantity = signal.quantity
@@ -47,6 +72,49 @@ def simulate_trade(
     maximum_favorable_excursion_r = 0.0
     maximum_adverse_excursion_r = 0.0
     for index, candle in enumerate(candles[:max_candles], start=1):
+        if not activated:
+            if _pre_entry_invalidated(signal, candle):
+                return _unfilled_trade(
+                    signal,
+                    BacktestOutcome.PRE_ENTRY_INVALIDATED,
+                    candle,
+                    index,
+                    metadata=metadata,
+                    activation_outcome="pre_entry_invalidated",
+                )
+            if _maximum_chase_breached(signal, candle):
+                return _unfilled_trade(
+                    signal,
+                    BacktestOutcome.MISSED_ENTRY,
+                    candle,
+                    index,
+                    metadata=metadata,
+                    activation_outcome="maximum_chase_breached",
+                )
+            if not _activation_triggered(signal, candle):
+                if (
+                    signal.activation_expiry_candles is not None
+                    and index >= signal.activation_expiry_candles
+                ):
+                    return _unfilled_trade(
+                        signal,
+                        BacktestOutcome.ACTIVATION_EXPIRED,
+                        candle,
+                        index,
+                        metadata=metadata,
+                        activation_outcome="activation_expired",
+                    )
+                continue
+            activated = True
+            metadata = {
+                **({} if metadata is None else dict(metadata)),
+                "activation_outcome": "triggered",
+                "activation_candle": index,
+            }
+            # Close-confirmed triggers become knowable only after this candle.
+            # Begin entry-fill evaluation on the next candle to avoid lookahead.
+            if signal.activation_type is not BacktestActivationType.PRICE_TOUCH:
+                continue
         if not entered:
             entered = _entry_touched(signal, candle)
             if not entered:
@@ -134,17 +202,15 @@ def simulate_trade(
 
     final = candles[max_candles - 1]
     if not entered:
-        return SimulatedTrade(
-            signal=signal,
-            outcome=BacktestOutcome.MISSED_ENTRY,
-            exit_time=final.close_time,
-            exit_price=final.close,
-            gross_pnl=0.0,
-            fees=0.0,
-            net_pnl=0.0,
-            realized_r_multiple=0.0,
-            holding_candles=max_candles,
-            metadata=_excursion_metadata(metadata, 0.0, 0.0),
+        return _unfilled_trade(
+            signal,
+            (BacktestOutcome.MISSED_ENTRY if activated else BacktestOutcome.ACTIVATION_EXPIRED),
+            final,
+            max_candles,
+            metadata=metadata,
+            activation_outcome=(
+                "entry_not_touched_after_activation" if activated else "activation_window_ended"
+            ),
         )
     final_exit = _slipped_exit(signal, final.close, config)
     return _trade_from_components(
@@ -282,6 +348,67 @@ def _entry_touched(signal: BacktestSignal, candle: Candle) -> bool:
     return candle.low <= signal.entry_price <= candle.high
 
 
+def _activation_triggered(signal: BacktestSignal, candle: Candle) -> bool:
+    kind = signal.activation_type
+    level = signal.activation_level
+    if kind is None:
+        return True
+    if level is None:
+        return False
+    if kind is BacktestActivationType.PRICE_TOUCH:
+        return candle.low <= level <= candle.high
+    if kind in {BacktestActivationType.CANDLE_CLOSE, BacktestActivationType.RECLAIM_CLOSE}:
+        return (
+            candle.close >= level
+            if signal.direction is TradeDirection.LONG
+            else candle.close <= level
+        )
+    if signal.direction is TradeDirection.LONG:
+        return candle.low <= level and candle.close >= level
+    return candle.high >= level and candle.close <= level
+
+
+def _pre_entry_invalidated(signal: BacktestSignal, candle: Candle) -> bool:
+    level = signal.pre_entry_invalidation_price
+    if level is None:
+        return False
+    return candle.low <= level if signal.direction is TradeDirection.LONG else candle.high >= level
+
+
+def _maximum_chase_breached(signal: BacktestSignal, candle: Candle) -> bool:
+    level = signal.maximum_chase_price
+    if level is None:
+        return False
+    return candle.high > level if signal.direction is TradeDirection.LONG else candle.low < level
+
+
+def _unfilled_trade(
+    signal: BacktestSignal,
+    outcome: BacktestOutcome,
+    candle: Candle,
+    holding_candles: int,
+    *,
+    metadata: Mapping[str, str | int | float | bool] | None,
+    activation_outcome: str,
+) -> SimulatedTrade:
+    output_metadata = _excursion_metadata(metadata, 0.0, 0.0)
+    output_metadata["activation_outcome"] = activation_outcome
+    output_metadata["partial_target_count"] = 0
+    output_metadata["closed_percentage"] = 0.0
+    return SimulatedTrade(
+        signal=signal,
+        outcome=outcome,
+        exit_time=candle.close_time,
+        exit_price=candle.close,
+        gross_pnl=0.0,
+        fees=0.0,
+        net_pnl=0.0,
+        realized_r_multiple=0.0,
+        holding_candles=holding_candles,
+        metadata=output_metadata,
+    )
+
+
 def _stop_hit(signal: BacktestSignal, candle: Candle, stop: float) -> bool:
     return candle.low <= stop if signal.direction is TradeDirection.LONG else candle.high >= stop
 
@@ -363,6 +490,15 @@ def _dataset_hash(request: BacktestRequest) -> str:
                 "quantity": signal.quantity,
                 "risk_amount": signal.risk_amount,
                 "confidence_score": signal.confidence_score,
+                "activation_type": (
+                    None if signal.activation_type is None else signal.activation_type.value
+                ),
+                "activation_level": signal.activation_level,
+                "pre_entry_invalidation_price": signal.pre_entry_invalidation_price,
+                "maximum_chase_price": signal.maximum_chase_price,
+                "activation_expiry_candles": signal.activation_expiry_candles,
+                "candidate_id": signal.candidate_id,
+                "replay_source": signal.replay_source,
             }
             for signal in request.signals
         ],

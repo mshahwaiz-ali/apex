@@ -260,37 +260,39 @@ def test_market_entry_uses_tick_atr_and_spread_aware_micro_band() -> None:
 
 
 @pytest.mark.parametrize(
-    ("direction", "max_chase"),
+    ("direction", "max_chase", "expected"),
     [
-        (TradeDirection.LONG, 98.7),
-        (TradeDirection.SHORT, 101.3),
+        (TradeDirection.LONG, 98.7, 99.2),
+        (TradeDirection.SHORT, 101.3, 100.8),
     ],
 )
-def test_rejects_directionally_malformed_maximum_chase(
+def test_clamps_directionally_malformed_maximum_chase_to_zone_edge(
     direction: TradeDirection,
     max_chase: float,
+    expected: float,
 ) -> None:
     bullish = direction is TradeDirection.LONG
-    with pytest.raises(ValueError, match="maximum chase price"):
-        select_entry_zone(
-            current_price=100.0,
-            atr=2.0,
-            direction=direction,
-            invalidation_price=96.0 if bullish else 104.0,
-            target_price=108.0 if bullish else 92.0,
-            references=(
-                EntryReference(
-                    price=99.0 if bullish else 101.0,
-                    mode=EntryMode.RETEST,
-                    rationale=("malformed chase",),
-                    zone_lower=98.8 if bullish else 100.8,
-                    zone_upper=99.2 if bullish else 101.2,
-                    max_chase_price=max_chase,
-                ),
+    zone = select_entry_zone(
+        current_price=100.0,
+        atr=2.0,
+        direction=direction,
+        invalidation_price=96.0 if bullish else 104.0,
+        target_price=108.0 if bullish else 92.0,
+        references=(
+            EntryReference(
+                price=99.0 if bullish else 101.0,
+                mode=EntryMode.RETEST,
+                rationale=("malformed chase",),
+                zone_lower=98.8 if bullish else 100.8,
+                zone_upper=99.2 if bullish else 101.2,
+                max_chase_price=max_chase,
             ),
-            config=EntrySelectionConfig(minimum_risk_reward_improvement=0.0),
-            allow_market_entry=False,
-        )
+        ),
+        config=EntrySelectionConfig(minimum_risk_reward_improvement=0.0),
+        allow_market_entry=False,
+    )
+
+    assert zone.max_chase_price == expected
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf")])

@@ -7,6 +7,7 @@ from apex.backtesting.calibration_reporting import (
     calibration_reporting_payload,
 )
 from apex.backtesting.contracts import (
+    BacktestActivationType,
     BacktestConfig,
     BacktestOutcome,
     BacktestReport,
@@ -50,6 +51,7 @@ from apex.backtesting.regime_reporting import (
 )
 
 __all__ = [
+    "BacktestActivationType",
     "BacktestConfig",
     "BacktestOutcome",
     "BacktestReport",

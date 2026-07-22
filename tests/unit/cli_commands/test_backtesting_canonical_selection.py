@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from apex.application.discovery_contracts import (
     ActionableEntry,
+    ActivationTrigger,
+    ActivationTriggerType,
+    ConditionalExecutionPlan,
     DiscoverySetup,
     ManagementPolicy,
     ManagementPolicyType,
+    PreEntryInvalidation,
+    RecommendedOrderIntent,
     StopLoss,
     TakeProfit,
 )
@@ -155,6 +161,51 @@ def test_pending_canonical_opportunity_is_not_fabricated_into_signal() -> None:
     assert decision.setup is None
     assert decision.reason_code == "canonical_opportunity_pending_activation"
     assert decision.canonical_portfolio is True
+
+
+def test_pending_conditional_opportunity_is_selected_for_diagnostic_replay() -> None:
+    base = _setup(
+        "conditional",
+        execution_allowed_now=False,
+        entry_status=EntryStatus.CONFIRMATION_AT_CMP,
+    )
+    pending = replace(
+        base,
+        conditional_plan=ConditionalExecutionPlan(
+            trigger=ActivationTrigger(
+                kind=ActivationTriggerType.CANDLE_CLOSE,
+                level=100.0,
+                condition="close through trigger",
+            ),
+            pre_entry_invalidation=PreEntryInvalidation(
+                price=95.0,
+                condition="touch invalidation",
+                rationale=("structure failed",),
+            ),
+            conditional_order_eligible=False,
+            recommended_order_intent=RecommendedOrderIntent.ALERT_ONLY,
+            reason_not_executable_now="confirmation incomplete",
+            geometry_basis="preferred entry",
+            entry_source="strategy trigger",
+            trigger_matches_preferred_entry=True,
+            stop_basis="structural stop",
+            targets_basis="structural targets",
+            geometry_is_trigger_relative=True,
+        ),
+    )
+    opportunity = SimpleNamespace(
+        opportunity_id="conditional",
+        setup=pending,
+        sequence_role=SequenceRole.CURRENT,
+        effective_lane=OpportunityLane.CONFIRMATION_SCALP,
+    )
+
+    decision = backtesting._select_replay_decision(_analysis(opportunity))
+
+    assert decision.setup is pending
+    assert decision.execution_authorized is False
+    assert decision.reason_code == "canonical_opportunity_pending_activation"
+    assert decision.actionability_state is not None
 
 
 def test_legacy_setup_is_used_only_when_portfolio_is_absent() -> None:

@@ -36,6 +36,7 @@ packages = ["src/apex"]
 
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --disable-warnings --import-mode=importlib"
+pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]

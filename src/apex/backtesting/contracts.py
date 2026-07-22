@@ -19,6 +19,17 @@ class BacktestOutcome(StrEnum):
     STOP = "stop"
     EXPIRED = "expired"
     MISSED_ENTRY = "missed_entry"
+    PRE_ENTRY_INVALIDATED = "pre_entry_invalidated"
+    ACTIVATION_EXPIRED = "activation_expired"
+
+
+class BacktestActivationType(StrEnum):
+    """Conditional-plan trigger semantics supported by historical replay."""
+
+    PRICE_TOUCH = "price_touch"
+    CANDLE_CLOSE = "candle_close"
+    RETEST_HOLD = "retest_hold"
+    RECLAIM_CLOSE = "reclaim_close"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,10 +70,21 @@ class BacktestSignal:
     confidence_score: float
     target_prices: tuple[float, ...] = ()
     partial_close_percentages: tuple[float, ...] = ()
+    activation_type: BacktestActivationType | None = None
+    activation_level: float | None = None
+    pre_entry_invalidation_price: float | None = None
+    maximum_chase_price: float | None = None
+    activation_expiry_candles: int | None = None
+    candidate_id: str | None = None
+    replay_source: str = "production"
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
             raise ValueError("signal symbol cannot be empty")
+        if self.candidate_id is not None and not self.candidate_id.strip():
+            raise ValueError("candidate identity cannot be blank when provided")
+        if not self.replay_source.strip():
+            raise ValueError("replay source cannot be empty")
         if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
             raise ValueError("signal time must be timezone-aware")
         for name in (
@@ -77,6 +99,27 @@ class BacktestSignal:
                 raise ValueError(f"{name.replace('_', ' ')} must be positive and finite")
         if not math.isfinite(self.confidence_score) or not 0.0 <= self.confidence_score <= 100.0:
             raise ValueError("confidence score must be between zero and 100")
+        conditional_values = (
+            self.activation_level,
+            self.pre_entry_invalidation_price,
+            self.maximum_chase_price,
+        )
+        if self.activation_type is None and any(value is not None for value in conditional_values):
+            raise ValueError("conditional replay fields require an activation type")
+        if self.activation_type is not None:
+            if any(value is None for value in conditional_values):
+                raise ValueError(
+                    "conditional replay requires trigger, invalidation, and chase prices"
+                )
+            for name, value in (
+                ("activation level", self.activation_level),
+                ("pre-entry invalidation price", self.pre_entry_invalidation_price),
+                ("maximum chase price", self.maximum_chase_price),
+            ):
+                if value is None or not math.isfinite(value) or value <= 0.0:
+                    raise ValueError(f"{name} must be positive and finite")
+        if self.activation_expiry_candles is not None and self.activation_expiry_candles < 1:
+            raise ValueError("activation expiry candles must be positive when provided")
         target_prices = self.target_prices or (self.target_price,)
         partials = self.partial_close_percentages or (100.0,)
         if len(target_prices) != len(partials):
@@ -104,6 +147,19 @@ class BacktestSignal:
             raise ValueError("short target prices must be below entry")
         elif tuple(sorted(target_prices, reverse=True)) != target_prices:
             raise ValueError("short target prices must be descending")
+        if self.activation_type is not None:
+            assert self.pre_entry_invalidation_price is not None
+            assert self.maximum_chase_price is not None
+            if self.direction is TradeDirection.LONG:
+                if self.pre_entry_invalidation_price >= self.entry_price:
+                    raise ValueError("long pre-entry invalidation must be below entry")
+                if self.maximum_chase_price < self.entry_price:
+                    raise ValueError("long maximum chase must not be below entry")
+            else:
+                if self.pre_entry_invalidation_price <= self.entry_price:
+                    raise ValueError("short pre-entry invalidation must be above entry")
+                if self.maximum_chase_price > self.entry_price:
+                    raise ValueError("short maximum chase must not be above entry")
         object.__setattr__(self, "target_prices", target_prices)
         object.__setattr__(self, "partial_close_percentages", partials)
 

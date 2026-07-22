@@ -269,6 +269,8 @@ It:
 - forwards the configured methodology gate;
 - reads canonical opportunity portfolios;
 - simulates only execution-authorized current opportunities;
+- replays pending activation plans separately without counting them as production trades;
+- shadow-replays retained and geometry-rejected candidates for counterfactual evidence;
 - preserves no-trade, missed-entry, invalidated, nearby, and developing decisions;
 - models fees, slippage, optional funding, expiry, and conservative intrabar behavior;
 - records complete trade and no-trade histories;
@@ -298,6 +300,9 @@ apex backtest BTCUSDT --replay-timeframe 5m --replay-candles 24
 # Run more chronological decision points
 apex backtest BTCUSDT --decision-points 10
 
+# Anchor comparable runs to the same historical cutoff
+apex backtest BTCUSDT --as-of 2026-07-22T12:00:00Z
+
 # Model optional funding drag
 apex backtest BTCUSDT --funding-pct 0.01
 
@@ -319,6 +324,7 @@ apex backtest BTCUSDT \
 | `--replay-candles INTEGER` | `24` | Maximum replay candles retained after each decision. |
 | `--decision-points INTEGER` | `5` | Number of non-overlapping chronological decisions. |
 | `--funding-pct FLOAT` | `0.0` | Optional modeled funding drag. |
+| `--as-of TIMESTAMP` | none | Anchors the latest visible candle to a timezone-aware ISO-8601 cutoff. |
 | `--report-file PATH` | none | Writes the complete structured backtest payload to JSON. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
 | `--config-dir PATH` | `config` | Loads another Apex configuration directory. |
@@ -334,11 +340,30 @@ The backtest report includes:
 5. Partition Performance
 6. Trade Record
 7. No-Trade Decisions
-8. Robustness
+8. Conditional Replay (diagnostic only)
+9. Candidate Shadow Replay (diagnostic only)
+10. Robustness
 
 ### Important interpretation
 
 Backtest output is historical research, not proof of future profitability.
+
+Production, conditional, and shadow metrics are intentionally separate. Conditional and
+shadow results diagnose activation, filtering, direction, and geometry; they must not be read as
+execution-authorized portfolio performance.
+
+### Standard anchored campaign (216 runs)
+
+The bundled campaign runner evaluates 18 symbols across the 1m×20, 5m×24, and 15m×20 profiles
+at four shared 24-hour-spaced anchors. It uses three parallel workers by default and writes an
+isolated report, log, and campaign summary under `backtest-samples/anchored-216/`.
+
+```bash
+python3 tools/run_anchored_backtest_campaign.py
+```
+
+Use `--workers 1` for fully sequential execution or `--workers 4` when the provider and machine
+can safely sustain more concurrent requests.
 
 The command does not model:
 

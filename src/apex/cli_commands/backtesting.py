@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -18,6 +19,7 @@ from apex.application import (
     normalize_market_symbol,
     serialize_symbol_analysis,
 )
+from apex.application.candidate_ranking import CandidateRankingRecord, CandidateRankingSnapshot
 from apex.application.discovery_contracts import DiscoverySetup
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
@@ -27,7 +29,12 @@ from apex.application.opportunity_portfolio import (
     SequenceRole,
     build_actionability_state_assessment,
 )
-from apex.backtesting.contracts import BacktestConfig, BacktestRequest
+from apex.backtesting.contracts import (
+    BacktestConfig,
+    BacktestRequest,
+    BacktestSignal,
+    SimulatedTrade,
+)
 from apex.backtesting.discovery_signal import signal_from_discovery_setup
 from apex.backtesting.engine import HistoricalBacktestRunner, summarize_trades
 from apex.backtesting.historical_signal_replay import (
@@ -45,6 +52,7 @@ from apex.research.metrics import (
     deflated_sharpe_probability,
     probability_of_backtest_overfitting,
 )
+from apex.strategies import StrategyType, TradeDirection
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +66,7 @@ class _ReplayDecision:
     actionability_state: str | None
     reason_code: str
     canonical_portfolio: bool
+    execution_authorized: bool = False
 
 
 _EXECUTABLE_REPLAY_STATES = frozenset(
@@ -89,9 +98,13 @@ def _select_replay_decision(analysis: object) -> _ReplayDecision:
                 else "legacy_no_selected_setup"
             ),
             canonical_portfolio=False,
+            execution_authorized=(
+                isinstance(setup, DiscoverySetup) and setup.execution_allowed_now
+            ),
         )
 
     observed_states: list[ActionabilityState] = []
+    pending_decision: _ReplayDecision | None = None
     opportunities = tuple(getattr(portfolio, "opportunities", ()))
     for opportunity in opportunities:
         setup = getattr(opportunity, "setup", None)
@@ -123,7 +136,33 @@ def _select_replay_decision(analysis: object) -> _ReplayDecision:
                 actionability_state=actionability.state.value,
                 reason_code="canonical_executable_opportunity",
                 canonical_portfolio=True,
+                execution_authorized=True,
             )
+        if (
+            pending_decision is None
+            and setup.conditional_plan is not None
+            and actionability.state
+            not in {ActionabilityState.MISSED_OR_CHASING, ActionabilityState.INVALIDATED}
+        ):
+            pending_decision = _ReplayDecision(
+                setup=setup,
+                opportunity_id=str(getattr(opportunity, "opportunity_id", setup.candidate_id)),
+                sequence_role=role.value,
+                lane=_enum_value(
+                    getattr(
+                        opportunity,
+                        "effective_lane",
+                        getattr(opportunity, "lane", None),
+                    )
+                ),
+                actionability_state=actionability.state.value,
+                reason_code="canonical_opportunity_pending_activation",
+                canonical_portfolio=True,
+                execution_authorized=False,
+            )
+
+    if pending_decision is not None:
+        return pending_decision
 
     reason_code = "canonical_no_executable_opportunity"
     if ActionabilityState.MISSED_OR_CHASING in observed_states:
@@ -189,6 +228,16 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             float,
             typer.Option("--funding-pct", min=0.0, help="Optional modeled funding drag."),
         ] = 0.0,
+        as_of: Annotated[
+            str | None,
+            typer.Option(
+                "--as-of",
+                help=(
+                    "Anchor the latest visible candle to an ISO-8601 timestamp "
+                    "for repeatable cross-profile campaigns."
+                ),
+            ),
+        ] = None,
         config_dir: Annotated[
             Path,
             typer.Option(
@@ -204,6 +253,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         try:
             output_mode = normalize_cli_output_mode(output)
             normalized_symbol = normalize_market_symbol(symbol)
+            anchor_time = _parse_as_of(as_of)
+            fetch_time = datetime.now(UTC)
             context = bootstrap(config_dir)
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             requested_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
@@ -219,15 +270,24 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                             for candle in services.candles.fetch_candles(
                                 normalized_symbol,
                                 timeframe,
-                                limit=_campaign_source_limit(
-                                    timeframe=timeframe,
-                                    replay_timeframe=replay_timeframe,
-                                    candle_limit=candle_limit,
-                                    replay_candles=replay_candles,
-                                    decision_points=decision_points,
+                                limit=min(
+                                    10_000,
+                                    _campaign_source_limit(
+                                        timeframe=timeframe,
+                                        replay_timeframe=replay_timeframe,
+                                        candle_limit=candle_limit,
+                                        replay_candles=replay_candles,
+                                        decision_points=decision_points,
+                                    )
+                                    + _anchor_displaced_bars(
+                                        timeframe=timeframe,
+                                        anchor_time=anchor_time,
+                                        fetch_time=fetch_time,
+                                    ),
                                 ),
                             )
                             if candle.is_closed
+                            and (anchor_time is None or candle.close_time <= anchor_time)
                         ),
                     )
                     for timeframe in requested_timeframes
@@ -245,7 +305,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 ].close_time
                 for index in range(decision_points)
             )
-            signals = []
+            signals: list[BacktestSignal] = []
+            conditional_signals: list[BacktestSignal] = []
+            shadow_signals: list[BacktestSignal] = []
             no_trade_decisions: list[dict[str, object]] = []
             calibration_records: list[dict[str, object]] = []
             decision_partitions: list[dict[str, str]] = []
@@ -285,6 +347,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     futures_evidence_enabled=context.settings.futures_evidence_enabled,
                 )
                 replay_decision = _select_replay_decision(analysis)
+                shadow_signals.extend(_shadow_replay_signals(analysis))
                 setup = replay_decision.setup
                 calibration_records.append(
                     _calibration_record(
@@ -293,7 +356,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         replay_decision=replay_decision,
                     )
                 )
-                if setup is None:
+                if setup is None or not replay_decision.execution_authorized:
                     no_trade_decisions.append(
                         {
                             "decision_time": decision_time.isoformat(),
@@ -305,8 +368,21 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                             "canonical_portfolio": replay_decision.canonical_portfolio,
                         }
                     )
+                    if setup is not None and setup.conditional_plan is not None:
+                        conditional_signals.append(
+                            signal_from_discovery_setup(
+                                setup,
+                                replay_timeframe=replay_timeframe,
+                                replay_source="conditional_portfolio",
+                            )
+                        )
                     continue
-                signals.append(signal_from_discovery_setup(setup))
+                signals.append(
+                    signal_from_discovery_setup(
+                        setup,
+                        replay_timeframe=replay_timeframe,
+                    )
+                )
         except (StopIteration, ValueError) as exc:
             raise typer.BadParameter(str(exc)) from exc
         except MarketDataProviderError as exc:
@@ -325,19 +401,48 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:campaign",
             )
         )
+        conditional_study = HistoricalBacktestRunner().run(
+            BacktestRequest(
+                signals=tuple(conditional_signals),
+                candles_by_symbol={normalized_symbol: replay_series.candles},
+                config=config,
+                dataset_id=f"{normalized_symbol}:{replay_timeframe}:conditional-campaign",
+            )
+        )
+        shadow_study = HistoricalBacktestRunner().run(
+            BacktestRequest(
+                signals=tuple(shadow_signals),
+                candles_by_symbol={normalized_symbol: replay_series.candles},
+                config=config,
+                dataset_id=f"{normalized_symbol}:{replay_timeframe}:shadow-campaign",
+            )
+        )
         report = study.report
-        replay_outcomes = {
-            trade.signal.generated_at.isoformat(): {
+        conditional_report = conditional_study.report
+        shadow_report = shadow_study.report
+
+        def replay_record(trade: SimulatedTrade, replay_class: str) -> dict[str, object]:
+            metadata = getattr(trade, "metadata", {})
+            return {
                 "outcome": trade.outcome.value,
                 "realized_r_multiple": trade.realized_r_multiple,
                 "net_pnl": trade.net_pnl,
-                "maximum_favorable_excursion_r": trade.metadata.get(
-                    "maximum_favorable_excursion_r"
-                ),
-                "maximum_adverse_excursion_r": trade.metadata.get("maximum_adverse_excursion_r"),
+                "maximum_favorable_excursion_r": metadata.get("maximum_favorable_excursion_r"),
+                "maximum_adverse_excursion_r": metadata.get("maximum_adverse_excursion_r"),
+                "activation_outcome": metadata.get("activation_outcome"),
+                "replay_class": replay_class,
             }
+
+        replay_outcomes = {
+            trade.signal.generated_at.isoformat(): replay_record(trade, "production")
             for trade in report.trades
         }
+        replay_outcomes.update(
+            {
+                trade.signal.generated_at.isoformat(): replay_record(trade, "conditional")
+                for trade in conditional_report.trades
+            }
+        )
         calibration_records = [
             {
                 **record,
@@ -349,6 +454,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         "net_pnl": None,
                         "maximum_favorable_excursion_r": None,
                         "maximum_adverse_excursion_r": None,
+                        "activation_outcome": None,
+                        "replay_class": "none",
                     },
                 ),
             }
@@ -381,20 +488,33 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         )
         final_expectancy = float(final_value) if isinstance(final_value, (int, float)) else 0.0
         promotion_statistics = {
-            "deflated_sharpe_probability": deflated_sharpe_probability(
-                final_returns,
-                trials=max(1, len({record.get("strategy") for record in calibration_records})),
+            "deflated_sharpe_probability": (
+                deflated_sharpe_probability(
+                    final_returns,
+                    trials=max(
+                        1,
+                        len({record.get("strategy") for record in calibration_records}),
+                    ),
+                )
+                if final_returns
+                else None
             ),
-            "probability_backtest_overfitting": probability_of_backtest_overfitting(
-                [training_expectancy], [final_expectancy]
+            "probability_backtest_overfitting": (
+                probability_of_backtest_overfitting(
+                    [training_expectancy],
+                    [final_expectancy],
+                )
+                if report.total_trades > 0
+                else None
             ),
         }
         payload = {
-            "schema_version": 3,
+            "schema_version": 4,
             "symbol": normalized_symbol,
             "replay_timeframe": replay_timeframe,
             "replay_candles": replay_candles,
             "decision_point_count": decision_points,
+            "as_of": None if anchor_time is None else anchor_time.isoformat(),
             "generated_signal_count": study.generated_signal_count,
             "no_trade_decision_count": len(no_trade_decisions),
             "decision_times": [item.isoformat() for item in decision_times],
@@ -421,6 +541,32 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "metrics_by_partition": partition_metrics,
             "promotion_statistics": promotion_statistics,
             "calibration_authoritative": False,
+            "conditional_replay": {
+                "signal_count": conditional_study.generated_signal_count,
+                "trades": _canonical_trade_records(
+                    conditional_report.trades,
+                    calibration_records=calibration_records,
+                    partition_by_time=partition_by_time,
+                ),
+                "metrics": _report_metrics(conditional_report),
+                "outcome_distribution": _outcome_distribution(conditional_report.trades),
+                "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
+                "calibration_authoritative": False,
+            },
+            "shadow_replay": {
+                "signal_count": shadow_study.generated_signal_count,
+                "trades": _canonical_trade_records(
+                    shadow_report.trades,
+                    calibration_records=calibration_records,
+                    partition_by_time=partition_by_time,
+                ),
+                "metrics": _report_metrics(shadow_report),
+                "outcome_distribution": _outcome_distribution(shadow_report.trades),
+                "risk_and_excursion": _risk_and_excursion(shadow_report.trades),
+                "source_distribution": _shadow_source_distribution(shadow_report.trades),
+                "direction_accuracy": _direction_accuracy(shadow_report.trades),
+                "calibration_authoritative": False,
+            },
             "study": {
                 "dataset_hash": study.dataset_hash,
                 "config_hash": study.config_hash,
@@ -457,6 +603,35 @@ def _campaign_partition(index: int, total: int) -> str:
     if index < validation_end:
         return "validation"
     return "final_test"
+
+
+def _parse_as_of(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    normalized = value.strip().replace("Z", "+00:00")
+    if not normalized:
+        raise ValueError("as-of timestamp cannot be blank")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError("as-of must be a valid ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("as-of timestamp must include a timezone")
+    anchored = parsed.astimezone(UTC)
+    if anchored > datetime.now(UTC):
+        raise ValueError("as-of timestamp cannot be in the future")
+    return anchored
+
+
+def _anchor_displaced_bars(
+    *,
+    timeframe: str,
+    anchor_time: datetime | None,
+    fetch_time: datetime,
+) -> int:
+    if anchor_time is None or anchor_time >= fetch_time:
+        return 0
+    return math.ceil((fetch_time - anchor_time) / timeframe_delta(timeframe)) + 2
 
 
 def _campaign_source_limit(
@@ -497,7 +672,7 @@ def _calibration_record(
         else None
     )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "symbol": serialized.get("symbol"),
         "decision_time": serialized.get("generated_at"),
         "partition": partition,
@@ -510,6 +685,14 @@ def _calibration_record(
         "actionability_state": resolved_decision.actionability_state,
         "replay_reason_code": resolved_decision.reason_code,
         "canonical_portfolio": resolved_decision.canonical_portfolio,
+        "execution_authorized": resolved_decision.execution_authorized,
+        "replay_class": (
+            "production"
+            if resolved_decision.execution_authorized
+            else "conditional"
+            if setup is not None and setup.conditional_plan is not None
+            else "none"
+        ),
         "methodology_gate_mode": (
             methodology_routing.get("mode") if isinstance(methodology_routing, Mapping) else None
         ),
@@ -544,6 +727,145 @@ def _calibration_record(
     }
 
 
+def _shadow_replay_signals(analysis: object) -> tuple[BacktestSignal, ...]:
+    """Build diagnostic-only signals without changing the production decision."""
+
+    signals: list[BacktestSignal] = []
+    ranking = getattr(analysis, "candidate_ranking", None)
+    if isinstance(ranking, CandidateRankingSnapshot):
+        records = (
+            (() if ranking.primary is None else (ranking.primary,))
+            + ranking.alternatives
+            + ranking.rejected
+        )
+        for record in records:
+            signal = _signal_from_ranking_record(analysis, record)
+            if signal is not None:
+                signals.append(signal)
+
+    diagnostics = getattr(analysis, "phase5_diagnostics", None)
+    routing = (
+        diagnostics.get("methodology_candidate_routing")
+        if isinstance(diagnostics, Mapping)
+        else None
+    )
+    audits = routing.get("geometry_safety_audits") if isinstance(routing, Mapping) else None
+    if isinstance(audits, list | tuple):
+        for audit in audits:
+            signal = _signal_from_geometry_audit(analysis, audit)
+            if signal is not None:
+                signals.append(signal)
+
+    unique: list[BacktestSignal] = []
+    seen: set[tuple[str | None, str]] = set()
+    for signal in signals:
+        key = (signal.candidate_id, signal.replay_source)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(signal)
+    return tuple(unique)
+
+
+def _signal_from_ranking_record(
+    analysis: object,
+    record: CandidateRankingRecord,
+) -> BacktestSignal | None:
+    entry = _mapping_value(record.entry, "preferred")
+    metadata_stop = _mapping_value(record.metadata, "executable_stop")
+    stop = metadata_stop or _mapping_value(record.invalidation, "price")
+    targets = tuple(
+        price for target in record.targets if (price := _mapping_value(target, "price")) is not None
+    )
+    if entry is None or stop is None or not targets:
+        return None
+    source = {
+        "primary": "retained_primary",
+        "alternative": "retained_alternative",
+        "rejected": "score_or_collision_rejected",
+    }[record.role.value]
+    return _build_shadow_signal(
+        symbol=str(getattr(analysis, "symbol", "")),
+        decision_time=getattr(analysis, "generated_at", None),
+        candidate_id=record.candidate_id,
+        strategy=record.strategy,
+        direction=record.direction,
+        entry=entry,
+        stop=stop,
+        target=targets[0],
+        confidence=record.final_score,
+        source=source,
+    )
+
+
+def _signal_from_geometry_audit(analysis: object, audit: object) -> BacktestSignal | None:
+    if not isinstance(audit, Mapping) or audit.get("state") != "reject":
+        return None
+    item = audit.get("diagnostics")
+    candidate_id = audit.get("candidate_id")
+    if not isinstance(item, Mapping) or not isinstance(candidate_id, str):
+        return None
+    identity = candidate_id.split(":")
+    if len(identity) < 2:
+        return None
+    return _build_shadow_signal(
+        symbol=str(getattr(analysis, "symbol", "")),
+        decision_time=getattr(analysis, "generated_at", None),
+        candidate_id=candidate_id,
+        strategy=identity[0],
+        direction=identity[1],
+        entry=_mapping_value(item, "selected_entry"),
+        stop=_mapping_value(item, "executable_stop"),
+        target=_mapping_value(item, "tp1_price"),
+        confidence=0.0,
+        source="geometry_rejected",
+    )
+
+
+def _build_shadow_signal(
+    *,
+    symbol: str,
+    decision_time: object,
+    candidate_id: str,
+    strategy: str,
+    direction: str,
+    entry: float | None,
+    stop: float | None,
+    target: float | None,
+    confidence: float,
+    source: str,
+) -> BacktestSignal | None:
+    if not symbol.strip() or not hasattr(decision_time, "utcoffset"):
+        return None
+    if entry is None or stop is None or target is None:
+        return None
+    try:
+        return BacktestSignal(
+            symbol=symbol,
+            strategy=StrategyType(strategy),
+            direction=TradeDirection(direction),
+            generated_at=decision_time,  # type: ignore[arg-type]
+            entry_price=entry,
+            stop_price=stop,
+            target_price=target,
+            quantity=1.0,
+            risk_amount=abs(entry - stop),
+            confidence_score=max(0.0, min(100.0, confidence)),
+            candidate_id=candidate_id,
+            replay_source=source,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _mapping_value(values: Mapping[str, object], key: str) -> float | None:
+    value = values.get(key)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    numeric = float(value)
+    return numeric if math.isfinite(numeric) and numeric > 0.0 else None
+
+
 def _enum_value(value: object) -> str | None:
     if value is None:
         return None
@@ -570,6 +892,23 @@ def _report_metrics(report: object) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise TypeError("backtest report must serialize to an object")
     payload["trades"] = []
+    if payload.get("total_trades") == 0:
+        for key in (
+            "win_rate",
+            "loss_rate",
+            "breakeven_rate",
+            "average_win",
+            "average_loss",
+            "average_risk_reward",
+            "expectancy",
+            "maximum_drawdown",
+            "profit_factor",
+        ):
+            payload[key] = None
+        metadata = payload.get("metadata")
+        if isinstance(metadata, dict):
+            for key in ("entry_fill_rate", "average_mfe_r", "average_mae_r"):
+                metadata[key] = None
     return payload
 
 
@@ -601,7 +940,11 @@ def _canonical_trade_records(
                 "trade_number": index,
                 "decision_time": decision_time or None,
                 "partition": partition_by_time.get(decision_time),
-                "opportunity_id": calibration.get("opportunity_id"),
+                "opportunity_id": (
+                    signal.get("candidate_id")
+                    if isinstance(signal, Mapping) and signal.get("candidate_id")
+                    else calibration.get("opportunity_id")
+                ),
                 "sequence_role": calibration.get("sequence_role"),
                 "actionability_state": calibration.get("actionability_state"),
                 "replay_reason_code": calibration.get("replay_reason_code"),
@@ -609,6 +952,9 @@ def _canonical_trade_records(
                 "targets_hit": target_count,
                 "maximum_favorable_excursion_r": metadata_map.get("maximum_favorable_excursion_r"),
                 "maximum_adverse_excursion_r": metadata_map.get("maximum_adverse_excursion_r"),
+                "counterfactual_path_mfe_r": metadata_map.get("counterfactual_path_mfe_r"),
+                "counterfactual_path_mae_r": metadata_map.get("counterfactual_path_mae_r"),
+                "direction_correct_at_horizon": metadata_map.get("direction_correct_at_horizon"),
             }
         )
         records.append(serialized)
@@ -617,7 +963,14 @@ def _canonical_trade_records(
 
 def _outcome_distribution(trades: object) -> dict[str, object]:
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
-    outcome_counts = {"target": 0, "stop": 0, "expired": 0, "missed_entry": 0}
+    outcome_counts = {
+        "target": 0,
+        "stop": 0,
+        "expired": 0,
+        "missed_entry": 0,
+        "pre_entry_invalidated": 0,
+        "activation_expired": 0,
+    }
     target_counts = {"tp1_hit_count": 0, "tp2_hit_count": 0, "tp3_hit_count": 0}
     for trade in values:
         outcome = getattr(getattr(trade, "outcome", None), "value", None)
@@ -641,12 +994,12 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
     return {
         **outcome_counts,
         **target_counts,
-        "stop_rate": outcome_counts["stop"] / total if total else 0.0,
-        "missed_entry_rate": outcome_counts["missed_entry"] / total if total else 0.0,
-        "expired_rate": outcome_counts["expired"] / total if total else 0.0,
-        "tp1_hit_rate": target_counts["tp1_hit_count"] / total if total else 0.0,
-        "tp2_hit_rate": target_counts["tp2_hit_count"] / total if total else 0.0,
-        "tp3_hit_rate": target_counts["tp3_hit_count"] / total if total else 0.0,
+        "stop_rate": outcome_counts["stop"] / total if total else None,
+        "missed_entry_rate": outcome_counts["missed_entry"] / total if total else None,
+        "expired_rate": outcome_counts["expired"] / total if total else None,
+        "tp1_hit_rate": target_counts["tp1_hit_count"] / total if total else None,
+        "tp2_hit_rate": target_counts["tp2_hit_count"] / total if total else None,
+        "tp3_hit_rate": target_counts["tp3_hit_count"] / total if total else None,
     }
 
 
@@ -654,6 +1007,8 @@ def _risk_and_excursion(trades: object) -> dict[str, object]:
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
     mfe_values: list[float] = []
     mae_values: list[float] = []
+    path_mfe_values: list[float] = []
+    path_mae_values: list[float] = []
     for trade in values:
         metadata = getattr(trade, "metadata", {})
         if not isinstance(metadata, Mapping):
@@ -664,12 +1019,54 @@ def _risk_and_excursion(trades: object) -> dict[str, object]:
             mfe_values.append(float(mfe))
         if isinstance(mae, int | float) and not isinstance(mae, bool):
             mae_values.append(float(mae))
+        path_mfe = metadata.get("counterfactual_path_mfe_r")
+        path_mae = metadata.get("counterfactual_path_mae_r")
+        if isinstance(path_mfe, int | float) and not isinstance(path_mfe, bool):
+            path_mfe_values.append(float(path_mfe))
+        if isinstance(path_mae, int | float) and not isinstance(path_mae, bool):
+            path_mae_values.append(float(path_mae))
 
     return {
-        "average_mfe_r": sum(mfe_values) / len(mfe_values) if mfe_values else 0.0,
-        "average_mae_r": sum(mae_values) / len(mae_values) if mae_values else 0.0,
-        "best_mfe_r": max(mfe_values) if mfe_values else 0.0,
-        "worst_mae_r": max(mae_values) if mae_values else 0.0,
+        "average_mfe_r": sum(mfe_values) / len(mfe_values) if mfe_values else None,
+        "average_mae_r": sum(mae_values) / len(mae_values) if mae_values else None,
+        "best_mfe_r": max(mfe_values) if mfe_values else None,
+        "worst_mae_r": max(mae_values) if mae_values else None,
+        "average_counterfactual_path_mfe_r": (
+            sum(path_mfe_values) / len(path_mfe_values) if path_mfe_values else None
+        ),
+        "average_counterfactual_path_mae_r": (
+            sum(path_mae_values) / len(path_mae_values) if path_mae_values else None
+        ),
+    }
+
+
+def _shadow_source_distribution(trades: object) -> dict[str, int]:
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    counts: dict[str, int] = {}
+    for trade in values:
+        signal = getattr(trade, "signal", None)
+        source = getattr(signal, "replay_source", None)
+        if isinstance(source, str):
+            counts[source] = counts.get(source, 0) + 1
+    return counts
+
+
+def _direction_accuracy(trades: object) -> dict[str, object]:
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    results: list[bool] = []
+    for trade in values:
+        metadata = getattr(trade, "metadata", None)
+        value = (
+            metadata.get("direction_correct_at_horizon") if isinstance(metadata, Mapping) else None
+        )
+        if isinstance(value, bool):
+            results.append(value)
+    correct = sum(results)
+    return {
+        "evaluable_count": len(results),
+        "correct_count": correct,
+        "incorrect_count": len(results) - correct,
+        "accuracy": correct / len(results) if results else None,
     }
 
 

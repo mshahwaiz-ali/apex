@@ -164,9 +164,7 @@ def find_entry_zones(
             spread_percentage=spread_percentage,
         )
         if not _maximum_chase_is_directionally_valid(zone=zone, direction=direction):
-            raise ValueError(
-                "maximum chase price must remain beyond the entry zone in the trade direction"
-            )
+            raise AssertionError("entry-zone construction returned an invalid chase boundary")
         if not _zone_is_directionally_valid(
             zone=zone,
             direction=direction,
@@ -306,7 +304,18 @@ def _build_zone(
     )
     lower = explicit_lower if explicit_lower is not None else preferred - half_width
     upper = explicit_upper if explicit_upper is not None else preferred + half_width
-    max_chase_price = explicit_max_chase if explicit_max_chase is not None else derived_max_chase
+    configured_max_chase = (
+        explicit_max_chase if explicit_max_chase is not None else derived_max_chase
+    )
+    # Strategy references are internal hints, not user-authored order instructions.
+    # A hint inside the zone used to abort the complete symbol analysis.  Clamp it
+    # to the trade-side zone edge instead: this is the narrowest valid chase
+    # boundary and therefore does not authorize any additional price chasing.
+    max_chase_price = (
+        max(configured_max_chase, upper)
+        if direction is TradeDirection.LONG
+        else min(configured_max_chase, lower)
+    )
     location_quality = 1.0 if allowed_distance == 0 else max(0.0, 1.0 - distance / allowed_distance)
     return EntryZone(
         lower=lower,

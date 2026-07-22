@@ -68,6 +68,46 @@ def test_fetch_candles_normalizes_binance_response() -> None:
     client.close()
 
 
+def test_fetch_candles_allows_only_final_row_to_remain_active() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    4_099_999_000_000,
+                    "100.0",
+                    "101.0",
+                    "99.0",
+                    "100.5",
+                    "10.0",
+                    4_099_999_059_999,
+                ],
+                [
+                    4_099_999_060_000,
+                    "100.5",
+                    "101.5",
+                    "100.0",
+                    "101.0",
+                    "11.0",
+                    4_099_999_119_999,
+                ],
+            ],
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.binance.com",
+    )
+    provider = BinanceMarketDataProvider(client=client)
+
+    candles = provider.fetch_candles("BTCUSDT", "1m", limit=2)
+
+    assert candles[0].is_closed is True
+    assert candles[1].is_closed is False
+    client.close()
+
+
 @pytest.mark.parametrize(
     ("symbol", "expected"),
     [

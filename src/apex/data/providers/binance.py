@@ -154,6 +154,19 @@ class BinanceMarketDataProvider:
                 operation="fetch candles",
             )
 
+        # Exchange klines are chronological.  Only the final returned row can be
+        # active; an earlier row is complete even when a small local/exchange
+        # clock skew leaves its close timestamp nominally in the future.  Keeping
+        # more than one active row breaks cache validation and can abort a
+        # historical campaign before the command filters to closed candles.
+        candles = [
+            (
+                candle.model_copy(update={"is_closed": True})
+                if index < len(candles) - 1 and not candle.is_closed
+                else candle
+            )
+            for index, candle in enumerate(candles)
+        ]
         return candles[-limit:]
 
     def fetch_ticker(self, symbol: str) -> TickerSnapshot:
