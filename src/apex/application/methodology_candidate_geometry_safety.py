@@ -33,6 +33,9 @@ def geometry_safety_policy_from_settings(
                 minimum_tp1_reward_to_risk=config.minimum_tp1_reward_to_risk,
                 maximum_stop_distance_pct=config.maximum_stop_distance_pct,
                 minimum_target_quality=config.minimum_target_quality,
+                minimum_stop_distance_atr=config.minimum_stop_distance_atr,
+                minimum_stop_to_cost_ratio=config.minimum_stop_to_cost_ratio,
+                maximum_tp1_distance_atr=config.maximum_tp1_distance_atr,
             )
             for lane in OpportunityLane
             for config in (settings.lane_geometry[lane.value],)
@@ -132,6 +135,11 @@ def audit_candidate_geometry_safety(
         executable_stop=executable_stop,
         target_quality=candidate.quality.target_space_quality * 100.0,
         expected_cost_pct=expected_cost_pct,
+        decision_atr=(
+            runtime_context.decision_atr
+            if runtime_context is not None
+            else _optional_number(metadata.get("decision_atr"))
+        ),
         selected_entry=selected_entry,
         policy=policy,
     )
@@ -167,6 +175,11 @@ def candidate_geometry_safety_audit_payload(
             "target_quality": item.target_quality,
             "minimum_target_quality": item.minimum_target_quality,
             "expected_cost_pct": item.expected_cost_pct,
+            "stop_distance_atr": item.stop_distance_atr,
+            "minimum_stop_distance_atr": item.minimum_stop_distance_atr,
+            "minimum_stop_to_cost_ratio": item.minimum_stop_to_cost_ratio,
+            "tp1_distance_atr": item.tp1_distance_atr,
+            "maximum_tp1_distance_atr": item.maximum_tp1_distance_atr,
         }
 
     return {

@@ -220,7 +220,7 @@ def test_analysis_renders_complete_portfolio_sections() -> None:
 
     assert "Market snapshot" in text
     assert "Current opportunities" in text
-    assert "Nearby opportunity" in text
+    assert "Conditional monitoring" in text
     assert "Follow-up opportunity" in text
     assert "Runner management" in text
     assert "Setup plan" in text

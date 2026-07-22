@@ -90,7 +90,7 @@ def _portfolio_analysis_sections(
     if nearby:
         sections.append(
             _opportunity_group(
-                "Nearby opportunity",
+                "Conditional monitoring",
                 nearby,
                 symbol=symbol,
                 generated_at=payload.get("generated_at"),
@@ -353,8 +353,8 @@ def render_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
             groups["confirmation"],
         ),
         (
-            "Nearby entry",
-            "A valid trade exists close to CMP; use the stated entry zone.",
+            "Conditional monitoring",
+            "A setup exists near CMP; do not enter until its stated trigger completes.",
             groups["nearby"],
         ),
         (
@@ -397,14 +397,17 @@ def _scan_summary(
 ) -> str:
     failure_count = len(_mapping(payload.get("failures")))
     methodology = _scan_methodology_status(payload)
+    screening = _mapping(payload.get("screening"))
+    shortlisted = screening.get("shortlisted_count") or payload.get("total_analysis_count")
     return render_section(
         "Scan summary",
         render_fields(
             (
                 ("Markets discovered", payload.get("total_symbol_count")),
                 ("Markets screened", payload.get("filtered_symbol_count")),
-                ("Symbols shortlisted", payload.get("displayed_symbol_count")),
+                ("Symbols shortlisted", shortlisted),
                 ("Symbols analyzed", payload.get("total_analysis_count")),
+                ("Symbols displayed", payload.get("displayed_symbol_count")),
                 ("Symbols failed", failure_count),
                 ("Opportunities retained", payload.get("retained_opportunity_count")),
                 ("Opportunities displayed", payload.get("displayed_opportunity_count")),
@@ -992,7 +995,34 @@ def _methodology_enforcement_fields(
         for opportunity in opportunities
         if _mapping(opportunity.get("methodology_verdict")).get("status")
     ]
-    evaluated = (
+    decisions = _mappings(summary.get("strategy_decisions"))
+    candidate_decisions = tuple(
+        item for item in decisions if item.get("candidate_id") not in {None, ""}
+    )
+    evaluated: object
+    allowed: object
+    deferred: object
+    suppressed: object
+    unavailable: object
+    if candidate_decisions:
+        action_counts = Counter(
+            str(item.get("action") or "unavailable").strip().lower() for item in candidate_decisions
+        )
+        evaluated = summary.get("input_candidate_count") or len(candidate_decisions)
+        allowed = action_counts["allow"]
+        deferred = action_counts["defer"]
+        suppressed = action_counts["suppress"]
+        unavailable = max(
+            0,
+            int(_number(evaluated) or 0) - allowed - deferred - suppressed,
+        )
+    else:
+        evaluated = None
+        allowed = None
+        deferred = None
+        suppressed = None
+        unavailable = None
+    evaluated = evaluated or (
         summary.get("candidates_evaluated")
         or summary.get("evaluated")
         or summary.get("retained_candidate_count")
@@ -1005,18 +1035,18 @@ def _methodology_enforcement_fields(
             evaluated = int(retained_number + suppressed_number)
     if evaluated is None and opportunities:
         evaluated = len(opportunities)
-    allowed = summary.get("allowed")
+    allowed = summary.get("allowed") if allowed is None else allowed
     if allowed is None:
         allowed = sum(status in {"allowed", "accepted", "approved"} for status in statuses)
-    deferred = summary.get("deferred")
+    deferred = summary.get("deferred") if deferred is None else deferred
     if deferred is None:
         deferred = sum(status in {"deferred", "wait", "developing"} for status in statuses)
-    suppressed = summary.get("suppressed")
+    suppressed = summary.get("suppressed") if suppressed is None else suppressed
     if suppressed is None:
         suppressed = summary.get("suppressed_candidate_count")
     if suppressed is None:
         suppressed = sum(status in {"suppressed", "blocked", "rejected"} for status in statuses)
-    unavailable = summary.get("unavailable")
+    unavailable = summary.get("unavailable") if unavailable is None else unavailable
     if unavailable is None:
         unavailable = sum(status == "unavailable" for status in statuses)
 
@@ -1118,7 +1148,33 @@ def _missing_evidence_lines(payload: Mapping[str, object]) -> tuple[str, ...]:
     missing = _clean_many(completeness.get("unavailable_fields"))
     if not missing:
         missing = _clean_many(payload.get("missing_evidence"))
-    return tuple(f"Unavailable: {item}" for item in missing)
+    available = _available_methodology_fields(payload)
+    return tuple(
+        f"Unavailable: {item}" for item in missing if item.strip().lower() not in available
+    )
+
+
+def _available_methodology_fields(payload: Mapping[str, object]) -> set[str]:
+    portfolio = _mapping(payload.get("opportunity_portfolio"))
+    opportunities = _mappings(portfolio.get("opportunities"))
+    available: set[str] = set()
+    for opportunity in opportunities:
+        setup = _mapping(opportunity.get("setup")) or opportunity
+        if setup.get("confirmation_required") is not None:
+            available.add("confirmation_policy")
+        if _clean_many(setup.get("warnings")) or _clean_many(setup.get("contradictions")):
+            available.add("contradictions")
+        if _mapping(setup.get("entry")):
+            available.add("entry_opportunities")
+        if _mapping(setup.get("stop_loss")):
+            available.add("invalidation")
+        if _mappings(setup.get("take_profits")):
+            available.add("targets")
+        if setup.get("setup_expiry_seconds") is not None:
+            available.add("duration")
+        if setup.get("confidence_score") is not None or _mapping(setup.get("quality_dimensions")):
+            available.add("confidence")
+    return available
 
 
 def _rejected_candidate_count(payload: Mapping[str, object]) -> int:

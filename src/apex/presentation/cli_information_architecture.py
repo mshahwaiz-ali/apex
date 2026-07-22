@@ -284,7 +284,9 @@ def rationale_lines(
         ),
         (
             "Target rationale",
-            setup.get("target_rationale") or setup.get("target_path_reason"),
+            setup.get("target_rationale")
+            or setup.get("target_path_reason")
+            or _first_target_rationale(setup),
         ),
         (
             "Chase boundary",
@@ -294,6 +296,13 @@ def rationale_lines(
         if value is not None and value != "":
             lines.append(f"{label}: {str(value).strip()}")
     return tuple(lines)
+
+
+def _first_target_rationale(setup: Mapping[str, object]) -> object | None:
+    targets = _mappings(setup.get("take_profits"))
+    if not targets:
+        return None
+    return targets[0].get("rationale")
 
 
 def evidence_contradiction_lines(

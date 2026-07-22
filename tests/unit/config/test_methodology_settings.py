@@ -20,6 +20,10 @@ def test_methodology_defaults_are_complete() -> None:
     }
     assert settings.lane_geometry["runner"].minimum_tp1_reward_to_risk == 1.8
     assert settings.lane_geometry["runner"].minimum_target_quality == 60.0
+    assert settings.lane_geometry["cmp_scalp"].minimum_stop_distance_atr == 0.25
+    assert settings.lane_geometry["cmp_scalp"].minimum_stop_to_cost_ratio == 1.25
+    assert settings.lane_geometry["cmp_scalp"].maximum_tp1_distance_atr == 1.5
+    assert settings.lane_geometry["runner"].maximum_tp1_distance_atr is None
     assert sum(settings.ranking_weights.model_dump().values()) == pytest.approx(1.0)
 
 

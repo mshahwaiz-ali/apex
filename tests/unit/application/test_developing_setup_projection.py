@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from apex.application.discovery_analysis import serialize_symbol_analysis
 from apex.application.discovery_contracts import SymbolAnalysis
-from apex.application.discovery_setup import build_discovery_assessment
+from apex.application.discovery_setup import _build_setup, build_discovery_assessment
 from apex.application.public_output import serialize_symbol_analysis as serialize_public_analysis
+from apex.domain.methodology_contracts import ScoreDimensions
 from apex.presentation.discovery_output import (
     render_discovery_analysis,
     render_discovery_scan,
@@ -128,6 +130,26 @@ def _selection() -> CandidateSelectionResult:
         configuration_id="test",
         metadata={},
     )
+
+
+def test_setup_projects_authoritative_capped_quality_dimensions() -> None:
+    ranked = _ranked_pending_candidate()
+    candidate = replace(
+        ranked.candidate,
+        score_dimensions=ScoreDimensions(
+            setup_quality=61.0,
+            execution_quality=55.0,
+            reward_quality=70.0,
+            overall_trade_quality=64.0,
+        ),
+    )
+    setup = _build_setup(replace(ranked, scored=replace(ranked.scored, candidate=candidate)))
+
+    assert setup.quality_dimensions is not None
+    assert setup.quality_dimensions.setup_quality == 61.0
+    assert setup.quality_dimensions.execution_quality == 55.0
+    assert setup.quality_dimensions.target_quality == 70.0
+    assert setup.quality_dimensions.overall_trade_quality == 64.0
 
 
 def _analysis() -> SymbolAnalysis:

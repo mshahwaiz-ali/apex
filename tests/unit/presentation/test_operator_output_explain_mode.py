@@ -139,3 +139,60 @@ def test_scan_explain_uses_same_canonical_diagnostics_without_changing_cards() -
     assert "Methodology enforcement" in explained
     assert "Opportunity portfolio" in explained
     assert "Rejected and suppressed candidates" in explained
+
+
+def test_explain_reconciles_candidate_level_methodology_counts() -> None:
+    payload = _payload()
+    payload["phase5_diagnostics"] = {
+        "methodology_candidate_routing": {
+            "mode": "enforce",
+            "input_candidate_count": 2,
+            "strategy_decisions": [
+                {"candidate_id": "one", "action": "allow"},
+                {"candidate_id": "two", "action": "defer"},
+                {"candidate_id": None, "action": "suppress"},
+            ],
+        }
+    }
+
+    rendered = render_analysis(payload, explain=True)
+
+    assert "Candidates evaluated  2" in rendered
+    assert "Allowed               1" in rendered
+    assert "Deferred              1" in rendered
+    assert "Suppressed            0" in rendered
+
+
+def test_explain_does_not_report_serialized_trade_geometry_as_missing() -> None:
+    payload = _payload()
+    payload["methodology_completeness"] = {
+        "unavailable_fields": [
+            "setup_maturity",
+            "confirmation_policy",
+            "contradictions",
+            "entry_opportunities",
+            "invalidation",
+            "targets",
+            "duration",
+            "confidence",
+        ]
+    }
+    opportunity = payload["opportunity_portfolio"]["opportunities"][0]  # type: ignore[index]
+    setup = opportunity["setup"]  # type: ignore[index]
+    setup["confirmation_required"] = True  # type: ignore[index]
+    setup["setup_expiry_seconds"] = 900  # type: ignore[index]
+    setup["confidence_score"] = 75.0  # type: ignore[index]
+
+    rendered = render_analysis(payload, explain=True)
+
+    assert "Unavailable: Setup_maturity" in rendered
+    for field in (
+        "Confirmation_policy",
+        "Contradictions",
+        "Entry_opportunities",
+        "Invalidation",
+        "Targets",
+        "Duration",
+        "Confidence",
+    ):
+        assert f"Unavailable: {field}" not in rendered

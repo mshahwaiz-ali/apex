@@ -46,11 +46,16 @@ from apex.domain.methodology_contracts import (
     TimeframeRelationship,
 )
 from apex.domain.methodology_htf_relationship import HtfRelationshipAssessment
+from apex.scoring.quality_decomposition import QualityComponents, calculate_overall_quality
 from apex.strategies.actionability import classify_candidate_actionability
 from apex.strategies.analysis import StrategyAnalysisResult, SuppressedStrategyCandidate
 from apex.strategies.candidate_identity import candidate_identities
 from apex.strategies.contracts import TradeCandidate
 from apex.strategies.entry_status import EntryStatus
+from apex.strategies.execution_quality import (
+    DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
+    ExecutionQualityCapPolicy,
+)
 from apex.strategies.geometry_audit import derive_execution_stop_geometry
 from apex.strategies.strategy_types import StrategyType
 
@@ -299,6 +304,9 @@ def evaluate_methodology_candidate_routing(
     geometry_runtime_context: GeometryRuntimeContext | None = None,
     geometry_safety_policy: GeometrySafetyPolicy = DEFAULT_GEOMETRY_SAFETY_POLICY,
     htf_consequence_policy: HtfConsequencePolicy = DEFAULT_HTF_CONSEQUENCE_POLICY,
+    execution_quality_cap_policy: ExecutionQualityCapPolicy = (
+        DEFAULT_EXECUTION_QUALITY_CAP_POLICY
+    ),
 ) -> MethodologyCandidateRoutingResult:
     """Evaluate each generated strategy from its own candidate evidence."""
 
@@ -363,6 +371,14 @@ def evaluate_methodology_candidate_routing(
                     },
                 )
                 constrained_candidates[id(candidate)] = evaluated_candidate
+            post_routing_candidate = _apply_post_routing_quality_caps(
+                evaluated_candidate,
+                lane=context.lane,
+                policy=execution_quality_cap_policy,
+            )
+            if post_routing_candidate is not candidate:
+                constrained_candidates[id(candidate)] = post_routing_candidate
+            evaluated_candidate = post_routing_candidate
             geometry_safety_audits.append(
                 audit_candidate_geometry_safety(
                     evaluated_candidate,
@@ -411,6 +427,115 @@ def evaluate_methodology_candidate_routing(
         tuple(decisions),
         mode=mode,
         geometry_safety_audits=tuple(geometry_safety_audits),
+    )
+
+
+def _apply_post_routing_quality_caps(
+    candidate: TradeCandidate,
+    *,
+    lane: OpportunityLane,
+    policy: ExecutionQualityCapPolicy,
+) -> TradeCandidate:
+    """Refresh execution and overall quality after routing changes execution facts."""
+
+    dimensions = getattr(candidate, "score_dimensions", None)
+    if dimensions is None:
+        return candidate
+    current_execution = dimensions.execution_quality
+    if current_execution is None:
+        return candidate
+
+    caps: list[tuple[float, str]] = []
+    if candidate.metadata.get("entry_confirmation_complete") is not True:
+        caps.append(
+            (
+                policy.trigger_incomplete * 100.0,
+                "entry trigger or confirmation is incomplete",
+            )
+        )
+    if candidate.provisional:
+        caps.append(
+            (
+                policy.provisional_evidence * 100.0,
+                "candidate still depends on provisional evidence",
+            )
+        )
+    if not caps:
+        return candidate
+
+    cap, _ = min(caps, key=lambda item: item[0])
+    final_execution = min(current_execution, cap)
+    reasons = tuple(dict.fromkeys(reason for value, reason in caps if value <= cap + 1e-9))
+    updated_dimensions = replace(
+        dimensions,
+        execution_quality=final_execution,
+    )
+
+    component_values = (
+        updated_dimensions.pattern_confidence,
+        updated_dimensions.directional_alignment,
+        updated_dimensions.setup_quality,
+        updated_dimensions.execution_quality,
+        updated_dimensions.reward_quality,
+        updated_dimensions.timing_quality,
+        updated_dimensions.data_confidence,
+    )
+    if all(value is not None for value in component_values):
+        pattern, alignment, setup, execution, reward, timing, data = component_values
+        assert pattern is not None
+        assert alignment is not None
+        assert setup is not None
+        assert execution is not None
+        assert reward is not None
+        assert timing is not None
+        assert data is not None
+        overall = calculate_overall_quality(
+            lane=lane,
+            components=QualityComponents(
+                pattern_confidence=pattern,
+                directional_alignment=alignment,
+                setup_quality=setup,
+                execution_quality=execution,
+                reward_quality=reward,
+                timing_quality=timing,
+                data_confidence=data,
+            ),
+        )
+        updated_dimensions = replace(
+            updated_dimensions,
+            overall_trade_quality=overall.overall_trade_quality,
+        )
+
+    existing_reasons = tuple(
+        item.strip()
+        for item in str(candidate.metadata.get("execution_quality_cap_reasons", "")).split("|")
+        if item.strip()
+    )
+    combined_reasons = tuple(dict.fromkeys((*existing_reasons, *reasons)))
+    prior_cap = candidate.metadata.get("execution_quality_cap")
+    prior_cap_value = (
+        float(prior_cap)
+        if isinstance(prior_cap, int | float) and not isinstance(prior_cap, bool)
+        else 100.0
+    )
+    uncapped = candidate.metadata.get("execution_quality_uncapped")
+    uncapped_value = (
+        float(uncapped)
+        if isinstance(uncapped, int | float) and not isinstance(uncapped, bool)
+        else current_execution
+    )
+    metadata = {
+        **candidate.metadata,
+        "execution_quality_cap": min(prior_cap_value, cap),
+        "execution_quality_final": final_execution,
+        "execution_quality_capped": final_execution < uncapped_value,
+        "execution_quality_cap_reasons": " | ".join(combined_reasons),
+        "post_routing_quality_refreshed": True,
+    }
+    return replace(
+        candidate,
+        score_dimensions=updated_dimensions,
+        metadata=metadata,
     )
 
 

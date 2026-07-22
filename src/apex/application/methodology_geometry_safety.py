@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from apex.application.opportunity_portfolio import OpportunityLane
-from apex.strategies.contracts import TradeCandidate, TradeDirection
+from apex.strategies.contracts import TargetType, TradeCandidate, TradeDirection
 
 
 class GeometrySafetyState(StrEnum):
@@ -30,6 +30,10 @@ class GeometryRejectionCode(StrEnum):
     TARGET_ORDER_INVALID = "target_order_invalid"
     TP1_BELOW_LANE_FLOOR = "tp1_below_lane_floor"
     STOP_DISTANCE_EXCEEDS_LANE_LIMIT = "stop_distance_exceeds_lane_limit"
+    STOP_DISTANCE_BELOW_NOISE_FLOOR = "stop_distance_below_noise_floor"
+    STOP_DISTANCE_BELOW_COST_FLOOR = "stop_distance_below_cost_floor"
+    TP1_EXCEEDS_LANE_HORIZON = "tp1_exceeds_lane_horizon"
+    SCALP_TP1_REQUIRES_VERIFIED_STRUCTURE = "scalp_tp1_requires_verified_structure"
     TARGET_QUALITY_BELOW_FLOOR = "target_quality_below_floor"
     COSTS_ELIMINATE_REWARD = "costs_eliminate_reward"
 
@@ -39,12 +43,17 @@ class LaneGeometryPolicy:
     minimum_tp1_reward_to_risk: float
     maximum_stop_distance_pct: float
     minimum_target_quality: float
+    minimum_stop_distance_atr: float = 0.25
+    minimum_stop_to_cost_ratio: float = 1.25
+    maximum_tp1_distance_atr: float | None = None
 
     def __post_init__(self) -> None:
         values = (
             self.minimum_tp1_reward_to_risk,
             self.maximum_stop_distance_pct,
             self.minimum_target_quality,
+            self.minimum_stop_distance_atr,
+            self.minimum_stop_to_cost_ratio,
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("lane geometry policy values must be finite")
@@ -54,6 +63,15 @@ class LaneGeometryPolicy:
             raise ValueError("maximum stop distance percentage must be positive")
         if not 0.0 <= self.minimum_target_quality <= 100.0:
             raise ValueError("minimum target quality must be between zero and 100")
+        if self.minimum_stop_distance_atr < 0.0:
+            raise ValueError("minimum stop ATR distance cannot be negative")
+        if self.minimum_stop_to_cost_ratio < 0.0:
+            raise ValueError("minimum stop-to-cost ratio cannot be negative")
+        if self.maximum_tp1_distance_atr is not None:
+            if not math.isfinite(self.maximum_tp1_distance_atr):
+                raise ValueError("maximum TP1 ATR distance must be finite")
+            if self.maximum_tp1_distance_atr <= 0.0:
+                raise ValueError("maximum TP1 ATR distance must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +107,11 @@ class GeometrySafetyDiagnostics:
     required_tp1_reward_to_risk: float
     maximum_stop_distance_pct: float
     minimum_target_quality: float
+    stop_distance_atr: float | None
+    minimum_stop_distance_atr: float
+    minimum_stop_to_cost_ratio: float
+    tp1_distance_atr: float | None
+    maximum_tp1_distance_atr: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +143,7 @@ def evaluate_geometry_safety(
     executable_stop: float,
     target_quality: float,
     expected_cost_pct: float | None,
+    decision_atr: float | None = None,
     policy: GeometrySafetyPolicy,
     selected_entry: float | None = None,
 ) -> GeometrySafetyAssessment:
@@ -129,6 +153,8 @@ def evaluate_geometry_safety(
     _bounded_score("target quality", target_quality)
     if expected_cost_pct is not None:
         _non_negative_finite("expected cost percentage", expected_cost_pct)
+    if decision_atr is not None:
+        _positive_finite("decision ATR", decision_atr)
 
     lane_policy = policy.for_lane(lane)
     selected_entry = candidate.entry.preferred if selected_entry is None else selected_entry
@@ -139,6 +165,8 @@ def evaluate_geometry_safety(
     target_distance = abs(tp1.price - selected_entry)
     target_distance_pct = target_distance / selected_entry * 100.0
     gross_rr = target_distance / stop_distance if stop_distance > 0.0 else 0.0
+    stop_distance_atr = None if decision_atr is None else stop_distance / decision_atr
+    tp1_distance_atr = None if decision_atr is None else target_distance / decision_atr
 
     net_rr: float | None = None
     if expected_cost_pct is not None:
@@ -163,6 +191,11 @@ def evaluate_geometry_safety(
         required_tp1_reward_to_risk=lane_policy.minimum_tp1_reward_to_risk,
         maximum_stop_distance_pct=lane_policy.maximum_stop_distance_pct,
         minimum_target_quality=lane_policy.minimum_target_quality,
+        stop_distance_atr=stop_distance_atr,
+        minimum_stop_distance_atr=lane_policy.minimum_stop_distance_atr,
+        minimum_stop_to_cost_ratio=lane_policy.minimum_stop_to_cost_ratio,
+        tp1_distance_atr=tp1_distance_atr,
+        maximum_tp1_distance_atr=lane_policy.maximum_tp1_distance_atr,
     )
 
     if expected_cost_pct is None:
@@ -221,6 +254,45 @@ def evaluate_geometry_safety(
         reasons.append(
             f"stop distance {stop_distance_pct:.4f}% exceeds "
             f"{lane_policy.maximum_stop_distance_pct:.4f}% allowed for {lane.value}"
+        )
+
+    if (
+        stop_distance_atr is not None
+        and stop_distance_atr + 1e-9 < lane_policy.minimum_stop_distance_atr
+    ):
+        codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_NOISE_FLOOR)
+        reasons.append(
+            f"stop distance {stop_distance_atr:.4f} ATR is below the "
+            f"{lane_policy.minimum_stop_distance_atr:.4f} ATR noise floor for {lane.value}"
+        )
+
+    if expected_cost_pct is not None and expected_cost_pct > 0.0:
+        cost_distance = selected_entry * expected_cost_pct / 100.0
+        stop_to_cost = stop_distance / cost_distance
+        if stop_to_cost + 1e-9 < lane_policy.minimum_stop_to_cost_ratio:
+            codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR)
+            reasons.append(
+                f"stop distance is {stop_to_cost:.4f}x expected round-trip costs, below "
+                f"the {lane_policy.minimum_stop_to_cost_ratio:.4f}x floor for {lane.value}"
+            )
+
+    maximum_target_atr = lane_policy.maximum_tp1_distance_atr
+    if (
+        maximum_target_atr is not None
+        and tp1_distance_atr is not None
+        and tp1_distance_atr > maximum_target_atr + 1e-9
+    ):
+        codes.append(GeometryRejectionCode.TP1_EXCEEDS_LANE_HORIZON)
+        reasons.append(
+            f"TP1 distance {tp1_distance_atr:.4f} ATR exceeds the "
+            f"{maximum_target_atr:.4f} ATR horizon for {lane.value}"
+        )
+
+    if lane.is_scalp and getattr(tp1, "kind", None) is TargetType.EXPANSION:
+        codes.append(GeometryRejectionCode.SCALP_TP1_REQUIRES_VERIFIED_STRUCTURE)
+        reasons.append(
+            "scalp TP1 must use nearby structural, liquidity, range, or partial evidence; "
+            "an expansion projection alone is not executable"
         )
 
     if target_quality < lane_policy.minimum_target_quality:

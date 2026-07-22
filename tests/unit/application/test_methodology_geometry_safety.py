@@ -44,6 +44,7 @@ def _candidate(
     *,
     direction: TradeDirection = TradeDirection.LONG,
     target_prices: tuple[float, ...] = (103.0,),
+    target_type: TargetType = TargetType.STRUCTURAL,
 ) -> TradeCandidate:
     if direction is TradeDirection.LONG:
         entry = EntryZone(
@@ -88,7 +89,7 @@ def _candidate(
         targets=TargetConcept(
             levels=tuple(
                 TargetLevel(
-                    kind=TargetType.STRUCTURAL,
+                    kind=target_type,
                     price=price,
                     label=f"TP{index}",
                     rationale=("test target",),
@@ -220,6 +221,74 @@ def test_stop_distance_and_target_quality_are_hard_floors() -> None:
 
     assert GeometryRejectionCode.STOP_DISTANCE_EXCEEDS_LANE_LIMIT in result.rejection_codes
     assert GeometryRejectionCode.TARGET_QUALITY_BELOW_FLOOR in result.rejection_codes
+
+
+def test_stop_must_clear_atr_noise_floor() -> None:
+    policy = _policy()
+    result = evaluate_geometry_safety(
+        _candidate(),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=99.4,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=4.0,
+        policy=policy,
+    )
+
+    assert GeometryRejectionCode.STOP_DISTANCE_BELOW_NOISE_FLOOR in result.rejection_codes
+    assert result.diagnostics.stop_distance_atr == pytest.approx(0.15)
+
+
+def test_stop_must_clear_round_trip_cost_floor() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=99.4,
+        target_quality=70.0,
+        expected_cost_pct=0.50,
+        policy=_policy(),
+    )
+
+    assert GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR in result.rejection_codes
+
+
+def test_scalp_tp1_must_fit_lane_atr_horizon() -> None:
+    policy = GeometrySafetyPolicy(
+        lanes={
+            **_policy().lanes,
+            OpportunityLane.CMP_SCALP: LaneGeometryPolicy(
+                1.0,
+                2.0,
+                45.0,
+                maximum_tp1_distance_atr=1.5,
+            ),
+        }
+    )
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(104.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=policy,
+    )
+
+    assert GeometryRejectionCode.TP1_EXCEEDS_LANE_HORIZON in result.rejection_codes
+    assert result.diagnostics.tp1_distance_atr == pytest.approx(2.0)
+
+
+def test_scalp_tp1_cannot_be_expansion_projection_only() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_type=TargetType.EXPANSION),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        policy=_policy(),
+    )
+
+    assert GeometryRejectionCode.SCALP_TP1_REQUIRES_VERIFIED_STRUCTURE in result.rejection_codes
 
 
 def test_policy_requires_every_lane() -> None:

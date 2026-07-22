@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+from tests.unit.strategies.test_candidate_execution_quality import (
+    _candidate as quality_candidate,
+)
+from tests.unit.strategies.test_candidate_execution_quality import _context as quality_context
+
 import apex.application.methodology_candidate_routing as candidate_routing
 from apex.application.methodology_candidate_routing import (
+    _apply_post_routing_quality_caps,
     _enforce_verified_target_ceiling,
     _htf_assessment_from_layered_state,
     apply_methodology_candidate_routing,
@@ -32,7 +39,11 @@ from apex.domain.methodology_contracts import (
     SetupState,
     TimeframeRelationship,
 )
+from apex.scoring.candidate_quality_components import (
+    attach_candidate_quality_components_for_candidate,
+)
 from apex.strategies.analysis import CandidateActionability, StrategyAnalysisResult
+from apex.strategies.candidate_execution_quality import attach_candidate_execution_quality
 from apex.strategies.contracts import EntryMode, StrategyEvidence, TradeCandidate, TradeDirection
 from apex.strategies.entry_status import EntryStatus
 from apex.strategies.strategy_types import StrategyType
@@ -563,6 +574,37 @@ def test_verified_tp1_above_lane_ceiling_is_retained_conditionally_not_rewritten
     assert "3.00R" in enforced.reasons[-1]
     assert "2.00R" in enforced.reasons[-1]
     assert "conditional/developing" in enforced.reasons[-1]
+
+
+def test_post_routing_confirmation_change_refreshes_quality_cap() -> None:
+    context = quality_context()
+    enriched = attach_candidate_quality_components_for_candidate(
+        candidate=attach_candidate_execution_quality(
+            candidate=quality_candidate(confirmed=True),
+            context=context,
+        ),
+        context=context,
+    )
+    before_overall = enriched.score_dimensions.overall_trade_quality
+    constrained = replace(
+        enriched,
+        metadata={
+            **enriched.metadata,
+            "entry_confirmation_complete": False,
+        },
+    )
+
+    refreshed = _apply_post_routing_quality_caps(
+        constrained,
+        lane=OpportunityLane.CONFIRMATION_SCALP,
+        policy=candidate_routing.DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
+    )
+
+    assert refreshed.score_dimensions.execution_quality == pytest.approx(55.0)
+    assert refreshed.score_dimensions.overall_trade_quality is not None
+    assert before_overall is not None
+    assert refreshed.score_dimensions.overall_trade_quality < before_overall
+    assert refreshed.metadata["post_routing_quality_refreshed"] is True
 
 
 def test_countertrend_relationship_rejects_non_scalp_lane(monkeypatch) -> None:

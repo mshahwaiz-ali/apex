@@ -43,7 +43,10 @@ from apex.scoring.contracts import (
     CandidateSelectionResult,
     RankedCandidate,
 )
-from apex.scoring.quality_dimensions import derive_quality_dimensions
+from apex.scoring.quality_dimensions import (
+    CandidateQualityDimensions,
+    derive_quality_dimensions,
+)
 from apex.scoring.quality_shadow_rollout import (
     build_quality_shadow_rollout_diagnostics,
 )
@@ -189,7 +192,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             runner_qualified=runner_qualified,
         ),
         warnings=tuple(candidate.evidence.warnings),
-        quality_dimensions=derive_quality_dimensions(candidate.quality),
+        quality_dimensions=_canonical_quality_dimensions(candidate),
         execution_allowed_now=is_entry_status_executable(entry_status),
         entry_opportunities=entry_opportunities,
         setup_expiry_seconds=expiry_seconds,
@@ -214,6 +217,32 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             entry=entry,
             stop=stop,
             entry_authority=entry_authority,
+        ),
+    )
+
+
+def _canonical_quality_dimensions(candidate: TradeCandidate) -> CandidateQualityDimensions:
+    """Project authoritative post-cap scores instead of legacy raw quality."""
+
+    legacy = derive_quality_dimensions(candidate.quality)
+    scores = candidate.score_dimensions
+    return CandidateQualityDimensions(
+        setup_quality=(
+            legacy.setup_quality if scores.setup_quality is None else scores.setup_quality
+        ),
+        execution_quality=(
+            legacy.execution_quality
+            if scores.execution_quality is None
+            else scores.execution_quality
+        ),
+        target_quality=(
+            legacy.target_quality if scores.reward_quality is None else scores.reward_quality
+        ),
+        risk_quality=legacy.risk_quality,
+        overall_trade_quality=(
+            legacy.overall_trade_quality
+            if scores.overall_trade_quality is None
+            else scores.overall_trade_quality
         ),
     )
 

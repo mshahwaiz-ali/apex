@@ -25,6 +25,9 @@ class LaneGeometrySettings(BaseModel):
     minimum_tp1_reward_to_risk: float = Field(gt=0)
     maximum_stop_distance_pct: float = Field(gt=0)
     minimum_target_quality: float = Field(ge=0, le=100)
+    minimum_stop_distance_atr: float = Field(default=0.25, ge=0)
+    minimum_stop_to_cost_ratio: float = Field(default=1.25, ge=0)
+    maximum_tp1_distance_atr: float | None = Field(default=None, gt=0)
 
 
 class ExecutionQualityCapSettings(BaseModel):
@@ -80,21 +83,25 @@ def _default_lane_geometry() -> dict[str, LaneGeometrySettings]:
             minimum_tp1_reward_to_risk=1.00,
             maximum_stop_distance_pct=2.0,
             minimum_target_quality=45.0,
+            maximum_tp1_distance_atr=1.50,
         ),
         "confirmation_scalp": LaneGeometrySettings(
             minimum_tp1_reward_to_risk=1.00,
             maximum_stop_distance_pct=2.0,
             minimum_target_quality=45.0,
+            maximum_tp1_distance_atr=1.50,
         ),
         "pullback_scalp": LaneGeometrySettings(
             minimum_tp1_reward_to_risk=1.20,
             maximum_stop_distance_pct=2.5,
             minimum_target_quality=50.0,
+            maximum_tp1_distance_atr=2.00,
         ),
         "nearby_structured": LaneGeometrySettings(
             minimum_tp1_reward_to_risk=1.25,
             maximum_stop_distance_pct=6.0,
             minimum_target_quality=50.0,
+            maximum_tp1_distance_atr=3.00,
         ),
         "runner": LaneGeometrySettings(
             minimum_tp1_reward_to_risk=1.80,

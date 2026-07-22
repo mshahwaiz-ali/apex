@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from typing import cast
+
+from apex.application.discovery_analysis import _build_native_methodology_snapshot
 from apex.application.methodology_adapters import strategy_evidence_observations
 from apex.application.methodology_contracts import (
     EntryOpportunity,
     EntryOpportunityType,
     EvidenceEffect,
+    EvidenceFamily,
+    EvidenceObservation,
     InvalidationRule,
     RejectionCode,
     RejectionReason,
@@ -17,6 +22,7 @@ from apex.application.methodology_snapshot import (
     MethodologySnapshot,
     methodology_snapshot_payload,
 )
+from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import StrategyEvidence
 
 
@@ -112,3 +118,25 @@ def test_methodology_snapshot_hard_blocker_prevents_execution() -> None:
     assert [item.code for item in snapshot.hard_blockers] == [
         RejectionCode.NO_DEFINABLE_INVALIDATION
     ]
+
+
+def test_native_snapshot_deduplicates_identical_evidence() -> None:
+    observation = EvidenceObservation(
+        family=EvidenceFamily.STRUCTURE,
+        source="setup_structure",
+        normalized_strength=0.8,
+        freshness=1.0,
+        independence_group="structure",
+        effect=EvidenceEffect.SUPPORTS,
+        reason="setup structure remains intact",
+    )
+
+    snapshot = _build_native_methodology_snapshot(
+        None,
+        context=cast(StrategyContext, object()),
+        evidence=(observation, observation),
+        contradictions=(),
+        no_trade_reason="no eligible setup",
+    )
+
+    assert snapshot.evidence == (observation,)

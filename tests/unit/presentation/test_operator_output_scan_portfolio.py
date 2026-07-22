@@ -103,7 +103,7 @@ def test_render_scan_expands_complete_portfolios_in_locked_order() -> None:
 
     enter_heading = rendered.index("┌─ Enter at CMP")
     confirmation_heading = rendered.index("┌─ Confirmation entry")
-    nearby_heading = rendered.index("┌─ Nearby entry")
+    nearby_heading = rendered.index("┌─ Conditional monitoring")
     developing_heading = rendered.index("┌─ Developing / follow-up")
 
     assert enter_heading < confirmation_heading
@@ -149,6 +149,7 @@ def test_render_scan_summary_distinguishes_symbols_and_opportunities() -> None:
         "retained_opportunity_count": 6,
         "displayed_opportunity_count": 3,
         "direction_filter": "long",
+        "screening": {"shortlisted_count": 7},
         "failures": {},
         "results": [
             _result(
@@ -173,7 +174,8 @@ def test_render_scan_summary_distinguishes_symbols_and_opportunities() -> None:
     rendered = render_scan(payload)
 
     assert "Markets discovered" in rendered and "10" in rendered
-    assert "Symbols shortlisted" in rendered and "2" in rendered
+    assert "Symbols shortlisted" in rendered and "7" in rendered
+    assert "Symbols displayed" in rendered and "2" in rendered
     assert "Opportunities retained" in rendered and "6" in rendered
     assert "Opportunities displayed" in rendered and "3" in rendered
     assert "Direction filter" in rendered and "Long" in rendered

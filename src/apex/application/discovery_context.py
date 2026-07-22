@@ -137,7 +137,28 @@ def _frame_from_candles(
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
-    features_by_name = create_default_feature_registry().calculate_all(candles)
+    minimum_usable_candles = 50
+    closed_count = len(candles) - (0 if candles[-1].is_closed else 1)
+    if closed_count < minimum_usable_candles:
+        raise ValueError(
+            f"INSUFFICIENT_HISTORY: {symbol} {timeframe} has {closed_count} usable "
+            f"candles; requires at least {minimum_usable_candles} for canonical analysis"
+        )
+    registry = create_default_feature_registry()
+    required_groups = (
+        "ema_20",
+        "ema_50",
+        "rsi_14",
+        "rsi_slope_14_3",
+        "roc_12",
+        "macd",
+        "atr_14",
+        "candle_range_ratio_20",
+        "relative_volume_20",
+        "vwap",
+        "recent_range_position_20",
+    )
+    features_by_name = {name: registry.calculate(name, candles) for name in required_groups}
     relative_volume = features_by_name["relative_volume_20"][0].values
     relative_volume_for_market_analysis = (
         relative_volume if len(relative_volume) == len(candles) else None

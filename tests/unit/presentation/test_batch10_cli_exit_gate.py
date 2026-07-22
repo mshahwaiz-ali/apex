@@ -194,7 +194,7 @@ def test_no_cmp_entry_is_distinct_from_no_setup() -> None:
 
     output = render_scan(payload)
 
-    assert "Nearby entry" in output
+    assert "Conditional monitoring" in output
     assert "BTCUSDT" in output
     assert "No current trade" in output
     assert "ETHUSDT" in output

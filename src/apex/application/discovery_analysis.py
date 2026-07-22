@@ -186,6 +186,7 @@ def analyze_symbol(
         htf_consequence_policy=HtfConsequencePolicy(
             **resolved_methodology_settings.htf_consequences.model_dump()
         ),
+        execution_quality_cap_policy=execution_quality_cap_policy,
     )
     methodology_parity = _methodology_parity_diagnostics(
         routed,
@@ -464,6 +465,12 @@ def _zero_trade_diagnostics(
     ranked_outcomes = Counter(item.outcome.value for item in selection.ranked_candidates)
     rejected_reasons: list[dict[str, Any]] = []
     seen_rejected_reasons: set[str] = set()
+    for suppressed in getattr(eligible_routed, "suppressed_candidates", ()):
+        for reason in getattr(suppressed, "reasons", ()):
+            if not reason or reason in seen_rejected_reasons:
+                continue
+            seen_rejected_reasons.add(reason)
+            rejected_reasons.append({"reason": reason, "count": 1})
     for item in selection.rejected_candidates:
         alignment = item.scored.environment_route_alignment
         item_reasons = (() if alignment is None else tuple(alignment.reasons)) + tuple(item.reasons)
@@ -679,6 +686,11 @@ def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
             "current_price": setup.entry.current_price,
             "maximum_chase_price": setup.entry.maximum_chase_price,
             "current_price_inside_zone": setup.entry.current_price_inside_zone,
+            "rationale": (
+                [setup.conditional_plan.trigger.condition]
+                if setup.conditional_plan is not None
+                else []
+            ),
         },
         "alternative_entry_opportunities": [
             {
@@ -1157,6 +1169,8 @@ def _build_native_methodology_snapshot(
     contradictions: tuple[Any, ...],
     no_trade_reason: str | None,
 ) -> MethodologySnapshot:
+    evidence = tuple(dict.fromkeys(evidence))
+    contradictions = tuple(dict.fromkeys(contradictions))
     if setup is None:
         return MethodologySnapshot(
             evidence=evidence,
