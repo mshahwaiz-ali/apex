@@ -10,6 +10,7 @@ from apex.application.discovery_contracts import (
     ManagementPolicyType,
     StopLoss,
     TakeProfit,
+    TargetRole,
 )
 from apex.application.opportunity_portfolio import AnalysisMode, portfolio_from_setups
 from apex.strategies.contracts import TradeDirection
@@ -129,6 +130,53 @@ def test_higher_scoring_nearby_opportunity_does_not_displace_current_slot() -> N
     assert portfolio.current_long.opportunity_id == "current-long"
     assert portfolio.nearby_long is not None
     assert portfolio.nearby_long.opportunity_id == "nearby-long"
+
+
+def test_structurally_valid_missed_entry_remains_as_alert_only_nearby_plan() -> None:
+    missed = replace(
+        _setup(
+            "missed-long",
+            TradeDirection.LONG,
+            executable=False,
+            lower=96.0,
+            upper=98.0,
+            preferred=97.0,
+            stop_price=94.0,
+        ),
+        entry_status=EntryStatus.MISSED_ENTRY,
+        entry=ActionableEntry(96.0, 98.0, 97.0, 103.0, 99.0, False),
+    )
+
+    portfolio = _portfolio((missed,))
+
+    assert portfolio.nearby_long is not None
+    assert portfolio.nearby_long.opportunity_id == "missed-long"
+    assert portfolio.nearby_long.setup.execution_allowed_now is False
+    assert portfolio.nearby_long.setup.entry.lower == 96.0
+    assert portfolio.nearby_long.setup.entry.maximum_chase_price == 99.0
+
+
+def test_runner_qualified_setup_gets_independent_runner_lane_identity() -> None:
+    source = _setup("qualified", TradeDirection.LONG, executable=True)
+    runner_target = replace(
+        source.take_profits[0],
+        target_role=TargetRole.EXTENSION_CANDIDATE,
+        runner_qualified=True,
+    )
+    qualified = replace(
+        source,
+        take_profits=(runner_target,),
+        runner_qualified=True,
+        runner_qualification_reason="aligned HTF continuation",
+    )
+
+    portfolio = _portfolio((qualified,))
+
+    assert portfolio.current_long is not None
+    assert portfolio.runner_plan is not None
+    assert portfolio.runner_plan.opportunity_id == "qualified:runner"
+    assert portfolio.runner_plan.effective_lane.value == "runner"
+    assert portfolio.current_long.opportunity_id != portfolio.runner_plan.opportunity_id
 
 
 def test_distinct_sequential_opportunities_remain_separate() -> None:

@@ -7,6 +7,7 @@ from apex.features import FeatureOutputShape
 from apex.features.registry import (
     FeatureAuditEntry,
     FeatureRegistry,
+    IndicatorPeriods,
     create_default_feature_registry,
 )
 
@@ -68,6 +69,26 @@ def test_default_registry_exposes_explicit_ema_time_horizons() -> None:
     assert results["ema_20"][0].latest is not None
     assert results["ema_50"][0].latest is not None
     assert results["ema_200"][0].latest is not None
+
+
+def test_role_profile_changes_fast_indicator_periods_without_changing_group_contract() -> None:
+    registry = create_default_feature_registry(
+        IndicatorPeriods(
+            ema_fast=9,
+            ema_slow=21,
+            rsi=9,
+            roc=6,
+            macd_fast=5,
+            macd_slow=13,
+            macd_signal=4,
+        )
+    )
+    results = registry.calculate_all(make_candles())
+
+    assert results["ema_20"][0].spec.name == "ema_close_9"
+    assert results["ema_50"][0].spec.name == "ema_close_21"
+    assert results["rsi_14"][0].spec.name == "rsi_9"
+    assert results["macd"][2].spec.name == "macd_histogram_5_13_4"
 
 
 def test_registry_audit_exposes_feature_contract_metadata() -> None:

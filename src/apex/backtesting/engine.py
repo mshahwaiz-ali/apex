@@ -130,6 +130,11 @@ def simulate_trade(
         stop_hit = _stop_hit(signal, candle, stop)
         hit_targets = _hit_target_indexes(signal, candle, targets, start=next_target_index)
         if stop_hit and hit_targets and config.conservative_intrabar:
+            runtime_metadata = {
+                **runtime_metadata,
+                "same_candle_stop_target_ambiguous": True,
+                "target_touched": True,
+            }
             return _trade_from_components(
                 signal,
                 BacktestOutcome.STOP,
@@ -281,10 +286,19 @@ def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
     equity = 0.0
     peak = 0.0
     maximum_drawdown = 0.0
+    r_equity = 0.0
+    r_peak = 0.0
+    maximum_drawdown_r = 0.0
     for trade in trade_tuple:
         equity += trade.net_pnl
         peak = max(peak, equity)
         maximum_drawdown = max(maximum_drawdown, peak - equity)
+        r_equity += trade.realized_r_multiple
+        r_peak = max(r_peak, r_equity)
+        maximum_drawdown_r = max(maximum_drawdown_r, r_peak - r_equity)
+    r_profit = sum(max(0.0, trade.realized_r_multiple) for trade in trade_tuple)
+    r_loss = abs(sum(min(0.0, trade.realized_r_multiple) for trade in trade_tuple))
+    filled = tuple(trade for trade in trade_tuple if trade.metadata.get("entry_filled") is True)
     return BacktestReport(
         trades=trade_tuple,
         total_trades=total,
@@ -313,12 +327,13 @@ def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
                 trade.outcome is BacktestOutcome.MISSED_ENTRY for trade in trade_tuple
             ),
             "total_expired": sum(trade.outcome is BacktestOutcome.EXPIRED for trade in trade_tuple),
-            "entry_fill_rate": (
-                sum(trade.outcome is not BacktestOutcome.MISSED_ENTRY for trade in trade_tuple)
-                / total
-                if total
-                else 0.0
+            "entry_fill_count": len(filled),
+            "entry_fill_rate": len(filled) / total if total else 0.0,
+            "r_expectancy": (
+                sum(trade.realized_r_multiple for trade in trade_tuple) / total if total else 0.0
             ),
+            "r_profit_factor": None if r_loss == 0.0 else r_profit / r_loss,
+            "maximum_drawdown_r": maximum_drawdown_r,
             "average_mfe_r": (
                 sum(
                     float(trade.metadata.get("maximum_favorable_excursion_r", 0.0))
@@ -338,7 +353,15 @@ def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
                 else 0.0
             ),
             "tp1_touch_count": sum(
-                int(trade.metadata.get("partial_target_count", 0)) >= 1 for trade in trade_tuple
+                trade.metadata.get("target_touched") is True for trade in trade_tuple
+            ),
+            "net_profitable_target_count": sum(
+                trade.outcome is BacktestOutcome.TARGET and trade.net_pnl > 0.0
+                for trade in trade_tuple
+            ),
+            "same_candle_stop_target_ambiguity_count": sum(
+                trade.metadata.get("same_candle_stop_target_ambiguous") is True
+                for trade in trade_tuple
             ),
         },
     )
@@ -395,6 +418,18 @@ def _unfilled_trade(
     output_metadata["activation_outcome"] = activation_outcome
     output_metadata["partial_target_count"] = 0
     output_metadata["closed_percentage"] = 0.0
+    output_metadata["entry_filled"] = False
+    output_metadata["target_touched"] = False
+    output_metadata["net_profitable_target"] = False
+    output_metadata["entry_follow_through"] = (
+        "moved_immediately_without_pullback"
+        if activation_outcome == "maximum_chase_breached"
+        else "entry_not_reached_before_expiry"
+        if outcome is BacktestOutcome.ACTIVATION_EXPIRED
+        else "invalidated_before_entry"
+        if outcome is BacktestOutcome.PRE_ENTRY_INVALIDATED
+        else "entry_zone_not_revisited"
+    )
     return SimulatedTrade(
         signal=signal,
         outcome=outcome,
@@ -604,6 +639,20 @@ def _trade_from_components(
         "closed_percentage",
         min(100.0, sum(signal.partial_close_percentages[:partial_target_count])),
     )
+    output_metadata.setdefault("entry_filled", True)
+    output_metadata.setdefault(
+        "entry_follow_through",
+        "direct_cmp_fill" if signal.activation_type is None else "conditional_entry_filled",
+    )
+    output_metadata.setdefault(
+        "target_touched",
+        partial_target_count > 0 or output_metadata.get("target_touched") is True,
+    )
+    output_metadata.setdefault(
+        "net_profitable_target",
+        outcome is BacktestOutcome.TARGET and net > 0.0,
+    )
+    output_metadata.setdefault("same_candle_stop_target_ambiguous", False)
 
     planned_entry = signal.entry_price
     planned_stop = signal.stop_price

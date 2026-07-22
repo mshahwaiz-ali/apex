@@ -9,7 +9,11 @@ from typing import Any
 
 from apex.application.market_evidence import build_market_evidence_bundle
 from apex.config import DEFAULT_TIMEFRAME_ROLES
-from apex.config.settings import DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
+from apex.config.settings import (
+    DEFAULT_TIMEFRAME_INDICATOR_PROFILES,
+    DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS,
+    TimeframeIndicatorSettings,
+)
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.models import (
     Candle,
@@ -17,7 +21,7 @@ from apex.domain.models import (
     OrderBookSnapshot,
     TickerSnapshot,
 )
-from apex.features.registry import create_default_feature_registry
+from apex.features.registry import IndicatorPeriods, create_default_feature_registry
 from apex.market_analysis import analyze_structure_and_liquidity
 from apex.strategies import (
     FeatureSnapshot,
@@ -36,6 +40,7 @@ def build_strategy_context(
     candle_limit: int,
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     received_at: datetime | None = None,
     futures_evidence_enabled: bool = True,
 ) -> tuple[StrategyContext, Mapping[str, str]]:
@@ -43,6 +48,7 @@ def build_strategy_context(
 
     role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
     staleness_config = timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
+    indicator_profiles = timeframe_indicator_profiles or DEFAULT_TIMEFRAME_INDICATOR_PROFILES
     timestamp = received_at or datetime.now(UTC)
     ticker_snapshot = _fetch_ticker_snapshot(provider, symbol)
     ticker_price = ticker_snapshot.last_price if ticker_snapshot is not None else None
@@ -77,6 +83,7 @@ def build_strategy_context(
             exchange_filter_snapshot=exchange_filter_snapshot,
             mark_price=premium.mark_price if premium is not None else None,
             index_price=premium.index_price if premium is not None else None,
+            indicator_profile=indicator_profiles[role.value],
         )
         frames.append(frame)
         regimes[timeframe] = regime
@@ -134,6 +141,7 @@ def _frame_from_candles(
     exchange_filter_snapshot: ExchangeFilterSnapshot | None,
     mark_price: float | None,
     index_price: float | None,
+    indicator_profile: TimeframeIndicatorSettings | None = None,
 ) -> tuple[TimeframeContext, str]:
     if not candles:
         raise ValueError(f"{symbol} {timeframe} returned no candles")
@@ -144,7 +152,8 @@ def _frame_from_candles(
             f"INSUFFICIENT_HISTORY: {symbol} {timeframe} has {closed_count} usable "
             f"candles; requires at least {minimum_usable_candles} for canonical analysis"
         )
-    registry = create_default_feature_registry()
+    resolved_profile = indicator_profile or TimeframeIndicatorSettings()
+    registry = create_default_feature_registry(IndicatorPeriods(**resolved_profile.model_dump()))
     required_groups = (
         "ema_20",
         "ema_50",

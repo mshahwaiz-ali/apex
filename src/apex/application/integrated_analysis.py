@@ -29,6 +29,7 @@ from apex.application.methodology_market_state import adapt_market_state
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import load_symbol_file
 from apex.config.methodology import MethodologySettings
+from apex.config.settings import TimeframeIndicatorSettings
 from apex.data.providers.base import FuturesEvidenceProvider, MarketDataProvider
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
@@ -155,6 +156,7 @@ def analyze_symbol(
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -176,6 +178,7 @@ def analyze_symbol(
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+        timeframe_indicator_profiles=timeframe_indicator_profiles,
         candle_limit=candle_limit,
         received_at=decision_time,
         futures_evidence_enabled=futures_evidence_enabled,
@@ -194,6 +197,7 @@ def analyze_symbol(
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+        timeframe_indicator_profiles=timeframe_indicator_profiles,
         candle_limit=candle_limit,
         generated_at=decision_time,
         strategy_routing=strategy_routing,

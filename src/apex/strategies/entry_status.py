@@ -11,7 +11,9 @@ class EntryStatus(StrEnum):
     PULLBACK_PREFERRED = "PULLBACK_PREFERRED"
     CONFIRMATION_AT_CMP = "CONFIRMATION_AT_CMP"
     WATCH_NEAR_ENTRY = "WATCH_NEAR_ENTRY"
-    LATE_OR_CHASING = "LATE_OR_CHASING"
+    MISSED_ENTRY = "MISSED_ENTRY"
+    # Compatibility name; both pipelines now serialize one canonical lifecycle state.
+    LATE_OR_CHASING = "MISSED_ENTRY"
     INVALIDATED = "INVALIDATED"
 
 
@@ -21,6 +23,6 @@ ENTRY_STATUS_PRECEDENCE: tuple[EntryStatus, ...] = (
     EntryStatus.PULLBACK_PREFERRED,
     EntryStatus.CONFIRMATION_AT_CMP,
     EntryStatus.WATCH_NEAR_ENTRY,
-    EntryStatus.LATE_OR_CHASING,
+    EntryStatus.MISSED_ENTRY,
     EntryStatus.INVALIDATED,
 )

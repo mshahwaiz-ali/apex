@@ -72,6 +72,10 @@ _VALID_DEVELOPING_OUTCOMES = {
     CandidateOutcome.ACCEPTED,
     CandidateOutcome.ACCEPTED_WITH_WARNING,
 }
+_MONITOR_ONLY_OUTCOMES = {
+    CandidateOutcome.DOWNGRADED,
+    CandidateOutcome.REJECTED_BELOW_THRESHOLD,
+}
 _CONFIRMATION_REQUIRED_MODES = {
     EntryMode.MARKET_NEAR,
     EntryMode.RETEST,
@@ -126,7 +130,7 @@ def build_opportunity_portfolio(
     setups = tuple(
         _build_setup(item)
         for item in candidate_selection.ranked_candidates
-        if item.outcome in _VALID_DEVELOPING_OUTCOMES
+        if _is_public_setup_candidate(item)
     )
     return portfolio_from_setups(
         setups,
@@ -149,10 +153,36 @@ def _best_developing_candidate(
             item
             for item in candidate_selection.ranked_candidates
             if item.scored.candidate_id != selected_id
-            and item.outcome in _VALID_DEVELOPING_OUTCOMES
+            and _is_public_setup_candidate(item)
             and not is_entry_status_executable(classify_candidate_actionability(item.candidate))
         ),
         None,
+    )
+
+
+def _is_public_setup_candidate(item: RankedCandidate) -> bool:
+    """Keep valid alert-only plans visible without promoting rejected execution."""
+
+    candidate = getattr(item, "candidate", None)
+    if candidate is None:
+        return item.outcome in _VALID_DEVELOPING_OUTCOMES
+    status = classify_candidate_actionability(candidate)
+    if status is EntryStatus.MISSED_ENTRY and not _missed_setup_htf_valid(candidate):
+        return False
+    if item.outcome in _VALID_DEVELOPING_OUTCOMES:
+        return True
+    if item.outcome not in _MONITOR_ONLY_OUTCOMES:
+        return False
+    return not is_entry_status_executable(status) and status is not EntryStatus.INVALIDATED
+
+
+def _missed_setup_htf_valid(candidate: TradeCandidate) -> bool:
+    """Do not preserve stale re-entry plans against decisive HTF structure."""
+
+    state = candidate.layered_state
+    return (
+        state.timeframe_relationship is not TimeframeRelationship.DIRECT_STRUCTURAL_OPPOSITION
+        and state.relationship_severity is not RelationshipSeverity.CRITICAL
     )
 
 
@@ -639,8 +669,10 @@ def _trader_headline(status: EntryStatus) -> str:
         return "Current-price setup — confirmation required"
     if status is EntryStatus.WATCH_NEAR_ENTRY:
         return "Developing setup — watch only"
-    if status in {EntryStatus.LATE_OR_CHASING, EntryStatus.INVALIDATED}:
-        return "Late or invalidated setup"
+    if status is EntryStatus.MISSED_ENTRY:
+        return "Missed entry — valid re-entry zone, confirmation required"
+    if status is EntryStatus.INVALIDATED:
+        return "Structurally invalidated setup"
     return "No defensible setup found"
 
 

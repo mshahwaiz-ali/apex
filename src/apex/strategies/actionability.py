@@ -50,7 +50,7 @@ def classify_candidate_actionability(candidate: TradeCandidate) -> EntryStatus:
     # preserved in ``entry_opportunities``; it must not hide a missed primary
     # entry or authorize a chase.
     if candidate.entry.is_extended or beyond_chase:
-        return EntryStatus.LATE_OR_CHASING
+        return EntryStatus.MISSED_ENTRY
     if (
         candidate.entry.mode in _PULLBACK_MODES
         and candidate.entry.atr_distance <= _PULLBACK_MAX_ATR_DISTANCE

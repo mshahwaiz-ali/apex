@@ -40,6 +40,23 @@ FeatureCalculator = Callable[[Sequence[Candle]], tuple[FeatureResult, ...]]
 
 
 @dataclass(frozen=True, slots=True)
+class IndicatorPeriods:
+    """Dependency-neutral feature periods supplied by application configuration."""
+
+    ema_fast: int = 20
+    ema_slow: int = 50
+    rsi: int = 14
+    rsi_slope: int = 3
+    roc: int = 12
+    macd_fast: int = 12
+    macd_slow: int = 26
+    macd_signal: int = 9
+    atr: int = 14
+    relative_volume: int = 20
+    range_lookback: int = 20
+
+
+@dataclass(frozen=True, slots=True)
 class FeatureAuditEntry:
     """Inspectable runtime contract metadata for one calculated feature result."""
 
@@ -124,37 +141,68 @@ class FeatureRegistry:
         return tuple(entries)
 
 
-def create_default_feature_registry() -> FeatureRegistry:
+def create_default_feature_registry(
+    profile: IndicatorPeriods | None = None,
+) -> FeatureRegistry:
     """Return the complete deterministic feature composition."""
 
+    periods = profile or IndicatorPeriods()
     registry = FeatureRegistry()
     registry.register("sma_20", lambda candles: (simple_moving_average(candles, 20),))
-    registry.register("ema_20", lambda candles: (exponential_moving_average(candles, 20),))
-    registry.register("ema_50", lambda candles: (exponential_moving_average(candles, 50),))
+    registry.register(
+        "ema_20", lambda candles: (exponential_moving_average(candles, periods.ema_fast),)
+    )
+    registry.register(
+        "ema_50", lambda candles: (exponential_moving_average(candles, periods.ema_slow),)
+    )
     registry.register("ema_200", lambda candles: (exponential_moving_average(candles, 200),))
-    registry.register("rsi_14", lambda candles: (relative_strength_index(candles, 14),))
-    registry.register("rsi_slope_14_3", lambda candles: (rsi_slope(candles, 14, 3),))
-    registry.register("roc_12", lambda candles: (rate_of_change(candles, 12),))
-    registry.register("macd", _macd_results)
+    registry.register("rsi_14", lambda candles: (relative_strength_index(candles, periods.rsi),))
+    registry.register(
+        "rsi_slope_14_3",
+        lambda candles: (rsi_slope(candles, periods.rsi, periods.rsi_slope),),
+    )
+    registry.register("roc_12", lambda candles: (rate_of_change(candles, periods.roc),))
+    registry.register(
+        "macd",
+        lambda candles: _macd_results(
+            candles,
+            fast=periods.macd_fast,
+            slow=periods.macd_slow,
+            signal=periods.macd_signal,
+        ),
+    )
     registry.register("true_range", lambda candles: (true_range(candles),))
-    registry.register("atr_14", lambda candles: (average_true_range(candles, 14),))
-    registry.register("atr_percentage_14", lambda candles: (atr_percentage(candles, 14),))
+    registry.register("atr_14", lambda candles: (average_true_range(candles, periods.atr),))
+    registry.register("atr_percentage_14", lambda candles: (atr_percentage(candles, periods.atr),))
     registry.register("bollinger_20", _bollinger_results)
-    registry.register("candle_range_ratio_20", lambda candles: (candle_range_ratio(candles, 20),))
+    registry.register(
+        "candle_range_ratio_20",
+        lambda candles: (candle_range_ratio(candles, periods.range_lookback),),
+    )
     registry.register("wick_statistics_latest", _wick_statistics_result)
-    registry.register("average_volume_20", lambda candles: (average_volume(candles, 20),))
-    registry.register("relative_volume_20", lambda candles: (relative_volume(candles, 20),))
-    registry.register("volume_spike_20_1_5", lambda candles: (volume_spike(candles, 20, 1.5),))
+    registry.register(
+        "average_volume_20", lambda candles: (average_volume(candles, periods.relative_volume),)
+    )
+    registry.register(
+        "relative_volume_20", lambda candles: (relative_volume(candles, periods.relative_volume),)
+    )
+    registry.register(
+        "volume_spike_20_1_5",
+        lambda candles: (volume_spike(candles, periods.relative_volume, 1.5),),
+    )
     registry.register("volume_pressure_20", _volume_pressure_results)
     registry.register("vwap", lambda candles: (vwap(candles),))
     registry.register(
         "recent_range_position_20",
-        lambda candles: (recent_range_position(candles, 20),),
+        lambda candles: (recent_range_position(candles, periods.range_lookback),),
     )
     registry.register(
         "bollinger_position_20_2", lambda candles: (bollinger_position(candles, 20, 2.0),)
     )
-    registry.register("distance_from_recent_extremes_20", _recent_extreme_results)
+    registry.register(
+        "distance_from_recent_extremes_20",
+        lambda candles: distance_from_recent_extremes(candles, periods.range_lookback),
+    )
     registry.register("ema_relationship_12_26", _ema_relationship_results)
     registry.register("ema_slope_20_3", lambda candles: (ema_slope(candles, 20, 3),))
     registry.register(
@@ -167,8 +215,10 @@ def create_default_feature_registry() -> FeatureRegistry:
     return registry
 
 
-def _macd_results(candles: Sequence[Candle]) -> tuple[FeatureResult, ...]:
-    result = macd(candles)
+def _macd_results(
+    candles: Sequence[Candle], *, fast: int = 12, slow: int = 26, signal: int = 9
+) -> tuple[FeatureResult, ...]:
+    result = macd(candles, fast_period=fast, slow_period=slow, signal_period=signal)
     return result.macd, result.signal, result.histogram
 
 

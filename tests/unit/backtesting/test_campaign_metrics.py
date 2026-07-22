@@ -16,6 +16,7 @@ from apex.cli_commands import backtesting as backtesting_cli
 from apex.cli_commands.backtesting import (
     _anchor_displaced_bars,
     _calibration_record,
+    _diagnostic_report_metrics,
     _jsonable,
     _parse_as_of,
     _report_metrics,
@@ -137,6 +138,7 @@ def test_conditional_replay_records_pre_entry_invalidation() -> None:
     assert trade.outcome is BacktestOutcome.PRE_ENTRY_INVALIDATED
     assert trade.net_pnl == 0.0
     assert trade.metadata["activation_outcome"] == "pre_entry_invalidated"
+    assert trade.metadata["entry_filled"] is False
 
 
 def test_conditional_replay_records_activation_expiry() -> None:
@@ -190,6 +192,66 @@ def test_campaign_report_exposes_fill_and_excursion_metrics() -> None:
     assert metrics["metadata"]["entry_fill_rate"] == pytest.approx(0.5)
 
 
+def test_conditional_fill_rate_excludes_every_pre_entry_terminal_state() -> None:
+    invalidated = simulate_trade(
+        _conditional_signal(),
+        (_candle(1, low=97.5, high=99.0, close=98.5),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    expired = simulate_trade(
+        _conditional_signal(expiry_candles=1),
+        (_candle(1, low=98.5, high=99.5, close=99.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    filled = simulate_trade(
+        _conditional_signal(),
+        (
+            _candle(1, low=99.5, high=101.0, close=100.5),
+            _candle(2, low=100.0, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    report = summarize_trades((invalidated, expired, filled))
+
+    assert report.metadata["entry_fill_count"] == 1
+    assert report.metadata["entry_fill_rate"] == pytest.approx(1 / 3)
+
+
+def test_same_candle_stop_target_is_explicit_and_target_touch_is_not_a_win() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (_candle(1, low=97.5, high=104.5, close=101.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    report = summarize_trades((trade,))
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.metadata["same_candle_stop_target_ambiguous"] is True
+    assert trade.metadata["target_touched"] is True
+    assert trade.metadata["net_profitable_target"] is False
+    assert report.metadata["tp1_touch_count"] == 1
+    assert report.metadata["net_profitable_target_count"] == 0
+
+
+def test_shadow_metrics_do_not_publish_overlapping_candidate_drawdown() -> None:
+    report = summarize_trades(
+        (
+            simulate_trade(
+                _signal(),
+                (_candle(1, low=97.5, high=101.0, close=98.0),),
+                config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+            ),
+        )
+    )
+
+    metrics = _diagnostic_report_metrics(report)
+
+    assert metrics["maximum_drawdown"] is None
+    assert metrics["metadata"]["maximum_drawdown_r"] is None
+    assert metrics["metadata"]["drawdown_evaluable"] is False
+
+
 def test_empty_report_metrics_are_explicitly_not_evaluable() -> None:
     metrics = _report_metrics(summarize_trades(()))
 
@@ -231,6 +293,36 @@ def test_geometry_rejection_builds_diagnostic_shadow_signal() -> None:
     assert len(signals) == 1
     assert signals[0].candidate_id == "trend_pullback:long:0"
     assert signals[0].replay_source == "geometry_rejected"
+
+
+def test_shadow_replay_deduplicates_strategy_aliases_with_identical_geometry() -> None:
+    analysis = type(
+        "Analysis",
+        (),
+        {
+            "symbol": "BTCUSDT",
+            "generated_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "candidate_ranking": None,
+            "phase5_diagnostics": {
+                "methodology_candidate_routing": {
+                    "geometry_safety_audits": [
+                        {
+                            "candidate_id": f"{strategy}:long:0",
+                            "state": "reject",
+                            "diagnostics": {
+                                "selected_entry": 100.0,
+                                "executable_stop": 98.0,
+                                "tp1_price": 104.0,
+                            },
+                        }
+                        for strategy in ("trend_pullback", "breakout_retest")
+                    ]
+                }
+            },
+        },
+    )()
+
+    assert len(_shadow_replay_signals(analysis)) == 1
 
 
 def test_replay_records_full_forward_path_excursion_and_direction() -> None:

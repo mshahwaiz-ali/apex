@@ -8,7 +8,7 @@ nearby, follow-up, or runner opportunities.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -97,15 +97,13 @@ def setup_is_portfolio_eligible(setup: DiscoverySetup) -> bool:
     if not setup.canonical_actionability:
         return setup.entry_status is not EntryStatus.INVALIDATED
 
-    # Invalidated and chased setups are not tradable opportunities.
+    # A missed entry is still a structurally valid, alert-only re-entry plan.
+    # Only structural invalidation removes the setup from the public portfolio.
     assessment = build_actionability_state_assessment(
         setup,
         sequence_role=SequenceRole.NEARBY,
     )
-    return assessment.state not in {
-        ActionabilityState.INVALIDATED,
-        ActionabilityState.MISSED_OR_CHASING,
-    }
+    return assessment.state is not ActionabilityState.INVALIDATED
 
 
 class CmpZonePosition(StrEnum):
@@ -813,7 +811,7 @@ class TradeOpportunity:
                     "canonical actionability; nearby opportunities must remain pending"
                 )
         if not setup_is_portfolio_eligible(self.setup):
-            raise ValueError("invalidated or chased setups cannot be portfolio opportunities")
+            raise ValueError("invalidated setups cannot be portfolio opportunities")
         if (
             self.sequence_role is SequenceRole.RUNNER
             and self.effective_lane is not OpportunityLane.RUNNER
@@ -1128,6 +1126,7 @@ def portfolio_from_setups(
     nearby_long: TradeOpportunity | None = None
     nearby_short: TradeOpportunity | None = None
     follow_ups: list[TradeOpportunity] = []
+    runner_plan: TradeOpportunity | None = None
 
     for setup in retained_setups:
         if setup.symbol != symbol:
@@ -1166,6 +1165,22 @@ def portfolio_from_setups(
                 )
             )
 
+    # Runner treatment is a distinct horizon, not a mutation of the scalp plan.
+    # Give it its own identity/lane so same-geometry deduplication cannot erase it
+    # and downstream backtests can measure it independently.
+    runner_source = next((setup for setup in retained_setups if setup.runner_qualified), None)
+    if runner_source is not None:
+        runner_setup = replace(
+            runner_source,
+            candidate_id=f"{runner_source.candidate_id}:runner",
+        )
+        runner_plan = TradeOpportunity(
+            runner_setup.candidate_id,
+            runner_setup,
+            SequenceRole.RUNNER,
+            OpportunityLane.RUNNER,
+        )
+
     return SymbolOpportunityPortfolio(
         symbol=symbol,
         cmp=cmp,
@@ -1177,6 +1192,7 @@ def portfolio_from_setups(
         nearby_long=nearby_long,
         nearby_short=nearby_short,
         follow_up_opportunities=tuple(follow_ups),
+        runner_plan=runner_plan,
         retention_diagnostics=portfolio_retention_audit_payload(retention_audit),
     )
 

@@ -29,6 +29,7 @@ from apex.application.opportunity_portfolio import (
     SymbolOpportunityPortfolio,
 )
 from apex.config.methodology import MethodologySettings
+from apex.config.settings import TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -61,6 +62,7 @@ def analyze_symbol(
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -80,6 +82,7 @@ def analyze_symbol(
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+        timeframe_indicator_profiles=timeframe_indicator_profiles,
         candle_limit=candle_limit + 1,
         generated_at=generated_at,
         strategy_routing=strategy_routing,
@@ -127,6 +130,7 @@ def scan_symbols(
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -158,6 +162,8 @@ def scan_symbols(
                 "geometry_execution_costs": geometry_execution_costs,
                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
             }
+            if timeframe_indicator_profiles is not None:
+                analysis_kwargs["timeframe_indicator_profiles"] = timeframe_indicator_profiles
             if not futures_evidence_enabled:
                 analysis_kwargs["futures_evidence_enabled"] = False
             analyses.append(

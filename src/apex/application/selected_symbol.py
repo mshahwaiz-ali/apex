@@ -12,6 +12,7 @@ from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import normalize_market_symbol
 from apex.config.methodology import MethodologySettings
+from apex.config.settings import TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -23,6 +24,7 @@ def analyze_selected_symbol(
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -50,6 +52,8 @@ def analyze_selected_symbol(
         "market_environment_config": market_environment_config,
         "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }
+    if timeframe_indicator_profiles is not None:
+        kwargs["timeframe_indicator_profiles"] = timeframe_indicator_profiles
     if not futures_evidence_enabled:
         kwargs["futures_evidence_enabled"] = False
     return analyze_symbol(normalized_symbol, provider, **kwargs)

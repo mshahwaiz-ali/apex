@@ -216,7 +216,7 @@ class BacktestReport:
     consecutive_losses: int
     by_symbol: dict[str, int]
     by_strategy: dict[str, int]
-    metadata: Mapping[str, str | int | float | bool] = field(default_factory=dict)
+    metadata: Mapping[str, str | int | float | bool | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.total_trades != len(self.trades):

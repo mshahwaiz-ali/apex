@@ -121,7 +121,7 @@ def test_legacy_execution_flag_cannot_force_poor_location_into_current_slot() ->
         TradeOpportunity(setup.candidate_id, setup, SequenceRole.CURRENT)
 
 
-def test_invalidated_and_chased_setups_are_excluded_from_portfolio() -> None:
+def test_invalidated_setup_is_excluded_but_chased_setup_remains_alert_only() -> None:
     invalidated = _setup(
         "invalidated",
         current_price=96.0,
@@ -145,7 +145,9 @@ def test_invalidated_and_chased_setups_are_excluded_from_portfolio() -> None:
         analysis_mode=AnalysisMode.ANALYZE_FULL,
     )
 
-    assert portfolio.opportunities == ()
+    assert len(portfolio.opportunities) == 1
+    assert portfolio.opportunities[0].opportunity_id == "chased"
+    assert portfolio.opportunities[0].setup.execution_allowed_now is False
 
 
 def test_portfolio_places_aggressive_current_and_limit_nearby() -> None:

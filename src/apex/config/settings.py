@@ -87,6 +87,50 @@ DEFAULT_STRATEGY_ROUTING: dict[str, list[str]] = {
     "enabled": [strategy.value for strategy in StrategyType],
 }
 
+
+class TimeframeIndicatorSettings(BaseModel):
+    """Candle-period profile for one analytical timeframe role."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ema_fast: int = Field(default=20, ge=2)
+    ema_slow: int = Field(default=50, ge=3)
+    rsi: int = Field(default=14, ge=2)
+    rsi_slope: int = Field(default=3, ge=1)
+    roc: int = Field(default=12, ge=1)
+    macd_fast: int = Field(default=12, ge=2)
+    macd_slow: int = Field(default=26, ge=3)
+    macd_signal: int = Field(default=9, ge=1)
+    atr: int = Field(default=14, ge=2)
+    relative_volume: int = Field(default=20, ge=2)
+    range_lookback: int = Field(default=20, ge=2)
+
+    @model_validator(mode="after")
+    def _validate_period_order(self) -> Self:
+        if self.ema_fast >= self.ema_slow:
+            raise ValueError("fast EMA period must be lower than slow EMA period")
+        if self.macd_fast >= self.macd_slow:
+            raise ValueError("fast MACD period must be lower than slow MACD period")
+        return self
+
+
+DEFAULT_TIMEFRAME_INDICATOR_PROFILES: dict[str, TimeframeIndicatorSettings] = {
+    # Fast roles react to microstructure without changing structural HTF authority.
+    "timing": TimeframeIndicatorSettings(
+        ema_fast=9, ema_slow=21, rsi=9, roc=6, macd_fast=5, macd_slow=13, macd_signal=4
+    ),
+    "refinement": TimeframeIndicatorSettings(
+        ema_fast=9, ema_slow=21, rsi=9, roc=9, macd_fast=8, macd_slow=21, macd_signal=5
+    ),
+    "entry": TimeframeIndicatorSettings(),
+    "setup": TimeframeIndicatorSettings(),
+    "intraday": TimeframeIndicatorSettings(),
+    "intermediate": TimeframeIndicatorSettings(),
+    "macro": TimeframeIndicatorSettings(),
+    "swing": TimeframeIndicatorSettings(),
+    "long_term_macro": TimeframeIndicatorSettings(),
+}
+
 _VALID_STRATEGY_ROUTE_KEYS = frozenset(DEFAULT_STRATEGY_ROUTING)
 
 
@@ -141,6 +185,9 @@ class FileSettings(BaseModel):
     )
     timeframe_max_staleness_seconds: dict[str, int] = Field(
         default_factory=lambda: dict(DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS)
+    )
+    timeframe_indicator_profiles: dict[str, TimeframeIndicatorSettings] = Field(
+        default_factory=lambda: dict(DEFAULT_TIMEFRAME_INDICATOR_PROFILES)
     )
     strategy_routing: dict[str, list[str]] = Field(
         default_factory=lambda: {
@@ -227,6 +274,19 @@ class FileSettings(BaseModel):
                 raise ValueError(f"strategy routing for {route_key} cannot contain duplicates")
             normalized[route_key] = clean_strategies
         return normalized
+
+    @field_validator("timeframe_indicator_profiles")
+    @classmethod
+    def _validate_timeframe_indicator_profiles(
+        cls, value: dict[str, TimeframeIndicatorSettings]
+    ) -> dict[str, TimeframeIndicatorSettings]:
+        unknown = sorted(set(value) - _VALID_TIMEFRAME_ROLES)
+        if unknown:
+            raise ValueError(f"unsupported indicator profile roles: {', '.join(unknown)}")
+        missing = sorted(_VALID_TIMEFRAME_ROLES - set(value))
+        if missing:
+            raise ValueError(f"missing indicator profile roles: {', '.join(missing)}")
+        return value
 
     @model_validator(mode="after")
     def _validate_enabled_timeframe_roles(self) -> Self:

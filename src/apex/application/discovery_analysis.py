@@ -118,6 +118,7 @@ from apex.application.strategy_routing import (
     build_strategy_routing_payload,
 )
 from apex.config.methodology import MethodologySettings
+from apex.config.settings import TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.scoring.contracts import CandidateSelectionResult
 from apex.strategies import (
@@ -159,6 +160,7 @@ def analyze_symbol(
     timeframes: Sequence[str],
     timeframe_roles: Mapping[str, str] | None = None,
     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+    timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
     candle_limit: int = 200,
     generated_at: datetime | None = None,
     strategy_routing: Mapping[str, Sequence[str]] | None = None,
@@ -182,6 +184,7 @@ def analyze_symbol(
         timeframes=timeframes,
         timeframe_roles=timeframe_roles,
         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+        timeframe_indicator_profiles=timeframe_indicator_profiles,
         candle_limit=candle_limit,
         received_at=decision_time,
         futures_evidence_enabled=futures_evidence_enabled,

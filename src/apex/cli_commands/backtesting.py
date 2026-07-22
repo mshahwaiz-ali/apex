@@ -330,6 +330,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         "timeframe_max_staleness_seconds",
                         None,
                     ),
+                    timeframe_indicator_profiles=getattr(
+                        context.settings, "timeframe_indicator_profiles", None
+                    ),
                     candle_limit=candle_limit,
                     generated_at=decision_time,
                     strategy_routing=getattr(context.settings, "strategy_routing", None),
@@ -560,12 +563,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
                 ),
-                "metrics": _report_metrics(shadow_report),
+                "metrics": _diagnostic_report_metrics(shadow_report),
                 "outcome_distribution": _outcome_distribution(shadow_report.trades),
                 "risk_and_excursion": _risk_and_excursion(shadow_report.trades),
                 "source_distribution": _shadow_source_distribution(shadow_report.trades),
                 "direction_accuracy": _direction_accuracy(shadow_report.trades),
                 "calibration_authoritative": False,
+                "portfolio_drawdown_valid": False,
             },
             "study": {
                 "dataset_hash": study.dataset_hash,
@@ -756,10 +760,30 @@ def _shadow_replay_signals(analysis: object) -> tuple[BacktestSignal, ...]:
             if signal is not None:
                 signals.append(signal)
 
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    runner_plan = getattr(portfolio, "runner_plan", None)
+    runner_setup = getattr(runner_plan, "setup", None)
+    if isinstance(runner_setup, DiscoverySetup):
+        signals.append(
+            signal_from_discovery_setup(
+                runner_setup,
+                replay_source="runner_plan",
+            )
+        )
+
     unique: list[BacktestSignal] = []
-    seen: set[tuple[str | None, str]] = set()
+    seen: set[tuple[object, ...]] = set()
     for signal in signals:
-        key = (signal.candidate_id, signal.replay_source)
+        # Strategy aliases often emit the exact same trade.  Shadow evidence is
+        # calibrated per unique time/direction/geometry, not per label.
+        key = (
+            signal.generated_at,
+            signal.direction,
+            "runner" if signal.replay_source == "runner_plan" else "entry",
+            round(signal.entry_price, 10),
+            round(signal.stop_price, 10),
+            round(signal.target_price, 10),
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -912,6 +936,18 @@ def _report_metrics(report: object) -> dict[str, object]:
     return payload
 
 
+def _diagnostic_report_metrics(report: object) -> dict[str, object]:
+    """Return shadow metrics without pretending overlapping signals form a portfolio."""
+
+    payload = _report_metrics(report)
+    payload["maximum_drawdown"] = None
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        metadata["maximum_drawdown_r"] = None
+        metadata["drawdown_evaluable"] = False
+    return payload
+
+
 def _canonical_trade_records(
     trades: object,
     *,
@@ -955,6 +991,12 @@ def _canonical_trade_records(
                 "counterfactual_path_mfe_r": metadata_map.get("counterfactual_path_mfe_r"),
                 "counterfactual_path_mae_r": metadata_map.get("counterfactual_path_mae_r"),
                 "direction_correct_at_horizon": metadata_map.get("direction_correct_at_horizon"),
+                "entry_follow_through": metadata_map.get("entry_follow_through"),
+                "same_candle_stop_target_ambiguous": metadata_map.get(
+                    "same_candle_stop_target_ambiguous"
+                ),
+                "target_touched": metadata_map.get("target_touched"),
+                "net_profitable_target": metadata_map.get("net_profitable_target"),
             }
         )
         records.append(serialized)
@@ -972,6 +1014,8 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
         "activation_expired": 0,
     }
     target_counts = {"tp1_hit_count": 0, "tp2_hit_count": 0, "tp3_hit_count": 0}
+    ambiguity_count = 0
+    profitable_target_count = 0
     for trade in values:
         outcome = getattr(getattr(trade, "outcome", None), "value", None)
         if outcome in outcome_counts:
@@ -989,11 +1033,16 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
         ):
             if target_count >= threshold:
                 target_counts[key] += 1
+        if isinstance(metadata, Mapping):
+            ambiguity_count += metadata.get("same_candle_stop_target_ambiguous") is True
+            profitable_target_count += metadata.get("net_profitable_target") is True
 
     total = len(values)
     return {
         **outcome_counts,
         **target_counts,
+        "net_profitable_target_count": profitable_target_count,
+        "same_candle_stop_target_ambiguity_count": ambiguity_count,
         "stop_rate": outcome_counts["stop"] / total if total else None,
         "missed_entry_rate": outcome_counts["missed_entry"] / total if total else None,
         "expired_rate": outcome_counts["expired"] / total if total else None,
