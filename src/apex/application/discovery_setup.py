@@ -56,6 +56,7 @@ from apex.scoring.quality_shadow_rollout import (
 )
 from apex.scoring.selection import is_entry_status_executable
 from apex.strategies import classify_candidate_actionability
+from apex.strategies.actionability import select_actionable_entry_zone
 from apex.strategies.contracts import (
     EntryMode,
     EntryZone,
@@ -192,15 +193,26 @@ def _missed_setup_htf_valid(candidate: TradeCandidate) -> bool:
 
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     candidate = ranked.candidate
+    entry_status = classify_candidate_actionability(candidate)
+    selected_entry_zone = select_actionable_entry_zone(
+        candidate,
+        status=entry_status,
+    )
     entry_authority = resolve_candidate_entry_authority(
-        candidate.entry,
+        selected_entry_zone,
         candidate.metadata,
     )
-    entry_status = classify_candidate_actionability(candidate)
-    entry = _entry_zone(candidate.entry, candidate.direction)
+    entry = _entry_zone(selected_entry_zone, candidate.direction)
+    ordered_entry_opportunities = (
+        selected_entry_zone,
+        *(
+            opportunity
+            for opportunity in candidate.entry_opportunities
+            if opportunity is not selected_entry_zone
+        ),
+    )
     raw_entry_opportunities = tuple(
-        _entry_zone(opportunity, candidate.direction)
-        for opportunity in candidate.entry_opportunities
+        _entry_zone(opportunity, candidate.direction) for opportunity in ordered_entry_opportunities
     )
     stop = _stop(candidate, preferred_entry=entry_authority.selected_entry)
     runner_qualified, runner_reason = _runner_qualification(candidate)

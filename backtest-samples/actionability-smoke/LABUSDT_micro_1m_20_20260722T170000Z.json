@@ -547,8 +547,8 @@
         "diagnostic_version": 1,
         "entry_status_distribution": {
           "raw": {
-            "CONFIRMATION_AT_CMP": 1,
-            "MISSED_ENTRY": 3
+            "CONFIRMATION_AT_CMP": 3,
+            "MISSED_ENTRY": 1
           },
           "retained": {}
         },
