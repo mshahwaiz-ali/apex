@@ -511,8 +511,16 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 else None
             ),
         }
+        decision_funnel = _decision_funnel_metrics(
+            decision_point_count=decision_points,
+            production_signals=study.generated_signal_count,
+            conditional_signals=conditional_study.generated_signal_count,
+            no_trade_decisions=no_trade_decisions,
+            production_trades=report.trades,
+            conditional_trades=conditional_report.trades,
+        )
         payload = {
-            "schema_version": 4,
+            "schema_version": 5,
             "symbol": normalized_symbol,
             "replay_timeframe": replay_timeframe,
             "replay_candles": replay_candles,
@@ -531,6 +539,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 partition_by_time=partition_by_time,
             ),
             "metrics": _report_metrics(report),
+            "execution_metrics": _execution_metrics(report.trades),
+            "decision_funnel": decision_funnel,
             "outcome_distribution": _outcome_distribution(report.trades),
             "risk_and_excursion": _risk_and_excursion(report.trades),
             "execution_assumptions": {
@@ -552,6 +562,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     partition_by_time=partition_by_time,
                 ),
                 "metrics": _report_metrics(conditional_report),
+                "activation_metrics": _activation_metrics(conditional_report.trades),
+                "execution_metrics": _execution_metrics(conditional_report.trades),
                 "outcome_distribution": _outcome_distribution(conditional_report.trades),
                 "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
                 "calibration_authoritative": False,
@@ -1049,6 +1061,134 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
         "tp1_hit_rate": target_counts["tp1_hit_count"] / total if total else None,
         "tp2_hit_rate": target_counts["tp2_hit_count"] / total if total else None,
         "tp3_hit_rate": target_counts["tp3_hit_count"] / total if total else None,
+    }
+
+
+def _execution_metrics(trades: object) -> dict[str, object]:
+    """Return fill-only performance without counting unfilled plans as trades."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    filled = tuple(
+        trade
+        for trade in values
+        if isinstance(getattr(trade, "metadata", None), Mapping)
+        and trade.metadata.get("entry_filled") is True
+    )
+    report = summarize_trades(filled)
+    metrics = _report_metrics(report)
+    return {
+        "signal_outcome_count": len(values),
+        "filled_trade_count": len(filled),
+        "fill_rate": len(filled) / len(values) if values else None,
+        "win_rate": metrics.get("win_rate"),
+        "loss_rate": metrics.get("loss_rate"),
+        "expectancy": metrics.get("expectancy"),
+        "profit_factor": metrics.get("profit_factor"),
+        "net_profit": metrics.get("net_profit"),
+        "maximum_drawdown": metrics.get("maximum_drawdown"),
+        "average_risk_reward": metrics.get("average_risk_reward"),
+    }
+
+
+def _activation_metrics(trades: object) -> dict[str, object]:
+    """Measure future-plan activation separately from post-fill execution."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    activated = 0
+    filled = 0
+    invalidated = 0
+    expired = 0
+    missed = 0
+    activation_waits: list[float] = []
+    for trade in values:
+        metadata = getattr(trade, "metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
+        activation_outcome = metadata.get("activation_outcome")
+        terminal_state = metadata.get("terminal_state")
+        if activation_outcome == "triggered":
+            activated += 1
+        if metadata.get("entry_filled") is True:
+            filled += 1
+        if terminal_state == "pre_entry_invalidated":
+            invalidated += 1
+        elif terminal_state == "never_activated":
+            expired += 1
+        elif terminal_state == "missed_trigger":
+            missed += 1
+        wait = metadata.get("activation_wait_candles")
+        if isinstance(wait, int | float) and not isinstance(wait, bool):
+            activation_waits.append(float(wait))
+
+    total = len(values)
+    return {
+        "future_setup_count": total,
+        "activation_count": activated,
+        "activation_rate": activated / total if total else None,
+        "fill_count": filled,
+        "fill_rate": filled / total if total else None,
+        "pre_entry_invalidation_count": invalidated,
+        "activation_expiry_count": expired,
+        "missed_trigger_count": missed,
+        "average_activation_wait_candles": (
+            sum(activation_waits) / len(activation_waits) if activation_waits else None
+        ),
+    }
+
+
+def _decision_funnel_metrics(
+    *,
+    decision_point_count: int,
+    production_signals: int,
+    conditional_signals: int,
+    no_trade_decisions: list[dict[str, object]],
+    production_trades: object,
+    conditional_trades: object,
+) -> dict[str, object]:
+    """Describe how chronological decisions move through the setup funnel."""
+
+    production_values = (
+        tuple(production_trades) if isinstance(production_trades, tuple | list) else ()
+    )
+    conditional_values = (
+        tuple(conditional_trades) if isinstance(conditional_trades, tuple | list) else ()
+    )
+    production_fills = sum(
+        isinstance(getattr(trade, "metadata", None), Mapping)
+        and trade.metadata.get("entry_filled") is True
+        for trade in production_values
+    )
+    conditional_fills = sum(
+        isinstance(getattr(trade, "metadata", None), Mapping)
+        and trade.metadata.get("entry_filled") is True
+        for trade in conditional_values
+    )
+    true_no_setup = 0
+    for decision in no_trade_decisions:
+        reasons = decision.get("reasons")
+        reason_values = reasons if isinstance(reasons, list | tuple) else ()
+        if "canonical_opportunity_pending_activation" not in reason_values:
+            true_no_setup += 1
+    return {
+        "decision_point_count": decision_point_count,
+        "immediate_setup_count": production_signals,
+        "future_setup_count": conditional_signals,
+        "setup_found_count": production_signals + conditional_signals,
+        "true_no_setup_count": true_no_setup,
+        "immediate_setup_rate": (
+            production_signals / decision_point_count if decision_point_count else None
+        ),
+        "future_setup_rate": (
+            conditional_signals / decision_point_count if decision_point_count else None
+        ),
+        "setup_coverage_rate": (
+            (production_signals + conditional_signals) / decision_point_count
+            if decision_point_count
+            else None
+        ),
+        "immediate_fill_count": production_fills,
+        "future_fill_count": conditional_fills,
+        "total_fill_count": production_fills + conditional_fills,
     }
 
 

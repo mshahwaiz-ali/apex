@@ -18,6 +18,8 @@ def render_backtest(payload: Mapping[str, object]) -> str:
     """Render a single-symbol chronological replay report."""
 
     metrics = _mapping(payload.get("metrics"))
+    execution_metrics = _mapping(payload.get("execution_metrics"))
+    decision_funnel = _mapping(payload.get("decision_funnel"))
     promotion = _mapping(payload.get("promotion_statistics"))
     study = _mapping(payload.get("study"))
     outcomes = _mapping(payload.get("outcome_distribution"))
@@ -27,7 +29,8 @@ def render_backtest(payload: Mapping[str, object]) -> str:
     trade_records = _sequence(payload.get("trades"))
     no_trade_records = _sequence(payload.get("no_trade_decisions"))
     conditional = _mapping(payload.get("conditional_replay"))
-    conditional_metrics = _mapping(conditional.get("metrics"))
+    conditional_activation = _mapping(conditional.get("activation_metrics"))
+    conditional_execution = _mapping(conditional.get("execution_metrics"))
     conditional_outcomes = _mapping(conditional.get("outcome_distribution"))
     shadow = _mapping(payload.get("shadow_replay"))
     shadow_metrics = _mapping(shadow.get("metrics"))
@@ -72,7 +75,47 @@ def render_backtest(payload: Mapping[str, object]) -> str:
             ),
         ),
         render_section(
-            "Performance after modeled costs",
+            "Decision funnel",
+            render_fields(
+                (
+                    ("Decision points", decision_funnel.get("decision_point_count")),
+                    ("Immediate setups", decision_funnel.get("immediate_setup_count")),
+                    ("Future setups", decision_funnel.get("future_setup_count")),
+                    ("True no-setup decisions", decision_funnel.get("true_no_setup_count")),
+                    (
+                        "Setup coverage",
+                        format_percentage(
+                            decision_funnel.get("setup_coverage_rate"),
+                            ratio=True,
+                        ),
+                    ),
+                    ("Immediate fills", decision_funnel.get("immediate_fill_count")),
+                    ("Future fills", decision_funnel.get("future_fill_count")),
+                )
+            ),
+        ),
+        render_section(
+            "Executed-trade performance",
+            render_fields(
+                (
+                    ("Filled trades", execution_metrics.get("filled_trade_count")),
+                    (
+                        "Fill rate",
+                        format_percentage(execution_metrics.get("fill_rate"), ratio=True),
+                    ),
+                    (
+                        "Win rate",
+                        format_percentage(execution_metrics.get("win_rate"), ratio=True),
+                    ),
+                    ("Expectancy", _r(_number(execution_metrics.get("expectancy")))),
+                    ("Net P&L", _signed(execution_metrics.get("net_profit"))),
+                    ("Profit factor", format_ratio(execution_metrics.get("profit_factor"))),
+                    ("Maximum drawdown", _signed(execution_metrics.get("maximum_drawdown"))),
+                )
+            ),
+        ),
+        render_section(
+            "Performance after modeled costs — all production signal outcomes",
             render_fields(
                 (
                     ("Win rate", format_percentage(metrics.get("win_rate"), ratio=True)),
@@ -124,18 +167,43 @@ def render_backtest(payload: Mapping[str, object]) -> str:
             "Conditional replay (diagnostic only)",
             render_fields(
                 (
-                    ("Pending signals", conditional.get("signal_count")),
-                    ("Resolved outcomes", conditional_metrics.get("total_trades")),
+                    ("Future setups", conditional_activation.get("future_setup_count")),
+                    ("Activated", conditional_activation.get("activation_count")),
+                    (
+                        "Activation rate",
+                        format_percentage(
+                            conditional_activation.get("activation_rate"),
+                            ratio=True,
+                        ),
+                    ),
+                    ("Filled", conditional_activation.get("fill_count")),
+                    (
+                        "Fill rate",
+                        format_percentage(
+                            conditional_activation.get("fill_rate"),
+                            ratio=True,
+                        ),
+                    ),
+                    (
+                        "Average activation wait",
+                        conditional_activation.get("average_activation_wait_candles"),
+                    ),
                     ("Targets", conditional_outcomes.get("target")),
                     ("Stops", conditional_outcomes.get("stop")),
                     ("Pre-entry invalidations", conditional_outcomes.get("pre_entry_invalidated")),
                     ("Activation expiries", conditional_outcomes.get("activation_expired")),
                     ("Missed entries", conditional_outcomes.get("missed_entry")),
                     (
-                        "Win rate",
-                        format_percentage(conditional_metrics.get("win_rate"), ratio=True),
+                        "Executed win rate",
+                        format_percentage(
+                            conditional_execution.get("win_rate"),
+                            ratio=True,
+                        ),
                     ),
-                    ("Expectancy", _r(_number(conditional_metrics.get("expectancy")))),
+                    (
+                        "Executed expectancy",
+                        _r(_number(conditional_execution.get("expectancy"))),
+                    ),
                 )
             ),
         ),
