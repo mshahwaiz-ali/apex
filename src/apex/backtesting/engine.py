@@ -83,6 +83,10 @@ def simulate_trade(
     exit_fee_notional = 0.0
     maximum_favorable_excursion_r = 0.0
     maximum_adverse_excursion_r = 0.0
+    first_stop_touch_candle: int | None = None
+    first_stop_touch_time: str | None = None
+    first_tp1_touch_candle: int | None = None
+    first_tp1_touch_time: str | None = None
     for index, candle in enumerate(candles[:max_candles], start=1):
         if not activated:
             if _pre_entry_invalidated(signal, candle):
@@ -158,11 +162,27 @@ def simulate_trade(
         )
         stop_hit = _stop_hit(signal, candle, stop)
         hit_targets = _hit_target_indexes(signal, candle, targets, start=next_target_index)
+        if stop_hit and first_stop_touch_candle is None:
+            first_stop_touch_candle = index
+            first_stop_touch_time = candle.close_time.isoformat()
+        if hit_targets and first_tp1_touch_candle is None:
+            first_tp1_touch_candle = index
+            first_tp1_touch_time = candle.close_time.isoformat()
+        runtime_metadata = {
+            **runtime_metadata,
+            "pre_exit_mfe_r": maximum_favorable_excursion_r,
+            "pre_exit_mae_r": maximum_adverse_excursion_r,
+            "first_stop_touch_candle": first_stop_touch_candle or 0,
+            "first_stop_touch_time": first_stop_touch_time or "",
+            "first_tp1_touch_candle": first_tp1_touch_candle or 0,
+            "first_tp1_touch_time": first_tp1_touch_time or "",
+        }
         if stop_hit and hit_targets and config.conservative_intrabar:
             runtime_metadata = {
                 **runtime_metadata,
                 "same_candle_stop_target_ambiguous": True,
                 "target_touched": True,
+                "first_exit_event": "same_candle_ambiguous_stop_first",
             }
             return _trade_from_components(
                 signal,
@@ -208,7 +228,10 @@ def simulate_trade(
                     gross,
                     exit_fee_notional,
                     config,
-                    metadata=runtime_metadata,
+                    metadata={
+                        **runtime_metadata,
+                        "first_exit_event": "target",
+                    },
                     partial_target_count=next_target_index,
                 )
 
@@ -230,7 +253,10 @@ def simulate_trade(
                 ),
                 exit_fee_notional + stop_exit * remaining_quantity,
                 config,
-                metadata=runtime_metadata,
+                metadata={
+                    **runtime_metadata,
+                    "first_exit_event": "stop",
+                },
                 partial_target_count=next_target_index,
             )
 
@@ -263,11 +289,20 @@ def simulate_trade(
         ),
         exit_fee_notional + final_exit * remaining_quantity,
         config,
-        metadata=_excursion_metadata(
-            metadata,
-            maximum_favorable_excursion_r,
-            maximum_adverse_excursion_r,
-        ),
+        metadata={
+            **_excursion_metadata(
+                metadata,
+                maximum_favorable_excursion_r,
+                maximum_adverse_excursion_r,
+            ),
+            "pre_exit_mfe_r": maximum_favorable_excursion_r,
+            "pre_exit_mae_r": maximum_adverse_excursion_r,
+            "first_stop_touch_candle": first_stop_touch_candle or 0,
+            "first_stop_touch_time": first_stop_touch_time or "",
+            "first_tp1_touch_candle": first_tp1_touch_candle or 0,
+            "first_tp1_touch_time": first_tp1_touch_time or "",
+            "first_exit_event": "expired",
+        },
         partial_target_count=next_target_index,
     )
 

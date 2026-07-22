@@ -944,30 +944,11 @@ def _ranking_diagnostics(
     }
 
 
-def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object]:
-    diagnostics = audit.get("diagnostics")
-    diagnostic_values = diagnostics if isinstance(diagnostics, Mapping) else {}
-    state = audit.get("state")
-    missing = audit.get("missing_measurements")
-    rejection_codes = audit.get("rejection_codes")
-    reasons = audit.get("reasons")
-
+def _geometry_audit_diagnostics(item: Mapping[str, object]) -> dict[str, object]:
     return {
-        "diagnostic_schema_version": 2,
-        "geometry_audit": _jsonable(diagnostic_values),
-        "geometry_available": bool(audit.get("available")),
-        "geometry_complete": bool(audit.get("available")) and not bool(missing),
-        "geometry_state": state,
-        "geometry_passed": state == "pass",
-        "geometry_lane": audit.get("lane"),
-        "geometry_rejection_codes": (
-            list(rejection_codes) if isinstance(rejection_codes, (list, tuple)) else []
-        ),
-        "geometry_reasons": list(reasons) if isinstance(reasons, (list, tuple)) else [],
-        "geometry_missing_measurements": (
-            list(missing) if isinstance(missing, (list, tuple)) else []
-        ),
-        "confirmation": _confirmation_diagnostics(diagnostic_values),
+        "diagnostic_schema_version": 1,
+        "geometry_audit": _jsonable(item),
+        "confirmation": _confirmation_diagnostics(item),
     }
 
 
@@ -1034,17 +1015,12 @@ def _candidate_diagnostics(analysis: object) -> list[dict[str, object]]:
             audit_diagnostics = audit.get("diagnostics")
             if not isinstance(audit_diagnostics, Mapping):
                 continue
-            item = _geometry_audit_diagnostics(audit)
+            item = _geometry_audit_diagnostics(audit_diagnostics)
             candidate_id = audit.get("candidate_id")
             if isinstance(candidate_id, str):
                 item["candidate_id"] = candidate_id
-                candidate_parts = candidate_id.split(":")
-                if candidate_parts:
-                    item["strategy"] = candidate_parts[0]
-                if len(candidate_parts) >= 2 and candidate_parts[1] in {"long", "short"}:
-                    item["direction"] = candidate_parts[1]
             item["ranking_role"] = "geometry_rejected"
-            item["replay_source"] = "geometry_rejected"
+            item["geometry_complete"] = False
             diagnostics.append(item)
 
     unique: list[dict[str, object]] = []

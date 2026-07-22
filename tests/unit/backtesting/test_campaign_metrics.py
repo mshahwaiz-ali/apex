@@ -234,6 +234,55 @@ def test_same_candle_stop_target_is_explicit_and_target_touch_is_not_a_win() -> 
     assert report.metadata["net_profitable_target_count"] == 0
 
 
+def test_first_touch_metadata_is_preserved_for_target_before_stop() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=99.0, high=104.5, close=104.0),
+            _candle(2, low=97.5, high=101.0, close=98.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.TARGET
+    assert trade.metadata["first_exit_event"] == "target"
+    assert trade.metadata["first_tp1_touch_candle"] == 1
+    assert trade.metadata["first_stop_touch_candle"] == 0
+    assert trade.metadata["pre_exit_mfe_r"] == pytest.approx(2.25)
+    assert trade.metadata["pre_exit_mae_r"] == pytest.approx(0.5)
+
+
+def test_first_touch_metadata_is_preserved_for_stop_before_later_recovery() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=99.0, high=106.0, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.metadata["first_exit_event"] == "stop"
+    assert trade.metadata["first_stop_touch_candle"] == 1
+    assert trade.metadata["first_tp1_touch_candle"] == 0
+    assert trade.metadata["pre_exit_mfe_r"] == pytest.approx(0.5)
+    assert trade.metadata["counterfactual_path_mfe_r"] == pytest.approx(3.0)
+
+
+def test_same_candle_ambiguity_records_first_touch_fields() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (_candle(1, low=97.5, high=104.5, close=101.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["first_exit_event"] == "same_candle_ambiguous_stop_first"
+    assert trade.metadata["first_stop_touch_candle"] == 1
+    assert trade.metadata["first_tp1_touch_candle"] == 1
+    assert trade.metadata["same_candle_stop_target_ambiguous"] is True
+
+
 def test_shadow_metrics_do_not_publish_overlapping_candidate_drawdown() -> None:
     report = summarize_trades(
         (
