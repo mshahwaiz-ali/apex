@@ -1316,8 +1316,9 @@ def _entry_quality(status: EntryStatus) -> float:
         EntryStatus.READY_NOW: 0.9,
         EntryStatus.AGGRESSIVE_NOW: 0.75,
         EntryStatus.PULLBACK_PREFERRED: 0.7,
+        EntryStatus.CONFIRMATION_AT_CMP: 0.65,
         EntryStatus.WATCH_NEAR_ENTRY: 0.55,
-        EntryStatus.LATE_OR_CHASING: 0.25,
+        EntryStatus.MISSED_ENTRY: 0.25,
         EntryStatus.INVALIDATED: 0.05,
     }[status]
 
