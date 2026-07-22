@@ -121,6 +121,17 @@ def test_repeated_context_construction_is_deterministic() -> None:
     assert first == second
 
 
+def test_feature_snapshot_accepts_unbounded_volatility_expansion_ratio() -> None:
+    features = FeatureSnapshot(atr=2.0, volatility_expansion=1.8)
+
+    assert features.volatility_expansion == 1.8
+
+
+def test_feature_snapshot_rejects_negative_volatility_expansion_ratio() -> None:
+    with pytest.raises(ValueError, match="volatility expansion cannot be negative"):
+        FeatureSnapshot(atr=2.0, volatility_expansion=-0.1)
+
+
 def test_frame_rejects_invalid_price_metadata() -> None:
     with pytest.raises(ValueError, match="analysis price"):
         TimeframeContext(

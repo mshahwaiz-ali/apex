@@ -93,12 +93,14 @@ class FeatureSnapshot:
             value = getattr(self, name)
             if value is not None and not 0 <= value <= 100:
                 raise ValueError(f"{name.replace('_', ' ')} must be between zero and 100")
-        for name in ("trend_strength", "range_position", "volatility_expansion"):
+        for name in ("trend_strength", "range_position"):
             value = getattr(self, name)
             if value is not None and not 0 <= value <= 1:
                 raise ValueError(f"{name.replace('_', ' ')} must be between zero and one")
         if self.relative_volume is not None and self.relative_volume < 0:
             raise ValueError("relative volume cannot be negative")
+        if self.volatility_expansion is not None and self.volatility_expansion < 0:
+            raise ValueError("volatility expansion cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)

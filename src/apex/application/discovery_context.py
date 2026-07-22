@@ -159,13 +159,13 @@ def _frame_from_candles(
         "recent_range_position_20",
     )
     features_by_name = {name: registry.calculate(name, candles) for name in required_groups}
+    closed_candles = tuple(candles[:-1] if not candles[-1].is_closed else candles)
     relative_volume = features_by_name["relative_volume_20"][0].values
-    relative_volume_for_market_analysis = (
-        relative_volume if len(relative_volume) == len(candles) else None
-    )
+    if len(relative_volume) != len(closed_candles):
+        raise ValueError("relative-volume output must align with closed candles")
     market_analysis = analyze_structure_and_liquidity(
-        candles,
-        relative_volume=relative_volume_for_market_analysis,
+        closed_candles,
+        relative_volume=relative_volume,
     )
     latest_closed = candles[-2] if not candles[-1].is_closed and len(candles) > 1 else candles[-1]
     active_candle_price = candles[-1].close if not candles[-1].is_closed else None
@@ -193,7 +193,9 @@ def _frame_from_candles(
         relative_volume=_latest(features_by_name["relative_volume_20"][0]),
         trend_strength=market_analysis.structure.trend.strength,
         range_position=_unit_or_none(_latest(features_by_name["recent_range_position_20"][0])),
-        volatility_expansion=_unit_or_none(_latest(features_by_name["candle_range_ratio_20"][0])),
+        volatility_expansion=_non_negative_or_none(
+            _latest(features_by_name["candle_range_ratio_20"][0])
+        ),
     )
     return (
         TimeframeContext(
@@ -255,6 +257,12 @@ def _unit_or_none(value: float | None) -> float | None:
     if value is None:
         return None
     return max(0.0, min(1.0, value))
+
+
+def _non_negative_or_none(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return max(0.0, value)
 
 
 def _fetch_ticker_snapshot(
