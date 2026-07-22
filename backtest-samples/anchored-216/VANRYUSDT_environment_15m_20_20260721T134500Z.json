@@ -1,0 +1,1404 @@
+{
+  "as_of": "2026-07-21T13:45:00+00:00",
+  "calibration_authoritative": false,
+  "calibration_records": [
+    {
+      "actionability_state": null,
+      "canonical_portfolio": true,
+      "continuation_state": null,
+      "decision_time": "2026-07-20T22:44:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "all 4 generated candidates were rejected by geometry safety"
+      ],
+      "opportunity_id": null,
+      "partition": "training",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "VANRY/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {
+            "CONFIRMATION_AT_CMP": 4
+          },
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "all 4 generated candidates were rejected by geometry safety",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 4,
+          "methodology_lineage_balanced": false,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 4,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 1,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "no_strategy_trigger": 8
+        },
+        "top_rejected_reasons": [
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 0.6523 is below 1.2500 required for nearby_structured"
+          },
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 0.6523 is below 1.2000 required for pullback_scalp"
+          }
+        ]
+      }
+    },
+    {
+      "actionability_state": null,
+      "canonical_portfolio": true,
+      "continuation_state": null,
+      "decision_time": "2026-07-21T03:44:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "all 4 generated candidates were rejected by geometry safety"
+      ],
+      "opportunity_id": null,
+      "partition": "validation",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "VANRY/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {
+            "MISSED_ENTRY": 4
+          },
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "all 4 generated candidates were rejected by geometry safety",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 4,
+          "methodology_lineage_balanced": false,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 4,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 1,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "no_strategy_trigger": 8
+        },
+        "top_rejected_reasons": [
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 0.6736 is below 1.2000 required for pullback_scalp"
+          }
+        ]
+      }
+    },
+    {
+      "actionability_state": null,
+      "canonical_portfolio": true,
+      "continuation_state": null,
+      "decision_time": "2026-07-21T08:44:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "all 2 generated candidates were rejected by geometry safety"
+      ],
+      "opportunity_id": null,
+      "partition": "final_test",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "VANRY/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {
+            "MISSED_ENTRY": 2
+          },
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "all 2 generated candidates were rejected by geometry safety",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 2,
+          "methodology_lineage_balanced": false,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 2,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 1,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 1,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "no_strategy_trigger": 10
+        },
+        "top_rejected_reasons": [
+          {
+            "count": 1,
+            "reason": "TP1 distance 2.5310 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          }
+        ]
+      }
+    }
+  ],
+  "conditional_replay": {
+    "calibration_authoritative": false,
+    "metrics": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "methodology_version": "trade-plan-v1",
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "outcome_distribution": {
+      "activation_expired": 0,
+      "expired": 0,
+      "expired_rate": null,
+      "missed_entry": 0,
+      "missed_entry_rate": null,
+      "net_profitable_target_count": 0,
+      "pre_entry_invalidated": 0,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "stop": 0,
+      "stop_rate": null,
+      "target": 0,
+      "tp1_hit_count": 0,
+      "tp1_hit_rate": null,
+      "tp2_hit_count": 0,
+      "tp2_hit_rate": null,
+      "tp3_hit_count": 0,
+      "tp3_hit_rate": null
+    },
+    "risk_and_excursion": {
+      "average_counterfactual_path_mae_r": null,
+      "average_counterfactual_path_mfe_r": null,
+      "average_mae_r": null,
+      "average_mfe_r": null,
+      "best_mfe_r": null,
+      "worst_mae_r": null
+    },
+    "signal_count": 0,
+    "trades": []
+  },
+  "decision_partitions": [
+    {
+      "decision_time": "2026-07-20T22:44:59.999000+00:00",
+      "partition": "training"
+    },
+    {
+      "decision_time": "2026-07-21T03:44:59.999000+00:00",
+      "partition": "validation"
+    },
+    {
+      "decision_time": "2026-07-21T08:44:59.999000+00:00",
+      "partition": "final_test"
+    }
+  ],
+  "decision_point_count": 3,
+  "decision_times": [
+    "2026-07-20T22:44:59.999000+00:00",
+    "2026-07-21T03:44:59.999000+00:00",
+    "2026-07-21T08:44:59.999000+00:00"
+  ],
+  "execution_assumptions": {
+    "conservative_intrabar": true,
+    "fee_pct": 0.04,
+    "funding_pct": 0.0,
+    "maximum_holding_candles": 20,
+    "methodology_gate_mode": "enforce",
+    "slippage_pct": 0.02
+  },
+  "generated_signal_count": 0,
+  "methodology_segment_metrics": {
+    "continuation_state": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "direction": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "execution_state": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "lane": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "strategy": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "timeframe_relationship": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ]
+  },
+  "metrics": {
+    "average_loss": null,
+    "average_risk_reward": null,
+    "average_win": null,
+    "breakeven_rate": null,
+    "by_strategy": {},
+    "by_symbol": {},
+    "consecutive_losses": 0,
+    "consecutive_wins": 0,
+    "expectancy": null,
+    "gross_loss": 0,
+    "gross_profit": 0,
+    "loss_rate": null,
+    "maximum_drawdown": null,
+    "metadata": {
+      "average_mae_r": null,
+      "average_mfe_r": null,
+      "entry_fill_count": 0,
+      "entry_fill_rate": null,
+      "maximum_drawdown_r": 0.0,
+      "methodology_version": "trade-plan-v1",
+      "net_profitable_target_count": 0,
+      "r_expectancy": 0.0,
+      "r_profit_factor": null,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "total_expired": 0,
+      "total_missed_entries": 0,
+      "total_stop_outs": 0,
+      "total_targets": 0,
+      "tp1_touch_count": 0
+    },
+    "net_profit": 0,
+    "profit_factor": null,
+    "total_trades": 0,
+    "trades": [],
+    "win_rate": null
+  },
+  "metrics_by_partition": {
+    "final_test": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "training": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "validation": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    }
+  },
+  "no_trade_decision_count": 3,
+  "no_trade_decisions": [
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-20T22:44:59.999000+00:00",
+      "partition": "training",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "all 4 generated candidates were rejected by geometry safety"
+      ]
+    },
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-21T03:44:59.999000+00:00",
+      "partition": "validation",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "all 4 generated candidates were rejected by geometry safety"
+      ]
+    },
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-21T08:44:59.999000+00:00",
+      "partition": "final_test",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "all 2 generated candidates were rejected by geometry safety"
+      ]
+    }
+  ],
+  "outcome_distribution": {
+    "activation_expired": 0,
+    "expired": 0,
+    "expired_rate": null,
+    "missed_entry": 0,
+    "missed_entry_rate": null,
+    "net_profitable_target_count": 0,
+    "pre_entry_invalidated": 0,
+    "same_candle_stop_target_ambiguity_count": 0,
+    "stop": 0,
+    "stop_rate": null,
+    "target": 0,
+    "tp1_hit_count": 0,
+    "tp1_hit_rate": null,
+    "tp2_hit_count": 0,
+    "tp2_hit_rate": null,
+    "tp3_hit_count": 0,
+    "tp3_hit_rate": null
+  },
+  "promotion_statistics": {
+    "deflated_sharpe_probability": null,
+    "probability_backtest_overfitting": null
+  },
+  "replay_candles": 20,
+  "replay_timeframe": "15m",
+  "risk_and_excursion": {
+    "average_counterfactual_path_mae_r": null,
+    "average_counterfactual_path_mfe_r": null,
+    "average_mae_r": null,
+    "average_mfe_r": null,
+    "best_mfe_r": null,
+    "worst_mae_r": null
+  },
+  "schema_version": 4,
+  "shadow_replay": {
+    "calibration_authoritative": false,
+    "direction_accuracy": {
+      "accuracy": 1.0,
+      "correct_count": 3,
+      "evaluable_count": 3,
+      "incorrect_count": 0
+    },
+    "metrics": {
+      "average_loss": -2.003913184861921e-05,
+      "average_risk_reward": -0.9575581535332919,
+      "average_win": 0.0,
+      "breakeven_rate": 0.3333333333333333,
+      "by_strategy": {
+        "breakout_retest": 3
+      },
+      "by_symbol": {
+        "VANRY/USDT": 3
+      },
+      "consecutive_losses": 2,
+      "consecutive_wins": 0,
+      "expectancy": -1.3359421232412807e-05,
+      "gross_loss": 4.007826369723842e-05,
+      "gross_profit": 0,
+      "loss_rate": 0.6666666666666666,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": 1.6687227477523603,
+        "average_mfe_r": 1.1338864736534278,
+        "drawdown_evaluable": false,
+        "entry_fill_count": 2,
+        "entry_fill_rate": 0.6666666666666666,
+        "maximum_drawdown_r": null,
+        "methodology_version": "trade-plan-v1",
+        "net_profitable_target_count": 0,
+        "r_expectancy": -0.9575581535332919,
+        "r_profit_factor": 0.0,
+        "same_candle_stop_target_ambiguity_count": 1,
+        "total_expired": 0,
+        "total_missed_entries": 1,
+        "total_stop_outs": 2,
+        "total_targets": 0,
+        "tp1_touch_count": 1
+      },
+      "net_profit": -4.007826369723842e-05,
+      "profit_factor": 0.0,
+      "total_trades": 3,
+      "trades": [],
+      "win_rate": 0.0
+    },
+    "outcome_distribution": {
+      "activation_expired": 0,
+      "expired": 0,
+      "expired_rate": 0.0,
+      "missed_entry": 1,
+      "missed_entry_rate": 0.3333333333333333,
+      "net_profitable_target_count": 0,
+      "pre_entry_invalidated": 0,
+      "same_candle_stop_target_ambiguity_count": 1,
+      "stop": 2,
+      "stop_rate": 0.6666666666666666,
+      "target": 0,
+      "tp1_hit_count": 0,
+      "tp1_hit_rate": 0.0,
+      "tp2_hit_count": 0,
+      "tp2_hit_rate": 0.0,
+      "tp3_hit_count": 0,
+      "tp3_hit_rate": 0.0
+    },
+    "portfolio_drawdown_valid": false,
+    "risk_and_excursion": {
+      "average_counterfactual_path_mae_r": 4.194469432786107,
+      "average_counterfactual_path_mfe_r": 10.805406172571786,
+      "average_mae_r": 1.6687227477523603,
+      "average_mfe_r": 1.1338864736534278,
+      "best_mfe_r": 2.2832876642304396,
+      "worst_mae_r": 2.9309257998960097
+    },
+    "signal_count": 3,
+    "source_distribution": {
+      "geometry_rejected": 3
+    },
+    "trades": [
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 9.538183352401072,
+        "counterfactual_path_mfe_r": 5.029223949447835,
+        "decision_time": "2026-07-20T22:44:59.999000+00:00",
+        "direction_correct_at_horizon": true,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.004974527300927681,
+        "exit_time": "2026-07-20T23:14:59.999000+00:00",
+        "fees": 3.974213960371072e-06,
+        "gross_pnl": -1.3519700927680511e-05,
+        "holding_candles": 2,
+        "maximum_adverse_excursion_r": 2.075242443361071,
+        "maximum_favorable_excursion_r": 1.1183717567298435,
+        "metadata": {
+          "actual_fees": 3.974213960371072e-06,
+          "actual_funding": 0.0,
+          "actual_net_loss": 1.7493914888051585e-05,
+          "actual_simulated_fill_loss": 1.3519700927680511e-05,
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 1.1532594408798953e-05,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 9.538183352401072,
+          "counterfactual_path_mfe_r": 5.029223949447835,
+          "direction_correct_at_horizon": true,
+          "entry_fee": 1.98440304e-06,
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "expected_r": -1.5169106159412282,
+          "expected_total_loss_at_stop": 1.7493914888051585e-05,
+          "gross_stop_loss_at_planned_stop": 1.1532594408798953e-05,
+          "maximum_adverse_excursion_r": 2.075242443361071,
+          "maximum_favorable_excursion_r": 1.1183717567298435,
+          "modeled_entry_fill_price": 0.0049610076,
+          "modeled_slippage_loss": 1.987106518881558e-06,
+          "modeled_stop_fill_price": 0.004974527300927681,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.004962,
+          "planned_stop_exit_fee": 1.9898109203710722e-06,
+          "planned_stop_price": 0.004973532594408799,
+          "realized_r": -1.5169106159412282,
+          "same_candle_stop_target_ambiguous": false,
+          "target_touched": false
+        },
+        "net_pnl": -1.7493914888051585e-05,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:short:0",
+        "outcome": "stop",
+        "partition": "training",
+        "realized_r_multiple": -1.5169106159412282,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": false,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:short:0",
+          "confidence_score": 0.0,
+          "direction": "short",
+          "entry_price": 0.004962,
+          "generated_at": "2026-07-20T22:44:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 1.1532594408798953e-05,
+          "stop_price": 0.004973532594408799,
+          "strategy": "breakout_retest",
+          "symbol": "VANRY/USDT",
+          "target_price": 0.004943,
+          "target_prices": [
+            0.004943
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "trade_number": 1
+      },
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 3.0452249459572505,
+        "counterfactual_path_mfe_r": 10.761933582547455,
+        "decision_time": "2026-07-21T03:44:59.999000+00:00",
+        "direction_correct_at_horizon": true,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.004947919976644822,
+        "exit_time": "2026-07-21T03:59:59.999000+00:00",
+        "fees": 3.950882594830114e-06,
+        "gross_pnl": -1.863346621435672e-05,
+        "holding_candles": 1,
+        "maximum_adverse_excursion_r": 2.9309257998960097,
+        "maximum_favorable_excursion_r": 2.2832876642304396,
+        "metadata": {
+          "actual_fees": 3.950882594830114e-06,
+          "actual_funding": 0.0,
+          "actual_net_loss": 2.2584348809186835e-05,
+          "actual_simulated_fill_loss": 1.863346621435672e-05,
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 1.6658025583263063e-05,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 3.0452249459572505,
+          "counterfactual_path_mfe_r": 10.761933582547455,
+          "direction_correct_at_horizon": true,
+          "entry_fee": 1.971714604172186e-06,
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "expected_r": -1.3557638446586475,
+          "expected_total_loss_at_stop": 2.258434880918684e-05,
+          "gross_stop_loss_at_planned_stop": 1.6658025583263063e-05,
+          "maximum_adverse_excursion_r": 2.9309257998960097,
+          "maximum_favorable_excursion_r": 2.2832876642304396,
+          "modeled_entry_fill_price": 0.004929286510430465,
+          "modeled_slippage_loss": 1.9754406310936584e-06,
+          "modeled_stop_fill_price": 0.004947919976644822,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.004930272564943453,
+          "planned_stop_exit_fee": 1.9791679906579288e-06,
+          "planned_stop_price": 0.0049469305905267165,
+          "realized_r": -1.3557638446586473,
+          "same_candle_stop_target_ambiguous": true,
+          "target_touched": true
+        },
+        "net_pnl": -2.2584348809186835e-05,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:short:0",
+        "outcome": "stop",
+        "partition": "validation",
+        "realized_r_multiple": -1.3557638446586473,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": true,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:short:0",
+          "confidence_score": 0.0,
+          "direction": "short",
+          "entry_price": 0.004930272564943453,
+          "generated_at": "2026-07-21T03:44:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 1.6658025583263063e-05,
+          "stop_price": 0.0049469305905267165,
+          "strategy": "breakout_retest",
+          "symbol": "VANRY/USDT",
+          "target_price": 0.0049075,
+          "target_prices": [
+            0.0049075
+          ]
+        },
+        "target_touched": true,
+        "targets_hit": 0,
+        "trade_number": 2
+      },
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 0.0,
+        "counterfactual_path_mfe_r": 16.62506098572007,
+        "decision_time": "2026-07-21T08:44:59.999000+00:00",
+        "direction_correct_at_horizon": true,
+        "entry_follow_through": "entry_zone_not_revisited",
+        "exit_price": 0.004605,
+        "exit_time": "2026-07-21T13:44:59.999000+00:00",
+        "fees": 0.0,
+        "gross_pnl": 0.0,
+        "holding_candles": 20,
+        "maximum_adverse_excursion_r": 0.0,
+        "maximum_favorable_excursion_r": 0.0,
+        "metadata": {
+          "activation_outcome": "entry_not_touched_after_activation",
+          "closed_percentage": 0.0,
+          "counterfactual_path_mae_r": 0.0,
+          "counterfactual_path_mfe_r": 16.62506098572007,
+          "direction_correct_at_horizon": true,
+          "entry_filled": false,
+          "entry_follow_through": "entry_zone_not_revisited",
+          "maximum_adverse_excursion_r": 0.0,
+          "maximum_favorable_excursion_r": 0.0,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "target_touched": false
+        },
+        "net_pnl": 0.0,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:short:0",
+        "outcome": "missed_entry",
+        "partition": "final_test",
+        "realized_r_multiple": 0.0,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": null,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:short:0",
+          "confidence_score": 0.0,
+          "direction": "short",
+          "entry_price": 0.0048730064968732925,
+          "generated_at": "2026-07-21T08:44:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 1.8947689704348382e-05,
+          "stop_price": 0.004891954186577641,
+          "strategy": "breakout_retest",
+          "symbol": "VANRY/USDT",
+          "target_price": 0.004785,
+          "target_prices": [
+            0.004785
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "trade_number": 3
+      }
+    ]
+  },
+  "study": {
+    "code_hash": "023d144a452ffbedb43e8fdbbc79cdef4eb937e4993700b44028ce8e573f3986",
+    "config_hash": "d4a8f752b9930e73a643a9e1e0d42a4def8b83041270696479e4bf26d9df041b",
+    "dataset_hash": "ffa4595e39a4cb562e5adb3950708ae594b44e889ce9e11ce24d1d02ae5c199e",
+    "skipped_signal_count": 0
+  },
+  "symbol": "VANRY/USDT",
+  "trades": []
+}
