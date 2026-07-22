@@ -214,6 +214,15 @@ def candidate_geometry_safety_audit_payload(
             "tp1_price": item.tp1_price,
             "gross_tp1_reward_to_risk": item.gross_tp1_reward_to_risk,
             "net_tp1_reward_to_risk": item.net_tp1_reward_to_risk,
+            "gross_reward_distance": item.gross_reward_distance,
+            "net_reward_distance": item.net_reward_distance,
+            "gross_risk_distance": item.gross_risk_distance,
+            "net_risk_distance": item.net_risk_distance,
+            "cost_distance": item.cost_distance,
+            "stop_to_cost_ratio": item.stop_to_cost_ratio,
+            "target_to_cost_ratio": item.target_to_cost_ratio,
+            "cost_drag_on_reward_pct": item.cost_drag_on_reward_pct,
+            "cost_drag_on_gross_rr_pct": item.cost_drag_on_gross_rr_pct,
             "required_tp1_reward_to_risk": item.required_tp1_reward_to_risk,
             "target_quality": item.target_quality,
             "minimum_target_quality": item.minimum_target_quality,
@@ -257,6 +266,7 @@ def candidate_geometry_safety_audit_payload(
         "legacy_maximum_tp1_distance_atr": legacy_maximum_tp1_distance_atr,
         "measured_maximum_tp1_distance_atr": measured_maximum_tp1_distance_atr,
         "measured_geometry_reasons": ([] if measured is None else list(measured.reasons)),
+        "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
         "shadow_only": True,
     }
 

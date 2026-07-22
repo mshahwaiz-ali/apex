@@ -101,6 +101,15 @@ class GeometrySafetyDiagnostics:
     tp1_price: float
     gross_tp1_reward_to_risk: float
     net_tp1_reward_to_risk: float | None
+    gross_reward_distance: float
+    net_reward_distance: float | None
+    gross_risk_distance: float
+    net_risk_distance: float | None
+    cost_distance: float | None
+    stop_to_cost_ratio: float | None
+    target_to_cost_ratio: float | None
+    cost_drag_on_reward_pct: float | None
+    cost_drag_on_gross_rr_pct: float | None
     target_distance_pct: float
     expected_cost_pct: float | None
     target_quality: float
@@ -168,12 +177,26 @@ def evaluate_geometry_safety(
     stop_distance_atr = None if decision_atr is None else stop_distance / decision_atr
     tp1_distance_atr = None if decision_atr is None else target_distance / decision_atr
 
+    cost_distance: float | None = None
+    net_reward: float | None = None
+    net_risk: float | None = None
     net_rr: float | None = None
+    stop_to_cost_ratio: float | None = None
+    target_to_cost_ratio: float | None = None
+    cost_drag_on_reward_pct: float | None = None
+    cost_drag_on_gross_rr_pct: float | None = None
     if expected_cost_pct is not None:
         cost_distance = selected_entry * expected_cost_pct / 100.0
         net_reward = target_distance - cost_distance
         net_risk = stop_distance + cost_distance
         net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
+        if cost_distance > 0.0:
+            stop_to_cost_ratio = stop_distance / cost_distance
+            target_to_cost_ratio = target_distance / cost_distance
+        if target_distance > 0.0:
+            cost_drag_on_reward_pct = cost_distance / target_distance * 100.0
+        if gross_rr > 0.0 and net_rr is not None:
+            cost_drag_on_gross_rr_pct = (gross_rr - net_rr) / gross_rr * 100.0
 
     diagnostics = GeometrySafetyDiagnostics(
         lane=lane,
@@ -185,6 +208,15 @@ def evaluate_geometry_safety(
         tp1_price=tp1.price,
         gross_tp1_reward_to_risk=gross_rr,
         net_tp1_reward_to_risk=net_rr,
+        gross_reward_distance=target_distance,
+        net_reward_distance=net_reward,
+        gross_risk_distance=stop_distance,
+        net_risk_distance=net_risk,
+        cost_distance=cost_distance,
+        stop_to_cost_ratio=stop_to_cost_ratio,
+        target_to_cost_ratio=target_to_cost_ratio,
+        cost_drag_on_reward_pct=cost_drag_on_reward_pct,
+        cost_drag_on_gross_rr_pct=cost_drag_on_gross_rr_pct,
         target_distance_pct=target_distance_pct,
         expected_cost_pct=expected_cost_pct,
         target_quality=target_quality,
@@ -266,15 +298,15 @@ def evaluate_geometry_safety(
             f"{lane_policy.minimum_stop_distance_atr:.4f} ATR noise floor for {lane.value}"
         )
 
-    if expected_cost_pct is not None and expected_cost_pct > 0.0:
-        cost_distance = selected_entry * expected_cost_pct / 100.0
-        stop_to_cost = stop_distance / cost_distance
-        if stop_to_cost + 1e-9 < lane_policy.minimum_stop_to_cost_ratio:
-            codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR)
-            reasons.append(
-                f"stop distance is {stop_to_cost:.4f}x expected round-trip costs, below "
-                f"the {lane_policy.minimum_stop_to_cost_ratio:.4f}x floor for {lane.value}"
-            )
+    if (
+        stop_to_cost_ratio is not None
+        and stop_to_cost_ratio + 1e-9 < lane_policy.minimum_stop_to_cost_ratio
+    ):
+        codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR)
+        reasons.append(
+            f"stop distance is {stop_to_cost_ratio:.4f}x expected round-trip costs, below "
+            f"the {lane_policy.minimum_stop_to_cost_ratio:.4f}x floor for {lane.value}"
+        )
 
     maximum_target_atr = lane_policy.maximum_tp1_distance_atr
     if (

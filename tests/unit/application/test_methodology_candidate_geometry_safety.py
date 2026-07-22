@@ -105,7 +105,14 @@ def test_shadow_audit_uses_explicit_execution_buffer_and_cost_components() -> No
     payload = candidate_geometry_safety_audit_payload(audit)
     assert payload["available"] is True
     assert payload["state"] == "pass"
-    assert payload["diagnostics"] is not None
+    diagnostics = payload["diagnostics"]
+    assert isinstance(diagnostics, dict)
+    assert diagnostics["cost_distance"] == 0.1
+    assert diagnostics["stop_to_cost_ratio"] == 20.0
+    assert diagnostics["target_to_cost_ratio"] == 30.0
+    assert diagnostics["gross_reward_distance"] == 3.0
+    assert diagnostics["net_reward_distance"] == 2.9
+    assert payload["measured_lane_basis"] == "ceil_tp1_distance_atr_bucket"
 
 
 def test_shadow_audit_never_treats_missing_cost_components_as_zero() -> None:

@@ -1035,6 +1035,7 @@ def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object
         "legacy_maximum_tp1_distance_atr": audit.get("legacy_maximum_tp1_distance_atr"),
         "measured_maximum_tp1_distance_atr": audit.get("measured_maximum_tp1_distance_atr"),
         "measured_geometry_reasons": audit.get("measured_geometry_reasons", []),
+        "measured_lane_basis": audit.get("measured_lane_basis"),
     }
 
 

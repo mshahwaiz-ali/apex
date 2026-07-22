@@ -125,6 +125,17 @@ def test_valid_cost_adjusted_cmp_scalp_passes() -> None:
     assert result.passed is True
     assert result.diagnostics.gross_tp1_reward_to_risk == pytest.approx(1.5)
     assert result.diagnostics.net_tp1_reward_to_risk == pytest.approx(2.9 / 2.1)
+    assert result.diagnostics.gross_reward_distance == pytest.approx(3.0)
+    assert result.diagnostics.net_reward_distance == pytest.approx(2.9)
+    assert result.diagnostics.gross_risk_distance == pytest.approx(2.0)
+    assert result.diagnostics.net_risk_distance == pytest.approx(2.1)
+    assert result.diagnostics.cost_distance == pytest.approx(0.1)
+    assert result.diagnostics.stop_to_cost_ratio == pytest.approx(20.0)
+    assert result.diagnostics.target_to_cost_ratio == pytest.approx(30.0)
+    assert result.diagnostics.cost_drag_on_reward_pct == pytest.approx(100.0 / 30.0)
+    assert result.diagnostics.cost_drag_on_gross_rr_pct == pytest.approx(
+        (1.5 - (2.9 / 2.1)) / 1.5 * 100.0
+    )
 
 
 def test_low_reward_nearby_candidate_rejects_with_actual_and_required_values() -> None:
@@ -168,6 +179,11 @@ def test_unavailable_costs_are_incomplete_not_zero() -> None:
 
     assert result.state is GeometrySafetyState.INCOMPLETE
     assert result.diagnostics.net_tp1_reward_to_risk is None
+    assert result.diagnostics.cost_distance is None
+    assert result.diagnostics.stop_to_cost_ratio is None
+    assert result.diagnostics.target_to_cost_ratio is None
+    assert result.diagnostics.cost_drag_on_reward_pct is None
+    assert result.diagnostics.cost_drag_on_gross_rr_pct is None
     assert result.rejection_codes == (GeometryRejectionCode.COSTS_UNAVAILABLE,)
 
 
@@ -250,6 +266,28 @@ def test_stop_must_clear_round_trip_cost_floor() -> None:
     )
 
     assert GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR in result.rejection_codes
+    assert result.diagnostics.cost_distance == pytest.approx(0.5)
+    assert result.diagnostics.stop_to_cost_ratio == pytest.approx(1.2)
+    assert result.diagnostics.target_to_cost_ratio == pytest.approx(6.0)
+
+
+def test_zero_costs_keep_explicit_zero_drag_without_division_ratios() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(103.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.0,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.cost_distance == pytest.approx(0.0)
+    assert result.diagnostics.net_reward_distance == pytest.approx(3.0)
+    assert result.diagnostics.net_risk_distance == pytest.approx(2.0)
+    assert result.diagnostics.stop_to_cost_ratio is None
+    assert result.diagnostics.target_to_cost_ratio is None
+    assert result.diagnostics.cost_drag_on_reward_pct == pytest.approx(0.0)
+    assert result.diagnostics.cost_drag_on_gross_rr_pct == pytest.approx(0.0)
 
 
 def test_scalp_tp1_must_fit_lane_atr_horizon() -> None:
