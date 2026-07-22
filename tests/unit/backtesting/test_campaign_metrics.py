@@ -21,6 +21,7 @@ from apex.cli_commands.backtesting import (
     _parse_as_of,
     _report_metrics,
     _shadow_replay_signals,
+    _unique_geometry_population,
 )
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
@@ -386,6 +387,67 @@ def test_replay_records_full_forward_path_excursion_and_direction() -> None:
     assert trade.metadata["direction_correct_at_horizon"] is True
 
 
+def test_post_stop_recovery_to_tp_is_attributed_to_execution_geometry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=99.0, high=105.0, close=104.5),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.metadata["stop_hit"] is True
+    assert trade.metadata["post_stop_classification"] == "stop_run_then_tp"
+    assert trade.metadata["post_stop_entry_reclaimed"] is True
+    assert trade.metadata["post_stop_bars_to_reclaim"] == 1
+    assert trade.metadata["post_stop_tp1_reached"] is True
+    assert trade.metadata["post_stop_maximum_favorable_excursion_r"] == pytest.approx(2.5)
+
+
+def test_post_stop_reclaim_without_tp_is_recovery_not_directional_failure() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.0),
+            _candle(2, low=98.5, high=102.0, close=101.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["post_stop_classification"] == "stop_run_then_recovery"
+    assert trade.metadata["post_stop_entry_reclaimed"] is True
+    assert trade.metadata["post_stop_tp1_reached"] is False
+
+
+def test_post_stop_adverse_continuation_is_directional_failure() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.0),
+            _candle(2, low=96.0, high=98.5, close=96.5),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["post_stop_classification"] == "directional_failure"
+    assert trade.metadata["post_stop_entry_reclaimed"] is False
+    assert trade.metadata["post_stop_adverse_close_beyond_stop"] is True
+    assert trade.metadata["post_stop_maximum_excursion_beyond_stop_r"] == pytest.approx(1.0)
+
+
+def test_post_stop_without_followup_is_explicitly_ambiguous() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (_candle(1, low=97.5, high=100.5, close=98.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["post_stop_classification"] == "ambiguous_after_stop"
+    assert trade.metadata["post_stop_followup_candles"] == 0
+
+
 def test_as_of_parser_requires_timezone_and_normalizes_utc() -> None:
     parsed = _parse_as_of("2026-01-01T05:00:00+05:00")
 
@@ -450,3 +512,94 @@ def test_calibration_record_preserves_zero_trade_and_methodology_fields(
     assert record["methodology_gate_mode"] == "shadow"
     assert record["zero_trade_diagnostics"] == {"decision": "NO_TRADE"}
     assert record["entry_geometry"] is None
+
+
+def test_unique_geometry_population_groups_strategy_aliases() -> None:
+    records = [
+        {
+            "decision_time": "2026-01-01T00:00:00+00:00",
+            "symbol": "BTCUSDT",
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": f"{strategy}:long:0",
+                    "strategy": strategy,
+                    "geometry_lane": "nearby_structured",
+                    "geometry_state": "reject",
+                    "geometry_rejection_codes": ["tp1_below_lane_floor"],
+                    "geometry_audit": {
+                        "selected_entry": 100.0,
+                        "entry_zone_low": 99.5,
+                        "entry_zone_high": 100.5,
+                        "executable_stop": 98.0,
+                        "tp1_price": 104.0,
+                    },
+                }
+                for strategy in ("trend_pullback", "breakout_retest")
+            ],
+        }
+    ]
+
+    result = _unique_geometry_population(records)
+
+    assert result["raw_candidate_count"] == 2
+    assert result["unique_geometry_count"] == 1
+    assert result["duplicate_group_count"] == 1
+    assert result["duplicate_candidate_count"] == 1
+    assert result["rejected_unique_geometry_count"] == 1
+    assert result["unique_rejection_distribution"] == {"tp1_below_lane_floor": 1}
+    assert result["exclusive_rejection_distribution"] == {"tp1_below_lane_floor": 1}
+    group = result["groups"][0]
+    assert group["strategy_aliases"] == ["breakout_retest", "trend_pullback"]
+    assert group["candidate_count"] == 2
+    assert group["is_duplicate_geometry"] is True
+
+
+def test_unique_geometry_population_separates_distinct_stops_and_gate_sets() -> None:
+    records = [
+        {
+            "decision_time": "2026-01-01T00:00:00+00:00",
+            "symbol": "BTCUSDT",
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "trend_pullback:long:0",
+                    "strategy": "trend_pullback",
+                    "geometry_lane": "pullback_scalp",
+                    "geometry_state": "reject",
+                    "geometry_rejection_codes": [
+                        "stop_distance_below_cost_floor",
+                        "tp1_below_lane_floor",
+                    ],
+                    "geometry_audit": {
+                        "selected_entry": 100.0,
+                        "entry_zone_low": 99.5,
+                        "entry_zone_high": 100.5,
+                        "executable_stop": 98.0,
+                        "tp1_price": 104.0,
+                    },
+                },
+                {
+                    "candidate_id": "momentum_breakout:long:0",
+                    "strategy": "momentum_breakout",
+                    "geometry_lane": "pullback_scalp",
+                    "geometry_state": "pass",
+                    "geometry_rejection_codes": [],
+                    "geometry_audit": {
+                        "selected_entry": 100.0,
+                        "entry_zone_low": 99.5,
+                        "entry_zone_high": 100.5,
+                        "executable_stop": 97.0,
+                        "tp1_price": 104.0,
+                    },
+                },
+            ],
+        }
+    ]
+
+    result = _unique_geometry_population(records)
+
+    assert result["unique_geometry_count"] == 2
+    assert result["rejected_unique_geometry_count"] == 1
+    assert result["passed_unique_geometry_count"] == 1
+    assert result["multi_gate_rejection_count"] == 1
+    assert result["exclusive_rejection_distribution"] == {}
+    assert result["production_behavior_changed"] is False

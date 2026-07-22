@@ -20,7 +20,7 @@ from apex.strategies.candidate_methodology_state import (
     attach_candidate_methodology_state,
 )
 from apex.strategies.context import StrategyContext
-from apex.strategies.contracts import EntryMode, EntryZone, TradeCandidate
+from apex.strategies.contracts import EntryMode, EntryZone, TradeCandidate, TradeDirection
 from apex.strategies.diagnostics import (
     StrategyDiagnostic,
     build_strategy_diagnostics,
@@ -271,6 +271,22 @@ def _candidate_for_entry_path(
                 ),
             }
         )
+        if entry.mode is EntryMode.SWEEP_RECOVERY:
+            reclaim_trigger = (
+                entry.upper if candidate.direction is TradeDirection.LONG else entry.lower
+            )
+            metadata.update(
+                {
+                    "retest_trigger_level": reclaim_trigger,
+                    "retest_zone_low": entry.lower,
+                    "retest_zone_high": entry.upper,
+                    "retest_confirmation_rule": (
+                        "price must sweep into the projected zone and reclaim "
+                        "the trigger before entry"
+                    ),
+                    "entry_geometry_owner": "shared_sweep_recovery_projection",
+                }
+            )
     return replace(
         candidate,
         entry=entry,

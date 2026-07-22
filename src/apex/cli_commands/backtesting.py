@@ -453,6 +453,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "metrics_by_partition": partition_metrics,
             "promotion_statistics": promotion_statistics,
             "calibration_authoritative": False,
+            "geometry_population": _unique_geometry_population(calibration_records),
             "conditional_replay": {
                 "signal_count": conditional_study.generated_signal_count,
                 "trades": _canonical_trade_records(
@@ -1319,6 +1320,185 @@ def _diagnostic_report_metrics(report: object) -> dict[str, object]:
         metadata["maximum_drawdown_r"] = None
         metadata["drawdown_evaluable"] = False
     return payload
+
+
+def _unique_geometry_population(
+    calibration_records: list[dict[str, object]],
+) -> dict[str, object]:
+    """Summarize raw candidates by unique time/direction/trade geometry.
+
+    This is research-only attribution. It does not alter ranking, replay, or
+    production decisions.
+    """
+
+    def number(value: object) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return None
+        numeric = float(value)
+        return round(numeric, 12) if math.isfinite(numeric) else None
+
+    groups: dict[tuple[object, ...], dict[str, object]] = {}
+    raw_candidate_count = 0
+
+    for record in calibration_records:
+        decision_time = record.get("decision_time")
+        symbol = record.get("symbol")
+        candidates = record.get("candidate_diagnostics")
+        if not isinstance(candidates, list):
+            continue
+
+        for candidate in candidates:
+            if not isinstance(candidate, Mapping):
+                continue
+            geometry = candidate.get("geometry_audit")
+            if not isinstance(geometry, Mapping):
+                continue
+
+            candidate_id = candidate.get("candidate_id")
+            strategy = candidate.get("strategy")
+            identity = candidate_id.split(":") if isinstance(candidate_id, str) else []
+            direction = identity[1] if len(identity) >= 2 else candidate.get("direction")
+            lane = candidate.get("geometry_lane")
+            state = candidate.get("geometry_state")
+            rejection_codes = candidate.get("geometry_rejection_codes")
+
+            key = (
+                symbol,
+                decision_time,
+                direction,
+                number(geometry.get("selected_entry")),
+                number(geometry.get("entry_zone_low")),
+                number(geometry.get("entry_zone_high")),
+                number(geometry.get("executable_stop")),
+                number(geometry.get("tp1_price")),
+                lane,
+            )
+            raw_candidate_count += 1
+            group = groups.setdefault(
+                key,
+                {
+                    "symbol": symbol,
+                    "decision_time": decision_time,
+                    "direction": direction,
+                    "selected_entry": key[3],
+                    "entry_zone_low": key[4],
+                    "entry_zone_high": key[5],
+                    "executable_stop": key[6],
+                    "tp1_price": key[7],
+                    "geometry_lane": lane,
+                    "candidate_ids": [],
+                    "strategy_aliases": [],
+                    "states": [],
+                    "rejection_codes": [],
+                },
+            )
+
+            if isinstance(candidate_id, str):
+                ids = group["candidate_ids"]
+                if isinstance(ids, list) and candidate_id not in ids:
+                    ids.append(candidate_id)
+            if isinstance(strategy, str):
+                aliases = group["strategy_aliases"]
+                if isinstance(aliases, list) and strategy not in aliases:
+                    aliases.append(strategy)
+            if isinstance(state, str):
+                states = group["states"]
+                if isinstance(states, list) and state not in states:
+                    states.append(state)
+            if isinstance(rejection_codes, list):
+                codes = group["rejection_codes"]
+                if isinstance(codes, list):
+                    for code in rejection_codes:
+                        if isinstance(code, str) and code not in codes:
+                            codes.append(code)
+
+    rejection_distribution: dict[str, int] = {}
+    exclusive_rejection_distribution: dict[str, int] = {}
+    duplicate_group_count = 0
+    duplicate_candidate_count = 0
+    rejected_unique_count = 0
+    passed_unique_count = 0
+    multi_gate_rejection_count = 0
+    serialized_groups: list[dict[str, object]] = []
+
+    for group in groups.values():
+        aliases = group["strategy_aliases"]
+        ids = group["candidate_ids"]
+        states = group["states"]
+        codes = group["rejection_codes"]
+        if isinstance(aliases, list):
+            aliases.sort()
+        if isinstance(ids, list):
+            ids.sort()
+        if isinstance(states, list):
+            states.sort()
+        if isinstance(codes, list):
+            codes.sort()
+
+        candidate_count = len(ids) if isinstance(ids, list) else 0
+        duplicate_count = max(0, candidate_count - 1)
+        if duplicate_count:
+            duplicate_group_count += 1
+            duplicate_candidate_count += duplicate_count
+
+        rejected = (isinstance(states, list) and "reject" in states) or (
+            isinstance(codes, list) and bool(codes)
+        )
+        if rejected:
+            rejected_unique_count += 1
+        else:
+            passed_unique_count += 1
+
+        if isinstance(codes, list):
+            for code in codes:
+                rejection_distribution[code] = rejection_distribution.get(code, 0) + 1
+            if len(codes) == 1:
+                code = codes[0]
+                exclusive_rejection_distribution[code] = (
+                    exclusive_rejection_distribution.get(code, 0) + 1
+                )
+            elif len(codes) > 1:
+                multi_gate_rejection_count += 1
+
+        serialized_groups.append(
+            {
+                **group,
+                "candidate_count": candidate_count,
+                "duplicate_candidate_count": duplicate_count,
+                "is_duplicate_geometry": duplicate_count > 0,
+                "rejected": rejected,
+            }
+        )
+
+    def sort_entry(item: Mapping[str, object]) -> float:
+        value = item.get("selected_entry")
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return 0.0
+        return float(value)
+
+    serialized_groups.sort(
+        key=lambda item: (
+            str(item.get("decision_time") or ""),
+            str(item.get("symbol") or ""),
+            str(item.get("direction") or ""),
+            sort_entry(item),
+        )
+    )
+
+    return {
+        "diagnostic_version": 1,
+        "raw_candidate_count": raw_candidate_count,
+        "unique_geometry_count": len(serialized_groups),
+        "duplicate_group_count": duplicate_group_count,
+        "duplicate_candidate_count": duplicate_candidate_count,
+        "rejected_unique_geometry_count": rejected_unique_count,
+        "passed_unique_geometry_count": passed_unique_count,
+        "multi_gate_rejection_count": multi_gate_rejection_count,
+        "unique_rejection_distribution": dict(sorted(rejection_distribution.items())),
+        "exclusive_rejection_distribution": dict(sorted(exclusive_rejection_distribution.items())),
+        "groups": serialized_groups,
+        "production_behavior_changed": False,
+    }
 
 
 def _canonical_trade_records(

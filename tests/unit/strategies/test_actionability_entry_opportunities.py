@@ -123,3 +123,60 @@ def test_unconfirmed_market_opportunity_remains_confirmation_at_cmp() -> None:
 
     assert classify_candidate_actionability(candidate) is EntryStatus.CONFIRMATION_AT_CMP
     assert select_actionable_entry_zone(candidate).mode is EntryMode.MARKET_NEAR
+
+
+def test_shared_selector_adds_long_sweep_recovery_alternative() -> None:
+    from apex.strategies.contracts import EntryMode, TradeDirection
+    from apex.strategies.entry import EntrySelectionConfig, find_entry_zones
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=96.0,
+        target_price=106.0,
+        config=EntrySelectionConfig(sweep_projection_enabled=True),
+    )
+
+    sweep = next(zone for zone in zones if zone.mode is EntryMode.SWEEP_RECOVERY)
+
+    assert 96.0 < sweep.preferred < 100.0
+    assert sweep.lower <= sweep.preferred <= sweep.upper
+    assert sweep.max_chase_price == sweep.upper
+
+
+def test_shared_selector_adds_short_sweep_recovery_alternative() -> None:
+    from apex.strategies.contracts import EntryMode, TradeDirection
+    from apex.strategies.entry import EntrySelectionConfig, find_entry_zones
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.SHORT,
+        invalidation_price=104.0,
+        target_price=94.0,
+        config=EntrySelectionConfig(sweep_projection_enabled=True),
+    )
+
+    sweep = next(zone for zone in zones if zone.mode is EntryMode.SWEEP_RECOVERY)
+
+    assert 100.0 < sweep.preferred < 104.0
+    assert sweep.lower <= sweep.preferred <= sweep.upper
+    assert sweep.max_chase_price == sweep.lower
+
+
+def test_sweep_projection_never_replaces_existing_primary_entry() -> None:
+    from apex.strategies.contracts import EntryMode, TradeDirection
+    from apex.strategies.entry import EntrySelectionConfig, find_entry_zones
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=95.0,
+        target_price=110.0,
+        config=EntrySelectionConfig(sweep_projection_enabled=True),
+    )
+
+    assert zones[0].mode is EntryMode.MARKET_NEAR
+    assert any(zone.mode is EntryMode.SWEEP_RECOVERY for zone in zones[1:])

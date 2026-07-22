@@ -1,0 +1,3818 @@
+{
+  "as_of": "2026-07-20T23:30:00+00:00",
+  "calibration_authoritative": false,
+  "calibration_records": [
+    {
+      "actionability_state": null,
+      "candidate_diagnostics": [],
+      "canonical_portfolio": true,
+      "confirmation_diagnostics": null,
+      "continuation_state": null,
+      "decision_time": "2026-07-20T22:29:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "lane_horizon_audits": [],
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "no strategy candidates were generated"
+      ],
+      "opportunity_id": null,
+      "partition": "training",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "SUI/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {},
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "no strategy candidates were generated",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 0,
+          "methodology_lineage_balanced": true,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 0,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 0,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "momentum_mismatch": 12
+        },
+        "top_rejected_reasons": []
+      }
+    },
+    {
+      "actionability_state": null,
+      "candidate_diagnostics": [],
+      "canonical_portfolio": true,
+      "confirmation_diagnostics": null,
+      "continuation_state": null,
+      "decision_time": "2026-07-20T22:49:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "lane_horizon_audits": [],
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "no strategy candidates were generated"
+      ],
+      "opportunity_id": null,
+      "partition": "validation",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "SUI/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {},
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "no strategy candidates were generated",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 0,
+          "methodology_lineage_balanced": true,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 0,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 0,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "decision-frame momentum contradicts the directional structure"
+            ],
+            "rejection_codes": [
+              "momentum_mismatch"
+            ]
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "momentum_mismatch": 12
+        },
+        "top_rejected_reasons": []
+      }
+    },
+    {
+      "actionability_state": null,
+      "candidate_diagnostics": [
+        {
+          "candidate_id": "breakout_retest:long:0",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010696000000000002,
+            "cost_drag_on_gross_rr_pct": 37.12800740515975,
+            "cost_drag_on_reward_pct": 17.728176795580435,
+            "entry_zone_high": 0.7640133208001472,
+            "entry_zone_low": 0.7639866791998529,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006033333333333224,
+            "gross_risk_distance": 0.0034664160029436175,
+            "gross_tp1_reward_to_risk": 1.7405104662019293,
+            "maximum_stop_distance_pct": 6.0,
+            "maximum_tp1_distance_atr": 3.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.0049637333333332236,
+            "net_risk_distance": 0.004536016002943618,
+            "net_tp1_reward_to_risk": 1.0942936114228965,
+            "required_tp1_reward_to_risk": 1.25,
+            "selected_entry": 0.764,
+            "stop_distance_atr": 2.602258096092912,
+            "stop_distance_pct": 0.4537193721130389,
+            "stop_to_cost_ratio": 3.2408526579502777,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.640737970580799,
+            "tp1_distance_atr": 4.5292574520084194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "nearby_structured",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "15m",
+          "legacy_context_lane": "nearby_structured",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "intraday",
+          "legacy_maximum_tp1_distance_atr": 3.0,
+          "lifecycle_model": "breakout_retest",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "breakout_retest",
+          "target_timeframe": "30m",
+          "would_change_geometry_result": false,
+          "would_change_lane": false
+        },
+        {
+          "candidate_id": "breakout_retest:long:1",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 6,
+          "geometry_audit": {
+            "cost_distance": 0.001067604442020102,
+            "cost_drag_on_gross_rr_pct": 43.741092010359736,
+            "cost_drag_on_reward_pct": 14.313484620538725,
+            "entry_zone_high": 0.7626145638433715,
+            "entry_zone_low": 0.7625346390424883,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.007458731890403358,
+            "gross_risk_distance": 0.002041017445873483,
+            "gross_tp1_reward_to_risk": 3.654418488917563,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.006391127448383257,
+            "net_risk_distance": 0.003108621887893585,
+            "net_tp1_reward_to_risk": 2.055935935236534,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.7625746014429299,
+            "stop_distance_atr": 1.5322033386301377,
+            "stop_distance_pct": 0.26764823297438795,
+            "stop_to_cost_ratio": 1.9117730926741991,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 6.9864189364837035,
+            "tp1_distance_atr": 5.599312209471194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "TP1 distance 5.5993 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "15m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "breakout_retest",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "TP1 distance 5.5993 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "breakout_retest",
+          "target_timeframe": "30m",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "breakout_retest:long:2",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010696000000000002,
+            "cost_drag_on_gross_rr_pct": 37.12800740515975,
+            "cost_drag_on_reward_pct": 17.728176795580435,
+            "entry_zone_high": 0.7644,
+            "entry_zone_low": 0.7636,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006033333333333224,
+            "gross_risk_distance": 0.0034664160029436175,
+            "gross_tp1_reward_to_risk": 1.7405104662019293,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.0049637333333332236,
+            "net_risk_distance": 0.004536016002943618,
+            "net_tp1_reward_to_risk": 1.0942936114228965,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.764,
+            "stop_distance_atr": 2.602258096092912,
+            "stop_distance_pct": 0.4537193721130389,
+            "stop_to_cost_ratio": 3.2408526579502777,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.640737970580799,
+            "tp1_distance_atr": 4.5292574520084194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2000 required for pullback_scalp",
+            "TP1 distance 4.5293 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "15m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "breakout_retest",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "breakout_retest",
+          "target_timeframe": "30m",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "breakout_retest:long:3",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.001069538578419618,
+            "cost_drag_on_gross_rr_pct": 37.21833772114568,
+            "cost_drag_on_reward_pct": 17.599182875270323,
+            "entry_zone_high": 0.7639960898430258,
+            "entry_zone_low": 0.7639161650421427,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.0060772058907490045,
+            "gross_risk_distance": 0.003422543445527837,
+            "gross_tp1_reward_to_risk": 1.775640247515326,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.005007667312329387,
+            "net_risk_distance": 0.004492082023947455,
+            "net_tp1_reward_to_risk": 1.1147764634824848,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.7639561274425842,
+            "stop_distance_atr": 2.5693227191402994,
+            "stop_distance_pct": 0.4480026172425799,
+            "stop_to_cost_ratio": 3.2000186945898563,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.682081986915202,
+            "tp1_distance_atr": 4.562192828961032,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.1148 is below 1.2000 required for pullback_scalp",
+            "TP1 distance 4.5622 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "15m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "breakout_retest",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.1148 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5622 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "breakout_retest",
+          "target_timeframe": "30m",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "breakout_retest:long:4",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010689472807927883,
+            "cost_drag_on_gross_rr_pct": 38.3956706668396,
+            "cost_drag_on_reward_pct": 16.446452693098724,
+            "entry_zone_high": 0.7636403383960262,
+            "entry_zone_low": 0.7634272055936713,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006499561338484505,
+            "gross_risk_distance": 0.0030001879977923362,
+            "gross_tp1_reward_to_risk": 2.1663846876486255,
+            "maximum_stop_distance_pct": 6.0,
+            "maximum_tp1_distance_atr": 3.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.005430614057691717,
+            "net_risk_distance": 0.004069135278585124,
+            "net_tp1_reward_to_risk": 1.3345867576022175,
+            "required_tp1_reward_to_risk": 1.25,
+            "selected_entry": 0.7635337719948487,
+            "stop_distance_atr": 2.2522580960929397,
+            "stop_distance_pct": 0.3929345508783307,
+            "stop_to_cost_ratio": 2.8066753634166473,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 6.080338530506466,
+            "tp1_distance_atr": 4.879257452008392,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "nearby_structured",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "TP1 distance 4.8793 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "15m",
+          "legacy_context_lane": "nearby_structured",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "intraday",
+          "legacy_maximum_tp1_distance_atr": 3.0,
+          "lifecycle_model": "breakout_retest",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "TP1 distance 4.8793 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "breakout_retest",
+          "target_timeframe": "30m",
+          "would_change_geometry_result": false,
+          "would_change_lane": false
+        },
+        {
+          "candidate_id": "trend_pullback:long:0",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010696000000000002,
+            "cost_drag_on_gross_rr_pct": 37.12800740515975,
+            "cost_drag_on_reward_pct": 17.728176795580435,
+            "entry_zone_high": 0.7640133208001472,
+            "entry_zone_low": 0.7639866791998529,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006033333333333224,
+            "gross_risk_distance": 0.0034664160029436175,
+            "gross_tp1_reward_to_risk": 1.7405104662019293,
+            "maximum_stop_distance_pct": 6.0,
+            "maximum_tp1_distance_atr": 3.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.0049637333333332236,
+            "net_risk_distance": 0.004536016002943618,
+            "net_tp1_reward_to_risk": 1.0942936114228965,
+            "required_tp1_reward_to_risk": 1.25,
+            "selected_entry": 0.764,
+            "stop_distance_atr": 2.602258096092912,
+            "stop_distance_pct": 0.4537193721130389,
+            "stop_to_cost_ratio": 3.2408526579502777,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.640737970580799,
+            "tp1_distance_atr": 4.5292574520084194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "nearby_structured",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "30m",
+          "legacy_context_lane": "nearby_structured",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "intraday",
+          "legacy_maximum_tp1_distance_atr": 3.0,
+          "lifecycle_model": "trend_pullback",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "trend_pullback",
+          "target_timeframe": "1h",
+          "would_change_geometry_result": false,
+          "would_change_lane": false
+        },
+        {
+          "candidate_id": "trend_pullback:long:1",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 6,
+          "geometry_audit": {
+            "cost_distance": 0.001067604442020102,
+            "cost_drag_on_gross_rr_pct": 43.741092010359736,
+            "cost_drag_on_reward_pct": 14.313484620538725,
+            "entry_zone_high": 0.7626145638433715,
+            "entry_zone_low": 0.7625346390424883,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.007458731890403358,
+            "gross_risk_distance": 0.002041017445873483,
+            "gross_tp1_reward_to_risk": 3.654418488917563,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.006391127448383257,
+            "net_risk_distance": 0.003108621887893585,
+            "net_tp1_reward_to_risk": 2.055935935236534,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.7625746014429299,
+            "stop_distance_atr": 1.5322033386301377,
+            "stop_distance_pct": 0.26764823297438795,
+            "stop_to_cost_ratio": 1.9117730926741991,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 6.9864189364837035,
+            "tp1_distance_atr": 5.599312209471194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "TP1 distance 5.5993 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "30m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "trend_pullback",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "TP1 distance 5.5993 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "trend_pullback",
+          "target_timeframe": "1h",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "trend_pullback:long:2",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010696000000000002,
+            "cost_drag_on_gross_rr_pct": 37.12800740515975,
+            "cost_drag_on_reward_pct": 17.728176795580435,
+            "entry_zone_high": 0.7644,
+            "entry_zone_low": 0.7636,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006033333333333224,
+            "gross_risk_distance": 0.0034664160029436175,
+            "gross_tp1_reward_to_risk": 1.7405104662019293,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.0049637333333332236,
+            "net_risk_distance": 0.004536016002943618,
+            "net_tp1_reward_to_risk": 1.0942936114228965,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.764,
+            "stop_distance_atr": 2.602258096092912,
+            "stop_distance_pct": 0.4537193721130389,
+            "stop_to_cost_ratio": 3.2408526579502777,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.640737970580799,
+            "tp1_distance_atr": 4.5292574520084194,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2000 required for pullback_scalp",
+            "TP1 distance 4.5293 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "30m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "trend_pullback",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "trend_pullback",
+          "target_timeframe": "1h",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "trend_pullback:long:3",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.001069538578419618,
+            "cost_drag_on_gross_rr_pct": 37.21833772114568,
+            "cost_drag_on_reward_pct": 17.599182875270323,
+            "entry_zone_high": 0.7639960898430258,
+            "entry_zone_low": 0.7639161650421427,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.0060772058907490045,
+            "gross_risk_distance": 0.003422543445527837,
+            "gross_tp1_reward_to_risk": 1.775640247515326,
+            "maximum_stop_distance_pct": 2.5,
+            "maximum_tp1_distance_atr": 2.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.005007667312329387,
+            "net_risk_distance": 0.004492082023947455,
+            "net_tp1_reward_to_risk": 1.1147764634824848,
+            "required_tp1_reward_to_risk": 1.2,
+            "selected_entry": 0.7639561274425842,
+            "stop_distance_atr": 2.5693227191402994,
+            "stop_distance_pct": 0.4480026172425799,
+            "stop_to_cost_ratio": 3.2000186945898563,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 5.682081986915202,
+            "tp1_distance_atr": 4.562192828961032,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "pullback_scalp",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "net TP1 reward-to-risk 1.1148 is below 1.2000 required for pullback_scalp",
+            "TP1 distance 4.5622 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "30m",
+          "legacy_context_lane": "pullback_scalp",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "unavailable",
+          "legacy_maximum_tp1_distance_atr": 2.0,
+          "lifecycle_model": "trend_pullback",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "net TP1 reward-to-risk 1.1148 is below 1.2500 required for nearby_structured",
+            "TP1 distance 4.5622 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_below_lane_floor",
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "trend_pullback",
+          "target_timeframe": "1h",
+          "would_change_geometry_result": false,
+          "would_change_lane": true
+        },
+        {
+          "candidate_id": "trend_pullback:long:4",
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": 0.0013320800147180525,
+          "diagnostic_schema_version": 2,
+          "direction": "long",
+          "execution_timeframe": "5m",
+          "expected_bars_to_target": 5,
+          "geometry_audit": {
+            "cost_distance": 0.0010689472807927883,
+            "cost_drag_on_gross_rr_pct": 38.3956706668396,
+            "cost_drag_on_reward_pct": 16.446452693098724,
+            "entry_zone_high": 0.7636403383960262,
+            "entry_zone_low": 0.7634272055936713,
+            "executable_stop": 0.7605335839970564,
+            "expected_cost_pct": 0.14,
+            "gross_reward_distance": 0.006499561338484505,
+            "gross_risk_distance": 0.0030001879977923362,
+            "gross_tp1_reward_to_risk": 2.1663846876486255,
+            "maximum_stop_distance_pct": 6.0,
+            "maximum_tp1_distance_atr": 3.0,
+            "minimum_stop_distance_atr": 0.25,
+            "minimum_stop_to_cost_ratio": 1.25,
+            "minimum_target_quality": 50.0,
+            "net_reward_distance": 0.005430614057691717,
+            "net_risk_distance": 0.004069135278585124,
+            "net_tp1_reward_to_risk": 1.3345867576022175,
+            "required_tp1_reward_to_risk": 1.25,
+            "selected_entry": 0.7635337719948487,
+            "stop_distance_atr": 2.2522580960929397,
+            "stop_distance_pct": 0.3929345508783307,
+            "stop_to_cost_ratio": 2.8066753634166473,
+            "target_quality": 95.5,
+            "target_to_cost_ratio": 6.080338530506466,
+            "tp1_distance_atr": 4.879257452008392,
+            "tp1_price": 0.7700333333333332
+          },
+          "geometry_available": true,
+          "geometry_complete": true,
+          "geometry_lane": "nearby_structured",
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [
+            "TP1 distance 4.8793 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "geometry_state": "reject",
+          "invalidation_timeframe": "30m",
+          "legacy_context_lane": "nearby_structured",
+          "legacy_geometry_passed": false,
+          "legacy_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "legacy_holding_horizon": "intraday",
+          "legacy_maximum_tp1_distance_atr": 3.0,
+          "lifecycle_model": "trend_pullback",
+          "measured_context_lane": "nearby_structured",
+          "measured_geometry_lane": "nearby_structured",
+          "measured_geometry_passed": false,
+          "measured_geometry_reasons": [
+            "TP1 distance 4.8793 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          ],
+          "measured_geometry_rejection_codes": [
+            "tp1_exceeds_lane_horizon"
+          ],
+          "measured_holding_horizon": "intraday",
+          "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
+          "measured_maximum_tp1_distance_atr": 3.0,
+          "ranking_role": "geometry_rejected",
+          "replay_source": "geometry_rejected",
+          "setup_timeframe": "15m",
+          "strategy": "trend_pullback",
+          "target_timeframe": "1h",
+          "would_change_geometry_result": false,
+          "would_change_lane": false
+        }
+      ],
+      "canonical_portfolio": true,
+      "confirmation_diagnostics": {
+        "candidate_id": "breakout_retest:long:0",
+        "confirmation_reason": null,
+        "continuation_freshness": null,
+        "continuation_requires_conditional_entry": null,
+        "continuation_state": null,
+        "entry_confirmation_complete": null,
+        "higher_timeframe_conflict": null,
+        "immediate_timeframe_conflict": null,
+        "lower_timeframe_trigger_confirmed": null,
+        "lower_timeframe_trigger_opposed": null,
+        "participation_state": null,
+        "provisional": null,
+        "provisional_state": null,
+        "recent_continuation_break": null,
+        "setup_direction_confirmed": null,
+        "source": "best_available_candidate"
+      },
+      "continuation_state": null,
+      "decision_time": "2026-07-20T23:09:59.999000+00:00",
+      "direction": null,
+      "entry_geometry": null,
+      "execution_authorized": false,
+      "future_replay": {
+        "activation_outcome": null,
+        "maximum_adverse_excursion_r": null,
+        "maximum_favorable_excursion_r": null,
+        "net_pnl": null,
+        "outcome": "no_signal",
+        "realized_r_multiple": null,
+        "replay_class": "none"
+      },
+      "lane": null,
+      "lane_horizon_audits": [
+        {
+          "candidate_id": "breakout_retest:long:0",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "structured",
+          "final_context_lane": "nearby_structured",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "breakout_retest"
+        },
+        {
+          "candidate_id": "breakout_retest:long:1",
+          "context_source": "legacy_fallback_after_htf",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": true,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "breakout_retest"
+        },
+        {
+          "candidate_id": "breakout_retest:long:2",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "breakout_retest"
+        },
+        {
+          "candidate_id": "breakout_retest:long:3",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "breakout_retest"
+        },
+        {
+          "candidate_id": "breakout_retest:long:4",
+          "context_source": "legacy_fallback_after_htf",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "structured",
+          "final_context_lane": "nearby_structured",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": true,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "breakout_retest"
+        },
+        {
+          "candidate_id": "trend_pullback:long:0",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "structured",
+          "final_context_lane": "nearby_structured",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "trend_pullback"
+        },
+        {
+          "candidate_id": "trend_pullback:long:1",
+          "context_source": "legacy_fallback_after_htf",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": true,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "trend_pullback"
+        },
+        {
+          "candidate_id": "trend_pullback:long:2",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "trend_pullback"
+        },
+        {
+          "candidate_id": "trend_pullback:long:3",
+          "context_source": "legacy_fallback_initial",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "short",
+          "final_context_lane": "pullback_scalp",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": false,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "trend_pullback"
+        },
+        {
+          "candidate_id": "trend_pullback:long:4",
+          "context_source": "legacy_fallback_after_htf",
+          "direction": "long",
+          "entry_status": "CONFIRMATION_AT_CMP",
+          "final_context_holding_horizon": "structured",
+          "final_context_lane": "nearby_structured",
+          "final_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "htf_reclassification_applied": true,
+          "initial_measurement": {
+            "assessment": null,
+            "available": false,
+            "missing_measurements": [
+              "invalidation_timeframe",
+              "target_timeframe",
+              "expected_bars_to_target",
+              "lifecycle_model"
+            ],
+            "reasons": [
+              "measurable lane/horizon assessment unavailable; preserve legacy methodology-context inference"
+            ]
+          },
+          "shadow_only": true,
+          "strategy": "trend_pullback"
+        }
+      ],
+      "layered_state": null,
+      "methodology_decision": {
+        "reason_codes": [
+          "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+        ],
+        "suppressed_candidate_count": 0,
+        "suppressed_strategies": []
+      },
+      "methodology_gate_mode": "enforce",
+      "methodology_version": "trade-plan-v1",
+      "no_trade_reasons": [
+        "all 10 generated candidates were rejected by geometry safety"
+      ],
+      "opportunity_id": null,
+      "partition": "final_test",
+      "production_decision": "NO_TRADE",
+      "rejection_reason": "canonical_no_executable_opportunity",
+      "replay_class": "none",
+      "replay_reason_code": "canonical_no_executable_opportunity",
+      "runner_qualification_reason": null,
+      "runner_qualified": null,
+      "schema_version": 2,
+      "score_components": null,
+      "sequence_role": null,
+      "stop_geometry": null,
+      "strategy": null,
+      "symbol": "SUI/USDT",
+      "target_basis": null,
+      "target_geometry": null,
+      "zero_trade_diagnostics": {
+        "canonical_family_distribution": {},
+        "decision": "NO_TRADE",
+        "diagnostic_version": 1,
+        "entry_status_distribution": {
+          "raw": {
+            "CONFIRMATION_AT_CMP": 10
+          },
+          "retained": {}
+        },
+        "execution_filter_policy": "strict: diagnostics may explain zero trades, but do not loosen entry filters",
+        "methodology_shadow_vs_enforce": {
+          "mode": "enforce",
+          "reason_codes": [
+            "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE"
+          ],
+          "suppressed_candidate_count": 0,
+          "suppressed_strategies": []
+        },
+        "no_trade_reason": "all 10 generated candidates were rejected by geometry safety",
+        "ranked_outcome_distribution": {},
+        "selection_summary": {
+          "developing_candidate_id": null,
+          "methodology_input_candidate_count": 10,
+          "methodology_lineage_balanced": false,
+          "methodology_suppressed_candidate_count": 0,
+          "ranked_count": 0,
+          "raw_candidate_count": 10,
+          "rejected_count": 0,
+          "retained_candidate_count": 0,
+          "scored_candidate_count": 0,
+          "selected_candidate_id": null,
+          "selection_lineage_balanced": true,
+          "terminal_outcome_count": 0
+        },
+        "strategy_diagnostics": {
+          "breakout_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "breakout_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "breakout_retest": {
+            "candidate_count": 5,
+            "canonical_family": "break_retest",
+            "canonical_subtype": "breakout_retest",
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "compression_expansion": {
+            "candidate_count": 0,
+            "canonical_family": "compression_expansion",
+            "canonical_subtype": null,
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "exhaustion_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "exhaustion_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "failed_breakout_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "failed_break_reclaim",
+            "canonical_subtype": "failed_breakout_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "first_pullback_continuation": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "first_pullback_continuation",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "liquidity_rejection_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "liquidity_sweep_reversal",
+            "canonical_subtype": "liquidity_rejection_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_breakout": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_breakout",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "momentum_scalp": {
+            "candidate_count": 0,
+            "canonical_family": "break_continuation",
+            "canonical_subtype": "momentum_scalp",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "range_reversal": {
+            "candidate_count": 0,
+            "canonical_family": "range_rejection",
+            "canonical_subtype": "range_reversal",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          },
+          "trend_pullback": {
+            "candidate_count": 5,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": null,
+            "reasons": [
+              "strategy generated at least one raw candidate"
+            ],
+            "rejection_codes": []
+          },
+          "vwap_reclaim_rejection": {
+            "candidate_count": 0,
+            "canonical_family": "trend_pullback",
+            "canonical_subtype": "vwap_reclaim_rejection",
+            "reasons": [
+              "family-specific trigger conditions were not satisfied"
+            ],
+            "rejection_codes": [
+              "no_strategy_trigger"
+            ]
+          }
+        },
+        "strategy_rejection_code_distribution": {
+          "no_strategy_trigger": 10
+        },
+        "top_rejected_reasons": [
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 1.0943 is below 1.2500 required for nearby_structured"
+          },
+          {
+            "count": 1,
+            "reason": "TP1 distance 4.5293 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          },
+          {
+            "count": 1,
+            "reason": "TP1 distance 5.5993 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          },
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 1.0943 is below 1.2000 required for pullback_scalp"
+          },
+          {
+            "count": 1,
+            "reason": "TP1 distance 4.5293 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          },
+          {
+            "count": 1,
+            "reason": "net TP1 reward-to-risk 1.1148 is below 1.2000 required for pullback_scalp"
+          },
+          {
+            "count": 1,
+            "reason": "TP1 distance 4.5622 ATR exceeds the 2.0000 ATR horizon for pullback_scalp"
+          },
+          {
+            "count": 1,
+            "reason": "TP1 distance 4.8793 ATR exceeds the 3.0000 ATR horizon for nearby_structured"
+          }
+        ]
+      }
+    }
+  ],
+  "conditional_replay": {
+    "activation_metrics": {
+      "activation_count": 0,
+      "activation_expiry_count": 0,
+      "activation_rate": null,
+      "average_activation_wait_candles": null,
+      "fill_count": 0,
+      "fill_rate": null,
+      "future_setup_count": 0,
+      "missed_trigger_count": 0,
+      "pre_entry_invalidation_count": 0
+    },
+    "calibration_authoritative": false,
+    "execution_metrics": {
+      "average_risk_reward": null,
+      "expectancy": null,
+      "fill_rate": null,
+      "filled_trade_count": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "net_profit": 0,
+      "profit_factor": null,
+      "signal_outcome_count": 0,
+      "win_rate": null
+    },
+    "metrics": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "methodology_version": "trade-plan-v1",
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "outcome_distribution": {
+      "activation_expired": 0,
+      "expired": 0,
+      "expired_rate": null,
+      "missed_entry": 0,
+      "missed_entry_rate": null,
+      "net_profitable_target_count": 0,
+      "pre_entry_invalidated": 0,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "stop": 0,
+      "stop_rate": null,
+      "target": 0,
+      "tp1_hit_count": 0,
+      "tp1_hit_rate": null,
+      "tp2_hit_count": 0,
+      "tp2_hit_rate": null,
+      "tp3_hit_count": 0,
+      "tp3_hit_rate": null
+    },
+    "risk_and_excursion": {
+      "average_counterfactual_path_mae_r": null,
+      "average_counterfactual_path_mfe_r": null,
+      "average_mae_r": null,
+      "average_mfe_r": null,
+      "best_mfe_r": null,
+      "worst_mae_r": null
+    },
+    "signal_count": 0,
+    "trades": []
+  },
+  "decision_funnel": {
+    "decision_point_count": 3,
+    "future_fill_count": 0,
+    "future_setup_count": 0,
+    "future_setup_rate": 0.0,
+    "immediate_fill_count": 0,
+    "immediate_setup_count": 0,
+    "immediate_setup_rate": 0.0,
+    "setup_coverage_rate": 0.0,
+    "setup_found_count": 0,
+    "total_fill_count": 0,
+    "true_no_setup_count": 3
+  },
+  "decision_partitions": [
+    {
+      "decision_time": "2026-07-20T22:29:59.999000+00:00",
+      "partition": "training"
+    },
+    {
+      "decision_time": "2026-07-20T22:49:59.999000+00:00",
+      "partition": "validation"
+    },
+    {
+      "decision_time": "2026-07-20T23:09:59.999000+00:00",
+      "partition": "final_test"
+    }
+  ],
+  "decision_point_count": 3,
+  "decision_times": [
+    "2026-07-20T22:29:59.999000+00:00",
+    "2026-07-20T22:49:59.999000+00:00",
+    "2026-07-20T23:09:59.999000+00:00"
+  ],
+  "execution_assumptions": {
+    "conservative_intrabar": true,
+    "fee_pct": 0.04,
+    "funding_pct": 0.0,
+    "maximum_holding_candles": 20,
+    "methodology_gate_mode": "enforce",
+    "slippage_pct": 0.02
+  },
+  "execution_metrics": {
+    "average_risk_reward": null,
+    "expectancy": null,
+    "fill_rate": null,
+    "filled_trade_count": 0,
+    "loss_rate": null,
+    "maximum_drawdown": null,
+    "net_profit": 0,
+    "profit_factor": null,
+    "signal_outcome_count": 0,
+    "win_rate": null
+  },
+  "generated_signal_count": 0,
+  "geometry_population": {
+    "diagnostic_version": 1,
+    "duplicate_candidate_count": 5,
+    "duplicate_group_count": 5,
+    "exclusive_rejection_distribution": {
+      "tp1_exceeds_lane_horizon": 2
+    },
+    "groups": [
+      {
+        "candidate_count": 2,
+        "candidate_ids": [
+          "breakout_retest:long:1",
+          "trend_pullback:long:1"
+        ],
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "direction": "long",
+        "duplicate_candidate_count": 1,
+        "entry_zone_high": 0.762614563843,
+        "entry_zone_low": 0.762534639042,
+        "executable_stop": 0.760533583997,
+        "geometry_lane": "pullback_scalp",
+        "is_duplicate_geometry": true,
+        "rejected": true,
+        "rejection_codes": [
+          "tp1_exceeds_lane_horizon"
+        ],
+        "selected_entry": 0.762574601443,
+        "states": [
+          "reject"
+        ],
+        "strategy_aliases": [
+          "breakout_retest",
+          "trend_pullback"
+        ],
+        "symbol": "SUI/USDT",
+        "tp1_price": 0.770033333333
+      },
+      {
+        "candidate_count": 2,
+        "candidate_ids": [
+          "breakout_retest:long:4",
+          "trend_pullback:long:4"
+        ],
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "direction": "long",
+        "duplicate_candidate_count": 1,
+        "entry_zone_high": 0.763640338396,
+        "entry_zone_low": 0.763427205594,
+        "executable_stop": 0.760533583997,
+        "geometry_lane": "nearby_structured",
+        "is_duplicate_geometry": true,
+        "rejected": true,
+        "rejection_codes": [
+          "tp1_exceeds_lane_horizon"
+        ],
+        "selected_entry": 0.763533771995,
+        "states": [
+          "reject"
+        ],
+        "strategy_aliases": [
+          "breakout_retest",
+          "trend_pullback"
+        ],
+        "symbol": "SUI/USDT",
+        "tp1_price": 0.770033333333
+      },
+      {
+        "candidate_count": 2,
+        "candidate_ids": [
+          "breakout_retest:long:3",
+          "trend_pullback:long:3"
+        ],
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "direction": "long",
+        "duplicate_candidate_count": 1,
+        "entry_zone_high": 0.763996089843,
+        "entry_zone_low": 0.763916165042,
+        "executable_stop": 0.760533583997,
+        "geometry_lane": "pullback_scalp",
+        "is_duplicate_geometry": true,
+        "rejected": true,
+        "rejection_codes": [
+          "tp1_below_lane_floor",
+          "tp1_exceeds_lane_horizon"
+        ],
+        "selected_entry": 0.763956127443,
+        "states": [
+          "reject"
+        ],
+        "strategy_aliases": [
+          "breakout_retest",
+          "trend_pullback"
+        ],
+        "symbol": "SUI/USDT",
+        "tp1_price": 0.770033333333
+      },
+      {
+        "candidate_count": 2,
+        "candidate_ids": [
+          "breakout_retest:long:0",
+          "trend_pullback:long:0"
+        ],
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "direction": "long",
+        "duplicate_candidate_count": 1,
+        "entry_zone_high": 0.7640133208,
+        "entry_zone_low": 0.7639866792,
+        "executable_stop": 0.760533583997,
+        "geometry_lane": "nearby_structured",
+        "is_duplicate_geometry": true,
+        "rejected": true,
+        "rejection_codes": [
+          "tp1_below_lane_floor",
+          "tp1_exceeds_lane_horizon"
+        ],
+        "selected_entry": 0.764,
+        "states": [
+          "reject"
+        ],
+        "strategy_aliases": [
+          "breakout_retest",
+          "trend_pullback"
+        ],
+        "symbol": "SUI/USDT",
+        "tp1_price": 0.770033333333
+      },
+      {
+        "candidate_count": 2,
+        "candidate_ids": [
+          "breakout_retest:long:2",
+          "trend_pullback:long:2"
+        ],
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "direction": "long",
+        "duplicate_candidate_count": 1,
+        "entry_zone_high": 0.7644,
+        "entry_zone_low": 0.7636,
+        "executable_stop": 0.760533583997,
+        "geometry_lane": "pullback_scalp",
+        "is_duplicate_geometry": true,
+        "rejected": true,
+        "rejection_codes": [
+          "tp1_below_lane_floor",
+          "tp1_exceeds_lane_horizon"
+        ],
+        "selected_entry": 0.764,
+        "states": [
+          "reject"
+        ],
+        "strategy_aliases": [
+          "breakout_retest",
+          "trend_pullback"
+        ],
+        "symbol": "SUI/USDT",
+        "tp1_price": 0.770033333333
+      }
+    ],
+    "multi_gate_rejection_count": 3,
+    "passed_unique_geometry_count": 0,
+    "production_behavior_changed": false,
+    "raw_candidate_count": 10,
+    "rejected_unique_geometry_count": 5,
+    "unique_geometry_count": 5,
+    "unique_rejection_distribution": {
+      "tp1_below_lane_floor": 3,
+      "tp1_exceeds_lane_horizon": 5
+    }
+  },
+  "methodology_segment_metrics": {
+    "continuation_state": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "direction": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "execution_state": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "lane": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "strategy": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ],
+    "timeframe_relationship": [
+      {
+        "calibration_authoritative": false,
+        "expectancy_r": null,
+        "invalidation_count": 0,
+        "loss_count": 0,
+        "missed_entry_count": 0,
+        "no_signal_count": 3,
+        "resolved_outcome_count": 0,
+        "sample_size": 3,
+        "segment": "unavailable",
+        "win_count": 0,
+        "win_rate": null
+      }
+    ]
+  },
+  "metrics": {
+    "average_loss": null,
+    "average_risk_reward": null,
+    "average_win": null,
+    "breakeven_rate": null,
+    "by_strategy": {},
+    "by_symbol": {},
+    "consecutive_losses": 0,
+    "consecutive_wins": 0,
+    "expectancy": null,
+    "gross_loss": 0,
+    "gross_profit": 0,
+    "loss_rate": null,
+    "maximum_drawdown": null,
+    "metadata": {
+      "average_mae_r": null,
+      "average_mfe_r": null,
+      "entry_fill_count": 0,
+      "entry_fill_rate": null,
+      "maximum_drawdown_r": 0.0,
+      "methodology_version": "trade-plan-v1",
+      "net_profitable_target_count": 0,
+      "r_expectancy": 0.0,
+      "r_profit_factor": null,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "total_expired": 0,
+      "total_missed_entries": 0,
+      "total_stop_outs": 0,
+      "total_targets": 0,
+      "tp1_touch_count": 0
+    },
+    "net_profit": 0,
+    "profit_factor": null,
+    "total_trades": 0,
+    "trades": [],
+    "win_rate": null
+  },
+  "metrics_by_partition": {
+    "final_test": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "training": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "validation": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": 0.0,
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    }
+  },
+  "no_trade_decision_count": 3,
+  "no_trade_decisions": [
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-20T22:29:59.999000+00:00",
+      "partition": "training",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "no strategy candidates were generated"
+      ]
+    },
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-20T22:49:59.999000+00:00",
+      "partition": "validation",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "no strategy candidates were generated"
+      ]
+    },
+    {
+      "canonical_portfolio": true,
+      "decision_time": "2026-07-20T23:09:59.999000+00:00",
+      "partition": "final_test",
+      "reasons": [
+        "canonical_no_executable_opportunity",
+        "all 10 generated candidates were rejected by geometry safety"
+      ]
+    }
+  ],
+  "opportunity_replay": {
+    "activation_metrics": {
+      "activation_count": 0,
+      "activation_expiry_count": 0,
+      "activation_rate": null,
+      "average_activation_wait_candles": null,
+      "fill_count": 0,
+      "fill_rate": null,
+      "future_setup_count": 0,
+      "missed_trigger_count": 0,
+      "pre_entry_invalidation_count": 0
+    },
+    "calibration_authoritative": false,
+    "execution_metrics": {
+      "average_risk_reward": null,
+      "expectancy": null,
+      "fill_rate": null,
+      "filled_trade_count": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "net_profit": 0,
+      "profit_factor": null,
+      "signal_outcome_count": 0,
+      "win_rate": null
+    },
+    "metrics": {
+      "average_loss": null,
+      "average_risk_reward": null,
+      "average_win": null,
+      "breakeven_rate": null,
+      "by_strategy": {},
+      "by_symbol": {},
+      "consecutive_losses": 0,
+      "consecutive_wins": 0,
+      "expectancy": null,
+      "gross_loss": 0,
+      "gross_profit": 0,
+      "loss_rate": null,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": null,
+        "average_mfe_r": null,
+        "drawdown_evaluable": false,
+        "entry_fill_count": 0,
+        "entry_fill_rate": null,
+        "maximum_drawdown_r": null,
+        "methodology_version": "trade-plan-v1",
+        "net_profitable_target_count": 0,
+        "r_expectancy": 0.0,
+        "r_profit_factor": null,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 0,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": 0,
+      "profit_factor": null,
+      "total_trades": 0,
+      "trades": [],
+      "win_rate": null
+    },
+    "outcome_distribution": {
+      "activation_expired": 0,
+      "expired": 0,
+      "expired_rate": null,
+      "missed_entry": 0,
+      "missed_entry_rate": null,
+      "net_profitable_target_count": 0,
+      "pre_entry_invalidated": 0,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "stop": 0,
+      "stop_rate": null,
+      "target": 0,
+      "tp1_hit_count": 0,
+      "tp1_hit_rate": null,
+      "tp2_hit_count": 0,
+      "tp2_hit_rate": null,
+      "tp3_hit_count": 0,
+      "tp3_hit_rate": null
+    },
+    "portfolio_drawdown_valid": false,
+    "purpose": "diagnostic replay of every distinct retained executable or conditional portfolio opportunity; canonical production metrics remain authoritative",
+    "risk_and_excursion": {
+      "average_counterfactual_path_mae_r": null,
+      "average_counterfactual_path_mfe_r": null,
+      "average_mae_r": null,
+      "average_mfe_r": null,
+      "best_mfe_r": null,
+      "worst_mae_r": null
+    },
+    "signal_count": 0,
+    "simulated_trade_count": 0,
+    "skipped_signal_count": 0,
+    "trades": []
+  },
+  "outcome_distribution": {
+    "activation_expired": 0,
+    "expired": 0,
+    "expired_rate": null,
+    "missed_entry": 0,
+    "missed_entry_rate": null,
+    "net_profitable_target_count": 0,
+    "pre_entry_invalidated": 0,
+    "same_candle_stop_target_ambiguity_count": 0,
+    "stop": 0,
+    "stop_rate": null,
+    "target": 0,
+    "tp1_hit_count": 0,
+    "tp1_hit_rate": null,
+    "tp2_hit_count": 0,
+    "tp2_hit_rate": null,
+    "tp3_hit_count": 0,
+    "tp3_hit_rate": null
+  },
+  "promotion_statistics": {
+    "deflated_sharpe_probability": null,
+    "probability_backtest_overfitting": null
+  },
+  "replay_candles": 20,
+  "replay_timeframe": "1m",
+  "risk_and_excursion": {
+    "average_counterfactual_path_mae_r": null,
+    "average_counterfactual_path_mfe_r": null,
+    "average_mae_r": null,
+    "average_mfe_r": null,
+    "best_mfe_r": null,
+    "worst_mae_r": null
+  },
+  "schema_version": 5,
+  "shadow_replay": {
+    "calibration_authoritative": false,
+    "direction_accuracy": {
+      "accuracy": 0.25,
+      "correct_count": 1,
+      "evaluable_count": 4,
+      "incorrect_count": 3
+    },
+    "metrics": {
+      "average_loss": -0.001246364485429147,
+      "average_risk_reward": -0.2803869389811557,
+      "average_win": 9.753870236225352e-06,
+      "breakeven_rate": 0.0,
+      "by_strategy": {
+        "breakout_retest": 4
+      },
+      "by_symbol": {
+        "SUI/USDT": 4
+      },
+      "consecutive_losses": 2,
+      "consecutive_wins": 1,
+      "expectancy": -0.0009323348965128038,
+      "gross_loss": 0.0037390934562874407,
+      "gross_profit": 9.753870236225352e-06,
+      "loss_rate": 0.75,
+      "maximum_drawdown": null,
+      "metadata": {
+        "average_mae_r": 0.3466329349537403,
+        "average_mfe_r": 0.31789284602874185,
+        "drawdown_evaluable": false,
+        "entry_fill_count": 4,
+        "entry_fill_rate": 1.0,
+        "maximum_drawdown_r": null,
+        "methodology_version": "trade-plan-v1",
+        "net_profitable_target_count": 0,
+        "r_expectancy": -0.2803869389811557,
+        "r_profit_factor": 0.0042429301719509325,
+        "same_candle_stop_target_ambiguity_count": 0,
+        "total_expired": 4,
+        "total_missed_entries": 0,
+        "total_stop_outs": 0,
+        "total_targets": 0,
+        "tp1_touch_count": 0
+      },
+      "net_profit": -0.0037293395860512153,
+      "profit_factor": 0.002608619000903498,
+      "total_trades": 4,
+      "trades": [],
+      "win_rate": 0.25
+    },
+    "outcome_distribution": {
+      "activation_expired": 0,
+      "expired": 4,
+      "expired_rate": 1.0,
+      "missed_entry": 0,
+      "missed_entry_rate": 0.0,
+      "net_profitable_target_count": 0,
+      "pre_entry_invalidated": 0,
+      "same_candle_stop_target_ambiguity_count": 0,
+      "stop": 0,
+      "stop_rate": 0.0,
+      "target": 0,
+      "tp1_hit_count": 0,
+      "tp1_hit_rate": 0.0,
+      "tp2_hit_count": 0,
+      "tp2_hit_rate": 0.0,
+      "tp3_hit_count": 0,
+      "tp3_hit_rate": 0.0
+    },
+    "portfolio_drawdown_valid": false,
+    "risk_and_excursion": {
+      "average_counterfactual_path_mae_r": 0.3098239060839188,
+      "average_counterfactual_path_mfe_r": 0.3921395572757627,
+      "average_mae_r": 0.3466329349537403,
+      "average_mfe_r": 0.31789284602874185,
+      "best_mfe_r": 0.8082322668816964,
+      "worst_mae_r": 0.4566734891357021
+    },
+    "signal_count": 4,
+    "source_distribution": {
+      "geometry_rejected": 4
+    },
+    "trades": [
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 0.43272359656956466,
+        "counterfactual_path_mfe_r": 0.1442411988565002,
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "diagnostics": {
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": null,
+          "diagnostic_schema_version": 2,
+          "execution_timeframe": null,
+          "expected_bars_to_target": null,
+          "fee_pct": 0.04,
+          "geometry_audit": {},
+          "geometry_available": false,
+          "geometry_complete": false,
+          "geometry_lane": null,
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [],
+          "geometry_rejection_codes": [],
+          "geometry_state": null,
+          "gross_tp1_r": 1.7405104662019293,
+          "invalidation_timeframe": null,
+          "legacy_context_lane": null,
+          "legacy_geometry_passed": null,
+          "legacy_geometry_rejection_codes": [],
+          "legacy_holding_horizon": null,
+          "legacy_maximum_tp1_distance_atr": null,
+          "lifecycle_model": null,
+          "maximum_adverse_excursion_r": 0.4566734891357021,
+          "maximum_favorable_excursion_r": 0.09593237864709049,
+          "measured_context_lane": null,
+          "measured_geometry_lane": null,
+          "measured_geometry_passed": null,
+          "measured_geometry_reasons": [],
+          "measured_geometry_rejection_codes": [],
+          "measured_holding_horizon": null,
+          "measured_lane_basis": null,
+          "measured_maximum_tp1_distance_atr": null,
+          "modeled_round_trip_cost": 0.0009204199999999999,
+          "modeled_round_trip_cost_r": 0.26552496850302904,
+          "net_tp1_r": 1.4749854976989003,
+          "setup_timeframe": null,
+          "slippage_pct": 0.02,
+          "target_timeframe": null,
+          "would_change_geometry_result": null,
+          "would_change_lane": null
+        },
+        "direction_correct_at_horizon": false,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.7633473,
+        "exit_time": "2026-07-20T23:29:59.999000+00:00",
+        "fees": 0.00061100004,
+        "gross_pnl": -0.0008055000000000145,
+        "holding_candles": 20,
+        "maximum_adverse_excursion_r": 0.4566734891357021,
+        "maximum_favorable_excursion_r": 0.09593237864709049,
+        "metadata": {
+          "activation_expiry_candles": 0,
+          "activation_level": 0.0,
+          "activation_required": false,
+          "activation_type": "none",
+          "activation_wait_candles": 0,
+          "actual_fees": 0.00061100004,
+          "actual_funding": 0.0,
+          "actual_net_loss": 0.0014165000400000144,
+          "actual_simulated_fill_loss": 0.0008055000000000145,
+          "candidate_id": "breakout_retest:long:0",
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 0.0034664160029436175,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 0.43272359656956466,
+          "counterfactual_path_mfe_r": 0.1442411988565002,
+          "direction_correct_at_horizon": false,
+          "entry_fee": 0.00030566112,
+          "entry_fill_candle": 1,
+          "entry_fill_price": 0.7641528,
+          "entry_fill_time": "2026-07-20T23:10:59.999000+00:00",
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "execution_authority": "execute_now",
+          "expected_r": -1.263880742223302,
+          "expected_total_loss_at_stop": 0.004381136430655111,
+          "first_exit_event": "expired",
+          "first_stop_touch_candle": 0,
+          "first_stop_touch_time": "",
+          "first_tp1_touch_candle": 0,
+          "first_tp1_touch_time": "",
+          "gross_stop_loss_at_planned_stop": 0.0034664160029436175,
+          "maximum_adverse_excursion_r": 0.4566734891357021,
+          "maximum_favorable_excursion_r": 0.09593237864709049,
+          "modeled_entry_fill_price": 0.7641528,
+          "modeled_slippage_loss": 0.0003049067167993913,
+          "modeled_stop_fill_price": 0.760381477280257,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.764,
+          "planned_stop_exit_fee": 0.0003041525909121028,
+          "planned_stop_price": 0.7605335839970564,
+          "post_stop_adverse_close_beyond_stop": false,
+          "post_stop_bars_to_reclaim": 0,
+          "post_stop_classification": "no_stop_hit",
+          "post_stop_entry_reclaimed": false,
+          "post_stop_followup_candles": 0,
+          "post_stop_maximum_adverse_excursion_r": 0.0,
+          "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+          "post_stop_maximum_favorable_excursion_r": 0.0,
+          "post_stop_tp1_reached": false,
+          "pre_exit_mae_r": 0.4566734891357021,
+          "pre_exit_mfe_r": 0.09593237864709049,
+          "realized_r": -0.40863532789981016,
+          "replay_source": "geometry_rejected",
+          "same_candle_stop_target_ambiguous": false,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_hit": false,
+          "strategy_version": "strategy-contract-v1",
+          "target_touched": false,
+          "terminal_state": "expired"
+        },
+        "net_pnl": -0.0014165000400000144,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:long:0",
+        "outcome": "expired",
+        "partition": "final_test",
+        "r_progress": {
+          "reached_0_5r": false,
+          "reached_1_5r": false,
+          "reached_1r": false,
+          "reached_2r": false,
+          "reached_3r": false,
+          "tp1_progress_ratio": 0.065039540251
+        },
+        "realized_r_multiple": -0.40863532789981016,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": false,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:long:0",
+          "confidence_score": 0.0,
+          "diagnostics": {
+            "confirmation": {
+              "confirmation_reason": null,
+              "continuation_freshness": null,
+              "continuation_requires_conditional_entry": null,
+              "continuation_state": null,
+              "entry_confirmation_complete": null,
+              "higher_timeframe_conflict": null,
+              "immediate_timeframe_conflict": null,
+              "lower_timeframe_trigger_confirmed": null,
+              "lower_timeframe_trigger_opposed": null,
+              "participation_state": null,
+              "provisional": null,
+              "provisional_state": null,
+              "recent_continuation_break": null,
+              "setup_direction_confirmed": null
+            },
+            "decision_atr": null,
+            "diagnostic_schema_version": 2,
+            "execution_timeframe": null,
+            "expected_bars_to_target": null,
+            "geometry_audit": {},
+            "geometry_available": false,
+            "geometry_complete": false,
+            "geometry_lane": null,
+            "geometry_missing_measurements": [],
+            "geometry_passed": false,
+            "geometry_reasons": [],
+            "geometry_rejection_codes": [],
+            "geometry_state": null,
+            "invalidation_timeframe": null,
+            "legacy_context_lane": null,
+            "legacy_geometry_passed": null,
+            "legacy_geometry_rejection_codes": [],
+            "legacy_holding_horizon": null,
+            "legacy_maximum_tp1_distance_atr": null,
+            "lifecycle_model": null,
+            "measured_context_lane": null,
+            "measured_geometry_lane": null,
+            "measured_geometry_passed": null,
+            "measured_geometry_reasons": [],
+            "measured_geometry_rejection_codes": [],
+            "measured_holding_horizon": null,
+            "measured_lane_basis": null,
+            "measured_maximum_tp1_distance_atr": null,
+            "setup_timeframe": null,
+            "target_timeframe": null,
+            "would_change_geometry_result": null,
+            "would_change_lane": null
+          },
+          "direction": "long",
+          "entry_price": 0.764,
+          "execution_authority": "execute_now",
+          "generated_at": "2026-07-20T23:09:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 0.0034664160029436175,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_price": 0.7605335839970564,
+          "strategy": "breakout_retest",
+          "strategy_version": "strategy-contract-v1",
+          "symbol": "SUI/USDT",
+          "target_price": 0.7700333333333332,
+          "target_prices": [
+            0.7700333333333332
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "tp1_approached_before_stop": null,
+        "trade_number": 1
+      },
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 0.03655110497989676,
+        "counterfactual_path_mfe_r": 0.9433523270282861,
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "diagnostics": {
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": null,
+          "diagnostic_schema_version": 2,
+          "execution_timeframe": null,
+          "expected_bars_to_target": null,
+          "fee_pct": 0.04,
+          "geometry_audit": {},
+          "geometry_available": false,
+          "geometry_complete": false,
+          "geometry_lane": null,
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [],
+          "geometry_rejection_codes": [],
+          "geometry_state": null,
+          "gross_tp1_r": 3.654418488917563,
+          "invalidation_timeframe": null,
+          "legacy_context_lane": null,
+          "legacy_geometry_passed": null,
+          "legacy_geometry_rejection_codes": [],
+          "legacy_holding_horizon": null,
+          "legacy_maximum_tp1_distance_atr": null,
+          "lifecycle_model": null,
+          "maximum_adverse_excursion_r": 0.10353909827000232,
+          "maximum_favorable_excursion_r": 0.8082322668816964,
+          "measured_context_lane": null,
+          "measured_geometry_lane": null,
+          "measured_geometry_passed": null,
+          "measured_geometry_reasons": [],
+          "measured_geometry_rejection_codes": [],
+          "measured_holding_horizon": null,
+          "measured_lane_basis": null,
+          "measured_maximum_tp1_distance_atr": null,
+          "modeled_round_trip_cost": 0.0009195647608657578,
+          "modeled_round_trip_cost_r": 0.45054233256306964,
+          "net_tp1_r": 3.2038761563544935,
+          "setup_timeframe": null,
+          "slippage_pct": 0.02,
+          "target_timeframe": null,
+          "would_change_geometry_result": null,
+          "would_change_lane": null
+        },
+        "direction_correct_at_horizon": true,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.7633473,
+        "exit_time": "2026-07-20T23:29:59.999000+00:00",
+        "fees": 0.0006104297665452874,
+        "gross_pnl": 0.0006201836367815128,
+        "holding_candles": 20,
+        "maximum_adverse_excursion_r": 0.10353909827000232,
+        "maximum_favorable_excursion_r": 0.8082322668816964,
+        "metadata": {
+          "activation_expiry_candles": 0,
+          "activation_level": 0.0,
+          "activation_required": false,
+          "activation_type": "none",
+          "activation_wait_candles": 0,
+          "actual_fees": 0.0006104297665452874,
+          "actual_funding": 0.0,
+          "actual_net_loss": 0.0,
+          "actual_simulated_fill_loss": 0.0,
+          "candidate_id": "breakout_retest:long:1",
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 0.002041017445873483,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 0.03655110497989676,
+          "counterfactual_path_mfe_r": 0.9433523270282861,
+          "direction_correct_at_horizon": true,
+          "entry_fee": 0.00030509084654528737,
+          "entry_fill_candle": 4,
+          "entry_fill_price": 0.7627271163632184,
+          "entry_fill_time": "2026-07-20T23:13:59.999000+00:00",
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "execution_authority": "execute_now",
+          "expected_r": -1.4477497614697197,
+          "expected_total_loss_at_stop": 0.002954882520418872,
+          "first_exit_event": "expired",
+          "first_stop_touch_candle": 0,
+          "first_stop_touch_time": "",
+          "first_tp1_touch_candle": 0,
+          "first_tp1_touch_time": "",
+          "gross_stop_loss_at_planned_stop": 0.002041017445873483,
+          "maximum_adverse_excursion_r": 0.10353909827000232,
+          "maximum_favorable_excursion_r": 0.8082322668816964,
+          "modeled_entry_fill_price": 0.7627271163632184,
+          "modeled_slippage_loss": 0.0003046216370879984,
+          "modeled_stop_fill_price": 0.760381477280257,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.7625746014429299,
+          "planned_stop_exit_fee": 0.0003041525909121028,
+          "planned_stop_price": 0.7605335839970564,
+          "post_stop_adverse_close_beyond_stop": false,
+          "post_stop_bars_to_reclaim": 0,
+          "post_stop_classification": "no_stop_hit",
+          "post_stop_entry_reclaimed": false,
+          "post_stop_followup_candles": 0,
+          "post_stop_maximum_adverse_excursion_r": 0.0,
+          "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+          "post_stop_maximum_favorable_excursion_r": 0.0,
+          "post_stop_tp1_reached": false,
+          "pre_exit_mae_r": 0.10353909827000232,
+          "pre_exit_mfe_r": 0.8082322668816964,
+          "realized_r": 0.00477892545991984,
+          "replay_source": "geometry_rejected",
+          "same_candle_stop_target_ambiguous": false,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_hit": false,
+          "strategy_version": "strategy-contract-v1",
+          "target_touched": false,
+          "terminal_state": "expired"
+        },
+        "net_pnl": 9.753870236225352e-06,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:long:1",
+        "outcome": "expired",
+        "partition": "final_test",
+        "r_progress": {
+          "reached_0_5r": true,
+          "reached_1_5r": false,
+          "reached_1r": false,
+          "reached_2r": false,
+          "reached_3r": false,
+          "tp1_progress_ratio": 0.252267012655
+        },
+        "realized_r_multiple": 0.00477892545991984,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": false,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:long:1",
+          "confidence_score": 0.0,
+          "diagnostics": {
+            "confirmation": {
+              "confirmation_reason": null,
+              "continuation_freshness": null,
+              "continuation_requires_conditional_entry": null,
+              "continuation_state": null,
+              "entry_confirmation_complete": null,
+              "higher_timeframe_conflict": null,
+              "immediate_timeframe_conflict": null,
+              "lower_timeframe_trigger_confirmed": null,
+              "lower_timeframe_trigger_opposed": null,
+              "participation_state": null,
+              "provisional": null,
+              "provisional_state": null,
+              "recent_continuation_break": null,
+              "setup_direction_confirmed": null
+            },
+            "decision_atr": null,
+            "diagnostic_schema_version": 2,
+            "execution_timeframe": null,
+            "expected_bars_to_target": null,
+            "geometry_audit": {},
+            "geometry_available": false,
+            "geometry_complete": false,
+            "geometry_lane": null,
+            "geometry_missing_measurements": [],
+            "geometry_passed": false,
+            "geometry_reasons": [],
+            "geometry_rejection_codes": [],
+            "geometry_state": null,
+            "invalidation_timeframe": null,
+            "legacy_context_lane": null,
+            "legacy_geometry_passed": null,
+            "legacy_geometry_rejection_codes": [],
+            "legacy_holding_horizon": null,
+            "legacy_maximum_tp1_distance_atr": null,
+            "lifecycle_model": null,
+            "measured_context_lane": null,
+            "measured_geometry_lane": null,
+            "measured_geometry_passed": null,
+            "measured_geometry_reasons": [],
+            "measured_geometry_rejection_codes": [],
+            "measured_holding_horizon": null,
+            "measured_lane_basis": null,
+            "measured_maximum_tp1_distance_atr": null,
+            "setup_timeframe": null,
+            "target_timeframe": null,
+            "would_change_geometry_result": null,
+            "would_change_lane": null
+          },
+          "direction": "long",
+          "entry_price": 0.7625746014429299,
+          "execution_authority": "execute_now",
+          "generated_at": "2026-07-20T23:09:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 0.002041017445873483,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_price": 0.7605335839970564,
+          "strategy": "breakout_retest",
+          "strategy_version": "strategy-contract-v1",
+          "symbol": "SUI/USDT",
+          "target_price": 0.7700333333333332,
+          "target_prices": [
+            0.7700333333333332
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "tp1_approached_before_stop": null,
+        "trade_number": 2
+      },
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 0.4254518505782494,
+        "counterfactual_path_mfe_r": 0.15890888342889903,
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "diagnostics": {
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": null,
+          "diagnostic_schema_version": 2,
+          "execution_timeframe": null,
+          "expected_bars_to_target": null,
+          "fee_pct": 0.04,
+          "geometry_audit": {},
+          "geometry_available": false,
+          "geometry_complete": false,
+          "geometry_lane": null,
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [],
+          "geometry_rejection_codes": [],
+          "geometry_state": null,
+          "gross_tp1_r": 1.775640247515326,
+          "invalidation_timeframe": null,
+          "legacy_context_lane": null,
+          "legacy_geometry_passed": null,
+          "legacy_geometry_rejection_codes": [],
+          "legacy_holding_horizon": null,
+          "legacy_maximum_tp1_distance_atr": null,
+          "lifecycle_model": null,
+          "maximum_adverse_excursion_r": 0.4500050529858288,
+          "maximum_favorable_excursion_r": 0.10938313973725232,
+          "measured_context_lane": null,
+          "measured_geometry_lane": null,
+          "measured_geometry_passed": null,
+          "measured_geometry_reasons": [],
+          "measured_geometry_rejection_codes": [],
+          "measured_holding_horizon": null,
+          "measured_lane_basis": null,
+          "measured_maximum_tp1_distance_atr": null,
+          "modeled_round_trip_cost": 0.0009203936764655504,
+          "modeled_round_trip_cost_r": 0.26892096217747324,
+          "net_tp1_r": 1.5067192853378526,
+          "setup_timeframe": null,
+          "slippage_pct": 0.02,
+          "target_timeframe": null,
+          "would_change_geometry_result": null,
+          "would_change_lane": null
+        },
+        "direction_correct_at_horizon": false,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.7633473,
+        "exit_time": "2026-07-20T23:29:59.999000+00:00",
+        "fees": 0.0006109824874672291,
+        "gross_pnl": -0.0007616186680727832,
+        "holding_candles": 20,
+        "maximum_adverse_excursion_r": 0.4500050529858288,
+        "maximum_favorable_excursion_r": 0.10938313973725232,
+        "metadata": {
+          "activation_expiry_candles": 0,
+          "activation_level": 0.0,
+          "activation_required": false,
+          "activation_type": "none",
+          "activation_wait_candles": 0,
+          "actual_fees": 0.0006109824874672291,
+          "actual_funding": 0.0,
+          "actual_net_loss": 0.0013726011555400123,
+          "actual_simulated_fill_loss": 0.0007616186680727832,
+          "candidate_id": "breakout_retest:long:3",
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 0.003422543445527837,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 0.4254518505782494,
+          "counterfactual_path_mfe_r": 0.15890888342889903,
+          "direction_correct_at_horizon": false,
+          "entry_fee": 0.0003056435674672291,
+          "entry_fill_candle": 1,
+          "entry_fill_price": 0.7641089186680727,
+          "entry_fill_time": "2026-07-20T23:10:59.999000+00:00",
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "execution_authority": "execute_now",
+          "expected_r": -1.2672556580289676,
+          "expected_total_loss_at_stop": 0.004337237546195109,
+          "first_exit_event": "expired",
+          "first_stop_touch_candle": 0,
+          "first_stop_touch_time": "",
+          "first_tp1_touch_candle": 0,
+          "first_tp1_touch_time": "",
+          "gross_stop_loss_at_planned_stop": 0.003422543445527837,
+          "maximum_adverse_excursion_r": 0.4500050529858288,
+          "maximum_favorable_excursion_r": 0.10938313973725232,
+          "modeled_entry_fill_price": 0.7641089186680727,
+          "modeled_slippage_loss": 0.00030489794228794054,
+          "modeled_stop_fill_price": 0.760381477280257,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.7639561274425842,
+          "planned_stop_exit_fee": 0.0003041525909121028,
+          "planned_stop_price": 0.7605335839970564,
+          "post_stop_adverse_close_beyond_stop": false,
+          "post_stop_bars_to_reclaim": 0,
+          "post_stop_classification": "no_stop_hit",
+          "post_stop_entry_reclaimed": false,
+          "post_stop_followup_candles": 0,
+          "post_stop_maximum_adverse_excursion_r": 0.0,
+          "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+          "post_stop_maximum_favorable_excursion_r": 0.0,
+          "post_stop_tp1_reached": false,
+          "pre_exit_mae_r": 0.4500050529858288,
+          "pre_exit_mfe_r": 0.10938313973725232,
+          "realized_r": -0.40104710937521054,
+          "replay_source": "geometry_rejected",
+          "same_candle_stop_target_ambiguous": false,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_hit": false,
+          "strategy_version": "strategy-contract-v1",
+          "target_touched": false,
+          "terminal_state": "expired"
+        },
+        "net_pnl": -0.0013726011555400123,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:long:3",
+        "outcome": "expired",
+        "partition": "final_test",
+        "r_progress": {
+          "reached_0_5r": false,
+          "reached_1_5r": false,
+          "reached_1r": false,
+          "reached_2r": false,
+          "reached_3r": false,
+          "tp1_progress_ratio": 0.072596893663
+        },
+        "realized_r_multiple": -0.40104710937521054,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": false,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:long:3",
+          "confidence_score": 0.0,
+          "diagnostics": {
+            "confirmation": {
+              "confirmation_reason": null,
+              "continuation_freshness": null,
+              "continuation_requires_conditional_entry": null,
+              "continuation_state": null,
+              "entry_confirmation_complete": null,
+              "higher_timeframe_conflict": null,
+              "immediate_timeframe_conflict": null,
+              "lower_timeframe_trigger_confirmed": null,
+              "lower_timeframe_trigger_opposed": null,
+              "participation_state": null,
+              "provisional": null,
+              "provisional_state": null,
+              "recent_continuation_break": null,
+              "setup_direction_confirmed": null
+            },
+            "decision_atr": null,
+            "diagnostic_schema_version": 2,
+            "execution_timeframe": null,
+            "expected_bars_to_target": null,
+            "geometry_audit": {},
+            "geometry_available": false,
+            "geometry_complete": false,
+            "geometry_lane": null,
+            "geometry_missing_measurements": [],
+            "geometry_passed": false,
+            "geometry_reasons": [],
+            "geometry_rejection_codes": [],
+            "geometry_state": null,
+            "invalidation_timeframe": null,
+            "legacy_context_lane": null,
+            "legacy_geometry_passed": null,
+            "legacy_geometry_rejection_codes": [],
+            "legacy_holding_horizon": null,
+            "legacy_maximum_tp1_distance_atr": null,
+            "lifecycle_model": null,
+            "measured_context_lane": null,
+            "measured_geometry_lane": null,
+            "measured_geometry_passed": null,
+            "measured_geometry_reasons": [],
+            "measured_geometry_rejection_codes": [],
+            "measured_holding_horizon": null,
+            "measured_lane_basis": null,
+            "measured_maximum_tp1_distance_atr": null,
+            "setup_timeframe": null,
+            "target_timeframe": null,
+            "would_change_geometry_result": null,
+            "would_change_lane": null
+          },
+          "direction": "long",
+          "entry_price": 0.7639561274425842,
+          "execution_authority": "execute_now",
+          "generated_at": "2026-07-20T23:09:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 0.003422543445527837,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_price": 0.7605335839970564,
+          "strategy": "breakout_retest",
+          "strategy_version": "strategy-contract-v1",
+          "symbol": "SUI/USDT",
+          "target_price": 0.7700333333333332,
+          "target_prices": [
+            0.7700333333333332
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "tp1_approached_before_stop": null,
+        "trade_number": 3
+      },
+      {
+        "actionability_state": null,
+        "canonical_portfolio": true,
+        "counterfactual_path_mae_r": 0.3445690722079644,
+        "counterfactual_path_mfe_r": 0.3220558197893656,
+        "decision_time": "2026-07-20T23:09:59.999000+00:00",
+        "diagnostics": {
+          "confirmation": {
+            "confirmation_reason": null,
+            "continuation_freshness": null,
+            "continuation_requires_conditional_entry": null,
+            "continuation_state": null,
+            "entry_confirmation_complete": null,
+            "higher_timeframe_conflict": null,
+            "immediate_timeframe_conflict": null,
+            "lower_timeframe_trigger_confirmed": null,
+            "lower_timeframe_trigger_opposed": null,
+            "participation_state": null,
+            "provisional": null,
+            "provisional_state": null,
+            "recent_continuation_break": null,
+            "setup_direction_confirmed": null
+          },
+          "decision_atr": null,
+          "diagnostic_schema_version": 2,
+          "execution_timeframe": null,
+          "expected_bars_to_target": null,
+          "fee_pct": 0.04,
+          "geometry_audit": {},
+          "geometry_available": false,
+          "geometry_complete": false,
+          "geometry_lane": null,
+          "geometry_missing_measurements": [],
+          "geometry_passed": false,
+          "geometry_reasons": [],
+          "geometry_rejection_codes": [],
+          "geometry_state": null,
+          "gross_tp1_r": 2.1663846876486255,
+          "invalidation_timeframe": null,
+          "legacy_context_lane": null,
+          "legacy_geometry_passed": null,
+          "legacy_geometry_rejection_codes": [],
+          "legacy_holding_horizon": null,
+          "legacy_maximum_tp1_distance_atr": null,
+          "lifecycle_model": null,
+          "maximum_adverse_excursion_r": 0.376314099423428,
+          "maximum_favorable_excursion_r": 0.2580235988489282,
+          "measured_context_lane": null,
+          "measured_geometry_lane": null,
+          "measured_geometry_passed": null,
+          "measured_geometry_reasons": [],
+          "measured_geometry_rejection_codes": [],
+          "measured_holding_horizon": null,
+          "measured_lane_basis": null,
+          "measured_maximum_tp1_distance_atr": null,
+          "modeled_round_trip_cost": 0.000920140263196909,
+          "modeled_round_trip_cost_r": 0.3066942017880168,
+          "net_tp1_r": 1.8596904858606087,
+          "setup_timeframe": null,
+          "slippage_pct": 0.02,
+          "target_timeframe": null,
+          "would_change_geometry_result": null,
+          "would_change_lane": null
+        },
+        "direction_correct_at_horizon": false,
+        "entry_follow_through": "direct_cmp_fill",
+        "exit_price": 0.7633473,
+        "exit_time": "2026-07-20T23:29:59.999000+00:00",
+        "fees": 0.000610813511499699,
+        "gross_pnl": -0.00033917874924771496,
+        "holding_candles": 20,
+        "maximum_adverse_excursion_r": 0.376314099423428,
+        "maximum_favorable_excursion_r": 0.2580235988489282,
+        "metadata": {
+          "activation_expiry_candles": 0,
+          "activation_level": 0.0,
+          "activation_required": false,
+          "activation_type": "none",
+          "activation_wait_candles": 0,
+          "actual_fees": 0.000610813511499699,
+          "actual_funding": 0.0,
+          "actual_net_loss": 0.000949992260747414,
+          "actual_simulated_fill_loss": 0.00033917874924771496,
+          "candidate_id": "breakout_retest:long:4",
+          "closed_percentage": 0,
+          "configured_fee_pct": 0.04,
+          "configured_funding_pct": 0.0,
+          "configured_signal_risk_amount": 0.0030001879977923362,
+          "configured_slippage_pct": 0.02,
+          "counterfactual_path_mae_r": 0.3445690722079644,
+          "counterfactual_path_mfe_r": 0.3220558197893656,
+          "direction_correct_at_horizon": false,
+          "entry_fee": 0.00030547459149969907,
+          "entry_fill_candle": 1,
+          "entry_fill_price": 0.7636864787492477,
+          "entry_fill_time": "2026-07-20T23:10:59.999000+00:00",
+          "entry_filled": true,
+          "entry_follow_through": "direct_cmp_fill",
+          "execution_authority": "execute_now",
+          "expected_r": -1.304794450975425,
+          "expected_total_loss_at_stop": 0.003914628651402511,
+          "first_exit_event": "expired",
+          "first_stop_touch_candle": 0,
+          "first_stop_touch_time": "",
+          "first_tp1_touch_candle": 0,
+          "first_tp1_touch_time": "",
+          "gross_stop_loss_at_planned_stop": 0.0030001879977923362,
+          "maximum_adverse_excursion_r": 0.376314099423428,
+          "maximum_favorable_excursion_r": 0.2580235988489282,
+          "modeled_entry_fill_price": 0.7636864787492477,
+          "modeled_slippage_loss": 0.000304813471198373,
+          "modeled_stop_fill_price": 0.760381477280257,
+          "net_profitable_target": false,
+          "partial_target_count": 0,
+          "planned_entry_price": 0.7635337719948487,
+          "planned_stop_exit_fee": 0.0003041525909121028,
+          "planned_stop_price": 0.7605335839970564,
+          "post_stop_adverse_close_beyond_stop": false,
+          "post_stop_bars_to_reclaim": 0,
+          "post_stop_classification": "no_stop_hit",
+          "post_stop_entry_reclaimed": false,
+          "post_stop_followup_candles": 0,
+          "post_stop_maximum_adverse_excursion_r": 0.0,
+          "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+          "post_stop_maximum_favorable_excursion_r": 0.0,
+          "post_stop_tp1_reached": false,
+          "pre_exit_mae_r": 0.376314099423428,
+          "pre_exit_mfe_r": 0.2580235988489282,
+          "realized_r": -0.3166442441095218,
+          "replay_source": "geometry_rejected",
+          "same_candle_stop_target_ambiguous": false,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_hit": false,
+          "strategy_version": "strategy-contract-v1",
+          "target_touched": false,
+          "terminal_state": "expired"
+        },
+        "net_pnl": -0.000949992260747414,
+        "net_profitable_target": false,
+        "opportunity_id": "breakout_retest:long:4",
+        "outcome": "expired",
+        "partition": "final_test",
+        "r_progress": {
+          "reached_0_5r": false,
+          "reached_1_5r": false,
+          "reached_1r": false,
+          "reached_2r": false,
+          "reached_3r": false,
+          "tp1_progress_ratio": 0.138745452972
+        },
+        "realized_r_multiple": -0.3166442441095218,
+        "replay_reason_code": "canonical_no_executable_opportunity",
+        "same_candle_stop_target_ambiguous": false,
+        "sequence_role": null,
+        "signal": {
+          "activation_expiry_candles": null,
+          "activation_level": null,
+          "activation_type": null,
+          "candidate_id": "breakout_retest:long:4",
+          "confidence_score": 0.0,
+          "diagnostics": {
+            "confirmation": {
+              "confirmation_reason": null,
+              "continuation_freshness": null,
+              "continuation_requires_conditional_entry": null,
+              "continuation_state": null,
+              "entry_confirmation_complete": null,
+              "higher_timeframe_conflict": null,
+              "immediate_timeframe_conflict": null,
+              "lower_timeframe_trigger_confirmed": null,
+              "lower_timeframe_trigger_opposed": null,
+              "participation_state": null,
+              "provisional": null,
+              "provisional_state": null,
+              "recent_continuation_break": null,
+              "setup_direction_confirmed": null
+            },
+            "decision_atr": null,
+            "diagnostic_schema_version": 2,
+            "execution_timeframe": null,
+            "expected_bars_to_target": null,
+            "geometry_audit": {},
+            "geometry_available": false,
+            "geometry_complete": false,
+            "geometry_lane": null,
+            "geometry_missing_measurements": [],
+            "geometry_passed": false,
+            "geometry_reasons": [],
+            "geometry_rejection_codes": [],
+            "geometry_state": null,
+            "invalidation_timeframe": null,
+            "legacy_context_lane": null,
+            "legacy_geometry_passed": null,
+            "legacy_geometry_rejection_codes": [],
+            "legacy_holding_horizon": null,
+            "legacy_maximum_tp1_distance_atr": null,
+            "lifecycle_model": null,
+            "measured_context_lane": null,
+            "measured_geometry_lane": null,
+            "measured_geometry_passed": null,
+            "measured_geometry_reasons": [],
+            "measured_geometry_rejection_codes": [],
+            "measured_holding_horizon": null,
+            "measured_lane_basis": null,
+            "measured_maximum_tp1_distance_atr": null,
+            "setup_timeframe": null,
+            "target_timeframe": null,
+            "would_change_geometry_result": null,
+            "would_change_lane": null
+          },
+          "direction": "long",
+          "entry_price": 0.7635337719948487,
+          "execution_authority": "execute_now",
+          "generated_at": "2026-07-20T23:09:59.999000+00:00",
+          "maximum_chase_price": null,
+          "partial_close_percentages": [
+            100.0
+          ],
+          "pre_entry_invalidation_price": null,
+          "quantity": 1.0,
+          "replay_source": "geometry_rejected",
+          "risk_amount": 0.0030001879977923362,
+          "setup_methodology_version": "trade-plan-v1",
+          "setup_validity": "valid",
+          "stop_price": 0.7605335839970564,
+          "strategy": "breakout_retest",
+          "strategy_version": "strategy-contract-v1",
+          "symbol": "SUI/USDT",
+          "target_price": 0.7700333333333332,
+          "target_prices": [
+            0.7700333333333332
+          ]
+        },
+        "target_touched": false,
+        "targets_hit": 0,
+        "tp1_approached_before_stop": null,
+        "trade_number": 4
+      }
+    ]
+  },
+  "study": {
+    "code_hash": "023d144a452ffbedb43e8fdbbc79cdef4eb937e4993700b44028ce8e573f3986",
+    "config_hash": "d4a8f752b9930e73a643a9e1e0d42a4def8b83041270696479e4bf26d9df041b",
+    "dataset_hash": "cf0f5b3a3f13a7cb06973f890149ec79d3c393bf1c7dc756d66097319733be1b",
+    "skipped_signal_count": 0
+  },
+  "symbol": "SUI/USDT",
+  "trades": []
+}

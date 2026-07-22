@@ -63,6 +63,10 @@ class EntrySelectionConfig:
     market_tick_multiple: float = 1.0
     market_spread_multiplier: float = 0.5
     minimum_risk_reward_improvement: float = 0.15
+    sweep_projection_enabled: bool = False
+    sweep_projection_atr: float = 0.35
+    sweep_zone_half_width_atr: float = 0.08
+    sweep_invalidation_clearance_atr: float = 0.12
     default_expiry_seconds: int = 900
 
     def __post_init__(self) -> None:
@@ -75,6 +79,12 @@ class EntrySelectionConfig:
             ("market tick multiple", self.market_tick_multiple),
             ("market spread multiplier", self.market_spread_multiplier),
             ("minimum risk-reward improvement", self.minimum_risk_reward_improvement),
+            ("sweep projection ATR", self.sweep_projection_atr),
+            ("sweep zone half-width ATR", self.sweep_zone_half_width_atr),
+            (
+                "sweep invalidation clearance ATR",
+                self.sweep_invalidation_clearance_atr,
+            ),
         ):
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
@@ -139,7 +149,23 @@ def find_entry_zones(
     eligible: list[tuple[EntryZone, float, bool]] = []
     if allow_market_entry:
         eligible.append((market, market_rr, True))
-    for reference in references:
+
+    effective_references = references
+    if config.sweep_projection_enabled and not any(
+        reference.mode is EntryMode.SWEEP_RECOVERY for reference in references
+    ):
+        sweep_reference = _project_sweep_recovery_reference(
+            current_price=current_price,
+            atr=atr,
+            direction=direction,
+            invalidation_price=invalidation_price,
+            target_price=target_price,
+            config=config,
+        )
+        if sweep_reference is not None:
+            effective_references = (*references, sweep_reference)
+
+    for reference in effective_references:
         distance = abs(reference.price - current_price)
         allowed_distance = max(
             current_price * config.max_percentage_distance,
@@ -212,6 +238,7 @@ def find_entry_zones(
     ranked = sorted(
         eligible,
         key=lambda item: (
+            item[0].mode is EntryMode.SWEEP_RECOVERY,
             not item[2],
             -item[1],
             item[0].distance_from_current,
@@ -234,6 +261,68 @@ def find_entry_zones(
         seen.add(key)
         unique.append(zone)
     return tuple(unique)
+
+
+def _project_sweep_recovery_reference(
+    *,
+    current_price: float,
+    atr: float,
+    direction: TradeDirection,
+    invalidation_price: float,
+    target_price: float,
+    config: EntrySelectionConfig,
+) -> EntryReference | None:
+    """Project a conservative sweep-and-reclaim alternative from current geometry."""
+
+    projection = atr * config.sweep_projection_atr
+    half_width = atr * config.sweep_zone_half_width_atr
+    clearance = atr * config.sweep_invalidation_clearance_atr
+
+    if direction is TradeDirection.LONG:
+        minimum_entry = invalidation_price + clearance
+        preferred = max(minimum_entry, current_price - projection)
+        if preferred >= current_price or preferred >= target_price:
+            return None
+
+        lower = max(minimum_entry, preferred - half_width)
+        upper = min(current_price, preferred + half_width)
+        trigger = upper
+        max_chase = upper
+    else:
+        maximum_entry = invalidation_price - clearance
+        preferred = min(maximum_entry, current_price + projection)
+        if preferred <= current_price or preferred <= target_price:
+            return None
+
+        lower = max(current_price, preferred - half_width)
+        upper = min(maximum_entry, preferred + half_width)
+        trigger = lower
+        max_chase = lower
+
+    if lower > upper or not lower <= preferred <= upper:
+        return None
+    if not _entry_is_directionally_valid(
+        price=preferred,
+        direction=direction,
+        invalidation_price=invalidation_price,
+        target_price=target_price,
+    ):
+        return None
+
+    return EntryReference(
+        price=preferred,
+        mode=EntryMode.SWEEP_RECOVERY,
+        rationale=(
+            "projected sweep entry uses recent decision-frame volatility",
+            "entry remains inside structural invalidation with explicit clearance",
+            "execution requires reclaim of the projected sweep zone",
+        ),
+        zone_lower=lower,
+        zone_upper=upper,
+        trigger_price=trigger,
+        max_chase_price=max_chase,
+        expires_after_seconds=config.default_expiry_seconds,
+    )
 
 
 def select_entry_zone(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from apex.strategies.context import StrategyContext, TimeframeContext, TimeframeRole
@@ -166,7 +167,7 @@ def _candidate_for_direction(
             invalidation_price=invalidation_price,
             target_price=target_price,
             references=references,
-            config=entry_config,
+            config=replace(entry_config, sweep_projection_enabled=True),
             # Preserve a structurally valid setup even when execution confirmation
             # is incomplete. Actionability classification prevents an unconfirmed
             # market-near entry from being labelled READY_NOW.

@@ -73,6 +73,16 @@ def simulate_trade(
         ),
         "activation_level": signal.activation_level or 0.0,
         "activation_expiry_candles": signal.activation_expiry_candles or 0,
+        "stop_hit": False,
+        "post_stop_classification": "no_stop_hit",
+        "post_stop_followup_candles": 0,
+        "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+        "post_stop_entry_reclaimed": False,
+        "post_stop_bars_to_reclaim": 0,
+        "post_stop_tp1_reached": False,
+        "post_stop_maximum_favorable_excursion_r": 0.0,
+        "post_stop_maximum_adverse_excursion_r": 0.0,
+        "post_stop_adverse_close_beyond_stop": False,
     }
 
     activated = signal.activation_type is None
@@ -200,7 +210,15 @@ def simulate_trade(
                 ),
                 exit_fee_notional + _slipped_exit(signal, stop, config) * remaining_quantity,
                 config,
-                metadata=runtime_metadata,
+                metadata={
+                    **runtime_metadata,
+                    **_post_stop_thesis_metadata(
+                        signal,
+                        candles[index:max_candles],
+                        entry=entry,
+                        stop=stop,
+                    ),
+                },
                 partial_target_count=next_target_index,
             )
 
@@ -256,6 +274,12 @@ def simulate_trade(
                 metadata={
                     **runtime_metadata,
                     "first_exit_event": "stop",
+                    **_post_stop_thesis_metadata(
+                        signal,
+                        candles[index:max_candles],
+                        entry=entry,
+                        stop=stop,
+                    ),
                 },
                 partial_target_count=next_target_index,
             )
@@ -554,6 +578,87 @@ def _excursion_metadata(
     result["maximum_favorable_excursion_r"] = maximum_favorable_excursion_r
     result["maximum_adverse_excursion_r"] = maximum_adverse_excursion_r
     return result
+
+
+def _post_stop_thesis_metadata(
+    signal: BacktestSignal,
+    candles: Sequence[Candle],
+    *,
+    entry: float,
+    stop: float,
+) -> dict[str, str | int | float | bool]:
+    """Classify whether a stop exposed bad execution geometry or a bad thesis.
+
+    The stop candle itself is intentionally excluded by callers. Its intrabar
+    sequence is unknowable, so only later closed candles may prove recovery or
+    adverse continuation. This is diagnostic-only and never changes the exit.
+    """
+
+    risk_per_unit = abs(entry - stop)
+    if risk_per_unit <= 0.0:
+        return {
+            "stop_hit": True,
+            "post_stop_classification": "ambiguous_after_stop",
+            "post_stop_followup_candles": len(candles),
+            "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+            "post_stop_entry_reclaimed": False,
+            "post_stop_bars_to_reclaim": 0,
+            "post_stop_tp1_reached": False,
+            "post_stop_maximum_favorable_excursion_r": 0.0,
+            "post_stop_maximum_adverse_excursion_r": 0.0,
+            "post_stop_adverse_close_beyond_stop": False,
+        }
+
+    maximum_favorable_r = 0.0
+    maximum_adverse_r = 0.0
+    maximum_beyond_stop_r = 0.0
+    bars_to_reclaim = 0
+    entry_reclaimed = False
+    tp1_reached = False
+    adverse_close_beyond_stop = False
+
+    for index, candle in enumerate(candles, start=1):
+        favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
+        maximum_favorable_r = max(maximum_favorable_r, favorable_r)
+        maximum_adverse_r = max(maximum_adverse_r, adverse_r)
+
+        if signal.direction is TradeDirection.LONG:
+            beyond_stop = max(0.0, stop - candle.low) / risk_per_unit
+            reclaimed = candle.high >= entry
+            adverse_close = candle.close < stop
+        else:
+            beyond_stop = max(0.0, candle.high - stop) / risk_per_unit
+            reclaimed = candle.low <= entry
+            adverse_close = candle.close > stop
+
+        maximum_beyond_stop_r = max(maximum_beyond_stop_r, beyond_stop)
+        adverse_close_beyond_stop = adverse_close_beyond_stop or adverse_close
+        tp1_reached = tp1_reached or _target_hit(signal, candle, signal.target_price)
+        if reclaimed and not entry_reclaimed:
+            entry_reclaimed = True
+            bars_to_reclaim = index
+
+    if tp1_reached:
+        classification = "stop_run_then_tp"
+    elif entry_reclaimed:
+        classification = "stop_run_then_recovery"
+    elif maximum_beyond_stop_r >= 0.5 and adverse_close_beyond_stop:
+        classification = "directional_failure"
+    else:
+        classification = "ambiguous_after_stop"
+
+    return {
+        "stop_hit": True,
+        "post_stop_classification": classification,
+        "post_stop_followup_candles": len(candles),
+        "post_stop_maximum_excursion_beyond_stop_r": maximum_beyond_stop_r,
+        "post_stop_entry_reclaimed": entry_reclaimed,
+        "post_stop_bars_to_reclaim": bars_to_reclaim,
+        "post_stop_tp1_reached": tp1_reached,
+        "post_stop_maximum_favorable_excursion_r": maximum_favorable_r,
+        "post_stop_maximum_adverse_excursion_r": maximum_adverse_r,
+        "post_stop_adverse_close_beyond_stop": adverse_close_beyond_stop,
+    }
 
 
 def _hit_target_indexes(

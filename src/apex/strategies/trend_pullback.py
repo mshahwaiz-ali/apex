@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from apex.strategies.context import StrategyContext
@@ -21,7 +22,7 @@ from apex.strategies.entry import (
     DEFAULT_ENTRY_SELECTION_CONFIG,
     EntryReference,
     EntrySelectionConfig,
-    select_entry_zone,
+    find_entry_zones,
 )
 from apex.strategies.strategy_types import StrategyType
 from apex.strategies.target_quality import target_space_quality
@@ -99,15 +100,16 @@ def _candidate_for_direction(
         return None
 
     references = _entry_references(context, bullish=bullish)
-    entry = select_entry_zone(
+    entry_opportunities = find_entry_zones(
         current_price=current,
         atr=atr,
         direction=direction,
         invalidation_price=invalidation_price,
         target_price=target_price,
         references=references,
-        config=entry_config,
+        config=replace(entry_config, sweep_projection_enabled=True),
     )
+    entry = entry_opportunities[0]
     support = [
         f"{frame.timeframe} structure is {frame.structure.trend.direction.value}",
         "price is evaluating a nearby trend support area"
@@ -200,6 +202,7 @@ def _candidate_for_direction(
             structure_references=("trend", "levels"),
         ),
         metadata=metadata,
+        entry_opportunities=entry_opportunities,
         provisional=context.provisional,
     )
 

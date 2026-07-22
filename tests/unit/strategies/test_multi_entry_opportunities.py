@@ -165,5 +165,9 @@ def test_unqualified_reference_does_not_hide_valid_market_entry() -> None:
         allow_market_entry=True,
     )
 
-    assert len(zones) == 1
+    assert len(zones) == 2
     assert zones[0].mode is EntryMode.MARKET_NEAR
+    assert zones[1].mode is EntryMode.PULLBACK
+    assert (
+        "preserved as a future setup despite limited R:R improvement over CMP" in zones[1].rationale
+    )
