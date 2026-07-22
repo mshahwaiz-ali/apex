@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -20,14 +20,13 @@ from apex.application import (
     serialize_symbol_analysis,
 )
 from apex.application.candidate_ranking import CandidateRankingRecord, CandidateRankingSnapshot
+from apex.application.canonical_opportunity_selection import (
+    CanonicalOpportunityDecision,
+    select_canonical_opportunity_decision,
+)
 from apex.application.discovery_contracts import DiscoverySetup
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
-)
-from apex.application.opportunity_portfolio import (
-    ActionabilityState,
-    SequenceRole,
-    build_actionability_state_assessment,
 )
 from apex.backtesting.contracts import (
     BacktestConfig,
@@ -54,133 +53,8 @@ from apex.research.metrics import (
 )
 from apex.strategies import StrategyType, TradeDirection
 
-
-@dataclass(frozen=True, slots=True)
-class _ReplayDecision:
-    """Canonical decision selected for one historical analysis point."""
-
-    setup: DiscoverySetup | None
-    opportunity_id: str | None
-    sequence_role: str | None
-    lane: str | None
-    actionability_state: str | None
-    reason_code: str
-    canonical_portfolio: bool
-    execution_authorized: bool = False
-
-
-_EXECUTABLE_REPLAY_STATES = frozenset(
-    {
-        ActionabilityState.EXECUTE_NOW,
-        ActionabilityState.AGGRESSIVE_NOW,
-    }
-)
-
-
-def _select_replay_decision(analysis: object) -> _ReplayDecision:
-    """Select one already-executable canonical opportunity without inventing fills."""
-
-    portfolio = getattr(analysis, "opportunity_portfolio", None)
-    if portfolio is None:
-        assessment = getattr(analysis, "assessment", None)
-        setup = getattr(assessment, "setup", None)
-        return _ReplayDecision(
-            setup=setup if isinstance(setup, DiscoverySetup) else None,
-            opportunity_id=(setup.candidate_id if isinstance(setup, DiscoverySetup) else None),
-            sequence_role=(
-                SequenceRole.CURRENT.value if isinstance(setup, DiscoverySetup) else None
-            ),
-            lane=None,
-            actionability_state=None,
-            reason_code=(
-                "legacy_selected_setup"
-                if isinstance(setup, DiscoverySetup)
-                else "legacy_no_selected_setup"
-            ),
-            canonical_portfolio=False,
-            execution_authorized=(
-                isinstance(setup, DiscoverySetup) and setup.execution_allowed_now
-            ),
-        )
-
-    observed_states: list[ActionabilityState] = []
-    pending_decision: _ReplayDecision | None = None
-    opportunities = tuple(getattr(portfolio, "opportunities", ()))
-    for opportunity in opportunities:
-        setup = getattr(opportunity, "setup", None)
-        role = getattr(opportunity, "sequence_role", None)
-        if not isinstance(setup, DiscoverySetup) or not isinstance(role, SequenceRole):
-            continue
-        actionability = build_actionability_state_assessment(
-            setup,
-            sequence_role=role,
-        )
-        observed_states.append(actionability.state)
-        if (
-            role is SequenceRole.CURRENT
-            and actionability.state in _EXECUTABLE_REPLAY_STATES
-            and setup.execution_allowed_now
-            and not actionability.has_blocking_issue
-        ):
-            return _ReplayDecision(
-                setup=setup,
-                opportunity_id=str(getattr(opportunity, "opportunity_id", setup.candidate_id)),
-                sequence_role=role.value,
-                lane=_enum_value(
-                    getattr(
-                        opportunity,
-                        "effective_lane",
-                        getattr(opportunity, "lane", None),
-                    )
-                ),
-                actionability_state=actionability.state.value,
-                reason_code="canonical_executable_opportunity",
-                canonical_portfolio=True,
-                execution_authorized=True,
-            )
-        if (
-            pending_decision is None
-            and setup.conditional_plan is not None
-            and actionability.state
-            not in {ActionabilityState.MISSED_OR_CHASING, ActionabilityState.INVALIDATED}
-        ):
-            pending_decision = _ReplayDecision(
-                setup=setup,
-                opportunity_id=str(getattr(opportunity, "opportunity_id", setup.candidate_id)),
-                sequence_role=role.value,
-                lane=_enum_value(
-                    getattr(
-                        opportunity,
-                        "effective_lane",
-                        getattr(opportunity, "lane", None),
-                    )
-                ),
-                actionability_state=actionability.state.value,
-                reason_code="canonical_opportunity_pending_activation",
-                canonical_portfolio=True,
-                execution_authorized=False,
-            )
-
-    if pending_decision is not None:
-        return pending_decision
-
-    reason_code = "canonical_no_executable_opportunity"
-    if ActionabilityState.MISSED_OR_CHASING in observed_states:
-        reason_code = "canonical_opportunity_missed_or_chasing"
-    elif ActionabilityState.INVALIDATED in observed_states:
-        reason_code = "canonical_opportunity_invalidated"
-    elif observed_states:
-        reason_code = "canonical_opportunity_pending_activation"
-
-    return _ReplayDecision(
-        setup=None,
-        opportunity_id=None,
-        sequence_role=None,
-        lane=None,
-        actionability_state=None,
-        reason_code=reason_code,
-        canonical_portfolio=True,
-    )
+_ReplayDecision = CanonicalOpportunityDecision
+_select_replay_decision = select_canonical_opportunity_decision
 
 
 def register_backtesting_commands(app: typer.Typer) -> None:
