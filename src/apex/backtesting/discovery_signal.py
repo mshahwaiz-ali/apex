@@ -57,6 +57,10 @@ def signal_from_discovery_setup(
         activation_expiry_candles=(None if conditional is None else expiry_candles),
         candidate_id=setup.candidate_id,
         replay_source=replay_source,
+        strategy_version=setup.strategy_version,
+        setup_methodology_version=setup.methodology_version,
+        setup_validity=setup.setup_validity.value,
+        execution_authority=setup.execution_authority.value,
     )
 
 

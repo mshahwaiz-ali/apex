@@ -61,6 +61,18 @@ def simulate_trade(
         "counterfactual_path_mfe_r": path_mfe_r,
         "counterfactual_path_mae_r": path_mae_r,
         "direction_correct_at_horizon": direction_correct,
+        "candidate_id": signal.candidate_id or "",
+        "replay_source": signal.replay_source,
+        "strategy_version": signal.strategy_version,
+        "setup_methodology_version": signal.setup_methodology_version,
+        "setup_validity": signal.setup_validity,
+        "execution_authority": signal.execution_authority,
+        "activation_required": signal.activation_type is not None,
+        "activation_type": (
+            "none" if signal.activation_type is None else signal.activation_type.value
+        ),
+        "activation_level": signal.activation_level or 0.0,
+        "activation_expiry_candles": signal.activation_expiry_candles or 0,
     }
 
     activated = signal.activation_type is None
@@ -109,7 +121,10 @@ def simulate_trade(
             metadata = {
                 **({} if metadata is None else dict(metadata)),
                 "activation_outcome": "triggered",
+                "terminal_state": "activated",
                 "activation_candle": index,
+                "activation_time": candle.close_time.isoformat(),
+                "activation_price": signal.activation_level or signal.entry_price,
             }
             # Close-confirmed triggers become knowable only after this candle.
             # Begin entry-fill evaluation on the next candle to avoid lookahead.
@@ -119,6 +134,20 @@ def simulate_trade(
             entered = _entry_touched(signal, candle)
             if not entered:
                 continue
+            metadata = {
+                **({} if metadata is None else dict(metadata)),
+                "entry_fill_candle": index,
+                "entry_fill_time": candle.close_time.isoformat(),
+                "entry_fill_price": entry,
+                "activation_wait_candles": (
+                    0
+                    if signal.activation_type is None
+                    else max(
+                        0,
+                        index - int(metadata.get("activation_candle", index)),
+                    )
+                ),
+            }
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
         maximum_favorable_excursion_r = max(maximum_favorable_excursion_r, favorable_r)
         maximum_adverse_excursion_r = max(maximum_adverse_excursion_r, adverse_r)
@@ -416,6 +445,16 @@ def _unfilled_trade(
 ) -> SimulatedTrade:
     output_metadata = _excursion_metadata(metadata, 0.0, 0.0)
     output_metadata["activation_outcome"] = activation_outcome
+    output_metadata["terminal_state"] = (
+        "pre_entry_invalidated"
+        if outcome is BacktestOutcome.PRE_ENTRY_INVALIDATED
+        else "missed_trigger"
+        if outcome is BacktestOutcome.MISSED_ENTRY
+        else "never_activated"
+        if outcome is BacktestOutcome.ACTIVATION_EXPIRED
+        else outcome.value
+    )
+    output_metadata["activation_wait_candles"] = holding_candles
     output_metadata["partial_target_count"] = 0
     output_metadata["closed_percentage"] = 0.0
     output_metadata["entry_filled"] = False
@@ -534,6 +573,10 @@ def _dataset_hash(request: BacktestRequest) -> str:
                 "activation_expiry_candles": signal.activation_expiry_candles,
                 "candidate_id": signal.candidate_id,
                 "replay_source": signal.replay_source,
+                "strategy_version": signal.strategy_version,
+                "setup_methodology_version": signal.setup_methodology_version,
+                "setup_validity": signal.setup_validity,
+                "execution_authority": signal.execution_authority,
             }
             for signal in request.signals
         ],
@@ -640,6 +683,7 @@ def _trade_from_components(
         min(100.0, sum(signal.partial_close_percentages[:partial_target_count])),
     )
     output_metadata.setdefault("entry_filled", True)
+    output_metadata.setdefault("terminal_state", outcome.value)
     output_metadata.setdefault(
         "entry_follow_through",
         "direct_cmp_fill" if signal.activation_type is None else "conditional_entry_filled",

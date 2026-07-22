@@ -77,6 +77,10 @@ class BacktestSignal:
     activation_expiry_candles: int | None = None
     candidate_id: str | None = None
     replay_source: str = "production"
+    strategy_version: str = "strategy-contract-v1"
+    setup_methodology_version: str = METHODOLOGY_VERSION
+    setup_validity: str = "valid"
+    execution_authority: str = "execute_now"
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -85,6 +89,14 @@ class BacktestSignal:
             raise ValueError("candidate identity cannot be blank when provided")
         if not self.replay_source.strip():
             raise ValueError("replay source cannot be empty")
+        for name, text_value in (
+            ("strategy version", self.strategy_version),
+            ("setup methodology version", self.setup_methodology_version),
+            ("setup validity", self.setup_validity),
+            ("execution authority", self.execution_authority),
+        ):
+            if not text_value.strip():
+                raise ValueError(f"{name} cannot be empty")
         if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
             raise ValueError("signal time must be timezone-aware")
         for name in (
