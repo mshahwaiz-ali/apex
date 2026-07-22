@@ -215,7 +215,11 @@ def _opportunity_card(
             )
         )
     activation_fields = _conditional_opportunity_fields(setup)
-    quality_fields = _opportunity_quality_fields(opportunity, setup, quality)
+    quality_fields = (
+        *_opportunity_execution_fields(setup),
+        *_opportunity_htf_fields(setup),
+        *_opportunity_quality_fields(opportunity, setup, quality),
+    )
     warning_fields: list[tuple[str, object]] = []
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
@@ -276,6 +280,71 @@ def _conditional_opportunity_fields(
         fields.append(("Conditional expiry reason", expiry.get("reason")))
     elif setup.get("setup_expiry_reason"):
         fields.append(("Conditional expiry reason", setup.get("setup_expiry_reason")))
+    return tuple(fields)
+
+
+def _opportunity_execution_fields(
+    setup: Mapping[str, object],
+) -> tuple[tuple[str, object], ...]:
+    state = canonical_actionability_state(setup)
+    conditional = _mapping(setup.get("conditional_plan"))
+    execution_allowed = setup.get("execution_allowed_now") is True
+
+    if state in {"INVALIDATED", "invalidated"}:
+        availability = "Invalidated"
+    elif state in {"MISSED_OR_CHASING", "missed_or_chasing"}:
+        availability = "Missed or chasing"
+    elif execution_allowed:
+        availability = "Executable now"
+    elif conditional:
+        availability = "Future setup - activation required"
+    else:
+        availability = "Valid setup - not executable now"
+
+    reason = (
+        setup.get("execution_block_reason")
+        or setup.get("execution_reason")
+        or setup.get("actionability_reason")
+        or setup.get("entry_status_reason")
+    )
+    if reason is None and conditional:
+        trigger = _mapping(conditional.get("trigger"))
+        reason = trigger.get("condition") or "the stated activation trigger has not completed"
+    if reason is None and not execution_allowed:
+        reason = "current execution is not authorized by the canonical actionability state"
+
+    fields: list[tuple[str, object]] = [
+        ("Setup availability", availability),
+        ("Execution authorized now", "Yes" if execution_allowed else "No"),
+    ]
+    if reason is not None:
+        fields.append(("Execution reason", reason))
+    return tuple(fields)
+
+
+def _opportunity_htf_fields(
+    setup: Mapping[str, object],
+) -> tuple[tuple[str, object], ...]:
+    consequence = _mapping(setup.get("htf_consequence"))
+    if not consequence:
+        methodology = _mapping(setup.get("methodology"))
+        consequence = _mapping(methodology.get("htf_consequence"))
+    if not consequence:
+        evaluation = _mapping(setup.get("strategy_evaluation"))
+        consequence = _mapping(evaluation.get("htf_consequence"))
+    if not consequence:
+        return ()
+
+    fields: list[tuple[str, object]] = []
+    treatment = consequence.get("execution_treatment")
+    severity = consequence.get("severity")
+    if treatment is not None:
+        fields.append(("HTF treatment", humanize_code(treatment)))
+    if severity is not None:
+        fields.append(("HTF severity", humanize_code(severity)))
+    penalty = _number(consequence.get("score_penalty_points"))
+    if penalty is not None and penalty > 0.0:
+        fields.append(("HTF score penalty", f"{penalty:g} points"))
     return tuple(fields)
 
 
@@ -613,7 +682,11 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
             )
         )
     activation_fields = _conditional_opportunity_fields(setup)
-    quality_fields = _opportunity_quality_fields(opportunity, setup, quality)
+    quality_fields = (
+        *_opportunity_execution_fields(setup),
+        *_opportunity_htf_fields(setup),
+        *_opportunity_quality_fields(opportunity, setup, quality),
+    )
     warning_fields: list[tuple[str, object]] = []
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
