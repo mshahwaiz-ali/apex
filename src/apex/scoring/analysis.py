@@ -9,7 +9,13 @@ from apex.scoring.contracts import CandidateOutcome, CandidateSelectionResult
 from apex.scoring.environment_route import EnvironmentRoute, apply_environment_route_alignment
 from apex.scoring.ranking import rank_candidates
 from apex.scoring.scorer import score_candidates
-from apex.scoring.selection import no_trade_reason, select_candidate
+from apex.scoring.selection import (
+    is_entry_status_executable,
+    no_trade_reason,
+    select_candidate,
+    select_future_candidate,
+)
+from apex.strategies import classify_candidate_actionability
 from apex.strategies.analysis import StrategyAnalysisResult
 
 
@@ -33,6 +39,7 @@ def analyze_candidate_selection(
     )
     ranked, conflict_summary = resolve_conflicts(initially_ranked, config=config)
     selected = select_candidate(ranked, config=config)
+    selected_future = select_future_candidate(ranked, config=config)
     rejected = tuple(item for item in ranked if item.outcome.value.startswith("rejected"))
     outcome_counts = {
         outcome.value: sum(item.outcome is outcome for item in ranked)
@@ -47,14 +54,22 @@ def analyze_candidate_selection(
         conflict_summary=conflict_summary,
         directional_consensus=conflict_summary.directional_consensus,
         selected_candidate=selected,
-        no_trade_reason=None if selected is not None else no_trade_reason(ranked),
+        selected_future_candidate=selected_future,
+        no_trade_reason=(
+            None if selected is not None or selected_future is not None else no_trade_reason(ranked)
+        ),
         evaluated_strategy_order=strategy_analysis.evaluated_strategies,
         configuration_id=config.identifier,
         metadata={
             "candidate_count": len(scored),
             "ranked_count": len(ranked),
             "rejected_count": len(rejected),
-            "selected": selected is not None,
+            "selected": selected is not None or selected_future is not None,
+            "selected_executable_now": (
+                selected is not None
+                and is_entry_status_executable(classify_candidate_actionability(selected.candidate))
+            ),
+            "selected_future_setup": selected_future is not None,
             "minimum_accept_score": config.minimum_accept_score,
             "warning_accept_score": config.warning_accept_score,
             "terminal_outcome_count": sum(outcome_counts.values()),

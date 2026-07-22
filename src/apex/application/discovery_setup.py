@@ -89,7 +89,9 @@ def build_discovery_assessment(
 ) -> DiscoveryAssessment:
     """Convert candidate selection into executable and developing setup views."""
 
-    selected = candidate_selection.selected_candidate
+    selected = (
+        candidate_selection.selected_candidate or candidate_selection.selected_future_candidate
+    )
     developing = _best_developing_candidate(candidate_selection, selected=selected)
     quality_shadow = build_quality_shadow_rollout_diagnostics(candidate_selection).to_dict()
     if selected is None:

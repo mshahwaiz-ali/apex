@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from apex.scoring.config import ScoringConfig
 from apex.scoring.contracts import CandidateOutcome, RankedCandidate
 from apex.strategies import classify_candidate_actionability
@@ -37,7 +39,7 @@ def select_candidate(
     *,
     config: ScoringConfig,
 ) -> RankedCandidate | None:
-    """Select one accepted candidate, allowing bounded consensus support."""
+    """Select the best candidate that authorizes execution at decision time."""
 
     selectable = tuple(
         item
@@ -57,6 +59,56 @@ def select_candidate(
     )
 
 
+def _selection_precedence(item: RankedCandidate) -> int:
+    """Order executable, future-trigger, and valid re-entry setups."""
+
+    status = classify_candidate_actionability(item.candidate)
+    if is_entry_status_executable(status):
+        return 0
+    if status not in {EntryStatus.INVALIDATED, EntryStatus.MISSED_ENTRY}:
+        return 1
+    if status is EntryStatus.MISSED_ENTRY and _has_valid_reentry(item):
+        return 2
+    return 3
+
+
+def _has_valid_reentry(item: RankedCandidate) -> bool:
+    """Return whether a missed primary entry still has a usable future opportunity."""
+
+    candidate = item.candidate
+    for opportunity in candidate.entry_opportunities[1:]:
+        alternate = replace(candidate, entry=opportunity)
+        status = classify_candidate_actionability(alternate)
+        if status not in {EntryStatus.INVALIDATED, EntryStatus.MISSED_ENTRY}:
+            return True
+    return False
+
+
+def select_future_candidate(
+    ranked: tuple[RankedCandidate, ...],
+    *,
+    config: ScoringConfig,
+) -> RankedCandidate | None:
+    """Select the best accepted setup whose valid entry is still pending."""
+
+    selectable = tuple(
+        item
+        for item in ranked
+        if item.outcome in _SELECTABLE and _selection_precedence(item) in {1, 2}
+    )
+    if not selectable:
+        return None
+    return min(
+        selectable,
+        key=lambda item: (
+            _selection_precedence(item),
+            -_selection_score(item, config),
+            item.rank,
+            item.scored.candidate_id,
+        ),
+    )
+
+
 def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
     """Return an explicit deterministic reason when nothing is selectable."""
 
@@ -64,11 +116,8 @@ def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
         return "no strategy candidates were generated"
     outcomes = {item.outcome for item in ranked}
     accepted = tuple(item for item in ranked if item.outcome in _SELECTABLE)
-    if accepted and not any(
-        is_entry_status_executable(classify_candidate_actionability(item.candidate))
-        for item in accepted
-    ):
-        return "valid setups exist, but none has a currently executable entry"
+    if accepted and not any(_selection_precedence(item) < 3 for item in accepted):
+        return "no accepted candidate retains valid current or future entry geometry"
     if outcomes == {CandidateOutcome.REJECTED_BELOW_THRESHOLD}:
         return "all candidates scored below their configured approval thresholds"
     if CandidateOutcome.DOWNGRADED in outcomes:

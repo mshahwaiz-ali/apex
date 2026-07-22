@@ -130,6 +130,7 @@ def _selection() -> CandidateSelectionResult:
         conflict_summary=conflict,
         directional_consensus=DirectionalConsensus.LONG,
         selected_candidate=None,
+        selected_future_candidate=None,
         no_trade_reason="valid setups exist, but none has a currently executable entry",
         evaluated_strategy_order=(StrategyType.TREND_PULLBACK,),
         configuration_id="test",
@@ -212,6 +213,7 @@ def test_geometry_rejection_replaces_false_no_candidates_reason() -> None:
         all_scored_candidates=(),
         ranked_candidates=(),
         selected_candidate=None,
+        selected_future_candidate=None,
         no_trade_reason="no strategy candidates were generated",
     )
     enforcement = type("_Enforcement", (), {"rejected_candidate_count": 3})()

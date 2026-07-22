@@ -2,6 +2,7 @@ import pytest
 
 from apex.strategies import (
     EntryMode,
+    EntryOpportunityHorizon,
     EntryReference,
     EntrySelectionConfig,
     TradeDirection,
@@ -54,8 +55,8 @@ def test_pullback_ranks_first_but_cmp_path_remains_available() -> None:
     assert zones[1].mode is EntryMode.MARKET_NEAR
 
 
-def test_distant_entry_is_rejected() -> None:
-    zone = select_entry_zone(
+def test_distant_structurally_valid_entry_is_preserved_as_future_trigger() -> None:
+    zones = find_entry_zones(
         current_price=100.0,
         atr=1.0,
         direction=TradeDirection.LONG,
@@ -65,12 +66,14 @@ def test_distant_entry_is_rejected() -> None:
             EntryReference(
                 price=95.5,
                 mode=EntryMode.PULLBACK,
-                rationale=("too distant",),
+                rationale=("future structural pullback",),
             ),
         ),
     )
 
-    assert zone.preferred == 100.0
+    assert {zone.preferred for zone in zones} == {95.5, 100.0}
+    future = next(zone for zone in zones if zone.preferred == 95.5)
+    assert future.horizon is EntryOpportunityHorizon.FUTURE_TRIGGER
 
 
 def test_atr_distance_can_allow_entry_beyond_percentage_limit() -> None:
@@ -316,3 +319,25 @@ def test_rejects_invalid_directional_geometry() -> None:
             invalidation_price=101.0,
             target_price=106.0,
         )
+
+
+def test_low_rr_improvement_reference_is_preserved_but_cmp_can_rank_first() -> None:
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=96.0,
+        target_price=108.0,
+        references=(
+            EntryReference(
+                price=99.8,
+                mode=EntryMode.PULLBACK,
+                rationale=("minor future pullback",),
+            ),
+        ),
+    )
+
+    assert zones[0].preferred == 100.0
+    assert any(zone.preferred == 99.8 for zone in zones)
+    preserved = next(zone for zone in zones if zone.preferred == 99.8)
+    assert any("preserved as a future setup" in reason for reason in preserved.rationale)

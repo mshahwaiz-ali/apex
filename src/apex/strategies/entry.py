@@ -5,7 +5,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from apex.strategies.contracts import EntryMode, EntryZone, TradeDirection
+from apex.strategies.contracts import (
+    EntryMode,
+    EntryOpportunityHorizon,
+    EntryZone,
+    TradeDirection,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +122,7 @@ def find_entry_zones(
         target_price=target_price,
         mode=EntryMode.MARKET_NEAR,
         rationale=("current price is technically valid and immediately actionable",),
+        horizon=EntryOpportunityHorizon.IMMEDIATE,
         scaled=False,
         config=config,
         tick_size=tick_size,
@@ -127,17 +133,23 @@ def find_entry_zones(
         invalidation_price=invalidation_price,
         target_price=target_price,
     )
-    eligible: list[tuple[EntryZone, float]] = []
+    # The final boolean records whether an opportunity satisfies the configured
+    # R:R-improvement preference. It affects ranking only; it never deletes a
+    # structurally valid future entry.
+    eligible: list[tuple[EntryZone, float, bool]] = []
     if allow_market_entry:
-        eligible.append((market, market_rr))
+        eligible.append((market, market_rr, True))
     for reference in references:
         distance = abs(reference.price - current_price)
         allowed_distance = max(
             current_price * config.max_percentage_distance,
             atr * config.max_atr_distance,
         )
-        if distance > allowed_distance:
-            continue
+        horizon = _reference_horizon(
+            distance=distance,
+            immediate_distance=allowed_distance,
+            mode=reference.mode,
+        )
         if not _entry_is_directionally_valid(
             price=reference.price,
             direction=direction,
@@ -154,6 +166,7 @@ def find_entry_zones(
             target_price=target_price,
             mode=EntryMode.SCALED_ENTRY if reference.scaled else reference.mode,
             rationale=reference.rationale,
+            horizon=horizon,
             scaled=reference.scaled,
             config=config,
             explicit_lower=reference.zone_lower,
@@ -178,9 +191,18 @@ def find_entry_zones(
             target_price=target_price,
         )
         improvement = (reference_rr - market_rr) / market_rr if market_rr > 0 else 0.0
-        if distance > 0 and improvement < config.minimum_risk_reward_improvement:
-            continue
-        eligible.append((zone, reference_rr))
+        # R:R improvement is a ranking preference, not an eligibility gate.
+        # A one-shot scan must preserve the strategy's future trigger plan even
+        # when CMP currently offers similar or better reward geometry.
+        meets_improvement_preference = (
+            distance == 0 or improvement >= config.minimum_risk_reward_improvement
+        )
+        if not meets_improvement_preference:
+            zone = _with_rationale(
+                zone,
+                "preserved as a future setup despite limited R:R improvement over CMP",
+            )
+        eligible.append((zone, reference_rr, meets_improvement_preference))
 
     if not eligible:
         raise ValueError(
@@ -190,6 +212,7 @@ def find_entry_zones(
     ranked = sorted(
         eligible,
         key=lambda item: (
+            not item[2],
             -item[1],
             item[0].distance_from_current,
             -item[0].location_quality,
@@ -199,7 +222,7 @@ def find_entry_zones(
     )
     unique: list[EntryZone] = []
     seen: set[tuple[float, float, float, EntryMode]] = set()
-    for zone, _ in ranked:
+    for zone, _, _ in ranked:
         key = (
             round(zone.lower, 12),
             round(zone.upper, 12),
@@ -252,6 +275,7 @@ def _build_zone(
     target_price: float,
     mode: EntryMode,
     rationale: tuple[str, ...],
+    horizon: EntryOpportunityHorizon,
     scaled: bool,
     config: EntrySelectionConfig,
     explicit_lower: float | None = None,
@@ -328,6 +352,7 @@ def _build_zone(
         location_quality=location_quality,
         mode=mode,
         rationale=rationale,
+        horizon=horizon,
         is_extended=atr_distance > config.max_atr_distance,
         max_chase_price=max_chase_price,
         expires_after_seconds=(
@@ -336,6 +361,37 @@ def _build_zone(
             else config.default_expiry_seconds
         ),
     )
+
+
+def _reference_horizon(
+    *,
+    distance: float,
+    immediate_distance: float,
+    mode: EntryMode,
+) -> EntryOpportunityHorizon:
+    """Classify timing without deleting a structurally valid entry reference."""
+
+    if distance == 0:
+        return EntryOpportunityHorizon.IMMEDIATE
+    if distance <= immediate_distance:
+        return EntryOpportunityHorizon.NEARBY
+    if mode in {
+        EntryMode.PULLBACK,
+        EntryMode.RETEST,
+        EntryMode.SWEEP_RECOVERY,
+        EntryMode.MOMENTUM_CONTINUATION,
+        EntryMode.SCALED_ENTRY,
+    }:
+        return EntryOpportunityHorizon.FUTURE_TRIGGER
+    return EntryOpportunityHorizon.OUTSIDE_HORIZON
+
+
+def _with_rationale(zone: EntryZone, rationale: str) -> EntryZone:
+    """Return the immutable zone with an additional deterministic explanation."""
+
+    from dataclasses import replace
+
+    return replace(zone, rationale=(*zone.rationale, rationale))
 
 
 def _validate_market_geometry(

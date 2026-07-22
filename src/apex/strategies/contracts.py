@@ -30,6 +30,15 @@ class EntryMode(StrEnum):
     SCALED_ENTRY = "scaled_entry"
 
 
+class EntryOpportunityHorizon(StrEnum):
+    """How soon a structurally valid entry opportunity may become actionable."""
+
+    IMMEDIATE = "immediate"
+    NEARBY = "nearby"
+    FUTURE_TRIGGER = "future_trigger"
+    OUTSIDE_HORIZON = "outside_horizon"
+
+
 _STRATEGY_BASE_EXPIRY_SECONDS: dict[StrategyType, int] = {
     StrategyType.MOMENTUM_SCALP: 300,
     StrategyType.MOMENTUM_BREAKOUT: 900,
@@ -144,6 +153,7 @@ class EntryZone:
     location_quality: float
     mode: EntryMode
     rationale: tuple[str, ...]
+    horizon: EntryOpportunityHorizon = EntryOpportunityHorizon.IMMEDIATE
     is_extended: bool = False
     max_chase_price: float | None = None
     expires_after_seconds: int | None = None

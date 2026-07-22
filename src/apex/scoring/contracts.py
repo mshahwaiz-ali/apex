@@ -169,6 +169,7 @@ class CandidateSelectionResult:
     evaluated_strategy_order: tuple[StrategyType, ...]
     configuration_id: str
     metadata: Mapping[str, str | int | float | bool]
+    selected_future_candidate: RankedCandidate | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -198,8 +199,15 @@ class CandidateSelectionResult:
             selected_id = self.selected_candidate.scored.candidate_id
             if selected_id not in ranked_ids:
                 raise ValueError("selected candidate must belong to ranked candidates")
+        if self.selected_future_candidate is not None:
+            future_id = self.selected_future_candidate.scored.candidate_id
+            if future_id not in ranked_ids:
+                raise ValueError("future candidate must belong to ranked candidates")
+            if self.selected_candidate is not None and future_id == selected_id:
+                raise ValueError("current and future authorities must be distinct")
+        if self.selected_candidate is not None or self.selected_future_candidate is not None:
             if self.no_trade_reason is not None:
-                raise ValueError("selected trade cannot also have a no-trade reason")
+                raise ValueError("valid setup cannot also have a no-trade reason")
         elif not self.no_trade_reason or not self.no_trade_reason.strip():
             raise ValueError("no-trade result requires a reason")
         if set(identities) != ranked_ids:
@@ -213,3 +221,21 @@ class CandidateSelectionResult:
         if self.selected_candidate is None:
             return None
         return self.selected_candidate.candidate.direction
+
+    @property
+    def selected_executable_candidate(self) -> RankedCandidate | None:
+        """Return the canonical setup only when it authorizes execution now."""
+
+        if self.selected_candidate is None:
+            return None
+        from apex.scoring.selection import is_entry_status_executable
+        from apex.strategies import classify_candidate_actionability
+
+        status = classify_candidate_actionability(self.selected_candidate.candidate)
+        return self.selected_candidate if is_entry_status_executable(status) else None
+
+    @property
+    def setup_exists(self) -> bool:
+        """Return whether the analysis retained any canonical valid setup."""
+
+        return self.selected_candidate is not None or self.selected_future_candidate is not None
