@@ -433,6 +433,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 report.trades,
                 calibration_records=calibration_records,
                 partition_by_time=partition_by_time,
+                fee_pct=config.fee_pct,
+                slippage_pct=config.slippage_pct,
             ),
             "metrics": _report_metrics(report),
             "execution_metrics": _execution_metrics(report.trades),
@@ -456,6 +458,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     conditional_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
+                    fee_pct=config.fee_pct,
+                    slippage_pct=config.slippage_pct,
                 ),
                 "metrics": _report_metrics(conditional_report),
                 "activation_metrics": _activation_metrics(conditional_report.trades),
@@ -472,6 +476,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     opportunity_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
+                    fee_pct=config.fee_pct,
+                    slippage_pct=config.slippage_pct,
                 ),
                 "metrics": _diagnostic_report_metrics(opportunity_report),
                 "activation_metrics": _activation_metrics(opportunity_report.trades),
@@ -492,6 +498,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     shadow_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
+                    fee_pct=config.fee_pct,
+                    slippage_pct=config.slippage_pct,
                 ),
                 "metrics": _diagnostic_report_metrics(shadow_report),
                 "outcome_distribution": _outcome_distribution(shadow_report.trades),
@@ -657,6 +665,11 @@ def _calibration_record(
         "target_basis": (
             None if setup is None else [target.target_basis for target in setup.take_profits]
         ),
+        "candidate_diagnostics": _candidate_diagnostics(analysis),
+        "confirmation_diagnostics": _decision_confirmation_diagnostics(
+            analysis=analysis,
+            setup=setup,
+        ),
         "rejection_reason": (resolved_decision.reason_code if setup is None else None),
     }
 
@@ -749,6 +762,7 @@ def _signal_from_ranking_record(
         target=targets[0],
         confidence=record.final_score,
         source=source,
+        diagnostics=_ranking_diagnostics(record, entry=entry, stop=stop, target=targets[0]),
     )
 
 
@@ -773,6 +787,7 @@ def _signal_from_geometry_audit(analysis: object, audit: object) -> BacktestSign
         target=_mapping_value(item, "tp1_price"),
         confidence=0.0,
         source="geometry_rejected",
+        diagnostics=_geometry_audit_diagnostics(item),
     )
 
 
@@ -788,6 +803,7 @@ def _build_shadow_signal(
     target: float | None,
     confidence: float,
     source: str,
+    diagnostics: Mapping[str, object] | None = None,
 ) -> BacktestSignal | None:
     if not symbol.strip() or not hasattr(decision_time, "utcoffset"):
         return None
@@ -807,9 +823,267 @@ def _build_shadow_signal(
             confidence_score=max(0.0, min(100.0, confidence)),
             candidate_id=candidate_id,
             replay_source=source,
+            diagnostics={} if diagnostics is None else diagnostics,
         )
     except (TypeError, ValueError):
         return None
+
+
+_CONFIRMATION_KEYS = (
+    "entry_confirmation_complete",
+    "recent_continuation_break",
+    "setup_direction_confirmed",
+    "immediate_timeframe_conflict",
+    "lower_timeframe_trigger_confirmed",
+    "lower_timeframe_trigger_opposed",
+    "higher_timeframe_conflict",
+    "continuation_requires_conditional_entry",
+    "continuation_freshness",
+    "continuation_state",
+    "participation_state",
+    "provisional",
+    "provisional_state",
+    "confirmation_reason",
+)
+
+_DIAGNOSTIC_ALIASES: Mapping[str, tuple[str, ...]] = {
+    "continuation_freshness": ("continuation_freshness", "freshness", "setup_freshness"),
+    "participation_state": ("participation_state", "participation", "volume_participation"),
+    "provisional_state": ("provisional_state", "provisional"),
+    "confirmation_reason": (
+        "confirmation_reason",
+        "confirmation_rationale",
+        "entry_confirmation_reason",
+    ),
+}
+
+
+def _recursive_lookup(value: object, keys: tuple[str, ...]) -> object | None:
+    if isinstance(value, Mapping):
+        for key in keys:
+            if key in value and value[key] is not None:
+                return _jsonable(value[key])
+        for nested in value.values():
+            found = _recursive_lookup(nested, keys)
+            if found is not None:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            found = _recursive_lookup(nested, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def _confirmation_diagnostics(value: object) -> dict[str, object | None]:
+    return {
+        key: _recursive_lookup(value, _DIAGNOSTIC_ALIASES.get(key, (key,)))
+        for key in _CONFIRMATION_KEYS
+    }
+
+
+def _ranking_diagnostics(
+    record: CandidateRankingRecord, *, entry: float, stop: float, target: float
+) -> dict[str, object]:
+    risk = abs(entry - stop)
+    target_payload = record.targets[0] if record.targets else {}
+    combined = {
+        "metadata": dict(record.metadata),
+        "evidence": dict(record.evidence),
+        "methodology_state": dict(record.methodology_state),
+        "methodology_scores": dict(record.methodology_scores),
+    }
+    dimensions = _jsonable(record.score_dimensions)
+    return {
+        "diagnostic_schema_version": 1,
+        "candidate_id": record.candidate_id,
+        "ranking_role": record.role.value,
+        "strategy": record.strategy,
+        "strategy_family": record.strategy_family,
+        "strategy_subtype": record.strategy_subtype,
+        "direction": record.direction,
+        "entry_status": record.entry_status.value,
+        "entry_mode": record.entry.get("mode"),
+        "final_score": record.final_score,
+        "final_rank_score": record.final_rank_score,
+        "score_dimensions": dimensions if isinstance(dimensions, dict) else {},
+        "methodology_scores": dict(record.methodology_scores),
+        "target_quality": _recursive_lookup(
+            combined, ("target_quality", "reward_quality", "target_quality_score")
+        ),
+        "net_tp1_r": _recursive_lookup(
+            {"target": target_payload, **combined}, ("net_risk_reward", "net_tp1_r", "net_rr")
+        ),
+        "gross_tp1_r": abs(target - entry) / risk if risk > 0.0 else None,
+        "entry_atr_distance": record.entry.get("atr_distance"),
+        "entry_distance_from_current": record.entry.get("distance_from_current"),
+        "stop_distance": risk,
+        "stop_distance_pct": (risk / entry) * 100.0 if entry > 0.0 else None,
+        "stop_distance_atr": _recursive_lookup(
+            combined, ("stop_distance_atr", "stop_atr_distance", "risk_atr")
+        ),
+        "higher_timeframe_relationship": _recursive_lookup(
+            combined, ("timeframe_relationship", "higher_timeframe_relationship")
+        ),
+        "higher_timeframe_severity": _recursive_lookup(
+            combined, ("relationship_severity", "higher_timeframe_severity", "htf_severity")
+        ),
+        "freshness": _recursive_lookup(
+            combined, ("freshness", "continuation_freshness", "setup_freshness")
+        ),
+        "participation": _recursive_lookup(
+            combined, ("participation_state", "participation", "volume_participation")
+        ),
+        "momentum_alignment": _recursive_lookup(
+            combined, ("momentum_alignment", "directional_alignment")
+        ),
+        "provisional": record.provisional,
+        "confirmation": _confirmation_diagnostics(combined),
+        "ranking_outcome": record.outcome,
+        "reason_codes": list(record.reason_codes),
+    }
+
+
+def _geometry_audit_diagnostics(item: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "diagnostic_schema_version": 1,
+        "geometry_audit": _jsonable(item),
+        "confirmation": _confirmation_diagnostics(item),
+    }
+
+
+def _candidate_diagnostics(analysis: object) -> list[dict[str, object]]:
+    """Preserve candidate evidence even when no canonical setup survives."""
+
+    diagnostics: list[dict[str, object]] = []
+    ranking = getattr(analysis, "candidate_ranking", None)
+    if isinstance(ranking, CandidateRankingSnapshot):
+        records = (
+            (() if ranking.primary is None else (ranking.primary,))
+            + ranking.alternatives
+            + ranking.rejected
+        )
+        for record in records:
+            entry = _mapping_value(record.entry, "preferred")
+            stop = _mapping_value(record.metadata, "executable_stop") or _mapping_value(
+                record.invalidation, "price"
+            )
+            targets = tuple(
+                price
+                for target in record.targets
+                if (price := _mapping_value(target, "price")) is not None
+            )
+            if entry is None or stop is None or not targets:
+                diagnostics.append(
+                    {
+                        "diagnostic_schema_version": 1,
+                        "candidate_id": record.candidate_id,
+                        "ranking_role": record.role.value,
+                        "strategy": record.strategy,
+                        "direction": record.direction,
+                        "entry_status": record.entry_status.value,
+                        "final_score": record.final_score,
+                        "final_rank_score": record.final_rank_score,
+                        "confirmation": _confirmation_diagnostics(
+                            {
+                                "metadata": dict(record.metadata),
+                                "evidence": dict(record.evidence),
+                                "methodology_state": dict(record.methodology_state),
+                                "methodology_scores": dict(record.methodology_scores),
+                            }
+                        ),
+                        "geometry_complete": False,
+                    }
+                )
+                continue
+            item = _ranking_diagnostics(
+                record,
+                entry=entry,
+                stop=stop,
+                target=targets[0],
+            )
+            item["geometry_complete"] = True
+            diagnostics.append(item)
+
+    phase5 = getattr(analysis, "phase5_diagnostics", None)
+    routing = phase5.get("methodology_candidate_routing") if isinstance(phase5, Mapping) else None
+    audits = routing.get("geometry_safety_audits") if isinstance(routing, Mapping) else None
+    if isinstance(audits, (list, tuple)):
+        for audit in audits:
+            if not isinstance(audit, Mapping) or audit.get("state") != "reject":
+                continue
+            audit_diagnostics = audit.get("diagnostics")
+            if not isinstance(audit_diagnostics, Mapping):
+                continue
+            item = _geometry_audit_diagnostics(audit_diagnostics)
+            candidate_id = audit.get("candidate_id")
+            if isinstance(candidate_id, str):
+                item["candidate_id"] = candidate_id
+            item["ranking_role"] = "geometry_rejected"
+            item["geometry_complete"] = False
+            diagnostics.append(item)
+
+    unique: list[dict[str, object]] = []
+    seen: set[tuple[object, ...]] = set()
+    for item in diagnostics:
+        key = (
+            item.get("candidate_id"),
+            item.get("ranking_role"),
+            item.get("strategy"),
+            item.get("direction"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
+
+
+def _decision_confirmation_diagnostics(
+    *, analysis: object, setup: object | None
+) -> dict[str, object | None] | None:
+    candidates = _candidate_diagnostics(analysis)
+    if setup is None:
+        if not candidates:
+            return None
+        return {
+            "source": "best_available_candidate",
+            "candidate_id": candidates[0].get("candidate_id"),
+            **_confirmation_diagnostics(candidates[0]),
+        }
+
+    setup_diagnostics = _confirmation_diagnostics(_jsonable(setup))
+    setup_strategy = _enum_value(getattr(setup, "strategy", None))
+    setup_direction = _enum_value(getattr(setup, "direction", None))
+    matching_candidate = next(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.get("strategy") == setup_strategy
+            and candidate.get("direction") == setup_direction
+        ),
+        None,
+    )
+    if matching_candidate is None:
+        return setup_diagnostics
+
+    candidate_diagnostics = _confirmation_diagnostics(matching_candidate)
+    merged = dict(candidate_diagnostics)
+    merged.update({key: value for key, value in setup_diagnostics.items() if value is not None})
+    merged["source"] = "setup_with_candidate_fallback"
+    merged["candidate_id"] = matching_candidate.get("candidate_id")
+    return merged
+
+
+def _tp1_approached_before_stop(
+    *, serialized: Mapping[str, object], metadata: Mapping[str, object], signal: object
+) -> bool | None:
+    del signal
+    outcome = serialized.get("outcome")
+    if getattr(outcome, "value", outcome) != "stop":
+        return None
+    explicit = metadata.get("tp1_approached_before_stop")
+    return explicit if isinstance(explicit, bool) else None
 
 
 def _mapping_value(values: Mapping[str, object], key: str) -> float | None:
@@ -839,6 +1113,83 @@ def _jsonable(value: object) -> object:
     if hasattr(value, "value"):
         return value.value
     return value
+
+
+def _enriched_trade_diagnostics(
+    *,
+    signal: object,
+    metadata: Mapping[str, object],
+    fee_pct: float,
+    slippage_pct: float,
+) -> dict[str, object]:
+    base = (
+        dict(signal.get("diagnostics", {}))
+        if isinstance(signal, Mapping) and isinstance(signal.get("diagnostics"), Mapping)
+        else {}
+    )
+    if not isinstance(signal, Mapping):
+        return base
+    entry = signal.get("entry_price")
+    stop = signal.get("stop_price")
+    target = signal.get("target_price")
+    if not (
+        isinstance(entry, (int, float))
+        and not isinstance(entry, bool)
+        and isinstance(stop, (int, float))
+        and not isinstance(stop, bool)
+        and isinstance(target, (int, float))
+        and not isinstance(target, bool)
+    ):
+        return base
+    entry_value = float(entry)
+    stop_value = float(stop)
+    target_value = float(target)
+    risk = abs(entry_value - stop_value)
+    if risk <= 0.0:
+        return base
+    gross_tp1_r = abs(target_value - entry_value) / risk
+    modeled_cost = (entry_value + target_value) * ((fee_pct + slippage_pct) / 100.0)
+    base["gross_tp1_r"] = gross_tp1_r
+    base["modeled_round_trip_cost"] = modeled_cost
+    base["modeled_round_trip_cost_r"] = modeled_cost / risk
+    base["net_tp1_r"] = gross_tp1_r - modeled_cost / risk
+    base["fee_pct"] = fee_pct
+    base["slippage_pct"] = slippage_pct
+    base["maximum_favorable_excursion_r"] = metadata.get("maximum_favorable_excursion_r")
+    base["maximum_adverse_excursion_r"] = metadata.get("maximum_adverse_excursion_r")
+    return base
+
+
+def _r_progress_diagnostics(
+    *, metadata: Mapping[str, object], diagnostics: Mapping[str, object]
+) -> dict[str, object | None]:
+    mfe = metadata.get("maximum_favorable_excursion_r")
+    if not isinstance(mfe, (int, float)) or isinstance(mfe, bool):
+        return {
+            "reached_0_5r": None,
+            "reached_1r": None,
+            "reached_1_5r": None,
+            "reached_2r": None,
+            "reached_3r": None,
+            "tp1_progress_ratio": None,
+        }
+    mfe_value = float(mfe)
+    tp1_r = diagnostics.get("net_tp1_r")
+    if not isinstance(tp1_r, (int, float)) or isinstance(tp1_r, bool) or tp1_r <= 0.0:
+        tp1_r = diagnostics.get("gross_tp1_r")
+    tp1_progress = (
+        mfe_value / float(tp1_r)
+        if isinstance(tp1_r, (int, float)) and not isinstance(tp1_r, bool) and float(tp1_r) > 0.0
+        else None
+    )
+    return {
+        "reached_0_5r": mfe_value >= 0.5,
+        "reached_1r": mfe_value >= 1.0,
+        "reached_1_5r": mfe_value >= 1.5,
+        "reached_2r": mfe_value >= 2.0,
+        "reached_3r": mfe_value >= 3.0,
+        "tp1_progress_ratio": (None if tp1_progress is None else round(tp1_progress, 12)),
+    }
 
 
 def _report_metrics(report: object) -> dict[str, object]:
@@ -883,6 +1234,8 @@ def _canonical_trade_records(
     *,
     calibration_records: list[dict[str, object]],
     partition_by_time: Mapping[str, str],
+    fee_pct: float,
+    slippage_pct: float,
 ) -> list[dict[str, object]]:
     if not isinstance(trades, tuple | list):
         return []
@@ -901,6 +1254,12 @@ def _canonical_trade_records(
         metadata = serialized.get("metadata")
         metadata_map = metadata if isinstance(metadata, Mapping) else {}
         target_count = int(metadata_map.get("partial_target_count", 0) or 0)
+        enriched_diagnostics = _enriched_trade_diagnostics(
+            signal=signal,
+            metadata=metadata_map,
+            fee_pct=fee_pct,
+            slippage_pct=slippage_pct,
+        )
         serialized.update(
             {
                 "trade_number": index,
@@ -927,6 +1286,16 @@ def _canonical_trade_records(
                 ),
                 "target_touched": metadata_map.get("target_touched"),
                 "net_profitable_target": metadata_map.get("net_profitable_target"),
+                "diagnostics": enriched_diagnostics,
+                "r_progress": _r_progress_diagnostics(
+                    metadata=metadata_map,
+                    diagnostics=enriched_diagnostics,
+                ),
+                "tp1_approached_before_stop": _tp1_approached_before_stop(
+                    serialized=serialized,
+                    metadata=metadata_map,
+                    signal={"diagnostics": enriched_diagnostics},
+                ),
             }
         )
         records.append(serialized)

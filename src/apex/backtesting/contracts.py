@@ -81,6 +81,7 @@ class BacktestSignal:
     setup_methodology_version: str = METHODOLOGY_VERSION
     setup_validity: str = "valid"
     execution_authority: str = "execute_now"
+    diagnostics: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -174,6 +175,7 @@ class BacktestSignal:
                     raise ValueError("short maximum chase must not be above entry")
         object.__setattr__(self, "target_prices", target_prices)
         object.__setattr__(self, "partial_close_percentages", partials)
+        object.__setattr__(self, "diagnostics", MappingProxyType(dict(self.diagnostics)))
 
 
 @dataclass(frozen=True, slots=True)
