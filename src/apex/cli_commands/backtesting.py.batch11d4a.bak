@@ -647,11 +647,6 @@ def _calibration_record(
             if isinstance(methodology_routing, Mapping)
             else None
         ),
-        "lane_horizon_audits": (
-            methodology_routing.get("lane_horizon_audits")
-            if isinstance(methodology_routing, Mapping)
-            else None
-        ),
         "methodology_version": serialized.get("methodology_version"),
         "no_trade_reasons": serialized.get("reasons"),
         "zero_trade_diagnostics": zero_trade,

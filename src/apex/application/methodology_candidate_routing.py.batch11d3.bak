@@ -16,7 +16,6 @@ from apex.application.methodology_candidate_geometry_safety import (
     candidate_geometry_safety_audit_payload,
 )
 from apex.application.methodology_candidate_lane_horizon import (
-    CandidateLaneHorizonMeasurement,
     measure_candidate_lane_horizon,
 )
 from apex.application.methodology_geometry_runtime import GeometryRuntimeContext
@@ -94,11 +93,18 @@ class MethodologyRoutingParityAudit:
             raise ValueError("methodology parity audit requires reason codes")
 
 
-def _candidate_lane_horizon_measurement(
+def _candidate_lane_horizon_assessment(
     candidate: TradeCandidate,
     *,
     entry_status: EntryStatus,
-) -> CandidateLaneHorizonMeasurement | None:
+) -> LaneHorizonAssessment | None:
+    """Return a measurable assessment when complete inputs are available.
+
+    AttributeError is treated as unavailable so lightweight test doubles and
+    legacy callers retain the previous inference path. Real candidate
+    validation errors are not swallowed.
+    """
+
     try:
         metadata = candidate.metadata
     except AttributeError:
@@ -106,23 +112,12 @@ def _candidate_lane_horizon_measurement(
 
     runner_authority_value = metadata.get("runner_authority")
     runner_authority = runner_authority_value if isinstance(runner_authority_value, bool) else None
-    return measure_candidate_lane_horizon(
+    measurement = measure_candidate_lane_horizon(
         candidate,
         entry_status=entry_status,
         runner_authority=runner_authority,
     )
-
-
-def _candidate_lane_horizon_assessment(
-    candidate: TradeCandidate,
-    *,
-    entry_status: EntryStatus,
-) -> LaneHorizonAssessment | None:
-    measurement = _candidate_lane_horizon_measurement(
-        candidate,
-        entry_status=entry_status,
-    )
-    return None if measurement is None else measurement.assessment
+    return measurement.assessment
 
 
 _DEFAULT_LAYERED_STATE = LayeredStateSnapshot()
@@ -267,20 +262,6 @@ class GeometrySafetyCoverage:
 
 
 @dataclass(frozen=True, slots=True)
-class CandidateLaneHorizonRoutingAudit:
-    candidate_id: str
-    strategy: str
-    direction: str
-    entry_status: str
-    initial_measurement: CandidateLaneHorizonMeasurement | None
-    final_measurement: CandidateLaneHorizonMeasurement | None
-    htf_reclassification_applied: bool
-    final_context_lane: OpportunityLane
-    final_context_holding_horizon: HoldingHorizon
-    context_source: str
-
-
-@dataclass(frozen=True, slots=True)
 class MethodologyCandidateRoutingResult:
     """Candidate-routing outcome with deterministic audit metadata."""
 
@@ -292,7 +273,6 @@ class MethodologyCandidateRoutingResult:
     suppressed_strategies: tuple[StrategyType, ...]
     reason_codes: tuple[str, ...]
     geometry_safety_audits: tuple[CandidateGeometrySafetyAudit, ...] = ()
-    lane_horizon_audits: tuple[CandidateLaneHorizonRoutingAudit, ...] = ()
 
     def __post_init__(self) -> None:
         if self.input_candidate_count < 0:
@@ -335,7 +315,6 @@ def evaluate_methodology_candidate_routing(
 
     decisions: list[StrategyEnforcementDecision] = []
     geometry_safety_audits: list[CandidateGeometrySafetyAudit] = []
-    lane_horizon_audits: list[CandidateLaneHorizonRoutingAudit] = []
     identities = candidate_identities(analysis.candidates)
     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
     status_by_object = {
@@ -360,10 +339,6 @@ def evaluate_methodology_candidate_routing(
             continue
         for candidate in strategy_candidates:
             entry_status = status_by_object[id(candidate)]
-            initial_lane_horizon_measurement = _candidate_lane_horizon_measurement(
-                candidate,
-                entry_status=entry_status,
-            )
             lane_horizon = _candidate_lane_horizon_assessment(
                 candidate,
                 entry_status=entry_status,
@@ -387,8 +362,6 @@ def evaluate_methodology_candidate_routing(
                 consequence=htf_consequence,
             )
             evaluated_candidate = candidate
-            final_lane_horizon_measurement = initial_lane_horizon_measurement
-            htf_reclassification_applied = False
             if htf_consequence is not None and htf_consequence is not unconstrained_htf_consequence:
                 evaluated_candidate = replace(
                     candidate,
@@ -411,11 +384,6 @@ def evaluate_methodology_candidate_routing(
                     # Preserve compatibility with lightweight audit/test doubles
                     # that intentionally expose only routing fields.
                     final_entry_status = entry_status
-                htf_reclassification_applied = True
-                final_lane_horizon_measurement = _candidate_lane_horizon_measurement(
-                    evaluated_candidate,
-                    entry_status=final_entry_status,
-                )
                 final_lane_horizon = _candidate_lane_horizon_assessment(
                     evaluated_candidate,
                     entry_status=final_entry_status,
@@ -425,29 +393,6 @@ def evaluate_methodology_candidate_routing(
                     entry_status=final_entry_status,
                     lane_horizon=final_lane_horizon,
                 )
-            context_source = (
-                "measured_after_htf"
-                if htf_reclassification_applied and final_lane_horizon is not None
-                else "legacy_fallback_after_htf"
-                if htf_reclassification_applied
-                else "measured_initial"
-                if lane_horizon is not None
-                else "legacy_fallback_initial"
-            )
-            lane_horizon_audits.append(
-                CandidateLaneHorizonRoutingAudit(
-                    candidate_id=candidate_id,
-                    strategy=candidate.strategy.value,
-                    direction=candidate.direction.value,
-                    entry_status=entry_status.value,
-                    initial_measurement=initial_lane_horizon_measurement,
-                    final_measurement=final_lane_horizon_measurement,
-                    htf_reclassification_applied=htf_reclassification_applied,
-                    final_context_lane=context.lane,
-                    final_context_holding_horizon=context.holding_horizon,
-                    context_source=context_source,
-                )
-            )
             lane_policy = geometry_safety_policy.for_lane(context.lane)
             candidate_metadata = getattr(evaluated_candidate, "metadata", None)
             if isinstance(candidate_metadata, Mapping):
@@ -517,7 +462,6 @@ def evaluate_methodology_candidate_routing(
         tuple(decisions),
         mode=mode,
         geometry_safety_audits=tuple(geometry_safety_audits),
-        lane_horizon_audits=tuple(lane_horizon_audits),
     )
 
 
@@ -743,7 +687,6 @@ def apply_methodology_candidate_routing(
     *,
     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
     geometry_safety_audits: tuple[CandidateGeometrySafetyAudit, ...] = (),
-    lane_horizon_audits: tuple[CandidateLaneHorizonRoutingAudit, ...] = (),
 ) -> MethodologyCandidateRoutingResult:
     """Suppress explicit strategy conflicts before ranking when enforcement is enabled.
 
@@ -763,7 +706,6 @@ def apply_methodology_candidate_routing(
             suppressed_strategies=(),
             reason_codes=("METHODOLOGY_CANDIDATE_ROUTING_SHADOW",),
             geometry_safety_audits=geometry_safety_audits,
-            lane_horizon_audits=lane_horizon_audits,
         )
 
     identities = candidate_identities(analysis.candidates)
@@ -825,7 +767,6 @@ def apply_methodology_candidate_routing(
             else "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE",
         ),
         geometry_safety_audits=geometry_safety_audits,
-        lane_horizon_audits=lane_horizon_audits,
     )
 
 
@@ -917,51 +858,6 @@ def geometry_safety_coverage(
     )
 
 
-def _lane_horizon_measurement_payload(
-    measurement: CandidateLaneHorizonMeasurement | None,
-) -> dict[str, object]:
-    if measurement is None:
-        return {
-            "available": False,
-            "missing_measurements": ["candidate_metadata"],
-            "reasons": ["candidate metadata is unavailable"],
-            "assessment": None,
-        }
-    assessment = measurement.assessment
-    return {
-        "available": measurement.available,
-        "missing_measurements": list(measurement.missing_measurements),
-        "reasons": list(measurement.reasons),
-        "assessment": None
-        if assessment is None
-        else {
-            "lane": assessment.lane.value,
-            "holding_horizon": assessment.holding_horizon.value,
-            "expected_bars_to_target": assessment.expected_bars_to_target,
-            "current_at_cmp": assessment.current_at_cmp,
-            "reasons": list(assessment.reasons),
-        },
-    }
-
-
-def _lane_horizon_routing_audit_payload(
-    audit: CandidateLaneHorizonRoutingAudit,
-) -> dict[str, object]:
-    return {
-        "candidate_id": audit.candidate_id,
-        "strategy": audit.strategy,
-        "direction": audit.direction,
-        "entry_status": audit.entry_status,
-        "initial_measurement": _lane_horizon_measurement_payload(audit.initial_measurement),
-        "final_measurement": _lane_horizon_measurement_payload(audit.final_measurement),
-        "htf_reclassification_applied": audit.htf_reclassification_applied,
-        "final_context_lane": audit.final_context_lane.value,
-        "final_context_holding_horizon": audit.final_context_holding_horizon.value,
-        "context_source": audit.context_source,
-        "shadow_only": True,
-    }
-
-
 def methodology_candidate_routing_payload(
     result: MethodologyCandidateRoutingResult,
 ) -> dict[str, object]:
@@ -1005,9 +901,6 @@ def methodology_candidate_routing_payload(
         "geometry_safety_audits": [
             candidate_geometry_safety_audit_payload(item) for item in result.geometry_safety_audits
         ],
-        "lane_horizon_audits": [
-            _lane_horizon_routing_audit_payload(item) for item in result.lane_horizon_audits
-        ],
         "suppressed_candidates": [
             {
                 "candidate_id": item.candidate_id,
@@ -1027,7 +920,6 @@ def methodology_candidate_routing_payload(
 
 
 __all__ = [
-    "CandidateLaneHorizonRoutingAudit",
     "GeometrySafetyCoverage",
     "MethodologyCandidateRoutingResult",
     "MethodologyRoutingParityAudit",
