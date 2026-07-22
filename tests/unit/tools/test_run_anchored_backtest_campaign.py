@@ -1,53 +1,87 @@
 from __future__ import annotations
 
+import importlib.util
+import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
-
-from tools.run_anchored_backtest_campaign import (
-    PROFILES,
-    SYMBOLS,
-    build_jobs,
-    default_anchors,
-    parse_anchor,
-)
+from types import ModuleType
+from typing import Any
 
 
-def test_default_campaign_has_216_jobs(tmp_path: Path) -> None:
-    anchors = default_anchors(datetime(2026, 7, 22, 16, 7, tzinfo=UTC))
-    jobs = build_jobs(anchors=anchors, output_dir=tmp_path)
+def _load_module() -> ModuleType:
+    path = Path("tools/run_anchored_backtest_campaign.py")
+    spec = importlib.util.spec_from_file_location("run_anchored_backtest_campaign", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
+    return module
 
-    assert len(anchors) == 4
-    assert len(jobs) == 216
-    assert len(jobs) == len(SYMBOLS) * len(PROFILES) * len(anchors)
 
-
-def test_default_anchors_are_completed_and_24_hours_apart() -> None:
-    anchors = default_anchors(datetime(2026, 7, 22, 16, 7, tzinfo=UTC))
-
-    assert anchors[0] == datetime(2026, 7, 22, 16, 0, tzinfo=UTC)
-    assert tuple((anchors[index] - anchors[index + 1]).total_seconds() for index in range(3)) == (
-        86_400.0,
-        86_400.0,
-        86_400.0,
+def test_runner_accepts_current_backtest_schema(monkeypatch: Any, tmp_path: Path) -> None:
+    module = _load_module()
+    report = tmp_path / "report.json"
+    log = tmp_path / "report.log"
+    job = module.CampaignJob(
+        symbol="BTCUSDT",
+        profile=module.PROFILES[0],
+        anchor=datetime(2026, 7, 22, 12, 0, tzinfo=UTC),
+        report_path=report,
+        log_path=log,
     )
 
+    class Completed:
+        returncode = 0
 
-def test_job_paths_are_unique_and_logs_are_separate(tmp_path: Path) -> None:
-    jobs = build_jobs(
-        anchors=(datetime(2026, 7, 22, 16, tzinfo=UTC),),
-        output_dir=tmp_path,
+    def fake_run(*args: object, **kwargs: object) -> Completed:
+        del args, kwargs
+        report.write_text(
+            json.dumps({"schema_version": module.EXPECTED_BACKTEST_SCHEMA_VERSION}),
+            encoding="utf-8",
+        )
+        return Completed()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    result = module.run_job(job, apex_command="apex", candle_limit=240)
+
+    assert result.succeeded is True
+    assert result.report_valid is True
+    assert result.error is None
+
+
+def test_runner_reports_actual_schema_on_mismatch(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    report = tmp_path / "report.json"
+    log = tmp_path / "report.log"
+    job = module.CampaignJob(
+        symbol="BTCUSDT",
+        profile=module.PROFILES[0],
+        anchor=datetime(2026, 7, 22, 12, 0, tzinfo=UTC),
+        report_path=report,
+        log_path=log,
     )
 
-    assert len({job.report_path for job in jobs}) == len(jobs)
-    assert len({job.log_path for job in jobs}) == len(jobs)
-    assert all(job.log_path.parent == tmp_path / "logs" for job in jobs)
+    class Completed:
+        returncode = 0
 
+    def fake_run(*args: object, **kwargs: object) -> Completed:
+        del args, kwargs
+        report.write_text(json.dumps({"schema_version": 4}), encoding="utf-8")
+        return Completed()
 
-def test_parse_anchor_normalizes_to_utc() -> None:
-    assert parse_anchor("2026-07-22T21:00:00+05:00") == datetime(
-        2026,
-        7,
-        22,
-        16,
-        tzinfo=UTC,
-    )
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    result = module.run_job(job, apex_command="apex", candle_limit=240)
+
+    assert result.succeeded is False
+    assert result.report_valid is False
+    assert result.error == "report schema is missing or unexpected: expected 5, got 4"

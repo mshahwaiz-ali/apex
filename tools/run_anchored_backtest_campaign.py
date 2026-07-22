@@ -47,6 +47,8 @@ PROFILES = (
     ReplayProfile("environment", "15m", 20, 3),
 )
 
+EXPECTED_BACKTEST_SCHEMA_VERSION = 5
+
 
 @dataclass(frozen=True, slots=True)
 class CampaignJob:
@@ -154,9 +156,13 @@ def run_job(job: CampaignJob, *, apex_command: str, candle_limit: int) -> JobRes
     if completed.returncode == 0:
         try:
             payload = json.loads(job.report_path.read_text(encoding="utf-8"))
-            report_valid = isinstance(payload, dict) and payload.get("schema_version") == 4
+            actual_schema = payload.get("schema_version") if isinstance(payload, dict) else None
+            report_valid = actual_schema == EXPECTED_BACKTEST_SCHEMA_VERSION
             if not report_valid:
-                error = "report schema is missing or unexpected"
+                error = (
+                    "report schema is missing or unexpected: "
+                    f"expected {EXPECTED_BACKTEST_SCHEMA_VERSION}, got {actual_schema!r}"
+                )
         except (OSError, json.JSONDecodeError) as exc:
             error = f"report validation failed: {exc}"
     else:
