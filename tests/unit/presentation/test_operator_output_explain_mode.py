@@ -196,3 +196,24 @@ def test_explain_does_not_report_serialized_trade_geometry_as_missing() -> None:
         "Confidence",
     ):
         assert f"Unavailable: {field}" not in rendered
+
+
+def test_scan_explain_aggregates_repeated_missing_evidence() -> None:
+    first = _payload()
+    second = _payload()
+    second["symbol"] = "ETHUSDT"
+    scan = {
+        "attempted_symbol_count": 2,
+        "total_analysis_count": 2,
+        "filtered_symbol_count": 2,
+        "displayed_symbol_count": 2,
+        "retained_opportunity_count": 2,
+        "displayed_opportunity_count": 2,
+        "direction_filter": "both",
+        "results": [first, second],
+    }
+
+    rendered = render_scan(scan, explain=True)
+
+    assert "Liquidation_impulse: unavailable for 2 symbol(s)" in rendered
+    assert "BTCUSDT — Unavailable: Liquidation_impulse" not in rendered

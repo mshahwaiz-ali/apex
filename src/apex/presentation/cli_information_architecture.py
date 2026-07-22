@@ -236,16 +236,24 @@ def multi_timeframe_lines(payload: Mapping[str, object]) -> tuple[str, ...]:
         _mapping(payload.get("multi_timeframe_map"))
         or _mapping(payload.get("timeframe_map"))
         or _mapping(_mapping(payload.get("focused_analysis")).get("timeframe_map"))
+        or _mapping(payload.get("data_quality_by_timeframe"))
     )
     lines: list[str] = []
     for timeframe, raw in source.items():
         item = _mapping(raw)
         if item:
+            nested_structure = _mapping(item.get("structure"))
             structure = (
-                item.get("structure") or item.get("trend") or item.get("state") or item.get("bias")
+                nested_structure.get("trend_state")
+                or nested_structure.get("direction")
+                or item.get("structure")
+                or item.get("trend")
+                or item.get("state")
+                or item.get("bias")
             )
-            momentum = item.get("momentum")
-            note = item.get("summary") or item.get("reason")
+            features = _mapping(item.get("features"))
+            momentum = item.get("momentum") or features.get("momentum_state")
+            note = item.get("summary") or item.get("reason") or item.get("role")
             parts = [
                 str(value).replace("_", " ").title()
                 for value in (structure, momentum, note)

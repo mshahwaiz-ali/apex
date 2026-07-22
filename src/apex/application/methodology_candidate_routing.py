@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from apex.application.methodology_adapters import strategy_evidence_observations
@@ -371,6 +372,40 @@ def evaluate_methodology_candidate_routing(
                     },
                 )
                 constrained_candidates[id(candidate)] = evaluated_candidate
+            # HTF consequences can turn an apparently ready candidate into a
+            # confirmation-dependent candidate.  Re-resolve its lane from the
+            # final execution facts before applying lane geometry; otherwise an
+            # extension-only target can be audited as structured and later
+            # presented as a confirmation scalp.
+            if evaluated_candidate is not candidate:
+                try:
+                    final_entry_status = classify_candidate_actionability(evaluated_candidate)
+                except AttributeError:
+                    # Preserve compatibility with lightweight audit/test doubles
+                    # that intentionally expose only routing fields.
+                    final_entry_status = entry_status
+                final_lane_horizon = _candidate_lane_horizon_assessment(
+                    evaluated_candidate,
+                    entry_status=final_entry_status,
+                )
+                context = infer_candidate_methodology_context(
+                    evaluated_candidate,
+                    entry_status=final_entry_status,
+                    lane_horizon=final_lane_horizon,
+                )
+            lane_policy = geometry_safety_policy.for_lane(context.lane)
+            candidate_metadata = getattr(evaluated_candidate, "metadata", None)
+            if isinstance(candidate_metadata, Mapping):
+                evaluated_candidate = replace(
+                    evaluated_candidate,
+                    metadata={
+                        **candidate_metadata,
+                        "geometry_opportunity_lane": context.lane.value,
+                        "geometry_minimum_tp1_reward_to_risk": (
+                            lane_policy.minimum_tp1_reward_to_risk
+                        ),
+                    },
+                )
             post_routing_candidate = _apply_post_routing_quality_caps(
                 evaluated_candidate,
                 lane=context.lane,

@@ -152,6 +152,33 @@ def test_setup_projects_authoritative_capped_quality_dimensions() -> None:
     assert setup.quality_dimensions.overall_trade_quality == 64.0
 
 
+def test_public_maximum_chase_preserves_configured_minimum_net_r() -> None:
+    ranked = _ranked_pending_candidate()
+    wider_target = replace(
+        ranked.candidate.targets,
+        levels=(replace(ranked.candidate.targets.levels[0], price=106.0),),
+    )
+    candidate = replace(
+        ranked.candidate,
+        targets=wider_target,
+        metadata={
+            "expected_cost_pct": 0.10,
+            "geometry_minimum_tp1_reward_to_risk": 1.25,
+        },
+    )
+
+    setup = _build_setup(replace(ranked, scored=replace(ranked.scored, candidate=candidate)))
+
+    chase = setup.entry.maximum_chase_price
+    target = setup.take_profits[0].price
+    stop = setup.stop_loss.price
+    cost = chase * 0.10 / 100.0
+    net_r = (target - chase - cost) / (chase - stop + cost)
+
+    assert setup.entry.upper <= chase < ranked.candidate.entry.max_chase_price  # type: ignore[operator]
+    assert net_r >= 1.25 - 1e-9
+
+
 def _analysis() -> SymbolAnalysis:
     return SymbolAnalysis(
         symbol="BTCUSDT",

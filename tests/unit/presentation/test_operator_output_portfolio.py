@@ -258,6 +258,33 @@ def test_analysis_renders_operator_context_and_geometry_without_raw_ids() -> Non
     assert "Target quality" in text
     assert "HTF alignment" in text
     assert "Overall trade quality" in text
+
+
+def test_conditional_card_groups_geometry_and_prints_real_trigger() -> None:
+    payload = _portfolio_payload()
+    nearby = payload["opportunity_portfolio"]["nearby_opportunities"][0]  # type: ignore[index]
+    setup = nearby["setup"]  # type: ignore[index]
+    setup["confirmation_required"] = True  # type: ignore[index]
+    setup["confirmation_complete"] = False  # type: ignore[index]
+    setup["conditional_plan"] = {  # type: ignore[index]
+        "trigger": {
+            "kind": "candle_close",
+            "level": 103.5,
+            "condition": "5m candle closes through the preferred trigger level",
+        },
+        "pre_entry_invalidation": {"price": 106.0},
+        "recommended_order_intent": "alert_only",
+        "conditional_order_eligible": False,
+    }
+
+    text = render_analysis(payload)
+
+    for heading in ("ENTRY", "RISK", "TARGETS", "ACTIVATION", "QUALITY"):
+        assert heading in text
+    assert "Awaiting trigger" in text
+    assert "Candle close at 103.5" in text
+    assert "5m candle closes through the preferred" in text
+    assert "trigger level" in text
     assert "Rank score" in text
     assert "Main risk" in text
     assert "BTCUSDT — LONG" in text

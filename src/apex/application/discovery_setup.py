@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from apex.application.discovery_contracts import (
     ActionableEntry,
     ActivationTrigger,
@@ -62,6 +64,7 @@ from apex.strategies.contracts import (
 from apex.strategies.entry_status import EntryStatus
 
 DEFAULT_MAXIMUM_CHASE_PCT = 0.35
+DEFAULT_MINIMUM_CHASE_NET_R = 1.25
 DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
 DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
 
@@ -172,6 +175,17 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         stop,
         preferred_entry=entry_authority.selected_entry,
         runner_qualified=runner_qualified,
+    )
+    entry = _clamp_entry_chase_to_net_r(
+        entry,
+        direction=candidate.direction,
+        stop=stop,
+        tp1=targets[0],
+        minimum_net_r=_positive_number(
+            candidate.metadata.get("geometry_minimum_tp1_reward_to_risk")
+        )
+        or DEFAULT_MINIMUM_CHASE_NET_R,
+        expected_cost_pct=_positive_or_zero_number(candidate.metadata.get("expected_cost_pct")),
     )
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
@@ -372,6 +386,14 @@ def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
         configured_chase = (
             zone.upper + offset if direction is TradeDirection.LONG else zone.lower - offset
         )
+    # A malformed strategy chase hint must not crash the complete symbol scan.
+    # Collapse it to the trade-side zone edge; the R-preserving clamp below can
+    # then tighten it further using the final stop, target, and execution costs.
+    configured_chase = (
+        max(configured_chase, zone.upper)
+        if direction is TradeDirection.LONG
+        else min(configured_chase, zone.lower)
+    )
     return ActionableEntry(
         lower=zone.lower,
         upper=zone.upper,
@@ -380,6 +402,49 @@ def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
         maximum_chase_price=configured_chase,
         current_price_inside_zone=zone.lower <= zone.current_price <= zone.upper,
     )
+
+
+def _clamp_entry_chase_to_net_r(
+    entry: ActionableEntry,
+    *,
+    direction: TradeDirection,
+    stop: StopLoss,
+    tp1: TakeProfit,
+    minimum_net_r: float,
+    expected_cost_pct: float | None,
+) -> ActionableEntry:
+    """Keep the public chase boundary above the candidate's minimum net R.
+
+    The geometry gate evaluates the selected entry.  This second boundary
+    calculation prevents the displayed chase limit from implying that the same
+    reward-to-risk remains available after price has moved away from that entry.
+    """
+
+    cost_fraction = (expected_cost_pct or 0.0) / 100.0
+    denominator_multiplier = 1.0 + minimum_net_r
+    if direction is TradeDirection.LONG:
+        boundary = (tp1.price + minimum_net_r * stop.price) / (
+            denominator_multiplier * (1.0 + cost_fraction)
+        )
+        chase = min(entry.maximum_chase_price, boundary)
+        chase = max(entry.upper, chase)
+    else:
+        cost_multiplier = 1.0 - cost_fraction
+        if cost_multiplier <= 0.0:
+            return replace(entry, maximum_chase_price=entry.lower)
+        boundary = (tp1.price + minimum_net_r * stop.price) / (
+            denominator_multiplier * cost_multiplier
+        )
+        chase = max(entry.maximum_chase_price, boundary)
+        chase = min(entry.lower, chase)
+    return replace(entry, maximum_chase_price=chase)
+
+
+def _positive_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    numeric = float(value)
+    return numeric if numeric > 0.0 else None
 
 
 def _stop(

@@ -196,15 +196,15 @@ def _opportunity_card(
     quality = _mapping(setup.get("quality_dimensions"))
     reference = _number(entry.get("preferred")) or _number(entry.get("current_price"))
     direction = humanize_code(opportunity.get("direction") or setup.get("direction")).upper()
-    fields: list[tuple[str, object]] = [
+    entry_fields: list[tuple[str, object]] = [
         ("CMP", format_price(entry.get("current_price"))),
         ("Ideal entry", format_price(entry.get("preferred"))),
         ("Entry range", _price_range(entry.get("lower"), entry.get("upper"))),
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
-        ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
+    target_fields: list[tuple[str, object]] = []
     for target_index, target in enumerate(targets[:3], start=1):
-        fields.append(
+        target_fields.append(
             (
                 f"TP{target_index}",
                 _target_label(
@@ -214,11 +214,12 @@ def _opportunity_card(
                 ),
             )
         )
-    fields.extend(_conditional_opportunity_fields(setup))
-    fields.extend(_opportunity_quality_fields(opportunity, setup, quality))
+    activation_fields = _conditional_opportunity_fields(setup)
+    quality_fields = _opportunity_quality_fields(opportunity, setup, quality)
+    warning_fields: list[tuple[str, object]] = []
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
-        fields.append(("Main risk", warnings[0]))
+        warning_fields.append(("Main risk", warnings[0]))
 
     header_lines = [f"▶  Opportunity #{index}  {symbol} — {direction}"]
     signal_time = _signal_generated_label(generated_at)
@@ -228,7 +229,20 @@ def _opportunity_card(
     relationship_line = _opportunity_relationship_line(setup)
     if relationship_line:
         header_lines.append(f"   {relationship_line}")
-    return "\n".join((*header_lines, render_fields(fields)))
+    return "\n".join(
+        (
+            *header_lines,
+            "",
+            _opportunity_detail_blocks(
+                entry_fields=entry_fields,
+                risk_fields=(("Stop loss", _price_with_move(stop.get("price"), reference)),),
+                target_fields=target_fields,
+                activation_fields=activation_fields,
+                quality_fields=quality_fields,
+                warning_fields=warning_fields,
+            ),
+        )
+    )
 
 
 def _conditional_opportunity_fields(
@@ -241,11 +255,12 @@ def _conditional_opportunity_fields(
     trigger = _mapping(plan.get("trigger"))
     invalidation = _mapping(plan.get("pre_entry_invalidation"))
     expiry = _mapping(plan.get("expiry"))
+    trigger_type = trigger.get("type") or trigger.get("kind")
 
     fields: list[tuple[str, object]] = [
         (
             "Activation trigger",
-            f"{humanize_code(trigger.get('type'))} at {format_price(trigger.get('level'))}",
+            f"{humanize_code(trigger_type)} at {format_price(trigger.get('level'))}",
         ),
         ("Trigger condition", trigger.get("condition")),
         ("Pre-entry invalidation", format_price(invalidation.get("price"))),
@@ -259,7 +274,32 @@ def _conditional_opportunity_fields(
         fields.append(("Conditional validity", expiry.get("validity")))
     if expiry.get("reason"):
         fields.append(("Conditional expiry reason", expiry.get("reason")))
+    elif setup.get("setup_expiry_reason"):
+        fields.append(("Conditional expiry reason", setup.get("setup_expiry_reason")))
     return tuple(fields)
+
+
+def _opportunity_detail_blocks(
+    *,
+    entry_fields: Sequence[tuple[str, object]],
+    risk_fields: Sequence[tuple[str, object]],
+    target_fields: Sequence[tuple[str, object]],
+    activation_fields: Sequence[tuple[str, object]],
+    quality_fields: Sequence[tuple[str, object]],
+    warning_fields: Sequence[tuple[str, object]],
+) -> str:
+    blocks: list[str] = []
+    for title, fields in (
+        ("ENTRY", entry_fields),
+        ("RISK", risk_fields),
+        ("TARGETS", target_fields),
+        ("ACTIVATION", activation_fields),
+        ("QUALITY", quality_fields),
+        ("CAUTION", warning_fields),
+    ):
+        if fields:
+            blocks.append(f"  {title}\n{render_fields(fields, indent=4)}")
+    return "\n\n".join(blocks)
 
 
 def _actionability_label(setup: Mapping[str, object]) -> str:
@@ -398,13 +438,15 @@ def _scan_summary(
     failure_count = len(_mapping(payload.get("failures")))
     methodology = _scan_methodology_status(payload)
     screening = _mapping(payload.get("screening"))
-    shortlisted = screening.get("shortlisted_count") or payload.get("total_analysis_count")
+    discovered = screening.get("total_contracts") or payload.get("attempted_symbol_count")
+    screened = screening.get("candle_screened_count") or payload.get("attempted_symbol_count")
+    shortlisted = screening.get("shortlisted_count") or payload.get("attempted_symbol_count")
     return render_section(
         "Scan summary",
         render_fields(
             (
-                ("Markets discovered", payload.get("total_symbol_count")),
-                ("Markets screened", payload.get("filtered_symbol_count")),
+                ("Markets discovered", discovered),
+                ("Markets screened", screened),
                 ("Symbols shortlisted", shortlisted),
                 ("Symbols analyzed", payload.get("total_analysis_count")),
                 ("Symbols displayed", payload.get("displayed_symbol_count")),
@@ -552,15 +594,15 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
     reference = preferred or _number(entry.get("current_price"))
     symbol = str(item.get("symbol") or source.get("symbol") or "Unknown market")
     direction = humanize_code(opportunity.get("direction") or setup.get("direction"))
-    fields: list[tuple[str, object]] = [
+    entry_fields: list[tuple[str, object]] = [
         ("CMP", format_price(entry.get("current_price"))),
         ("Ideal entry", format_price(entry.get("preferred"))),
         ("Entry range", _price_range(entry.get("lower"), entry.get("upper"))),
         ("Maximum chase", format_price(entry.get("maximum_chase_price"))),
-        ("Stop loss", _price_with_move(stop.get("price"), reference)),
     ]
+    target_fields: list[tuple[str, object]] = []
     for target_index, target in enumerate(targets[:3], start=1):
-        fields.append(
+        target_fields.append(
             (
                 f"TP{target_index}",
                 _target_label(
@@ -570,13 +612,15 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
                 ),
             )
         )
-    fields.extend(_opportunity_quality_fields(opportunity, setup, quality))
+    activation_fields = _conditional_opportunity_fields(setup)
+    quality_fields = _opportunity_quality_fields(opportunity, setup, quality)
+    warning_fields: list[tuple[str, object]] = []
     warnings = _clean_many(setup.get("warnings"))
     if warnings:
-        fields.append(("Main risk", warnings[0]))
+        warning_fields.append(("Main risk", warnings[0]))
     data_warning = data_quality_warning(source)
     if data_warning:
-        fields.append(("Data warning", data_warning))
+        warning_fields.append(("Data warning", data_warning))
 
     display_rank = source.get("display_rank")
     rank_label = (
@@ -592,7 +636,20 @@ def _canonical_scan_card(item: Mapping[str, object], *, index: int) -> str:
     relationship_line = _opportunity_relationship_line(setup)
     if relationship_line:
         header_lines.append(f"   {relationship_line}")
-    return "\n".join((*header_lines, render_fields(fields)))
+    return "\n".join(
+        (
+            *header_lines,
+            "",
+            _opportunity_detail_blocks(
+                entry_fields=entry_fields,
+                risk_fields=(("Stop loss", _price_with_move(stop.get("price"), reference)),),
+                target_fields=target_fields,
+                activation_fields=activation_fields,
+                quality_fields=quality_fields,
+                warning_fields=warning_fields,
+            ),
+        )
+    )
 
 
 def _opportunity_context_line(
@@ -607,6 +664,8 @@ def _opportunity_context_line(
         or opportunity.get("sequence_role")
     )
     actionability = _actionability_label(setup)
+    if setup.get("confirmation_required") is True and setup.get("confirmation_complete") is False:
+        actionability = "Awaiting trigger"
     return " · ".join(
         value for value in (strategy, lane, actionability) if value and value != UNAVAILABLE
     )
@@ -1337,7 +1396,7 @@ def _scan_explain_sections(payload: Mapping[str, object]) -> list[str]:
         )
     )
 
-    missing = _scan_prefixed_result_lines(results, _missing_evidence_lines)
+    missing = _scan_missing_evidence_summary(results)
     sections.append(
         render_section(
             "Missing evidence",
@@ -1411,6 +1470,28 @@ def _scan_explain_sections(payload: Mapping[str, object]) -> list[str]:
         )
     )
     return sections
+
+
+def _scan_missing_evidence_summary(
+    results: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    """Aggregate repeated scan-wide gaps instead of printing one line per symbol."""
+
+    symbols_by_gap: dict[str, list[str]] = {}
+    for result in results:
+        symbol = str(result.get("symbol") or "Unknown market")
+        for line in _missing_evidence_lines(result):
+            gap = line.removeprefix("Unavailable: ")
+            symbols_by_gap.setdefault(gap, []).append(symbol)
+
+    lines: list[str] = []
+    for gap, symbols in symbols_by_gap.items():
+        unique = tuple(dict.fromkeys(symbols))
+        preview = ", ".join(unique[:3])
+        remainder = len(unique) - min(3, len(unique))
+        suffix = f", +{remainder} more" if remainder else ""
+        lines.append(f"{gap}: unavailable for {len(unique)} symbol(s) ({preview}{suffix})")
+    return tuple(lines)
 
 
 def _scan_methodology_enforcement_fields(

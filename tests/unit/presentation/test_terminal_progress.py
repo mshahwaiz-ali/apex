@@ -82,3 +82,28 @@ def test_opportunity_headers_color_long_green_and_short_red(
         ("▶  #1  BTCUSDT — LONG", typer.colors.BRIGHT_GREEN, True),
         ("▶  #2  ETHUSDT — SHORT", typer.colors.BRIGHT_RED, True),
     ]
+
+
+def test_terminal_uses_semantic_trade_geometry_colors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None, bool]] = []
+
+    def capture(line: str, *, fg: str | None = None, bold: bool = False) -> None:
+        calls.append((line, fg, bold))
+
+    monkeypatch.setattr(typer, "secho", capture)
+    monkeypatch.setattr(typer, "echo", lambda line: None)
+
+    emit_terminal(
+        "  ENTRY\n    Ideal entry  100\n  RISK\n    Stop loss  97\n  TARGETS\n    TP1  106"
+    )
+
+    assert calls == [
+        ("  ENTRY", typer.colors.GREEN, True),
+        ("    Ideal entry  100", typer.colors.BRIGHT_YELLOW, False),
+        ("  RISK", typer.colors.GREEN, True),
+        ("    Stop loss  97", typer.colors.BRIGHT_RED, True),
+        ("  TARGETS", typer.colors.GREEN, True),
+        ("    TP1  106", typer.colors.BRIGHT_GREEN, True),
+    ]

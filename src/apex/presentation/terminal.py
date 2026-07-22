@@ -108,20 +108,33 @@ def cli_progress(*, stream: TextIO | None = None) -> CliProgress:
 
 
 def emit_terminal(text: str) -> None:
-    """Print a report with restrained styling when the destination supports color."""
+    """Print a report with a semantic green terminal palette."""
 
     for line in text.splitlines():
-        if line.startswith("╭"):
-            typer.secho(line, fg=typer.colors.CYAN, bold=True)
+        stripped = line.lstrip()
+        if line.startswith(("╭", "╰")):
+            typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
         elif line.startswith("┌─"):
-            typer.secho(line, fg=typer.colors.BRIGHT_CYAN, bold=True)
+            typer.secho(line, fg=typer.colors.GREEN, bold=True)
+        elif line.startswith("└"):
+            typer.secho(line, fg=typer.colors.GREEN)
         elif line.startswith("▶") and line.rstrip().endswith("— LONG"):
             typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
         elif line.startswith("▶") and line.rstrip().endswith("— SHORT"):
             typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
         elif line.startswith("▶"):
             typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
-        elif line.startswith("!"):
+        elif stripped in {"ENTRY", "RISK", "TARGETS", "ACTIVATION", "QUALITY", "CAUTION"}:
+            typer.secho(line, fg=typer.colors.GREEN, bold=True)
+        elif stripped.startswith(("CMP ", "Ideal entry ", "Entry range ", "Maximum chase ")):
+            typer.secho(line, fg=typer.colors.BRIGHT_YELLOW)
+        elif stripped.startswith(("Stop loss ", "Invalidation ", "Pre-entry invalidation ")):
+            typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
+        elif stripped.startswith(("TP1 ", "TP2 ", "TP3 ")):
+            typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
+        elif stripped.startswith(("Activation trigger ", "Trigger condition ", "Order intent ")):
+            typer.secho(line, fg=typer.colors.YELLOW)
+        elif stripped.startswith(("Main risk ", "Data warning ")) or line.startswith("!"):
             typer.secho(line, fg=typer.colors.YELLOW, bold=True)
         else:
             typer.echo(line)
