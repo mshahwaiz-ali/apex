@@ -151,7 +151,79 @@ def _enum_value(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def select_replay_opportunity_decisions(
+    analysis: object,
+) -> tuple[CanonicalOpportunityDecision, ...]:
+    """Return every distinct retained opportunity that can be replayed safely.
+
+    This expands diagnostic coverage only. The canonical production selector
+    remains unchanged and still chooses at most one official recommendation.
+    """
+
+    portfolio = getattr(analysis, "opportunity_portfolio", None)
+    if portfolio is None:
+        decision = select_canonical_opportunity_decision(analysis)
+        return () if decision.setup is None else (decision,)
+
+    decisions: list[CanonicalOpportunityDecision] = []
+    seen_opportunity_ids: set[str] = set()
+    for opportunity in tuple(getattr(portfolio, "opportunities", ())):
+        setup = getattr(opportunity, "setup", None)
+        role = getattr(opportunity, "sequence_role", None)
+        if not isinstance(setup, DiscoverySetup) or not isinstance(role, SequenceRole):
+            continue
+
+        actionability = build_actionability_state_assessment(
+            setup,
+            sequence_role=role,
+        )
+        opportunity_id = str(getattr(opportunity, "opportunity_id", setup.candidate_id))
+        if opportunity_id in seen_opportunity_ids:
+            continue
+        seen_opportunity_ids.add(opportunity_id)
+
+        lane = _enum_value(
+            getattr(
+                opportunity,
+                "effective_lane",
+                getattr(opportunity, "lane", None),
+            )
+        )
+        executable = (
+            role is SequenceRole.CURRENT
+            and actionability.state in _EXECUTABLE_STATES
+            and setup.execution_allowed_now
+            and not actionability.has_blocking_issue
+        )
+        conditional = setup.conditional_plan is not None and actionability.state not in {
+            ActionabilityState.MISSED_OR_CHASING,
+            ActionabilityState.INVALIDATED,
+        }
+        if not executable and not conditional:
+            continue
+
+        decisions.append(
+            CanonicalOpportunityDecision(
+                setup=setup,
+                opportunity_id=opportunity_id,
+                sequence_role=role.value,
+                lane=lane,
+                actionability_state=actionability.state.value,
+                reason_code=(
+                    "diagnostic_executable_opportunity"
+                    if executable
+                    else "diagnostic_conditional_opportunity"
+                ),
+                canonical_portfolio=True,
+                execution_authorized=executable,
+            )
+        )
+
+    return tuple(decisions)
+
+
 __all__ = [
     "CanonicalOpportunityDecision",
     "select_canonical_opportunity_decision",
+    "select_replay_opportunity_decisions",
 ]

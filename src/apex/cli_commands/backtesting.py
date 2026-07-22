@@ -23,6 +23,7 @@ from apex.application.candidate_ranking import CandidateRankingRecord, Candidate
 from apex.application.canonical_opportunity_selection import (
     CanonicalOpportunityDecision,
     select_canonical_opportunity_decision,
+    select_replay_opportunity_decisions,
 )
 from apex.application.discovery_contracts import DiscoverySetup
 from apex.application.methodology_geometry_runtime import (
@@ -181,6 +182,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             )
             signals: list[BacktestSignal] = []
             conditional_signals: list[BacktestSignal] = []
+            opportunity_signals: list[BacktestSignal] = []
             shadow_signals: list[BacktestSignal] = []
             no_trade_decisions: list[dict[str, object]] = []
             calibration_records: list[dict[str, object]] = []
@@ -225,6 +227,17 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 )
                 replay_decision = _select_replay_decision(analysis)
                 shadow_signals.extend(_shadow_replay_signals(analysis))
+                for opportunity_decision in select_replay_opportunity_decisions(analysis):
+                    opportunity_setup = opportunity_decision.setup
+                    if opportunity_setup is None:
+                        continue
+                    opportunity_signals.append(
+                        signal_from_discovery_setup(
+                            opportunity_setup,
+                            replay_timeframe=replay_timeframe,
+                            replay_source="opportunity_portfolio",
+                        )
+                    )
                 setup = replay_decision.setup
                 calibration_records.append(
                     _calibration_record(
@@ -286,6 +299,14 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:conditional-campaign",
             )
         )
+        opportunity_study = HistoricalBacktestRunner().run(
+            BacktestRequest(
+                signals=tuple(opportunity_signals),
+                candles_by_symbol={normalized_symbol: replay_series.candles},
+                config=config,
+                dataset_id=f"{normalized_symbol}:{replay_timeframe}:opportunity-campaign",
+            )
+        )
         shadow_study = HistoricalBacktestRunner().run(
             BacktestRequest(
                 signals=tuple(shadow_signals),
@@ -296,6 +317,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         )
         report = study.report
         conditional_report = conditional_study.report
+        opportunity_report = opportunity_study.report
         shadow_report = shadow_study.report
 
         def replay_record(trade: SimulatedTrade, replay_class: str) -> dict[str, object]:
@@ -441,6 +463,28 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "outcome_distribution": _outcome_distribution(conditional_report.trades),
                 "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
                 "calibration_authoritative": False,
+            },
+            "opportunity_replay": {
+                "signal_count": opportunity_study.generated_signal_count,
+                "simulated_trade_count": opportunity_study.simulated_trade_count,
+                "skipped_signal_count": opportunity_study.skipped_signal_count,
+                "trades": _canonical_trade_records(
+                    opportunity_report.trades,
+                    calibration_records=calibration_records,
+                    partition_by_time=partition_by_time,
+                ),
+                "metrics": _diagnostic_report_metrics(opportunity_report),
+                "activation_metrics": _activation_metrics(opportunity_report.trades),
+                "execution_metrics": _execution_metrics(opportunity_report.trades),
+                "outcome_distribution": _outcome_distribution(opportunity_report.trades),
+                "risk_and_excursion": _risk_and_excursion(opportunity_report.trades),
+                "calibration_authoritative": False,
+                "portfolio_drawdown_valid": False,
+                "purpose": (
+                    "diagnostic replay of every distinct retained executable or "
+                    "conditional portfolio opportunity; canonical production metrics "
+                    "remain authoritative"
+                ),
             },
             "shadow_replay": {
                 "signal_count": shadow_study.generated_signal_count,

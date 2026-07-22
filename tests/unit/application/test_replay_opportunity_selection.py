@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from apex.application import canonical_opportunity_selection as module
+from apex.application.discovery_contracts import DiscoverySetup
+from apex.application.opportunity_portfolio import ActionabilityState, SequenceRole
+
+
+def _setup(candidate_id: str, *, conditional: bool, executable: bool) -> DiscoverySetup:
+    setup = object.__new__(DiscoverySetup)
+    object.__setattr__(setup, "candidate_id", candidate_id)
+    object.__setattr__(setup, "conditional_plan", object() if conditional else None)
+    object.__setattr__(setup, "execution_allowed_now", executable)
+    return setup
+
+
+def test_replay_selector_returns_every_distinct_replayable_opportunity(monkeypatch) -> None:
+    executable = _setup("current", conditional=False, executable=True)
+    conditional = _setup("nearby", conditional=True, executable=False)
+    ignored = _setup("ignored", conditional=False, executable=False)
+
+    opportunities = (
+        SimpleNamespace(
+            setup=executable,
+            sequence_role=SequenceRole.CURRENT,
+            opportunity_id="current",
+            effective_lane=None,
+        ),
+        SimpleNamespace(
+            setup=conditional,
+            sequence_role=SequenceRole.NEARBY,
+            opportunity_id="nearby",
+            effective_lane=None,
+        ),
+        SimpleNamespace(
+            setup=ignored,
+            sequence_role=SequenceRole.FOLLOW_UP,
+            opportunity_id="ignored",
+            effective_lane=None,
+        ),
+    )
+    analysis = SimpleNamespace(opportunity_portfolio=SimpleNamespace(opportunities=opportunities))
+
+    def assess(setup: DiscoverySetup, *, sequence_role: SequenceRole):
+        state = (
+            ActionabilityState.EXECUTE_NOW
+            if setup is executable
+            else ActionabilityState.RETEST_PREFERRED
+        )
+        return SimpleNamespace(state=state, has_blocking_issue=False)
+
+    monkeypatch.setattr(module, "build_actionability_state_assessment", assess)
+
+    decisions = module.select_replay_opportunity_decisions(analysis)
+
+    assert [item.opportunity_id for item in decisions] == ["current", "nearby"]
+    assert [item.execution_authorized for item in decisions] == [True, False]
+
+
+def test_replay_selector_deduplicates_opportunity_ids(monkeypatch) -> None:
+    setup = _setup("candidate", conditional=True, executable=False)
+    opportunity = SimpleNamespace(
+        setup=setup,
+        sequence_role=SequenceRole.NEARBY,
+        opportunity_id="same",
+        effective_lane=None,
+    )
+    analysis = SimpleNamespace(
+        opportunity_portfolio=SimpleNamespace(opportunities=(opportunity, opportunity))
+    )
+    monkeypatch.setattr(
+        module,
+        "build_actionability_state_assessment",
+        lambda setup, *, sequence_role: SimpleNamespace(
+            state=ActionabilityState.RETEST_PREFERRED,
+            has_blocking_issue=False,
+        ),
+    )
+
+    decisions = module.select_replay_opportunity_decisions(analysis)
+
+    assert len(decisions) == 1
