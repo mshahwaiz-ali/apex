@@ -128,5 +128,5 @@ def test_registry_boundary_preserves_breakout_rejection_diagnostics() -> None:
     assert result.conditional_candidate_count == 0
     assert len(result.rejected) == 1
     assert result.rejected[0].reason_code == "30m_direction_authority_opposed"
-    assert result.rejected[0].candidate.metadata["direction_authority"] == "opposed"
+    assert result.rejected[0].candidate.metadata["direction_authority"] == "strongly_opposed"
     assert result.rejected[0].candidate.metadata["timing_frame_used_for_direction"] is False
