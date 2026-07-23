@@ -49,7 +49,7 @@ def simulate_trade(
         config = BacktestConfig()
     if not candles:
         raise ValueError("simulation requires future candles")
-    entry = _slipped_entry(signal, config)
+    entry: float | None = None
     stop = signal.stop_price
     targets = signal.target_prices
     partials = signal.partial_close_percentages
@@ -161,14 +161,25 @@ def simulate_trade(
             if signal.activation_type is not BacktestActivationType.PRICE_TOUCH:
                 continue
         if not entered:
-            entered = _entry_touched(signal, candle)
-            if not entered:
+            raw_entry = _entry_zone_fill_price(signal, candle)
+            if raw_entry is None:
                 continue
+            signal = replace(
+                signal,
+                entry_price=raw_entry,
+                risk_amount=abs(raw_entry - stop),
+            )
+            entry = _slipped_entry(signal, config)
+            entered = True
             metadata = {
                 **({} if metadata is None else dict(metadata)),
                 "entry_fill_candle": index,
                 "entry_fill_time": candle.close_time.isoformat(),
                 "entry_fill_price": entry,
+                "entry_raw_fill_price": raw_entry,
+                "entry_zone_low": signal.entry_zone_low or signal.entry_price,
+                "entry_zone_high": signal.entry_zone_high or signal.entry_price,
+                "entry_fill_model": "conservative_zone_boundary",
                 "activation_wait_candles": (
                     0
                     if signal.activation_type is None
@@ -178,6 +189,7 @@ def simulate_trade(
                     )
                 ),
             }
+        assert entry is not None
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
         maximum_favorable_excursion_r = max(maximum_favorable_excursion_r, favorable_r)
         maximum_adverse_excursion_r = max(maximum_adverse_excursion_r, adverse_r)
@@ -316,6 +328,7 @@ def simulate_trade(
                 "entry_not_touched_after_activation" if activated else "activation_window_ended"
             ),
         )
+    assert entry is not None
     final_exit = _slipped_exit(signal, final.close, config)
     return _trade_from_components(
         signal,
@@ -476,7 +489,26 @@ def summarize_trades(trades: Sequence[SimulatedTrade]) -> BacktestReport:
 
 
 def _entry_touched(signal: BacktestSignal, candle: Candle) -> bool:
-    return candle.low <= signal.entry_price <= candle.high
+    zone_low = signal.entry_zone_low or signal.entry_price
+    zone_high = signal.entry_zone_high or signal.entry_price
+    return candle.high >= zone_low and candle.low <= zone_high
+
+
+def _entry_zone_fill_price(signal: BacktestSignal, candle: Candle) -> float | None:
+    """Return a conservative deterministic raw fill inside the touched entry zone."""
+
+    zone_low = signal.entry_zone_low or signal.entry_price
+    zone_high = signal.entry_zone_high or signal.entry_price
+    overlap_low = max(candle.low, zone_low)
+    overlap_high = min(candle.high, zone_high)
+    if overlap_low > overlap_high:
+        return None
+
+    # Intrabar path is unknowable. Use the less favorable touched boundary:
+    # longs fill at the highest overlapped price, shorts at the lowest.
+    if signal.direction is TradeDirection.LONG:
+        return overlap_high
+    return overlap_low
 
 
 def _activation_triggered(signal: BacktestSignal, candle: Candle) -> bool:
