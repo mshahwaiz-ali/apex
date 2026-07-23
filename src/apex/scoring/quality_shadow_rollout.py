@@ -6,9 +6,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from apex.scoring.candidate_quality_components import (
-    candidate_quality_shadow_payload,
-)
 from apex.scoring.contracts import CandidateSelectionResult
 
 
@@ -75,6 +72,13 @@ class QualityShadowRolloutDiagnostics:
 def build_quality_shadow_rollout_diagnostics(
     selection: CandidateSelectionResult,
 ) -> QualityShadowRolloutDiagnostics:
+    # Import lazily to avoid the application/scoring initialization cycle:
+    # candidate components depend on application lane measurement, while the
+    # application setup layer imports this shadow-only serializer.
+    from apex.scoring.candidate_quality_components import (
+        candidate_quality_shadow_payload,
+    )
+
     selected_id = (
         None
         if selection.selected_candidate is None
