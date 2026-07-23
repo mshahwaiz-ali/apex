@@ -79,7 +79,7 @@ def _structure(
         left_window=1,
         right_window=1,
     )
-    breaks = ()
+    breaks: tuple[StructureBreak, ...] = ()
     if break_index is not None:
         breaks = (
             StructureBreak(
@@ -94,7 +94,7 @@ def _structure(
                 confirmation=ConfirmationStatus.CONFIRMED,
             ),
         )
-    levels = ()
+    levels: tuple[StructureLevel, ...] = ()
     if level is not None:
         role, price = level
         levels = (
