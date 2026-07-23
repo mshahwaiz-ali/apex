@@ -70,6 +70,8 @@ class BacktestSignal:
     confidence_score: float
     target_prices: tuple[float, ...] = ()
     partial_close_percentages: tuple[float, ...] = ()
+    entry_zone_low: float | None = None
+    entry_zone_high: float | None = None
     activation_type: BacktestActivationType | None = None
     activation_level: float | None = None
     pre_entry_invalidation_price: float | None = None
@@ -112,6 +114,15 @@ class BacktestSignal:
                 raise ValueError(f"{name.replace('_', ' ')} must be positive and finite")
         if not math.isfinite(self.confidence_score) or not 0.0 <= self.confidence_score <= 100.0:
             raise ValueError("confidence score must be between zero and 100")
+        zone_low = self.entry_price if self.entry_zone_low is None else self.entry_zone_low
+        zone_high = self.entry_price if self.entry_zone_high is None else self.entry_zone_high
+        for name, value in (("entry zone low", zone_low), ("entry zone high", zone_high)):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"{name} must be positive and finite")
+        if zone_low > zone_high:
+            raise ValueError("entry zone low cannot exceed entry zone high")
+        if not zone_low <= self.entry_price <= zone_high:
+            raise ValueError("entry price must lie inside the entry zone")
         conditional_values = (
             self.activation_level,
             self.pre_entry_invalidation_price,
@@ -150,12 +161,16 @@ class BacktestSignal:
         if self.direction is TradeDirection.LONG:
             if not self.stop_price < self.entry_price < self.target_price:
                 raise ValueError("long signal prices must be stop < entry < target")
+            if zone_low <= self.stop_price or zone_high >= self.target_price:
+                raise ValueError("long entry zone must remain between stop and target")
             if any(target <= self.entry_price for target in target_prices):
                 raise ValueError("long target prices must be above entry")
             if tuple(sorted(target_prices)) != target_prices:
                 raise ValueError("long target prices must be ascending")
         elif not self.target_price < self.entry_price < self.stop_price:
             raise ValueError("short signal prices must be target < entry < stop")
+        elif zone_low <= self.target_price or zone_high >= self.stop_price:
+            raise ValueError("short entry zone must remain between target and stop")
         elif any(target >= self.entry_price for target in target_prices):
             raise ValueError("short target prices must be below entry")
         elif tuple(sorted(target_prices, reverse=True)) != target_prices:
@@ -175,6 +190,8 @@ class BacktestSignal:
                     raise ValueError("short maximum chase must not be above entry")
         object.__setattr__(self, "target_prices", target_prices)
         object.__setattr__(self, "partial_close_percentages", partials)
+        object.__setattr__(self, "entry_zone_low", zone_low)
+        object.__setattr__(self, "entry_zone_high", zone_high)
         object.__setattr__(self, "diagnostics", MappingProxyType(dict(self.diagnostics)))
 
 
