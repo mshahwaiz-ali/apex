@@ -20,7 +20,10 @@ from apex.strategies.contracts import (
     TradeCandidate,
     TradeDirection,
 )
-from apex.strategies.registry import run_strategy_generator
+from apex.strategies.registry import (
+    run_strategy_generator,
+    run_strategy_generator_with_diagnostics,
+)
 from apex.strategies.strategy_types import StrategyType
 from apex.structure.contracts import TrendDirection
 
@@ -100,13 +103,30 @@ def _candidate() -> TradeCandidate:
     )
 
 
-def test_registry_boundary_rejects_breakout_opposed_by_30m_authority() -> None:
-    def generator(
-        context: StrategyContext,
-        *,
-        decision_time: datetime,
-    ) -> tuple[TradeCandidate, ...]:
-        del context, decision_time
-        return (_candidate(),)
+def _generator(
+    context: StrategyContext,
+    *,
+    decision_time: datetime,
+) -> tuple[TradeCandidate, ...]:
+    del context, decision_time
+    return (_candidate(),)
 
-    assert run_strategy_generator(generator, _context(), decision_time=NOW) == ()
+
+def test_registry_boundary_rejects_breakout_opposed_by_30m_authority() -> None:
+    assert run_strategy_generator(_generator, _context(), decision_time=NOW) == ()
+
+
+def test_registry_boundary_preserves_breakout_rejection_diagnostics() -> None:
+    result = run_strategy_generator_with_diagnostics(
+        _generator,
+        _context(),
+        decision_time=NOW,
+    )
+
+    assert result.candidates == ()
+    assert result.raw_breakout_candidate_count == 1
+    assert result.conditional_candidate_count == 0
+    assert len(result.rejected) == 1
+    assert result.rejected[0].reason_code == "30m_direction_authority_opposed"
+    assert result.rejected[0].candidate.metadata["direction_authority"] == "opposed"
+    assert result.rejected[0].candidate.metadata["timing_frame_used_for_direction"] is False
