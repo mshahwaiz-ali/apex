@@ -1,4 +1,4 @@
-"""Run the standard 216-job Apex backtest campaign with shared UTC anchors."""
+"""Run the standard Apex scalp-calibration backtest campaign with shared UTC anchors."""
 
 from __future__ import annotations
 
@@ -11,25 +11,14 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-SYMBOLS = (
-    "AKEUSDT",
-    "BANKUSDT",
-    "BNBUSDT",
+# Fixed representative sample for reproducible before/after comparisons:
+# two highly liquid majors, two liquid large-cap alts, and one more volatile alt.
+DEFAULT_SYMBOLS = (
     "BTCUSDT",
-    "BTWUSDT",
-    "BULLAUSDT",
-    "EPICUSDT",
-    "ERAUSDT",
-    "ESPORTSUSDT",
     "ETHUSDT",
-    "HEMIUSDT",
-    "LABUSDT",
-    "PYTHUSDT",
-    "REUSDT",
     "SOLUSDT",
+    "BNBUSDT",
     "SUIUSDT",
-    "TACUSDT",
-    "VANRYUSDT",
 )
 
 
@@ -41,10 +30,15 @@ class ReplayProfile:
     decision_points: int
 
 
+# Scalp calibration intentionally excludes 1m. The shared production engine still
+# fetches 1m where configured for monitoring, but campaign decisions are evaluated
+# from the 3m/5m/15m/30m stack used for refinement, execution, setup, and intraday
+# direction authority.
 PROFILES = (
-    ReplayProfile("micro", "1m", 20, 3),
-    ReplayProfile("standard", "5m", 24, 5),
-    ReplayProfile("environment", "15m", 20, 3),
+    ReplayProfile("refinement", "3m", 20, 4),
+    ReplayProfile("execution", "5m", 24, 5),
+    ReplayProfile("setup", "15m", 20, 4),
+    ReplayProfile("intraday", "30m", 16, 3),
 )
 
 EXPECTED_BACKTEST_SCHEMA_VERSION = 5
@@ -76,11 +70,11 @@ class JobResult:
 
 
 def default_anchors(now: datetime | None = None) -> tuple[datetime, ...]:
-    """Return four shared, 24-hour-spaced, completed 15-minute boundaries."""
+    """Return four shared, 24-hour-spaced, completed 30-minute boundaries."""
 
     current = (now or datetime.now(UTC)).astimezone(UTC)
     latest = current.replace(
-        minute=(current.minute // 15) * 15,
+        minute=(current.minute // 30) * 30,
         second=0,
         microsecond=0,
     )
@@ -95,16 +89,24 @@ def parse_anchor(value: str) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def normalize_symbol(value: str) -> str:
+    symbol = value.strip().upper().replace("/", "")
+    if not symbol:
+        raise argparse.ArgumentTypeError("symbols cannot be empty")
+    return symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+
+
 def build_jobs(
     *,
     anchors: Sequence[datetime],
+    symbols: Sequence[str],
     output_dir: Path,
 ) -> tuple[CampaignJob, ...]:
     jobs: list[CampaignJob] = []
     log_dir = output_dir / "logs"
     for anchor in anchors:
         anchor_label = anchor.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-        for symbol in SYMBOLS:
+        for symbol in symbols:
             for profile in PROFILES:
                 stem = (
                     f"{symbol}_{profile.name}_{profile.timeframe}_"
@@ -182,7 +184,8 @@ def run_job(job: CampaignJob, *, apex_command: str, candle_limit: int) -> JobRes
 
 def run_campaign(args: argparse.Namespace) -> int:
     anchors = tuple(args.anchor) if args.anchor else default_anchors()
-    jobs = build_jobs(anchors=anchors, output_dir=args.output_dir)
+    symbols = tuple(args.symbol) if args.symbol else DEFAULT_SYMBOLS
+    jobs = build_jobs(anchors=anchors, symbols=symbols, output_dir=args.output_dir)
     results: list[JobResult] = []
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         future_by_job = {
@@ -208,13 +211,14 @@ def run_campaign(args: argparse.Namespace) -> int:
     summary = {
         "schema_version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
+        "campaign_kind": "scalp_timeframe_calibration",
         "job_count": len(jobs),
         "successful_count": sum(item.succeeded for item in ordered),
         "failed_count": sum(not item.succeeded for item in ordered),
         "workers": args.workers,
         "anchors": [item.isoformat() for item in anchors],
         "profiles": [asdict(profile) for profile in PROFILES],
-        "symbols": list(SYMBOLS),
+        "symbols": list(symbols),
         "results": [asdict(item) | {"succeeded": item.succeeded} for item in ordered],
     }
     summary_path = args.output_dir / "campaign_summary.json"
@@ -227,8 +231,17 @@ def run_campaign(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apex-command", default="apex")
-    parser.add_argument("--workers", type=int, default=3, choices=range(1, 9))
-    parser.add_argument("--candles", type=int, default=240)
+    parser.add_argument("--workers", type=int, default=4, choices=range(1, 9))
+    parser.add_argument("--candles", type=int, default=360)
+    parser.add_argument(
+        "--symbol",
+        action="append",
+        type=normalize_symbol,
+        help=(
+            "Repeat to override the five-symbol representative default sample. "
+            "A missing USDT suffix is added automatically."
+        ),
+    )
     parser.add_argument(
         "--anchor",
         action="append",
@@ -238,7 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("backtest-samples") / "anchored-216",
+        default=Path("backtest-samples") / "scalp-timeframe-calibration-80",
     )
     return parser
 
