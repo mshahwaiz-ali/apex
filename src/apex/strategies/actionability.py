@@ -49,14 +49,11 @@ def classify_candidate_actionability(candidate: TradeCandidate) -> EntryStatus:
     ):
         return EntryStatus.AGGRESSIVE_NOW
 
+    # A structurally valid setup must remain discoverable even when CMP has
+    # already moved beyond an advisory chase boundary. The entry zone, stop,
+    # targets, and structural invalidation are the canonical trade plan; status
+    # labels must not delete that plan before price has actually invalidated it.
     primary = candidate.entry
-    beyond_chase = _beyond_maximum_chase(
-        zone=primary,
-        direction=candidate.direction,
-        current=current,
-    )
-    if primary.is_extended or beyond_chase:
-        return EntryStatus.MISSED_ENTRY
     if primary.mode in _PULLBACK_MODES and primary.atr_distance <= _PULLBACK_MAX_ATR_DISTANCE:
         return EntryStatus.PULLBACK_PREFERRED
     return EntryStatus.WATCH_NEAR_ENTRY
@@ -110,19 +107,6 @@ def _aggressive_zone_is_eligible(zone: EntryZone) -> bool:
         and zone.location_quality >= _AGGRESSIVE_MIN_LOCATION_QUALITY
         and not zone.is_extended
     )
-
-
-def _beyond_maximum_chase(
-    *,
-    zone: EntryZone,
-    direction: TradeDirection,
-    current: float,
-) -> bool:
-    if zone.max_chase_price is None:
-        return False
-    if direction is TradeDirection.LONG:
-        return current > zone.max_chase_price
-    return current < zone.max_chase_price
 
 
 def best_entry_status(statuses: Sequence[EntryStatus]) -> EntryStatus:
