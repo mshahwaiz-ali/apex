@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 VIABLE_MAX_STOP_R = 1.15
@@ -34,8 +34,8 @@ def parse_time(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -82,8 +82,7 @@ def load_rows(report_dir: Path) -> list[Row]:
                 or metadata.get("projected_net_r")
             )
             target_cost_drag_pct = number(
-                geometry.get("cost_drag_on_reward_pct")
-                or metadata.get("cost_drag_on_reward_pct")
+                geometry.get("cost_drag_on_reward_pct") or metadata.get("cost_drag_on_reward_pct")
             )
 
             event_key = str(trade.get("recovery_event_id") or trade.get("opportunity_id") or "")
@@ -137,10 +136,7 @@ def classify(row: Row) -> str:
 
     if row.projected_net_target_r is not None and row.projected_net_target_r < MIN_NET_TARGET_R:
         return "reject_low_net_target"
-    if (
-        row.target_cost_drag_pct is not None
-        and row.target_cost_drag_pct > MAX_TARGET_COST_DRAG_PCT
-    ):
+    if row.target_cost_drag_pct is not None and row.target_cost_drag_pct > MAX_TARGET_COST_DRAG_PCT:
         return "reject_target_cost_drag"
     return stop_class
 
