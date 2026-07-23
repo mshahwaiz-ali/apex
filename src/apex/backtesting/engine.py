@@ -231,6 +231,7 @@ def simulate_trade(
                         entry=entry,
                         stop=stop,
                         stop_candle=candle,
+                        config=config,
                     ),
                 },
                 partial_target_count=next_target_index,
@@ -294,6 +295,7 @@ def simulate_trade(
                         entry=entry,
                         stop=stop,
                         stop_candle=candle,
+                        config=config,
                     ),
                 },
                 partial_target_count=next_target_index,
@@ -674,6 +676,115 @@ def _thesis_outcome_metadata(
     }
 
 
+def _diagnostic_recovery_entry_replay(
+    signal: BacktestSignal,
+    candles: Sequence[Candle],
+    *,
+    entry_price: float,
+    stop_price: float,
+    target_price: float,
+    config: BacktestConfig,
+) -> dict[str, str | int | float | bool]:
+    """Replay a fresh recovery entry without changing the stopped trade."""
+
+    risk_per_unit = abs(entry_price - stop_price)
+    if risk_per_unit <= 0.0 or not candles:
+        return {
+            "available": False,
+            "outcome": "unavailable",
+            "gross_r": 0.0,
+            "net_r": 0.0,
+            "bars_to_outcome": 0,
+            "target_before_stop": False,
+            "same_candle_ambiguous": False,
+        }
+
+    def stop_hit(candle: Candle) -> bool:
+        return (
+            candle.low <= stop_price
+            if signal.direction is TradeDirection.LONG
+            else candle.high >= stop_price
+        )
+
+    def target_hit(candle: Candle) -> bool:
+        return (
+            candle.high >= target_price
+            if signal.direction is TradeDirection.LONG
+            else candle.low <= target_price
+        )
+
+    def directional_r(exit_price: float) -> float:
+        move = (
+            exit_price - entry_price
+            if signal.direction is TradeDirection.LONG
+            else entry_price - exit_price
+        )
+        return move / risk_per_unit
+
+    def cost_adjusted_r(exit_price: float) -> float:
+        round_trip_cost = (
+            (entry_price + exit_price) * (config.fee_pct + config.slippage_pct) / 100.0
+        )
+        return directional_r(exit_price) - round_trip_cost / risk_per_unit
+
+    for index, candle in enumerate(candles, start=1):
+        hit_stop = stop_hit(candle)
+        hit_target = target_hit(candle)
+        if hit_stop:
+            return {
+                "available": True,
+                "outcome": "stop",
+                "gross_r": directional_r(stop_price),
+                "net_r": cost_adjusted_r(stop_price),
+                "bars_to_outcome": index,
+                "target_before_stop": False,
+                "same_candle_ambiguous": hit_target,
+            }
+        if hit_target:
+            return {
+                "available": True,
+                "outcome": "target",
+                "gross_r": directional_r(target_price),
+                "net_r": cost_adjusted_r(target_price),
+                "bars_to_outcome": index,
+                "target_before_stop": True,
+                "same_candle_ambiguous": False,
+            }
+
+    final_close = candles[-1].close
+    return {
+        "available": True,
+        "outcome": "expired",
+        "gross_r": directional_r(final_close),
+        "net_r": cost_adjusted_r(final_close),
+        "bars_to_outcome": len(candles),
+        "target_before_stop": False,
+        "same_candle_ambiguous": False,
+    }
+
+
+def _recovery_event_id(
+    signal: BacktestSignal,
+    *,
+    reclaim_time: str,
+    entry_price: float,
+    target_price: float,
+) -> str:
+    """Return a deterministic identity for one market recovery event."""
+
+    payload = "|".join(
+        (
+            signal.symbol,
+            signal.direction.value,
+            signal.strategy.value,
+            reclaim_time,
+            f"{entry_price:.12g}",
+            f"{target_price:.12g}",
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
+
+
 def _post_stop_thesis_metadata(
     signal: BacktestSignal,
     candles: Sequence[Candle],
@@ -681,6 +792,7 @@ def _post_stop_thesis_metadata(
     entry: float,
     stop: float,
     stop_candle: Candle,
+    config: BacktestConfig,
 ) -> dict[str, str | int | float | bool]:
     """Classify stop severity and a possible post-stop recovery setup.
 
@@ -862,9 +974,13 @@ def _post_stop_thesis_metadata(
     reclaim_close_location = 0.0
     remaining_target_room_r = 0.0
     recovery_entry_price = 0.0
+    recovery_reclaim_time = ""
+    recovery_event_id = ""
     entry_level_held_next_candle = False
     retest_available = False
     retest_held = False
+    retest_entry_price = 0.0
+    retest_entry_candle = 0
     recovery_target_before_failure = False
 
     if reclaim_candle is not None:
@@ -877,6 +993,13 @@ def _post_stop_thesis_metadata(
                 reclaim_close_location = (reclaim_candle.high - reclaim_candle.close) / candle_range
 
         recovery_entry_price = reclaim_candle.close
+        recovery_reclaim_time = reclaim_candle.open_time.isoformat()
+        recovery_event_id = _recovery_event_id(
+            signal,
+            reclaim_time=recovery_reclaim_time,
+            entry_price=recovery_entry_price,
+            target_price=signal.target_price,
+        )
         remaining_target_room_r = (
             (signal.target_price - recovery_entry_price) / risk_per_unit
             if signal.direction is TradeDirection.LONG
@@ -895,6 +1018,9 @@ def _post_stop_thesis_metadata(
                 retest_available = True
                 if favorable_close(later, entry):
                     retest_held = True
+                    if retest_entry_candle == 0:
+                        retest_entry_price = later.close
+                        retest_entry_candle = reclaim_candle_index + 1
             if _target_hit(signal, later, signal.target_price):
                 recovery_target_before_failure = True
                 break
@@ -915,6 +1041,45 @@ def _post_stop_thesis_metadata(
     recovery_entry_authorized = (
         sweep_reclaim_confirmed and structure_confirmed and not deep_directional_failure
     )
+
+    aggressive_replay: dict[str, str | int | float | bool] = {
+        "available": False,
+        "outcome": "unavailable",
+        "gross_r": 0.0,
+        "net_r": 0.0,
+        "bars_to_outcome": 0,
+        "target_before_stop": False,
+        "same_candle_ambiguous": False,
+    }
+    retest_replay: dict[str, str | int | float | bool] = {
+        "available": False,
+        "outcome": "unavailable",
+        "gross_r": 0.0,
+        "net_r": 0.0,
+        "bars_to_outcome": 0,
+        "target_before_stop": False,
+        "same_candle_ambiguous": False,
+    }
+
+    if sweep_reclaim_confirmed and reclaim_candle is not None:
+        aggressive_replay = _diagnostic_recovery_entry_replay(
+            signal,
+            candles[reclaim_candle_index:],
+            entry_price=recovery_entry_price,
+            stop_price=stop,
+            target_price=signal.target_price,
+            config=config,
+        )
+
+    if sweep_reclaim_confirmed and retest_held and retest_entry_candle > 0:
+        retest_replay = _diagnostic_recovery_entry_replay(
+            signal,
+            candles[retest_entry_candle:],
+            entry_price=retest_entry_price,
+            stop_price=stop,
+            target_price=signal.target_price,
+            config=config,
+        )
 
     if deep_directional_failure:
         rejected_reason = "deep_directional_failure"
@@ -1003,7 +1168,31 @@ def _post_stop_thesis_metadata(
         "recovery_entry_authorized": recovery_entry_authorized,
         "recovery_entry_price": recovery_entry_price,
         "recovery_entry_candle": reclaim_candle_index,
+        "recovery_reclaim_time": recovery_reclaim_time,
+        "recovery_event_id": recovery_event_id,
         "recovery_target_before_failure": recovery_target_before_failure,
+        "aggressive_reclaim_entry_available": bool(aggressive_replay.get("available")),
+        "aggressive_reclaim_entry_price": recovery_entry_price,
+        "aggressive_reclaim_stop_price": stop,
+        "aggressive_reclaim_target_price": signal.target_price,
+        "aggressive_reclaim_outcome": str(aggressive_replay.get("outcome", "unavailable")),
+        "aggressive_reclaim_gross_r": float(aggressive_replay.get("gross_r", 0.0)),
+        "aggressive_reclaim_net_r": float(aggressive_replay.get("net_r", 0.0)),
+        "aggressive_reclaim_bars_to_outcome": int(aggressive_replay.get("bars_to_outcome", 0)),
+        "aggressive_reclaim_target_before_stop": bool(aggressive_replay.get("target_before_stop")),
+        "aggressive_reclaim_same_candle_ambiguous": bool(
+            aggressive_replay.get("same_candle_ambiguous")
+        ),
+        "retest_recovery_entry_available": bool(retest_replay.get("available")),
+        "retest_recovery_entry_price": retest_entry_price,
+        "retest_recovery_stop_price": stop,
+        "retest_recovery_target_price": signal.target_price,
+        "retest_recovery_outcome": str(retest_replay.get("outcome", "unavailable")),
+        "retest_recovery_gross_r": float(retest_replay.get("gross_r", 0.0)),
+        "retest_recovery_net_r": float(retest_replay.get("net_r", 0.0)),
+        "retest_recovery_bars_to_outcome": int(retest_replay.get("bars_to_outcome", 0)),
+        "retest_recovery_target_before_stop": bool(retest_replay.get("target_before_stop")),
+        "retest_recovery_same_candle_ambiguous": bool(retest_replay.get("same_candle_ambiguous")),
     }
 
 

@@ -895,3 +895,115 @@ def test_sweep_reclaim_metrics_remain_diagnostic_only() -> None:
     assert metrics["authorized_count"] == 1
     assert metrics["diagnostic_only"] is True
     assert metrics["production_behavior_changed"] is False
+
+
+def test_aggressive_reclaim_replay_records_fresh_entry_outcome() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=102.5, close=101.0),
+            _candle(4, low=100.5, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["aggressive_reclaim_entry_available"] is True
+    assert trade.metadata["aggressive_reclaim_outcome"] == "target"
+    assert trade.metadata["aggressive_reclaim_target_before_stop"] is True
+    assert trade.metadata["aggressive_reclaim_net_r"] > 0.0
+
+
+def test_retest_recovery_replay_is_independent_from_aggressive_entry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["retest_recovery_entry_available"] is True
+    assert trade.metadata["retest_recovery_outcome"] == "target"
+    assert trade.metadata["retest_recovery_target_before_stop"] is True
+
+
+def test_recovery_entry_metrics_compare_aggressive_and_retest_modes() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metrics = _sweep_reclaim_metrics((trade,))
+    assert metrics["aggressive_reclaim"]["available_count"] == 1
+    assert metrics["aggressive_reclaim"]["target_count"] == 1
+    assert metrics["retest_recovery"]["available_count"] == 1
+    assert metrics["retest_recovery"]["target_count"] == 1
+    assert metrics["diagnostic_only"] is True
+    assert metrics["production_behavior_changed"] is False
+
+
+def test_recovery_event_identity_deduplicates_same_reclaim_event() -> None:
+    first = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    second = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert first.metadata["recovery_event_id"]
+    assert first.metadata["recovery_event_id"] == second.metadata["recovery_event_id"]
+
+    metrics = _sweep_reclaim_metrics((first, second))
+    aggressive = metrics["aggressive_reclaim"]
+
+    assert aggressive["raw_entry_count"] == 2
+    assert aggressive["unique_event_count"] == 1
+    assert aggressive["duplicate_entry_count"] == 1
+    assert aggressive["unique_target_count"] == 1
+    assert aggressive["unique_target_rate"] == 1.0
+
+
+def test_unique_recovery_metrics_include_net_gate_and_speed() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metrics = _sweep_reclaim_metrics((trade,))
+    aggressive = metrics["aggressive_reclaim"]
+
+    assert aggressive["unique_event_count"] == 1
+    assert aggressive["unique_average_net_r"] > 0.30
+    assert aggressive["unique_minimum_net_r_gate_pass_count"] == 1
+    assert aggressive["unique_minimum_net_r_gate_pass_rate"] == 1.0
+    assert aggressive["unique_speed_counts"]["fast"] == 1
+    assert aggressive["unique_speed_counts"]["normal"] == 0
+    assert aggressive["unique_speed_counts"]["slow"] == 0

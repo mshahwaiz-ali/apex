@@ -1674,8 +1674,44 @@ def _canonical_trade_records(
                 "recovery_entry_authorized": metadata_map.get("recovery_entry_authorized"),
                 "recovery_entry_price": metadata_map.get("recovery_entry_price"),
                 "recovery_entry_candle": metadata_map.get("recovery_entry_candle"),
+                "recovery_reclaim_time": metadata_map.get("recovery_reclaim_time"),
+                "recovery_event_id": metadata_map.get("recovery_event_id"),
                 "recovery_target_before_failure": metadata_map.get(
                     "recovery_target_before_failure"
+                ),
+                "aggressive_reclaim_entry_available": metadata_map.get(
+                    "aggressive_reclaim_entry_available"
+                ),
+                "aggressive_reclaim_entry_price": metadata_map.get(
+                    "aggressive_reclaim_entry_price"
+                ),
+                "aggressive_reclaim_stop_price": metadata_map.get("aggressive_reclaim_stop_price"),
+                "aggressive_reclaim_target_price": metadata_map.get(
+                    "aggressive_reclaim_target_price"
+                ),
+                "aggressive_reclaim_outcome": metadata_map.get("aggressive_reclaim_outcome"),
+                "aggressive_reclaim_gross_r": metadata_map.get("aggressive_reclaim_gross_r"),
+                "aggressive_reclaim_net_r": metadata_map.get("aggressive_reclaim_net_r"),
+                "aggressive_reclaim_bars_to_outcome": metadata_map.get(
+                    "aggressive_reclaim_bars_to_outcome"
+                ),
+                "aggressive_reclaim_target_before_stop": metadata_map.get(
+                    "aggressive_reclaim_target_before_stop"
+                ),
+                "retest_recovery_entry_available": metadata_map.get(
+                    "retest_recovery_entry_available"
+                ),
+                "retest_recovery_entry_price": metadata_map.get("retest_recovery_entry_price"),
+                "retest_recovery_stop_price": metadata_map.get("retest_recovery_stop_price"),
+                "retest_recovery_target_price": metadata_map.get("retest_recovery_target_price"),
+                "retest_recovery_outcome": metadata_map.get("retest_recovery_outcome"),
+                "retest_recovery_gross_r": metadata_map.get("retest_recovery_gross_r"),
+                "retest_recovery_net_r": metadata_map.get("retest_recovery_net_r"),
+                "retest_recovery_bars_to_outcome": metadata_map.get(
+                    "retest_recovery_bars_to_outcome"
+                ),
+                "retest_recovery_target_before_stop": metadata_map.get(
+                    "retest_recovery_target_before_stop"
                 ),
                 "diagnostics": enriched_diagnostics,
                 "r_progress": _r_progress_diagnostics(
@@ -1690,6 +1726,40 @@ def _canonical_trade_records(
             }
         )
         records.append(serialized)
+
+    event_groups: dict[str, list[dict[str, object]]] = {}
+    for record in records:
+        event_id = record.get("recovery_event_id")
+        if (
+            record.get("aggressive_reclaim_entry_available") is True
+            and isinstance(event_id, str)
+            and event_id
+        ):
+            event_groups.setdefault(event_id, []).append(record)
+
+    for members in event_groups.values():
+
+        def event_rank_key(item: dict[str, object]) -> tuple[float, str, str]:
+            raw_net_r = item.get("aggressive_reclaim_net_r")
+            net_r = (
+                float(raw_net_r)
+                if isinstance(raw_net_r, int | float) and not isinstance(raw_net_r, bool)
+                else 0.0
+            )
+            return (
+                -net_r,
+                str(item.get("decision_time") or ""),
+                str(item.get("opportunity_id") or ""),
+            )
+
+        ranked = sorted(members, key=event_rank_key)
+        member_count = len(ranked)
+        for rank, record in enumerate(ranked, start=1):
+            record["recovery_event_member_count"] = member_count
+            record["recovery_event_rank"] = rank
+            record["recovery_event_duplicate"] = rank > 1
+            record["recovery_event_selected"] = rank == 1
+
     return records
 
 
@@ -2030,21 +2100,105 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
     retests = 0
     retests_held = 0
     targets_before_failure = 0
+    aggressive_available = 0
+    aggressive_targets = 0
+    aggressive_stops = 0
+    aggressive_expired = 0
+    aggressive_net_r: list[float] = []
+    aggressive_event_members: dict[str, list[SimulatedTrade]] = {}
+    retest_available_entries = 0
+    retest_targets = 0
+    retest_stops = 0
+    retest_expired = 0
+    retest_net_r: list[float] = []
     rejected: dict[str, int] = {}
 
     for trade in values:
         metadata = getattr(trade, "metadata", None)
         if not isinstance(metadata, Mapping):
             continue
+
         candidates += metadata.get("sweep_reclaim_candidate") is True
         confirmed += metadata.get("sweep_reclaim_confirmed") is True
         authorized += metadata.get("recovery_entry_authorized") is True
         retests += metadata.get("retest_available") is True
         retests_held += metadata.get("retest_held") is True
         targets_before_failure += metadata.get("recovery_target_before_failure") is True
+
+        if metadata.get("aggressive_reclaim_entry_available") is True:
+            aggressive_available += 1
+            outcome = metadata.get("aggressive_reclaim_outcome")
+            aggressive_targets += outcome == "target"
+            aggressive_stops += outcome == "stop"
+            aggressive_expired += outcome == "expired"
+
+            value = metadata.get("aggressive_reclaim_net_r")
+            if isinstance(value, int | float) and not isinstance(value, bool):
+                aggressive_net_r.append(float(value))
+
+            event_id = metadata.get("recovery_event_id")
+            if isinstance(event_id, str) and event_id:
+                aggressive_event_members.setdefault(event_id, []).append(trade)
+
+        if metadata.get("retest_recovery_entry_available") is True:
+            retest_available_entries += 1
+            outcome = metadata.get("retest_recovery_outcome")
+            retest_targets += outcome == "target"
+            retest_stops += outcome == "stop"
+            retest_expired += outcome == "expired"
+
+            value = metadata.get("retest_recovery_net_r")
+            if isinstance(value, int | float) and not isinstance(value, bool):
+                retest_net_r.append(float(value))
+
         reason = metadata.get("sweep_reclaim_rejected_reason")
         if isinstance(reason, str) and reason != "none":
             rejected[reason] = rejected.get(reason, 0) + 1
+
+    unique_aggressive_trades: list[SimulatedTrade] = []
+    for members in aggressive_event_members.values():
+        selected = max(
+            members,
+            key=lambda item: (
+                float(
+                    getattr(item, "metadata", {}).get(
+                        "aggressive_reclaim_net_r",
+                        0.0,
+                    )
+                    or 0.0
+                ),
+                -item.signal.generated_at.timestamp(),
+            ),
+        )
+        unique_aggressive_trades.append(selected)
+
+    unique_outcomes = {"target": 0, "stop": 0, "expired": 0}
+    unique_net_r: list[float] = []
+    unique_gate_pass_count = 0
+    unique_speed = {"fast": 0, "normal": 0, "slow": 0}
+
+    for trade in unique_aggressive_trades:
+        metadata = getattr(trade, "metadata", {})
+        outcome = metadata.get("aggressive_reclaim_outcome")
+        if isinstance(outcome, str) and outcome in unique_outcomes:
+            unique_outcomes[outcome] += 1
+
+        net_r = metadata.get("aggressive_reclaim_net_r")
+        if isinstance(net_r, int | float) and not isinstance(net_r, bool):
+            numeric_net_r = float(net_r)
+            unique_net_r.append(numeric_net_r)
+            unique_gate_pass_count += numeric_net_r >= 0.30
+
+        bars = metadata.get("aggressive_reclaim_bars_to_outcome")
+        if isinstance(bars, int | float) and not isinstance(bars, bool):
+            if bars <= 3:
+                unique_speed["fast"] += 1
+            elif bars <= 8:
+                unique_speed["normal"] += 1
+            else:
+                unique_speed["slow"] += 1
+
+    unique_event_count = len(unique_aggressive_trades)
 
     return {
         "candidate_count": candidates,
@@ -2056,6 +2210,46 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
         "retest_available_count": retests,
         "retest_held_count": retests_held,
         "recovery_target_before_failure_count": targets_before_failure,
+        "aggressive_reclaim": {
+            "available_count": aggressive_available,
+            "raw_entry_count": aggressive_available,
+            "unique_event_count": unique_event_count,
+            "duplicate_entry_count": aggressive_available - unique_event_count,
+            "target_count": aggressive_targets,
+            "stop_count": aggressive_stops,
+            "expired_count": aggressive_expired,
+            "target_rate": (
+                aggressive_targets / aggressive_available if aggressive_available else None
+            ),
+            "average_net_r": (
+                sum(aggressive_net_r) / len(aggressive_net_r) if aggressive_net_r else None
+            ),
+            "unique_target_count": unique_outcomes["target"],
+            "unique_stop_count": unique_outcomes["stop"],
+            "unique_expired_count": unique_outcomes["expired"],
+            "unique_target_rate": (
+                unique_outcomes["target"] / unique_event_count if unique_event_count else None
+            ),
+            "unique_average_net_r": (
+                sum(unique_net_r) / len(unique_net_r) if unique_net_r else None
+            ),
+            "minimum_net_r_gate": 0.30,
+            "unique_minimum_net_r_gate_pass_count": unique_gate_pass_count,
+            "unique_minimum_net_r_gate_pass_rate": (
+                unique_gate_pass_count / unique_event_count if unique_event_count else None
+            ),
+            "unique_speed_counts": unique_speed,
+        },
+        "retest_recovery": {
+            "available_count": retest_available_entries,
+            "target_count": retest_targets,
+            "stop_count": retest_stops,
+            "expired_count": retest_expired,
+            "target_rate": (
+                retest_targets / retest_available_entries if retest_available_entries else None
+            ),
+            "average_net_r": (sum(retest_net_r) / len(retest_net_r) if retest_net_r else None),
+        },
         "rejected_reason_counts": rejected,
         "diagnostic_only": True,
         "production_behavior_changed": False,
