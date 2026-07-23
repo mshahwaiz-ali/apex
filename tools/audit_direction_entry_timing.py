@@ -4,7 +4,7 @@ import argparse
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -34,8 +34,8 @@ def parse_time(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -110,19 +110,13 @@ def load_rows(report_dir: Path) -> list[Row]:
                     direction_correct_at_horizon=boolean(
                         metadata.get("direction_correct_at_horizon")
                     ),
-                    target_before_invalidation=boolean(
-                        metadata.get("target_before_invalidation")
-                    ),
-                    invalidation_before_target=boolean(
-                        metadata.get("invalidation_before_target")
-                    ),
+                    target_before_invalidation=boolean(metadata.get("target_before_invalidation")),
+                    invalidation_before_target=boolean(metadata.get("invalidation_before_target")),
                     late_reentry_available=boolean(metadata.get("late_reentry_available")),
                     post_stop_classification=str(
                         metadata.get("post_stop_classification") or "unknown"
                     ),
-                    post_stop_entry_reclaimed=boolean(
-                        metadata.get("post_stop_entry_reclaimed")
-                    ),
+                    post_stop_entry_reclaimed=boolean(metadata.get("post_stop_entry_reclaimed")),
                     post_stop_tp1_reached=boolean(metadata.get("post_stop_tp1_reached")),
                     deep_directional_failure=boolean(metadata.get("deep_directional_failure")),
                     activation_required=boolean(metadata.get("activation_required")),
