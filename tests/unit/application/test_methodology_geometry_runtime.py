@@ -10,7 +10,10 @@ from apex.application.methodology_geometry_runtime import (
     build_geometry_runtime_context,
     geometry_execution_costs_from_settings,
 )
-from apex.config.settings import GeometryExecutionSettings
+from apex.config.settings import (
+    GeometryExecutionProfileSettings,
+    GeometryExecutionSettings,
+)
 from apex.strategies.context import StrategyContext
 
 
@@ -71,7 +74,7 @@ def test_runtime_context_exposes_only_explicit_round_trip_costs() -> None:
         ),
     )
 
-    assert result.expected_cost_pct == pytest.approx(0.25)
+    assert result.expected_cost_pct == pytest.approx(0.10)
 
 
 def test_missing_spread_does_not_fabricate_execution_costs() -> None:
@@ -125,3 +128,40 @@ def test_enabled_execution_cost_settings_resolve_explicit_costs() -> None:
 
     assert costs is not None
     assert costs.total_pct == pytest.approx(0.10)
+
+
+def test_order_intent_profiles_and_no_spread_double_charge() -> None:
+    costs = geometry_execution_costs_from_settings(
+        GeometryExecutionSettings(
+            enabled=True,
+            include_observed_spread_in_cost=False,
+            market=GeometryExecutionProfileSettings(
+                entry_fee_pct=0.05,
+                exit_fee_pct=0.05,
+                entry_slippage_pct=0.02,
+                exit_slippage_pct=0.02,
+            ),
+            limit=GeometryExecutionProfileSettings(
+                entry_fee_pct=0.02,
+                exit_fee_pct=0.05,
+                entry_slippage_pct=0.00,
+                exit_slippage_pct=0.02,
+            ),
+        )
+    )
+    assert costs is not None
+    runtime = build_geometry_runtime_context(_context(), execution_costs=costs)
+    assert runtime.expected_cost_pct_for("market") == pytest.approx(0.14)
+    assert runtime.expected_cost_pct_for("limit") == pytest.approx(0.09)
+
+
+def test_spread_inclusion_remains_explicit() -> None:
+    costs = GeometryExecutionCosts(
+        entry_fee_pct=0.05,
+        exit_fee_pct=0.05,
+        entry_slippage_pct=0.02,
+        exit_slippage_pct=0.02,
+        include_observed_spread_in_cost=True,
+    )
+    runtime = build_geometry_runtime_context(_context(), execution_costs=costs)
+    assert runtime.expected_cost_pct_for("market") == pytest.approx(0.29)

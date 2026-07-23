@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
+from apex.application.discovery_contracts import TargetType
 from apex.application.methodology_candidate_geometry_safety import (
     audit_candidate_geometry_safety,
     candidate_geometry_safety_audit_payload,
@@ -28,6 +29,7 @@ class _Invalidation:
 @dataclass(frozen=True)
 class _Target:
     price: float
+    kind: TargetType = TargetType.STRUCTURAL
     label: str = "TP1"
 
 

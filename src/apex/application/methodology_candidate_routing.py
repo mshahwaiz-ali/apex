@@ -680,8 +680,13 @@ def _attach_runtime_geometry_metadata(
             ),
             "observed_spread_pct": runtime_context.observed_spread_pct,
         }
-        if runtime_context.expected_cost_pct is not None:
-            metadata["expected_cost_pct"] = runtime_context.expected_cost_pct
+        cost_profile, cost_profile_reason = _candidate_execution_cost_profile(candidate)
+        expected_cost_pct = runtime_context.expected_cost_pct_for(cost_profile)
+        if expected_cost_pct is not None:
+            metadata["expected_cost_pct"] = expected_cost_pct
+            metadata["execution_cost_profile"] = cost_profile
+            metadata["cost_profile_reason"] = cost_profile_reason
+            metadata["observed_spread_pct"] = runtime_context.observed_spread_pct
         updated = replace(candidate, metadata=metadata)
         replacements[id(candidate)] = updated
         candidates.append(updated)
@@ -694,6 +699,24 @@ def _attach_runtime_geometry_metadata(
             for item in analysis.candidate_actionability
         ),
     )
+
+
+def _candidate_execution_cost_profile(candidate: TradeCandidate) -> tuple[str, str]:
+    """Use a cheaper profile only when explicit order intent supports it."""
+
+    metadata = candidate.metadata
+    if metadata.get("resting_order_authorized") is True:
+        return "limit", "candidate explicitly authorizes a resting order"
+
+    for key in ("order_intent", "entry_order_type", "execution_order_type"):
+        value = metadata.get(key)
+        if not isinstance(value, str):
+            continue
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        if any(token in normalized for token in ("limit", "resting", "maker")):
+            return "limit", f"{key} explicitly identifies limit-style execution"
+
+    return "market", "no explicit limit-order evidence; conservative market profile retained"
 
 
 def _enforce_verified_target_ceiling(

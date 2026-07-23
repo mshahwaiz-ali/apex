@@ -7,13 +7,21 @@ futures_evidence_enabled: true
 outcome_tracking_enabled: true
 rollout_diagnostics_enabled: false
 geometry_execution:
-  # Conservative regular-user taker assumptions; update these for the account tier.
-  # Runtime geometry also adds the worst observed ticker/order-book spread.
+  # Unknown order intent retains the conservative market profile.
+  # Observed spread remains execution-buffer evidence and is not charged twice by default.
   enabled: true
-  entry_fee_pct: 0.05
-  exit_fee_pct: 0.05
-  entry_slippage_pct: 0.02
-  exit_slippage_pct: 0.02
+  include_observed_spread_in_cost: false
+  market:
+    entry_fee_pct: 0.05
+    exit_fee_pct: 0.05
+    entry_slippage_pct: 0.02
+    exit_slippage_pct: 0.02
+  limit:
+    # Replace with the authenticated account tier before live execution.
+    entry_fee_pct: 0.02
+    exit_fee_pct: 0.05
+    entry_slippage_pct: 0.00
+    exit_slippage_pct: 0.02
 methodology_gate_mode: enforce
 futures_screener:
   minimum_quote_volume_24h: 5000000

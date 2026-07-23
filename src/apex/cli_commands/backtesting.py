@@ -578,6 +578,8 @@ def _geometry_rejection_summary(
     strategy_counts: dict[str, int] = {}
     legacy_lane_counts: dict[str, int] = {}
     measured_lane_counts: dict[str, int] = {}
+    execution_cost_profile_counts: dict[str, int] = {}
+    cost_profile_reason_counts: dict[str, int] = {}
     lane_change_count = 0
     result_change_count = 0
     rejected_candidate_count = 0
@@ -589,6 +591,8 @@ def _geometry_rejection_summary(
         "target_to_cost_ratio",
         "tp1_distance_atr",
         "maximum_tp1_distance_atr",
+        "expected_cost_pct",
+        "observed_spread_pct",
     )
     numeric_totals = {field: 0.0 for field in numeric_fields}
     numeric_counts = {field: 0 for field in numeric_fields}
@@ -626,10 +630,30 @@ def _geometry_rejection_summary(
             if candidate.get("would_change_geometry_result") is True:
                 result_change_count += 1
 
+            execution_cost_profile = candidate.get("execution_cost_profile")
+            if isinstance(execution_cost_profile, str) and execution_cost_profile:
+                execution_cost_profile_counts[execution_cost_profile] = (
+                    execution_cost_profile_counts.get(execution_cost_profile, 0) + 1
+                )
+
+            cost_profile_reason = candidate.get("cost_profile_reason")
+            if isinstance(cost_profile_reason, str) and cost_profile_reason:
+                cost_profile_reason_counts[cost_profile_reason] = (
+                    cost_profile_reason_counts.get(cost_profile_reason, 0) + 1
+                )
+
+            for field in ("expected_cost_pct", "observed_spread_pct"):
+                value = candidate.get(field)
+                if isinstance(value, (int, float)):
+                    numeric_totals[field] += float(value)
+                    numeric_counts[field] += 1
+
             audit = candidate.get("geometry_audit")
             if not isinstance(audit, dict):
                 continue
             for field in numeric_fields:
+                if field in {"expected_cost_pct", "observed_spread_pct"}:
+                    continue
                 value = audit.get(field)
                 if isinstance(value, (int, float)):
                     numeric_totals[field] += float(value)
@@ -652,6 +676,12 @@ def _geometry_rejection_summary(
         ),
         "measured_lane_counts": dict(
             sorted(measured_lane_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "execution_cost_profile_counts": dict(
+            sorted(execution_cost_profile_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "cost_profile_reason_counts": dict(
+            sorted(cost_profile_reason_counts.items(), key=lambda item: (-item[1], item[0]))
         ),
         "would_change_lane_count": lane_change_count,
         "would_change_geometry_result_count": result_change_count,
@@ -1181,6 +1211,10 @@ def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object
         "measured_maximum_tp1_distance_atr": audit.get("measured_maximum_tp1_distance_atr"),
         "measured_geometry_reasons": audit.get("measured_geometry_reasons", []),
         "measured_lane_basis": audit.get("measured_lane_basis"),
+        "execution_cost_profile": _recursive_lookup(diagnostic_values, ("execution_cost_profile",)),
+        "cost_profile_reason": _recursive_lookup(diagnostic_values, ("cost_profile_reason",)),
+        "expected_cost_pct": _recursive_lookup(diagnostic_values, ("expected_cost_pct",)),
+        "observed_spread_pct": _recursive_lookup(diagnostic_values, ("observed_spread_pct",)),
     }
 
 

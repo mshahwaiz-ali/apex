@@ -239,12 +239,27 @@ DEFAULT_TIMEFRAME_INDICATOR_PROFILES: dict[str, TimeframeIndicatorSettings] = {
 _VALID_STRATEGY_ROUTE_KEYS = frozenset(DEFAULT_STRATEGY_ROUTING)
 
 
+class GeometryExecutionProfileSettings(BaseModel):
+    """One explicit round-trip execution profile in percentage points."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_fee_pct: float = Field(ge=0)
+    exit_fee_pct: float = Field(ge=0)
+    entry_slippage_pct: float = Field(ge=0)
+    exit_slippage_pct: float = Field(ge=0)
+
+
 class GeometryExecutionSettings(BaseModel):
-    """Optional live execution-cost assumptions for geometry auditing."""
+    """Order-intent-aware execution assumptions for geometry auditing."""
 
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
+    include_observed_spread_in_cost: bool = False
+    market: GeometryExecutionProfileSettings | None = None
+    limit: GeometryExecutionProfileSettings | None = None
+
     entry_fee_pct: float | None = Field(default=None, ge=0)
     exit_fee_pct: float | None = Field(default=None, ge=0)
     entry_slippage_pct: float | None = Field(default=None, ge=0)
@@ -252,16 +267,30 @@ class GeometryExecutionSettings(BaseModel):
 
     @model_validator(mode="after")
     def _validate_complete_enabled_costs(self) -> Self:
-        values = (
+        legacy = (
             self.entry_fee_pct,
             self.exit_fee_pct,
             self.entry_slippage_pct,
             self.exit_slippage_pct,
         )
-        if self.enabled and any(value is None for value in values):
+        legacy_complete = all(value is not None for value in legacy)
+        legacy_partial = any(value is not None for value in legacy) and not legacy_complete
+        if legacy_partial:
+            raise ValueError("legacy geometry execution costs require entry/exit fees and slippage")
+        if self.enabled and self.market is None and not legacy_complete:
             raise ValueError(
-                "enabled geometry execution costs require entry/exit fees and slippage"
+                "enabled geometry execution costs require a market profile or complete "
+                "legacy entry/exit fees and slippage"
             )
+
+        # Preserve the legacy scalar interface for existing callers while the
+        # explicit market/limit profiles remain the canonical configuration.
+        if self.market is not None and not legacy_complete:
+            self.entry_fee_pct = self.market.entry_fee_pct
+            self.exit_fee_pct = self.market.exit_fee_pct
+            self.entry_slippage_pct = self.market.entry_slippage_pct
+            self.exit_slippage_pct = self.market.exit_slippage_pct
+
         return self
 
 

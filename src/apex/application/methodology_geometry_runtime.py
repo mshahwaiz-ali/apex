@@ -23,19 +23,46 @@ class GeometryExecutionCosts:
     exit_fee_pct: float
     entry_slippage_pct: float
     exit_slippage_pct: float
+    limit_entry_fee_pct: float | None = None
+    limit_exit_fee_pct: float | None = None
+    limit_entry_slippage_pct: float | None = None
+    limit_exit_slippage_pct: float | None = None
+    include_observed_spread_in_cost: bool = False
 
     def __post_init__(self) -> None:
-        for name, value in (
+        values = (
             ("entry fee percentage", self.entry_fee_pct),
             ("exit fee percentage", self.exit_fee_pct),
             ("entry slippage percentage", self.entry_slippage_pct),
             ("exit slippage percentage", self.exit_slippage_pct),
-        ):
-            if not math.isfinite(value) or value < 0.0:
+            ("limit entry fee percentage", self.limit_entry_fee_pct),
+            ("limit exit fee percentage", self.limit_exit_fee_pct),
+            ("limit entry slippage percentage", self.limit_entry_slippage_pct),
+            ("limit exit slippage percentage", self.limit_exit_slippage_pct),
+        )
+        for name, value in values:
+            if value is not None and (not math.isfinite(value) or value < 0.0):
                 raise ValueError(f"{name} must be finite and non-negative")
+        if any(value is not None for _, value in values[4:]) and any(
+            value is None for _, value in values[4:]
+        ):
+            raise ValueError("limit execution-cost profile must be complete")
 
     @property
     def total_pct(self) -> float:
+        return self.total_pct_for("market")
+
+    def total_pct_for(self, profile: str) -> float:
+        if profile == "limit" and self.limit_entry_fee_pct is not None:
+            assert self.limit_exit_fee_pct is not None
+            assert self.limit_entry_slippage_pct is not None
+            assert self.limit_exit_slippage_pct is not None
+            return (
+                self.limit_entry_fee_pct
+                + self.limit_exit_fee_pct
+                + self.limit_entry_slippage_pct
+                + self.limit_exit_slippage_pct
+            )
         return (
             self.entry_fee_pct
             + self.exit_fee_pct
@@ -72,9 +99,17 @@ class GeometryRuntimeContext:
 
     @property
     def expected_cost_pct(self) -> float | None:
+        return self.expected_cost_pct_for("market")
+
+    def expected_cost_pct_for(self, profile: str) -> float | None:
         if self.execution_costs is None:
             return None
-        return self.execution_costs.total_pct + self.observed_spread_pct
+        spread = (
+            self.observed_spread_pct
+            if self.execution_costs.include_observed_spread_in_cost
+            else 0.0
+        )
+        return self.execution_costs.total_pct_for(profile) + spread
 
 
 DEFAULT_EXECUTION_BUFFER_POLICY = ExecutionBufferPolicy(
@@ -173,15 +208,38 @@ def geometry_execution_costs_from_settings(
 
     if not settings.enabled:
         return None
-    assert settings.entry_fee_pct is not None
-    assert settings.exit_fee_pct is not None
-    assert settings.entry_slippage_pct is not None
-    assert settings.exit_slippage_pct is not None
+
+    market = settings.market
+    if market is None:
+        assert settings.entry_fee_pct is not None
+        assert settings.exit_fee_pct is not None
+        assert settings.entry_slippage_pct is not None
+        assert settings.exit_slippage_pct is not None
+        market_values = (
+            settings.entry_fee_pct,
+            settings.exit_fee_pct,
+            settings.entry_slippage_pct,
+            settings.exit_slippage_pct,
+        )
+    else:
+        market_values = (
+            market.entry_fee_pct,
+            market.exit_fee_pct,
+            market.entry_slippage_pct,
+            market.exit_slippage_pct,
+        )
+
+    limit = settings.limit
     return GeometryExecutionCosts(
-        entry_fee_pct=settings.entry_fee_pct,
-        exit_fee_pct=settings.exit_fee_pct,
-        entry_slippage_pct=settings.entry_slippage_pct,
-        exit_slippage_pct=settings.exit_slippage_pct,
+        entry_fee_pct=market_values[0],
+        exit_fee_pct=market_values[1],
+        entry_slippage_pct=market_values[2],
+        exit_slippage_pct=market_values[3],
+        limit_entry_fee_pct=None if limit is None else limit.entry_fee_pct,
+        limit_exit_fee_pct=None if limit is None else limit.exit_fee_pct,
+        limit_entry_slippage_pct=None if limit is None else limit.entry_slippage_pct,
+        limit_exit_slippage_pct=None if limit is None else limit.exit_slippage_pct,
+        include_observed_spread_in_cost=settings.include_observed_spread_in_cost,
     )
 
 
