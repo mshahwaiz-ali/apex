@@ -103,6 +103,7 @@ def _candidate(
             target_space_quality=0.8,
         ),
         evidence=StrategyEvidence(supporting=("test evidence",)),
+        metadata={},
     )
 
 
