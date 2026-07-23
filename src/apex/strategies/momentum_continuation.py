@@ -100,6 +100,9 @@ def _candidate_for_direction(
         context,
         bullish=bullish,
     )
+    if not setup_direction_confirmed or immediate_timeframe_conflict:
+        return None
+
     lower_trigger_confirmed, lower_trigger_opposed = _lower_timeframe_trigger(
         context,
         bullish=bullish,
@@ -215,9 +218,9 @@ def _candidate_for_direction(
     elif not setup_direction_confirmed:
         warnings.append("15m setup direction is not confirmed for immediate continuation")
     if lower_trigger_opposed:
-        warnings.append("1m timing directly opposes the 3m continuation trigger")
+        warnings.append("3m refinement directly opposes the 5m execution setup")
     elif not lower_trigger_confirmed:
-        warnings.append("3m refinement trigger is not confirmed for immediate continuation")
+        warnings.append("5m execution setup is not confirmed for immediate continuation")
     return TradeCandidate(
         symbol=context.symbol,
         strategy=StrategyType.MOMENTUM_BREAKOUT,
@@ -454,12 +457,12 @@ def _lower_timeframe_trigger(
     *,
     bullish: bool,
 ) -> tuple[bool, bool]:
-    """Require a 3m trigger and prevent a directly opposing 1m timing signal."""
+    """Use 5m as execution authority and 3m only as optional refinement."""
 
     aligned_trends = _BULLISH_TRENDS if bullish else _BEARISH_TRENDS
     opposed_trends = _BEARISH_TRENDS if bullish else _BULLISH_TRENDS
+    entry = context.frame_for_role(TimeframeRole.ENTRY)
     refinement = context.frame_for_role(TimeframeRole.REFINEMENT)
-    timing = context.frame_for_role(TimeframeRole.TIMING)
 
     def momentum_votes(frame: TimeframeContext) -> tuple[int, int]:
         features = frame.features
@@ -475,19 +478,21 @@ def _lower_timeframe_trigger(
         votes = sum(value > 0 if bullish else value < 0 for value in values)
         return votes, len(values)
 
-    refinement_votes = (0, 0) if refinement is None else momentum_votes(refinement)
-    trigger_confirmed = refinement is not None and (
-        refinement.structure.trend.direction in aligned_trends
-        or (refinement_votes[1] >= 2 and refinement_votes[0] * 2 >= refinement_votes[1])
+    entry_votes = (0, 0) if entry is None else momentum_votes(entry)
+    trigger_confirmed = entry is not None and (
+        entry.structure.trend.direction in aligned_trends
+        or (entry_votes[1] >= 2 and entry_votes[0] * 2 >= entry_votes[1])
     )
-    timing_votes = (0, 0) if timing is None else momentum_votes(timing)
-    timing_opposed = timing is not None and (
-        timing.structure.trend.direction in opposed_trends
+
+    refinement_votes = (0, 0) if refinement is None else momentum_votes(refinement)
+    refinement_opposed = refinement is not None and (
+        refinement.structure.trend.direction in opposed_trends
         and (
-            timing_votes[1] == 0 or (timing_votes[1] >= 2 and timing_votes[0] * 2 < timing_votes[1])
+            refinement_votes[1] == 0
+            or (refinement_votes[1] >= 2 and refinement_votes[0] * 2 < refinement_votes[1])
         )
     )
-    return trigger_confirmed, timing_opposed
+    return trigger_confirmed, refinement_opposed
 
 
 def _directional_rejection_after_impulse(

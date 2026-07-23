@@ -70,7 +70,14 @@ def _frame(
 ) -> TimeframeContext:
     price = current_price if current_price is not None else (101.0 if bullish else 99.0)
     return TimeframeContext(
-        timeframe="4h" if role is TimeframeRole.MACRO else "5m",
+        timeframe={
+            TimeframeRole.MACRO: "4h",
+            TimeframeRole.INTRADAY: "30m",
+            TimeframeRole.SETUP: "15m",
+            TimeframeRole.ENTRY: "5m",
+            TimeframeRole.REFINEMENT: "3m",
+            TimeframeRole.TIMING: "1m",
+        }[role],
         role=role,
         current_price=price,
         features=FeatureSnapshot(
@@ -102,11 +109,23 @@ def _context(
             ),
             _frame(
                 bullish=bullish,
+                role=TimeframeRole.INTRADAY,
+            ),
+            _frame(
+                bullish=bullish,
+                role=TimeframeRole.SETUP,
+            ),
+            _frame(
+                bullish=bullish,
                 role=TimeframeRole.ENTRY,
                 quality=quality,
                 current_price=current_price,
                 relative_volume=relative_volume,
                 active=active,
+            ),
+            _frame(
+                bullish=bullish,
+                role=TimeframeRole.REFINEMENT,
             ),
         ),
     )
@@ -196,6 +215,91 @@ def test_marks_active_candle_candidate_provisional() -> None:
 
     assert candidate.provisional is True
     assert "active-candle evidence is provisional" in candidate.evidence.warnings
+
+
+def test_rejects_breakout_when_30m_directly_opposes_direction() -> None:
+    context = StrategyContext(
+        symbol="BTC/USDT",
+        frames=(
+            _frame(bullish=True, role=TimeframeRole.MACRO),
+            _frame(bullish=False, role=TimeframeRole.INTRADAY),
+            _frame(bullish=True, role=TimeframeRole.SETUP),
+            _frame(bullish=True, role=TimeframeRole.ENTRY),
+            _frame(bullish=True, role=TimeframeRole.REFINEMENT),
+        ),
+    )
+
+    assert (
+        generate_breakout_continuation_candidates(
+            context,
+            decision_time=_DECISION_TIME,
+        )
+        == ()
+    )
+
+
+def test_rejects_breakout_without_15m_setup_alignment() -> None:
+    context = StrategyContext(
+        symbol="BTC/USDT",
+        frames=(
+            _frame(bullish=True, role=TimeframeRole.MACRO),
+            _frame(bullish=True, role=TimeframeRole.INTRADAY),
+            _frame(bullish=False, role=TimeframeRole.SETUP),
+            _frame(bullish=True, role=TimeframeRole.ENTRY),
+            _frame(bullish=True, role=TimeframeRole.REFINEMENT),
+        ),
+    )
+
+    assert (
+        generate_breakout_continuation_candidates(
+            context,
+            decision_time=_DECISION_TIME,
+        )
+        == ()
+    )
+
+
+def test_rejects_breakout_without_5m_execution_alignment() -> None:
+    context = StrategyContext(
+        symbol="BTC/USDT",
+        frames=(
+            _frame(bullish=True, role=TimeframeRole.MACRO),
+            _frame(bullish=True, role=TimeframeRole.INTRADAY),
+            _frame(bullish=True, role=TimeframeRole.SETUP),
+            _frame(bullish=False, role=TimeframeRole.ENTRY),
+            _frame(bullish=True, role=TimeframeRole.REFINEMENT),
+        ),
+    )
+
+    assert (
+        generate_breakout_continuation_candidates(
+            context,
+            decision_time=_DECISION_TIME,
+        )
+        == ()
+    )
+
+
+def test_1m_timing_does_not_vote_on_breakout_direction() -> None:
+    context = StrategyContext(
+        symbol="BTC/USDT",
+        frames=(
+            _frame(bullish=True, role=TimeframeRole.MACRO),
+            _frame(bullish=True, role=TimeframeRole.INTRADAY),
+            _frame(bullish=True, role=TimeframeRole.SETUP),
+            _frame(bullish=True, role=TimeframeRole.ENTRY),
+            _frame(bullish=True, role=TimeframeRole.REFINEMENT),
+            _frame(bullish=False, role=TimeframeRole.TIMING),
+        ),
+    )
+
+    candidates = generate_breakout_continuation_candidates(
+        context,
+        decision_time=_DECISION_TIME,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].metadata["timing_frame_used_for_direction"] is False
 
 
 def test_output_is_deterministic() -> None:

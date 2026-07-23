@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from apex.liquidity.contracts import LiquiditySide, LiquidityZoneStatus
-from apex.strategies.context import StrategyContext
+from apex.strategies.context import StrategyContext, TimeframeContext, TimeframeRole
 from apex.strategies.contracts import (
     EntryMode,
     InvalidationConcept,
@@ -33,7 +33,93 @@ from apex.structure.contracts import (
     LevelRole,
     LevelStatus,
     StructureBreak,
+    TrendDirection,
 )
+
+_BULLISH_TRENDS = {
+    TrendDirection.STRONG_BULLISH,
+    TrendDirection.BULLISH,
+    TrendDirection.WEAK_BULLISH,
+}
+_BEARISH_TRENDS = {
+    TrendDirection.STRONG_BEARISH,
+    TrendDirection.BEARISH,
+    TrendDirection.WEAK_BEARISH,
+}
+
+
+class _ScalpDirectionAuthority:
+    __slots__ = (
+        "entry_aligned",
+        "intraday_opposed",
+        "refinement_opposed",
+        "setup_aligned",
+    )
+
+    def __init__(
+        self,
+        *,
+        setup_aligned: bool,
+        intraday_opposed: bool,
+        entry_aligned: bool,
+        refinement_opposed: bool,
+    ) -> None:
+        self.setup_aligned = setup_aligned
+        self.intraday_opposed = intraday_opposed
+        self.entry_aligned = entry_aligned
+        self.refinement_opposed = refinement_opposed
+
+
+def _momentum_votes(frame: TimeframeContext, *, bullish: bool) -> tuple[int, int]:
+    features = frame.features
+    values = tuple(
+        value
+        for value in (
+            features.rate_of_change,
+            features.macd_histogram,
+            features.rsi_slope,
+        )
+        if value is not None
+    )
+    votes = sum(value > 0 if bullish else value < 0 for value in values)
+    return votes, len(values)
+
+
+def _frame_aligned(frame: TimeframeContext | None, *, bullish: bool) -> bool:
+    if frame is None:
+        return False
+    aligned = _BULLISH_TRENDS if bullish else _BEARISH_TRENDS
+    votes, total = _momentum_votes(frame, bullish=bullish)
+    return frame.structure.trend.direction in aligned or (total >= 2 and votes * 2 >= total)
+
+
+def _frame_opposed(frame: TimeframeContext | None, *, bullish: bool) -> bool:
+    if frame is None:
+        return False
+    opposed = _BEARISH_TRENDS if bullish else _BULLISH_TRENDS
+    votes, total = _momentum_votes(frame, bullish=bullish)
+    return frame.structure.trend.direction in opposed and (
+        total == 0 or (total >= 2 and votes * 2 < total)
+    )
+
+
+def _scalp_direction_authority(
+    context: StrategyContext,
+    *,
+    bullish: bool,
+) -> _ScalpDirectionAuthority:
+    """Resolve scalp authority without allowing the 1m timing frame to vote."""
+
+    setup = context.frame_for_role(TimeframeRole.SETUP)
+    intraday = context.frame_for_role(TimeframeRole.INTRADAY)
+    entry = context.frame_for_role(TimeframeRole.ENTRY)
+    refinement = context.frame_for_role(TimeframeRole.REFINEMENT)
+    return _ScalpDirectionAuthority(
+        setup_aligned=_frame_aligned(setup, bullish=bullish),
+        intraday_opposed=_frame_opposed(intraday, bullish=bullish),
+        entry_aligned=_frame_aligned(entry, bullish=bullish),
+        refinement_opposed=_frame_opposed(refinement, bullish=bullish),
+    )
 
 
 def generate_breakout_continuation_candidates(
@@ -74,6 +160,16 @@ def _candidate_for_direction(
     maximum_extension_atr: float,
 ) -> TradeCandidate | None:
     bullish = direction is TradeDirection.LONG
+    authority = _scalp_direction_authority(context, bullish=bullish)
+    if not authority.setup_aligned:
+        return None
+    if authority.intraday_opposed:
+        return None
+    if not authority.entry_aligned:
+        return None
+    if authority.refinement_opposed:
+        return None
+
     higher_timeframe_conflict = context.higher_timeframe_contradiction(bullish=bullish)
 
     frame = context.decision_frame
@@ -197,6 +293,11 @@ def _candidate_for_direction(
             "break_quality": break_event.quality.value,
             "extension_atr": extension_atr,
             "higher_timeframe_conflict": higher_timeframe_conflict,
+            "setup_direction_confirmed": authority.setup_aligned,
+            "intraday_direction_opposed": authority.intraday_opposed,
+            "entry_direction_confirmed": authority.entry_aligned,
+            "refinement_direction_opposed": authority.refinement_opposed,
+            "timing_frame_used_for_direction": False,
             "invalidation_includes_noise_buffer": True,
             "invalidation_buffer_source": "strategy_break_level_0.15_atr",
         },

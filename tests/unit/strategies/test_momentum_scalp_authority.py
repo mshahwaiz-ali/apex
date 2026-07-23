@@ -161,7 +161,7 @@ def test_15m_alignment_confirms_but_30m_opposition_blocks_immediate_entry() -> N
     assert _immediate_timeframe_authority(opposed, bullish=True) == (True, True)
 
 
-def test_3m_confirms_trigger_while_opposing_1m_blocks_timing() -> None:
+def test_5m_confirms_trigger_while_1m_is_monitor_only() -> None:
     confirmed = _context(
         _frame(TimeframeRole.ENTRY, TrendDirection.BULLISH, timeframe="5m"),
         _frame(TimeframeRole.REFINEMENT, TrendDirection.BULLISH, timeframe="3m"),
@@ -174,7 +174,7 @@ def test_3m_confirms_trigger_while_opposing_1m_blocks_timing() -> None:
     )
 
     assert _lower_timeframe_trigger(confirmed, bullish=True) == (True, False)
-    assert _lower_timeframe_trigger(opposed, bullish=True) == (True, True)
+    assert _lower_timeframe_trigger(opposed, bullish=True) == (True, False)
 
 
 def test_break_must_be_recent_and_remain_held() -> None:
@@ -246,3 +246,23 @@ def test_scalp_without_verified_microstructure_target_is_rejected() -> None:
     )
 
     assert _scalp_targets(candidate, context=context) == ()  # type: ignore[arg-type]
+
+
+def test_3m_direct_opposition_blocks_refined_continuation() -> None:
+    context = _context(
+        _frame(TimeframeRole.ENTRY, TrendDirection.BULLISH, timeframe="5m"),
+        _frame(TimeframeRole.REFINEMENT, TrendDirection.BEARISH, timeframe="3m"),
+        _frame(TimeframeRole.TIMING, TrendDirection.BULLISH, timeframe="1m"),
+    )
+
+    assert _lower_timeframe_trigger(context, bullish=True) == (True, True)
+
+
+def test_5m_execution_alignment_is_required() -> None:
+    context = _context(
+        _frame(TimeframeRole.ENTRY, TrendDirection.BEARISH, timeframe="5m"),
+        _frame(TimeframeRole.REFINEMENT, TrendDirection.BULLISH, timeframe="3m"),
+        _frame(TimeframeRole.TIMING, TrendDirection.BULLISH, timeframe="1m"),
+    )
+
+    assert _lower_timeframe_trigger(context, bullish=True) == (False, False)
