@@ -1230,25 +1230,70 @@ def _post_stop_thesis_metadata(
         - min(0.25, 0.05 * retest_delay_bars)
     )
 
+    def recovery_mode_viability(
+        *,
+        available: bool,
+        projected_net_r: float,
+    ) -> str:
+        if not available:
+            return "invalid"
+        if projected_net_r >= 0.30:
+            return "viable"
+        if projected_net_r > 0.0:
+            return "marginal"
+        return "weak"
+
+    aggressive_viability = recovery_mode_viability(
+        available=aggressive_available,
+        projected_net_r=aggressive_projected_net_r,
+    )
+    retest_viability = recovery_mode_viability(
+        available=retest_recovery_available,
+        projected_net_r=retest_projected_net_r,
+    )
+
     if aggressive_available and retest_recovery_available:
-        aggressive_gate = aggressive_projected_net_r >= 0.30
-        retest_gate = retest_projected_net_r >= 0.30
-        if aggressive_gate and not retest_gate:
-            recovery_pair_predicted_mode = "prefer_aggressive"
+        aggressive_gate = aggressive_viability == "viable"
+        retest_gate = retest_viability == "viable"
+        both_below_absolute_gate = not aggressive_gate and not retest_gate
+
+        if both_below_absolute_gate:
+            recovery_selector_outcome = "abstain_both_weak"
+            recovery_selector_reason = "neither mode clears absolute projected net R gate"
+        elif aggressive_gate and not retest_gate:
+            recovery_selector_outcome = "select_aggressive"
+            recovery_selector_reason = "only aggressive mode clears absolute viability"
         elif retest_gate and not aggressive_gate:
-            recovery_pair_predicted_mode = "prefer_retest"
+            recovery_selector_outcome = "select_retest"
+            recovery_selector_reason = "only retest mode clears absolute viability"
         elif aggressive_preference_score >= retest_preference_score + 0.10:
-            recovery_pair_predicted_mode = "prefer_aggressive"
+            recovery_selector_outcome = "select_aggressive"
+            recovery_selector_reason = "aggressive preference score leads by minimum margin"
         elif retest_preference_score >= aggressive_preference_score + 0.10:
-            recovery_pair_predicted_mode = "prefer_retest"
+            recovery_selector_outcome = "select_retest"
+            recovery_selector_reason = "retest preference score leads by minimum margin"
         else:
-            recovery_pair_predicted_mode = "no_clear_preference"
+            recovery_selector_outcome = "no_clear_preference"
+            recovery_selector_reason = "viable modes are too close to separate"
     elif aggressive_available:
-        recovery_pair_predicted_mode = "single_mode_aggressive"
+        recovery_selector_outcome = "single_mode_aggressive"
+        recovery_selector_reason = "only aggressive mode is available"
     elif retest_recovery_available:
-        recovery_pair_predicted_mode = "single_mode_retest"
+        recovery_selector_outcome = "single_mode_retest"
+        recovery_selector_reason = "only retest mode is available"
     else:
-        recovery_pair_predicted_mode = "no_mode_available"
+        recovery_selector_outcome = "reject_no_viable_mode"
+        recovery_selector_reason = "no recovery entry mode is available"
+
+    recovery_pair_predicted_mode = {
+        "select_aggressive": "prefer_aggressive",
+        "select_retest": "prefer_retest",
+        "no_clear_preference": "no_clear_preference",
+        "abstain_both_weak": "no_clear_preference",
+        "single_mode_aggressive": "single_mode_aggressive",
+        "single_mode_retest": "single_mode_retest",
+        "reject_no_viable_mode": "no_mode_available",
+    }[recovery_selector_outcome]
 
     if aggressive_available and retest_recovery_available:
         recovery_pair_net_r_delta = aggressive_net_r_value - retest_net_r_value
@@ -1262,13 +1307,68 @@ def _post_stop_thesis_metadata(
         recovery_pair_net_r_delta = 0.0
         recovery_pair_realized_winner = "not_comparable"
 
-    recovery_pair_prediction_correct = (
-        recovery_pair_predicted_mode == "prefer_aggressive"
-        and recovery_pair_realized_winner == "aggressive"
-    ) or (
-        recovery_pair_predicted_mode == "prefer_retest"
-        and recovery_pair_realized_winner == "retest"
-    )
+    aggressive_profitable = aggressive_net_r_value >= 0.30
+    retest_profitable = retest_net_r_value >= 0.30
+    if aggressive_available and retest_recovery_available:
+        if aggressive_profitable and retest_profitable:
+            recovery_selector_realized_classification = "both_profitable"
+        elif aggressive_profitable:
+            recovery_selector_realized_classification = "aggressive_profitable"
+        elif retest_profitable:
+            recovery_selector_realized_classification = "retest_profitable"
+        elif aggressive_net_r_value <= 0.0 and retest_net_r_value <= 0.0:
+            recovery_selector_realized_classification = "both_negative"
+        else:
+            recovery_selector_realized_classification = "both_below_gate"
+    else:
+        recovery_selector_realized_classification = "not_comparable"
+
+    recovery_selector_evaluable = aggressive_available and retest_recovery_available
+    if recovery_selector_outcome == "select_aggressive":
+        recovery_selector_correct = (
+            aggressive_profitable and aggressive_net_r_value >= retest_net_r_value
+        )
+    elif recovery_selector_outcome == "select_retest":
+        recovery_selector_correct = (
+            retest_profitable and retest_net_r_value >= aggressive_net_r_value
+        )
+    elif recovery_selector_outcome == "abstain_both_weak":
+        recovery_selector_correct = recovery_selector_realized_classification in {
+            "both_negative",
+            "both_below_gate",
+        }
+    elif recovery_selector_outcome == "no_clear_preference":
+        recovery_selector_correct = recovery_pair_realized_winner == "tie"
+    else:
+        recovery_selector_correct = False
+
+    recovery_pair_directional_prediction_evaluable = recovery_pair_predicted_mode in {
+        "prefer_aggressive",
+        "prefer_retest",
+    }
+    recovery_pair_abstention = recovery_selector_outcome in {
+        "no_clear_preference",
+        "abstain_both_weak",
+    }
+    recovery_pair_abstention_correct = recovery_pair_abstention and recovery_selector_correct
+
+    if recovery_pair_directional_prediction_evaluable:
+        recovery_pair_prediction_correct = (
+            recovery_pair_predicted_mode == "prefer_aggressive"
+            and recovery_pair_realized_winner == "aggressive"
+        ) or (
+            recovery_pair_predicted_mode == "prefer_retest"
+            and recovery_pair_realized_winner == "retest"
+        )
+        recovery_pair_evaluation = "correct" if recovery_pair_prediction_correct else "incorrect"
+    elif recovery_pair_abstention:
+        recovery_pair_prediction_correct = recovery_pair_abstention_correct
+        recovery_pair_evaluation = (
+            "abstention_correct" if recovery_pair_abstention_correct else "abstention_missed"
+        )
+    else:
+        recovery_pair_prediction_correct = False
+        recovery_pair_evaluation = "not_evaluable"
 
     recovery_event_id_strict = ""
     recovery_event_id_loose = ""
@@ -1371,6 +1471,12 @@ def _post_stop_thesis_metadata(
         "recovery_pair_realized_winner": recovery_pair_realized_winner,
         "recovery_pair_net_r_delta": recovery_pair_net_r_delta,
         "recovery_pair_prediction_correct": recovery_pair_prediction_correct,
+        "recovery_pair_evaluation": recovery_pair_evaluation,
+        "recovery_pair_directional_prediction_evaluable": (
+            recovery_pair_directional_prediction_evaluable
+        ),
+        "recovery_pair_abstention": recovery_pair_abstention,
+        "recovery_pair_abstention_correct": recovery_pair_abstention_correct,
         "recovery_pair_aggressive_remaining_room_r": aggressive_room_r,
         "recovery_pair_retest_remaining_room_r": retest_room_r,
         "recovery_pair_aggressive_cost_drag_r": aggressive_cost_drag_r,
@@ -1380,6 +1486,13 @@ def _post_stop_thesis_metadata(
         "recovery_pair_aggressive_preference_score": aggressive_preference_score,
         "recovery_pair_retest_preference_score": retest_preference_score,
         "recovery_pair_retest_delay_bars": retest_delay_bars,
+        "recovery_selector_outcome": recovery_selector_outcome,
+        "recovery_selector_reason": recovery_selector_reason,
+        "recovery_selector_aggressive_viability": aggressive_viability,
+        "recovery_selector_retest_viability": retest_viability,
+        "recovery_selector_realized_classification": (recovery_selector_realized_classification),
+        "recovery_selector_evaluable": recovery_selector_evaluable,
+        "recovery_selector_correct": recovery_selector_correct,
         "recovery_target_before_failure": recovery_target_before_failure,
         "aggressive_reclaim_entry_available": bool(aggressive_replay.get("available")),
         "aggressive_reclaim_entry_price": recovery_entry_price,

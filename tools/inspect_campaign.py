@@ -1,11 +1,9 @@
-
 from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
-
 
 POINTER = Path("/tmp/apex_11d6d_part2e_latest_run_dir")
 MIN_NET_R = 0.30
@@ -82,10 +80,7 @@ def unique_rows(
         if event_id:
             grouped[event_id].append(row)
 
-    return [
-        sorted(members, key=representative_key)[0]
-        for members in grouped.values()
-    ]
+    return [sorted(members, key=representative_key)[0] for members in grouped.values()]
 
 
 def mode_summary(
@@ -95,11 +90,7 @@ def mode_summary(
     available = [row for row in rows if row[f"{prefix}_available"]]
     outcomes = Counter(row[f"{prefix}_outcome"] for row in available)
 
-    net_values = [
-        row[f"{prefix}_net_r"]
-        for row in available
-        if row[f"{prefix}_net_r"] is not None
-    ]
+    net_values = [row[f"{prefix}_net_r"] for row in available if row[f"{prefix}_net_r"] is not None]
 
     speed: dict[str, list[dict[str, Any]]] = {
         "fast": [],
@@ -121,31 +112,18 @@ def mode_summary(
     speed_summary: dict[str, dict[str, Any]] = {}
     for name, members in speed.items():
         member_net = [
-            row[f"{prefix}_net_r"]
-            for row in members
-            if row[f"{prefix}_net_r"] is not None
+            row[f"{prefix}_net_r"] for row in members if row[f"{prefix}_net_r"] is not None
         ]
-        member_outcomes = Counter(
-            row[f"{prefix}_outcome"]
-            for row in members
-        )
+        member_outcomes = Counter(row[f"{prefix}_outcome"] for row in members)
         speed_summary[name] = {
             "events": len(members),
             "targets": member_outcomes["target"],
             "stops": member_outcomes["stop"],
             "expired": member_outcomes["expired"],
-            "average_net_r": (
-                sum(member_net) / len(member_net)
-                if member_net
-                else None
-            ),
+            "average_net_r": (sum(member_net) / len(member_net) if member_net else None),
             "total_net_r": sum(member_net),
-            "gate_passes": sum(
-                result >= MIN_NET_R for result in member_net
-            ),
-            "ambiguities": sum(
-                row[f"{prefix}_ambiguous"] for row in members
-            ),
+            "gate_passes": sum(result >= MIN_NET_R for result in member_net),
+            "ambiguities": sum(row[f"{prefix}_ambiguous"] for row in members),
         }
 
     count = len(available)
@@ -155,30 +133,16 @@ def mode_summary(
         "targets": outcomes["target"],
         "stops": outcomes["stop"],
         "expired": outcomes["expired"],
-        "target_rate": (
-            outcomes["target"] / count * 100.0
-            if count
-            else None
-        ),
+        "target_rate": (outcomes["target"] / count * 100.0 if count else None),
         "positive_net": sum(
-            row[f"{prefix}_net_r"] is not None
-            and row[f"{prefix}_net_r"] > 0.0
-            for row in available
+            row[f"{prefix}_net_r"] is not None and row[f"{prefix}_net_r"] > 0.0 for row in available
         ),
         "gate_passes": sum(
-            row[f"{prefix}_net_r"] is not None
-            and row[f"{prefix}_net_r"] >= MIN_NET_R
+            row[f"{prefix}_net_r"] is not None and row[f"{prefix}_net_r"] >= MIN_NET_R
             for row in available
         ),
-        "ambiguities": sum(
-            row[f"{prefix}_ambiguous"]
-            for row in available
-        ),
-        "average_net_r": (
-            sum(net_values) / len(net_values)
-            if net_values
-            else None
-        ),
+        "ambiguities": sum(row[f"{prefix}_ambiguous"] for row in available),
+        "average_net_r": (sum(net_values) / len(net_values) if net_values else None),
         "total_net_r": sum(net_values),
         "speed": speed_summary,
     }
@@ -186,8 +150,7 @@ def mode_summary(
 
 if not POINTER.exists():
     raise SystemExit(
-        "Latest campaign pointer missing. "
-        "Run tools/run_11d6d_part2e_campaign.py first."
+        "Latest campaign pointer missing. Run tools/run_11d6d_part2e_campaign.py first."
     )
 
 run_dir = Path(POINTER.read_text().strip())
@@ -195,8 +158,7 @@ run_dir = Path(POINTER.read_text().strip())
 files = sorted(
     path
     for path in run_dir.glob("*.json")
-    if path.name != "campaign_summary.json"
-    and "inspection" not in path.name
+    if path.name != "campaign_summary.json" and "inspection" not in path.name
 )
 
 rows: list[dict[str, Any]] = []
@@ -210,19 +172,11 @@ for path in files:
         continue
 
     symbol = str(payload.get("symbol") or "unknown")
-    timeframe = str(
-        payload.get("replay_timeframe")
-        or payload.get("timeframe")
-        or "unknown"
-    )
+    timeframe = str(payload.get("replay_timeframe") or payload.get("timeframe") or "unknown")
 
     for trade in trades_from(payload):
-        aggressive_available = (
-            value(trade, "aggressive_reclaim_entry_available") is True
-        )
-        retest_available = (
-            value(trade, "retest_recovery_entry_available") is True
-        )
+        aggressive_available = value(trade, "aggressive_reclaim_entry_available") is True
+        retest_available = value(trade, "retest_recovery_entry_available") is True
 
         if not aggressive_available and not retest_available:
             continue
@@ -241,12 +195,8 @@ for path in files:
             else:
                 pair_class = "neither_available"
 
-        aggressive_net = number(
-            value(trade, "aggressive_reclaim_net_r")
-        )
-        retest_net = number(
-            value(trade, "retest_recovery_net_r")
-        )
+        aggressive_net = number(value(trade, "aggressive_reclaim_net_r"))
+        retest_net = number(value(trade, "retest_recovery_net_r"))
 
         event_rank = value(trade, "recovery_event_rank")
         event_rank = event_rank if isinstance(event_rank, int) else None
@@ -260,24 +210,12 @@ for path in files:
                 "direction": signal_value(trade, "direction", "unknown"),
                 "candidate_id": signal_value(trade, "candidate_id"),
                 "generated_at": signal_value(trade, "generated_at"),
-                "reclaim_time": str(
-                    value(trade, "recovery_reclaim_time", "")
-                ),
-                "event_id_strict": str(
-                    value(trade, "recovery_event_id_strict", "")
-                ),
-                "event_id_current": str(
-                    value(trade, "recovery_event_id", "")
-                ),
-                "event_id_loose": str(
-                    value(trade, "recovery_event_id_loose", "")
-                ),
-                "market_episode_id": str(
-                    value(trade, "recovery_market_episode_id", "")
-                ),
-                "event_selected": (
-                    value(trade, "recovery_event_selected") is True
-                ),
+                "reclaim_time": str(value(trade, "recovery_reclaim_time", "")),
+                "event_id_strict": str(value(trade, "recovery_event_id_strict", "")),
+                "event_id_current": str(value(trade, "recovery_event_id", "")),
+                "event_id_loose": str(value(trade, "recovery_event_id_loose", "")),
+                "market_episode_id": str(value(trade, "recovery_market_episode_id", "")),
+                "event_selected": (value(trade, "recovery_event_selected") is True),
                 "event_rank": event_rank,
                 "event_members": value(
                     trade,
@@ -394,11 +332,7 @@ for row in paired_rows:
     else:
         ties += 1
 
-episode_ids = {
-    row["market_episode_id"]
-    for row in paired_rows
-    if row["market_episode_id"]
-}
+episode_ids = {row["market_episode_id"] for row in paired_rows if row["market_episode_id"]}
 
 raw_aggressive = sum(row["aggressive_available"] for row in rows)
 raw_retest = sum(row["retest_available"] for row in rows)
@@ -456,10 +390,7 @@ print(
     "  Avg aggressive-retest : "
     f"{sum(paired_deltas) / len(paired_deltas) if paired_deltas else None}"
 )
-print(
-    "  Total difference       : "
-    f"{sum(paired_deltas)}"
-)
+print(f"  Total difference       : {sum(paired_deltas)}")
 
 print()
 print("BY TIMEFRAME — AGGRESSIVE")
@@ -525,3 +456,63 @@ if errors:
         print(f"  {error}")
 
 print("=" * 78)
+
+
+def _print_selector_diagnostics() -> None:
+    outcome_counts: Counter[str] = Counter()
+    realized_counts: Counter[str] = Counter()
+    raw_rows = 0
+    unique_events = 0
+    duplicates = 0
+    evaluable = 0
+    correct = 0
+    failure_to_abstain = 0
+    less_bad = 0
+
+    for report_path in files:
+        payload = json.loads(report_path.read_text())
+        shadow = payload.get("shadow_replay")
+        if not isinstance(shadow, dict):
+            continue
+        sweep = shadow.get("sweep_reclaim_metrics")
+        if not isinstance(sweep, dict):
+            continue
+        paired = sweep.get("paired_entry_comparison")
+        if not isinstance(paired, dict):
+            continue
+
+        outcomes = paired.get("selector_outcome_counts")
+        if isinstance(outcomes, dict):
+            outcome_counts.update(
+                {str(key): int(count) for key, count in outcomes.items() if isinstance(count, int)}
+            )
+        realized = paired.get("selector_realized_classification_counts")
+        if isinstance(realized, dict):
+            realized_counts.update(
+                {str(key): int(count) for key, count in realized.items() if isinstance(count, int)}
+            )
+        raw_rows += int(paired.get("selector_raw_row_count") or 0)
+        unique_events += int(paired.get("selector_unique_event_count") or 0)
+        duplicates += int(paired.get("selector_duplicate_row_count") or 0)
+        evaluable += int(paired.get("selector_evaluable_count") or 0)
+        correct += int(paired.get("selector_correct_count") or 0)
+        failure_to_abstain += int(paired.get("selector_failure_to_abstain_count") or 0)
+        less_bad += int(paired.get("selector_less_bad_selection_count") or 0)
+
+    print()
+    print("RECOVERY SELECTOR")
+    print(f"  Outcomes              : {dict(outcome_counts)}")
+    print(f"  Realized classes      : {dict(realized_counts)}")
+    print(f"  Raw selector rows     : {raw_rows}")
+    print(f"  Unique selector events: {unique_events}")
+    print(f"  Duplicate rows        : {duplicates}")
+    print(f"  Evaluable decisions   : {evaluable}")
+    print(f"  Correct decisions     : {correct}")
+    print(f"  Selector accuracy     : {correct / evaluable if evaluable else None}")
+    print(f"  Failed to abstain     : {failure_to_abstain}")
+    print(f"  Less-bad selections   : {less_bad}")
+    print("  Diagnostic only       : True")
+    print("  Production changed    : False")
+
+
+_print_selector_diagnostics()

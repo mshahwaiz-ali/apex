@@ -2284,9 +2284,16 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
     paired_realized_counts: dict[str, int] = {}
     paired_prediction_evaluable_count = 0
     paired_prediction_correct_count = 0
+    paired_directional_prediction_count = 0
+    paired_directional_prediction_correct_count = 0
+    paired_abstention_count = 0
+    paired_abstention_correct_count = 0
+    paired_overall_decision_count = 0
+    paired_overall_decision_correct_count = 0
     paired_net_r_deltas: list[float] = []
     paired_false_aggressive_count = 0
     paired_false_retest_count = 0
+    selector_raw_row_count = 0
 
     for trade in values:
         metadata = getattr(trade, "metadata", None)
@@ -2325,19 +2332,36 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
             delta = numeric(metadata, "recovery_pair_net_r_delta")
             if delta is not None:
                 paired_net_r_deltas.append(delta)
+            correct = metadata.get("recovery_pair_prediction_correct") is True
+            directional_evaluable = (
+                metadata.get("recovery_pair_directional_prediction_evaluable") is True
+            )
+            abstention = metadata.get("recovery_pair_abstention") is True
+            abstention_correct = metadata.get("recovery_pair_abstention_correct") is True
+            overall_evaluable = directional_evaluable or abstention
+
             if predicted in {"prefer_aggressive", "prefer_retest"} and realized in {
                 "aggressive",
                 "retest",
             }:
                 paired_prediction_evaluable_count += 1
-                correct = metadata.get("recovery_pair_prediction_correct") is True
                 paired_prediction_correct_count += int(correct)
-                paired_false_aggressive_count += int(
-                    predicted == "prefer_aggressive" and realized == "retest"
-                )
-                paired_false_retest_count += int(
-                    predicted == "prefer_retest" and realized == "aggressive"
-                )
+
+            paired_directional_prediction_count += int(directional_evaluable)
+            paired_directional_prediction_correct_count += int(directional_evaluable and correct)
+            paired_abstention_count += int(abstention)
+            paired_abstention_correct_count += int(abstention and abstention_correct)
+            paired_overall_decision_count += int(overall_evaluable)
+            paired_overall_decision_correct_count += int(overall_evaluable and correct)
+
+            paired_false_aggressive_count += int(
+                predicted == "prefer_aggressive" and realized == "retest"
+            )
+            paired_false_retest_count += int(
+                predicted == "prefer_retest" and realized == "aggressive"
+            )
+
+            selector_raw_row_count += 1
 
         for key, destination in (
             ("recovery_event_id_strict", strict_ids),
@@ -2365,6 +2389,42 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
 
     unique_aggressive = [representative(members) for members in aggressive_members.values()]
     unique_retest = [representative(members) for members in retest_members.values()]
+
+    selector_event_ids = set(aggressive_members).intersection(retest_members)
+    selector_representatives = [
+        representative(aggressive_members[event_id]) for event_id in selector_event_ids
+    ]
+    selector_outcome_counts: dict[str, int] = {}
+    selector_realized_counts: dict[str, int] = {}
+    selector_evaluable_count = 0
+    selector_correct_count = 0
+    selector_failure_to_abstain_count = 0
+    selector_less_bad_selection_count = 0
+
+    for selector_trade in selector_representatives:
+        selector_metadata = getattr(selector_trade, "metadata", {})
+        selector_outcome = selector_metadata.get("recovery_selector_outcome")
+        if isinstance(selector_outcome, str):
+            selector_outcome_counts[selector_outcome] = (
+                selector_outcome_counts.get(selector_outcome, 0) + 1
+            )
+        selector_realized = selector_metadata.get("recovery_selector_realized_classification")
+        if isinstance(selector_realized, str):
+            selector_realized_counts[selector_realized] = (
+                selector_realized_counts.get(selector_realized, 0) + 1
+            )
+        selector_evaluable = selector_metadata.get("recovery_selector_evaluable") is True
+        selector_correct = selector_metadata.get("recovery_selector_correct") is True
+        selector_evaluable_count += int(selector_evaluable)
+        selector_correct_count += int(selector_evaluable and selector_correct)
+        selector_failure_to_abstain_count += int(
+            selector_outcome in {"select_aggressive", "select_retest"}
+            and selector_realized in {"both_negative", "both_below_gate"}
+        )
+        selector_less_bad_selection_count += int(
+            selector_outcome in {"select_aggressive", "select_retest"}
+            and selector_realized == "both_negative"
+        )
     aggressive_summary = mode_summary(
         unique_aggressive,
         prefix="aggressive_reclaim",
@@ -2509,8 +2569,46 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
                 if paired_prediction_evaluable_count
                 else None
             ),
+            "directional_prediction_count": paired_directional_prediction_count,
+            "directional_prediction_correct_count": (paired_directional_prediction_correct_count),
+            "directional_prediction_accuracy": (
+                paired_directional_prediction_correct_count / paired_directional_prediction_count
+                if paired_directional_prediction_count
+                else None
+            ),
+            "abstention_count": paired_abstention_count,
+            "abstention_correct_count": paired_abstention_correct_count,
+            "abstention_accuracy": (
+                paired_abstention_correct_count / paired_abstention_count
+                if paired_abstention_count
+                else None
+            ),
+            "overall_decision_count": paired_overall_decision_count,
+            "overall_decision_correct_count": (paired_overall_decision_correct_count),
+            "overall_decision_accuracy": (
+                paired_overall_decision_correct_count / paired_overall_decision_count
+                if paired_overall_decision_count
+                else None
+            ),
             "false_aggressive_selection_count": paired_false_aggressive_count,
             "false_retest_selection_count": paired_false_retest_count,
+            "selector_raw_row_count": selector_raw_row_count,
+            "selector_unique_event_count": len(selector_representatives),
+            "selector_duplicate_row_count": (
+                selector_raw_row_count - len(selector_representatives)
+            ),
+            "selector_outcome_counts": selector_outcome_counts,
+            "selector_realized_classification_counts": selector_realized_counts,
+            "selector_evaluable_count": selector_evaluable_count,
+            "selector_correct_count": selector_correct_count,
+            "selector_accuracy": (
+                selector_correct_count / selector_evaluable_count
+                if selector_evaluable_count
+                else None
+            ),
+            "selector_failure_to_abstain_count": (selector_failure_to_abstain_count),
+            "selector_less_bad_selection_count": (selector_less_bad_selection_count),
+            "selector_basis": "absolute_viability_then_relative_preference",
             "average_aggressive_minus_retest_net_r": (
                 sum(paired_net_r_deltas) / len(paired_net_r_deltas) if paired_net_r_deltas else None
             ),

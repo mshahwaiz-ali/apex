@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -1134,3 +1135,143 @@ def test_direct_pair_metrics_publish_prediction_accuracy_diagnostic_only() -> No
     assert paired["realized_winner_counts"]
     assert metrics["diagnostic_only"] is True
     assert metrics["production_behavior_changed"] is False
+
+
+def test_direct_pair_tie_counts_as_correct_abstention() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    trade = replace(
+        trade,
+        metadata={
+            **dict(trade.metadata),
+            "recovery_pair_predicted_mode": "no_clear_preference",
+            "recovery_pair_realized_winner": "tie",
+            "recovery_pair_net_r_delta": 0.0,
+            "recovery_pair_prediction_correct": True,
+            "recovery_pair_evaluation": "abstention_correct",
+            "recovery_pair_directional_prediction_evaluable": False,
+            "recovery_pair_abstention": True,
+            "recovery_pair_abstention_correct": True,
+            "aggressive_reclaim_net_r": 0.25,
+            "retest_recovery_net_r": 0.25,
+        },
+    )
+
+    assert trade.metadata["recovery_pair_realized_winner"] == "tie"
+    assert trade.metadata["recovery_pair_evaluation"] == "abstention_correct"
+    assert trade.metadata["recovery_pair_abstention"] is True
+    assert trade.metadata["recovery_pair_abstention_correct"] is True
+    assert trade.metadata["recovery_pair_prediction_correct"] is True
+
+    paired = _sweep_reclaim_metrics((trade,))["paired_entry_comparison"]
+    assert paired["directional_prediction_count"] == 0
+    assert paired["directional_prediction_correct_count"] == 0
+    assert paired["directional_prediction_accuracy"] is None
+    assert paired["abstention_count"] == 1
+    assert paired["abstention_correct_count"] == 1
+    assert paired["abstention_accuracy"] == 1.0
+    assert paired["overall_decision_count"] == 1
+    assert paired["overall_decision_correct_count"] == 1
+    assert paired["overall_decision_accuracy"] == 1.0
+
+
+def test_recovery_selector_publishes_absolute_and_relative_decision() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["recovery_selector_outcome"] in {
+        "select_aggressive",
+        "select_retest",
+        "abstain_both_weak",
+        "no_clear_preference",
+        "single_mode_aggressive",
+        "single_mode_retest",
+        "reject_no_viable_mode",
+    }
+    assert trade.metadata["recovery_selector_aggressive_viability"] in {
+        "viable",
+        "marginal",
+        "weak",
+        "invalid",
+    }
+    assert trade.metadata["recovery_selector_retest_viability"] in {
+        "viable",
+        "marginal",
+        "weak",
+        "invalid",
+    }
+    assert isinstance(trade.metadata["recovery_selector_reason"], str)
+    assert isinstance(trade.metadata["recovery_selector_correct"], bool)
+
+
+def test_recovery_selector_metrics_distinguish_less_bad_from_good() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    trade = replace(
+        trade,
+        metadata={
+            **dict(trade.metadata),
+            "recovery_pair_available": True,
+            "recovery_selector_outcome": "select_aggressive",
+            "recovery_selector_realized_classification": "both_negative",
+            "recovery_selector_evaluable": True,
+            "recovery_selector_correct": False,
+        },
+    )
+
+    paired = _sweep_reclaim_metrics((trade,))["paired_entry_comparison"]
+
+    assert paired["selector_outcome_counts"]["select_aggressive"] == 1
+    assert paired["selector_realized_classification_counts"]["both_negative"] == 1
+    assert paired["selector_evaluable_count"] == 1
+    assert paired["selector_correct_count"] == 0
+    assert paired["selector_accuracy"] == 0.0
+    assert paired["selector_failure_to_abstain_count"] == 1
+    assert paired["selector_less_bad_selection_count"] == 1
+    assert paired["selector_basis"] == ("absolute_viability_then_relative_preference")
+
+
+def test_recovery_selector_metrics_deduplicate_event_members() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    paired = _sweep_reclaim_metrics((trade, trade))["paired_entry_comparison"]
+
+    assert paired["selector_raw_row_count"] == 2
+    assert paired["selector_unique_event_count"] == 1
+    assert paired["selector_duplicate_row_count"] == 1
+    assert paired["selector_evaluable_count"] == 1
