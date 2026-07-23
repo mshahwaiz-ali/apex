@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import combinations
 from pathlib import Path
-from typing import Callable, Iterable, TypeAlias
+from typing import TypeAlias
 
 MIN_TRAIN = 8
 MIN_VALIDATION = 3
@@ -33,8 +33,8 @@ def parse_time(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def as_dict(value: object) -> dict[str, object]:
@@ -126,13 +126,21 @@ def load_rows(report_dir: Path) -> list[Row]:
                     decision_time=decision_time,
                     strategy=str(signal.get("strategy") or "unknown"),
                     direction=str(signal.get("direction") or "unknown"),
-                    source=str(metadata.get("replay_source") or trade.get("replay_reason_code") or "unknown"),
+                    source=str(
+                        metadata.get("replay_source")
+                        or trade.get("replay_reason_code")
+                        or "unknown"
+                    ),
                     actionability=str(trade.get("actionability_state") or "unknown"),
                     setup_validity=str(metadata.get("setup_validity") or "unknown"),
                     activation_type=str(signal.get("activation_type") or "unknown"),
                     geometry_lane=str(diagnostics.get("geometry_lane") or "unknown"),
-                    measured_geometry_lane=str(diagnostics.get("measured_geometry_lane") or "unknown"),
-                    measured_geometry_passed=bool_or_none(diagnostics.get("measured_geometry_passed")),
+                    measured_geometry_lane=str(
+                        diagnostics.get("measured_geometry_lane") or "unknown"
+                    ),
+                    measured_geometry_passed=bool_or_none(
+                        diagnostics.get("measured_geometry_passed")
+                    ),
                     higher_timeframe_conflict=bool_or_none(
                         confirmation.get("higher_timeframe_conflict")
                     ),
