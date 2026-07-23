@@ -7,11 +7,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Callable, Iterable, TypeAlias
 
 MIN_TRAIN = 8
 MIN_VALIDATION = 3
 MIN_TEST = 3
+
+MetricValue: TypeAlias = float | int | None
+Metrics: TypeAlias = dict[str, MetricValue]
 
 
 def number(value: object) -> float | None:
@@ -34,13 +37,14 @@ def parse_time(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def nested(mapping: object, *keys: str) -> object:
-    current = mapping
-    for key in keys:
-        if not isinstance(current, dict):
-            return None
-        current = current.get(key)
-    return current
+def as_dict(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in value.items()}
+
+
+def bool_or_none(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 @dataclass(frozen=True)
@@ -79,36 +83,42 @@ class Condition:
 def load_rows(report_dir: Path) -> list[Row]:
     raw: list[Row] = []
     for path in sorted(report_dir.glob("*.json")):
-        payload = json.loads(path.read_text())
+        payload = as_dict(json.loads(path.read_text()))
         symbol = str(payload.get("symbol") or "unknown")
         timeframe = str(payload.get("replay_timeframe") or "unknown")
-        trades = nested(payload, "shadow_replay", "trades")
+        shadow = as_dict(payload.get("shadow_replay"))
+        trades = shadow.get("trades")
         if not isinstance(trades, list):
             continue
-        for trade in trades:
-            if not isinstance(trade, dict):
+
+        for trade_value in trades:
+            trade = as_dict(trade_value)
+            if not trade:
                 continue
-            signal = trade.get("signal") if isinstance(trade.get("signal"), dict) else {}
-            metadata = trade.get("metadata") if isinstance(trade.get("metadata"), dict) else {}
-            diagnostics = signal.get("diagnostics") if isinstance(signal.get("diagnostics"), dict) else {}
-            confirmation = diagnostics.get("confirmation") if isinstance(diagnostics.get("confirmation"), dict) else {}
-            geometry = diagnostics.get("geometry_audit") if isinstance(diagnostics.get("geometry_audit"), dict) else {}
+            signal = as_dict(trade.get("signal"))
+            metadata = as_dict(trade.get("metadata"))
+            diagnostics = as_dict(signal.get("diagnostics"))
+            confirmation = as_dict(diagnostics.get("confirmation"))
+            geometry = as_dict(diagnostics.get("geometry_audit"))
+
             realized = number(trade.get("realized_r_multiple"))
             decision_time = parse_time(trade.get("decision_time") or signal.get("generated_at"))
             if realized is None or decision_time is None:
                 continue
+
             event_key = str(trade.get("recovery_event_id") or trade.get("opportunity_id") or "")
             if not event_key:
                 event_key = "|".join(
-                    [
+                    (
                         symbol,
                         timeframe,
                         str(signal.get("strategy") or "unknown"),
                         str(signal.get("direction") or "unknown"),
                         decision_time.isoformat(),
                         str(metadata.get("candidate_id") or signal.get("candidate_id") or ""),
-                    ]
+                    )
                 )
+
             raw.append(
                 Row(
                     symbol=symbol,
@@ -122,30 +132,18 @@ def load_rows(report_dir: Path) -> list[Row]:
                     activation_type=str(signal.get("activation_type") or "unknown"),
                     geometry_lane=str(diagnostics.get("geometry_lane") or "unknown"),
                     measured_geometry_lane=str(diagnostics.get("measured_geometry_lane") or "unknown"),
-                    measured_geometry_passed=(
-                        diagnostics.get("measured_geometry_passed")
-                        if isinstance(diagnostics.get("measured_geometry_passed"), bool)
-                        else None
-                    ),
-                    higher_timeframe_conflict=(
+                    measured_geometry_passed=bool_or_none(diagnostics.get("measured_geometry_passed")),
+                    higher_timeframe_conflict=bool_or_none(
                         confirmation.get("higher_timeframe_conflict")
-                        if isinstance(confirmation.get("higher_timeframe_conflict"), bool)
-                        else None
                     ),
-                    immediate_timeframe_conflict=(
+                    immediate_timeframe_conflict=bool_or_none(
                         confirmation.get("immediate_timeframe_conflict")
-                        if isinstance(confirmation.get("immediate_timeframe_conflict"), bool)
-                        else None
                     ),
-                    entry_confirmation_complete=(
+                    entry_confirmation_complete=bool_or_none(
                         confirmation.get("entry_confirmation_complete")
-                        if isinstance(confirmation.get("entry_confirmation_complete"), bool)
-                        else None
                     ),
-                    setup_direction_confirmed=(
+                    setup_direction_confirmed=bool_or_none(
                         confirmation.get("setup_direction_confirmed")
-                        if isinstance(confirmation.get("setup_direction_confirmed"), bool)
-                        else None
                     ),
                     confidence=number(signal.get("confidence_score")),
                     expected_r=number(metadata.get("expected_r")),
@@ -164,17 +162,23 @@ def load_rows(report_dir: Path) -> list[Row]:
     episodes: dict[tuple[str, str, str, int], Row] = {}
     for row in exact.values():
         bucket = int(row.decision_time.timestamp()) // (15 * 60)
-        key = (row.symbol, row.strategy, row.direction, bucket)
-        episodes.setdefault(key, row)
+        episodes.setdefault((row.symbol, row.strategy, row.direction, bucket), row)
     return sorted(episodes.values(), key=lambda item: item.decision_time)
 
 
-def metrics(rows: list[Row]) -> dict[str, float | int | None]:
+def metrics(rows: list[Row]) -> Metrics:
     values = [row.realized_r for row in rows]
     wins = [value for value in values if value > 0]
     losses = [value for value in values if value < 0]
     gross_win = sum(wins)
     gross_loss = -sum(losses)
+    profit_factor: float | None
+    if gross_loss:
+        profit_factor = gross_win / gross_loss
+    elif gross_win:
+        profit_factor = float("inf")
+    else:
+        profit_factor = None
     return {
         "samples": len(values),
         "wins": len(wins),
@@ -182,8 +186,18 @@ def metrics(rows: list[Row]) -> dict[str, float | int | None]:
         "win_rate": len(wins) / len(values) * 100.0 if values else None,
         "total_r": sum(values),
         "average_r": sum(values) / len(values) if values else None,
-        "profit_factor": gross_win / gross_loss if gross_loss else (float("inf") if gross_win else None),
+        "profit_factor": profit_factor,
     }
+
+
+def metric_int(result: Metrics, key: str) -> int:
+    value = result.get(key)
+    return int(value) if isinstance(value, (int, float)) else 0
+
+
+def metric_float(result: Metrics, key: str) -> float:
+    value = result.get(key)
+    return float(value) if isinstance(value, (int, float)) else 0.0
 
 
 def split(rows: list[Row]) -> tuple[list[Row], list[Row], list[Row]]:
@@ -193,8 +207,32 @@ def split(rows: list[Row]) -> tuple[list[Row], list[Row], list[Row]]:
     return rows[:train_end], rows[train_end:validation_end], rows[validation_end:]
 
 
+def string_condition(attribute: str, expected: str) -> Condition:
+    def predicate(row: Row) -> bool:
+        return str(getattr(row, attribute)) == expected
+
+    return Condition(f"{attribute}={expected}", predicate)
+
+
+def boolean_condition(attribute: str, expected: bool) -> Condition:
+    def predicate(row: Row) -> bool:
+        return getattr(row, attribute) is expected
+
+    return Condition(f"{attribute}={expected}", predicate)
+
+
+def numeric_condition(attribute: str, threshold: float, operator: str) -> Condition:
+    def predicate(row: Row) -> bool:
+        value = getattr(row, attribute)
+        if not isinstance(value, (int, float)):
+            return False
+        return value >= threshold if operator == ">=" else value <= threshold
+
+    return Condition(f"{attribute}{operator}{threshold}", predicate)
+
+
 def categorical_conditions(rows: list[Row]) -> list[Condition]:
-    attributes = (
+    string_attributes = (
         "timeframe",
         "strategy",
         "direction",
@@ -206,35 +244,25 @@ def categorical_conditions(rows: list[Row]) -> list[Condition]:
         "measured_geometry_lane",
     )
     conditions: list[Condition] = []
-    for attribute in attributes:
-        for value in sorted({str(getattr(row, attribute)) for row in rows}):
-            if value == "unknown":
-                continue
-            conditions.append(
-                Condition(
-                    f"{attribute}={value}",
-                    lambda row, attribute=attribute, value=value: str(getattr(row, attribute)) == value,
-                )
-            )
-    for attribute in (
+    for attribute in string_attributes:
+        for expected in sorted({str(getattr(row, attribute)) for row in rows}):
+            if expected != "unknown":
+                conditions.append(string_condition(attribute, expected))
+
+    boolean_attributes = (
         "measured_geometry_passed",
         "higher_timeframe_conflict",
         "immediate_timeframe_conflict",
         "entry_confirmation_complete",
         "setup_direction_confirmed",
-    ):
-        for value in (True, False):
-            conditions.append(
-                Condition(
-                    f"{attribute}={value}",
-                    lambda row, attribute=attribute, value=value: getattr(row, attribute) is value,
-                )
-            )
+    )
+    for attribute in boolean_attributes:
+        conditions.extend(boolean_condition(attribute, expected) for expected in (True, False))
     return conditions
 
 
 def numeric_conditions() -> list[Condition]:
-    specs = {
+    specs: dict[str, tuple[float, ...]] = {
         "confidence": (40.0, 50.0, 60.0, 70.0),
         "expected_r": (0.30, 0.60, 1.00, 1.50),
         "cost_drag_pct": (10.0, 20.0, 30.0, 40.0),
@@ -244,23 +272,9 @@ def numeric_conditions() -> list[Condition]:
     conditions: list[Condition] = []
     for attribute, thresholds in specs.items():
         for threshold in thresholds:
-            conditions.append(
-                Condition(
-                    f"{attribute}>={threshold}",
-                    lambda row, attribute=attribute, threshold=threshold: (
-                        getattr(row, attribute) is not None and getattr(row, attribute) >= threshold
-                    ),
-                )
-            )
+            conditions.append(numeric_condition(attribute, threshold, ">="))
             if attribute in {"cost_drag_pct", "stop_distance_pct"}:
-                conditions.append(
-                    Condition(
-                        f"{attribute}<={threshold}",
-                        lambda row, attribute=attribute, threshold=threshold: (
-                            getattr(row, attribute) is not None and getattr(row, attribute) <= threshold
-                        ),
-                    )
-                )
+                conditions.append(numeric_condition(attribute, threshold, "<="))
     return conditions
 
 
@@ -268,8 +282,16 @@ def apply(rows: Iterable[Row], conditions: tuple[Condition, ...]) -> list[Row]:
     return [row for row in rows if all(condition.predicate(row) for condition in conditions)]
 
 
-def positive(result: dict[str, float | int | None], minimum: int) -> bool:
-    return int(result["samples"] or 0) >= minimum and float(result["total_r"] or 0.0) > 0.0
+def positive(result: Metrics, minimum: int) -> bool:
+    return metric_int(result, "samples") >= minimum and metric_float(result, "total_r") > 0.0
+
+
+def unseen_passed(result: Metrics) -> bool:
+    return (
+        metric_int(result, "samples") >= MIN_TEST
+        and metric_float(result, "total_r") > 0.0
+        and metric_float(result, "profit_factor") >= 1.20
+    )
 
 
 def main() -> None:
@@ -293,9 +315,9 @@ def main() -> None:
     print()
 
     available = categorical_conditions(train) + numeric_conditions()
-    candidates: list[
-        tuple[float, tuple[Condition, ...], dict[str, Any], dict[str, Any], dict[str, Any]]
-    ] = []
+    CandidateResult: TypeAlias = tuple[float, tuple[Condition, ...], Metrics, Metrics, Metrics]
+    candidates: list[CandidateResult] = []
+
     for width in (1, 2, 3):
         for combo in combinations(available, width):
             train_metrics = metrics(apply(train, combo))
@@ -305,8 +327,8 @@ def main() -> None:
             if not positive(validation_metrics, MIN_VALIDATION):
                 continue
             test_metrics = metrics(apply(test, combo))
-            score = float(validation_metrics["total_r"] or 0.0) + float(
-                validation_metrics["average_r"] or 0.0
+            score = metric_float(validation_metrics, "total_r") + metric_float(
+                validation_metrics, "average_r"
             )
             candidates.append((score, combo, train_metrics, validation_metrics, test_metrics))
 
@@ -322,19 +344,9 @@ def main() -> None:
         print(f"  train      : {train_metrics}")
         print(f"  validation : {validation_metrics}")
         print(f"  test       : {test_metrics}")
-        approved = (
-            int(test_metrics["samples"] or 0) >= MIN_TEST
-            and float(test_metrics["total_r"] or 0.0) > 0.0
-            and float(test_metrics["profit_factor"] or 0.0) >= 1.20
-        )
-        print(f"  unseen gate: {'PASS' if approved else 'FAIL'}")
+        print(f"  unseen gate: {'PASS' if unseen_passed(test_metrics) else 'FAIL'}")
 
-    approved_count = sum(
-        int(test_metrics["samples"] or 0) >= MIN_TEST
-        and float(test_metrics["total_r"] or 0.0) > 0.0
-        and float(test_metrics["profit_factor"] or 0.0) >= 1.20
-        for _, _, _, _, test_metrics in candidates
-    )
+    approved_count = sum(unseen_passed(test_metrics) for _, _, _, _, test_metrics in candidates)
     print()
     print("DECISION")
     if approved_count:
