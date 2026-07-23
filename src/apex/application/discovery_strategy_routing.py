@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 
 from apex.application.discovery_contracts import DiscoveryAssessment
@@ -16,6 +17,13 @@ from apex.strategies import (
     strategy_evidence_summary,
 )
 from apex.strategies.candidate_identity import candidate_identities
+
+_BREAKOUT_STRATEGIES = {
+    StrategyType.MOMENTUM_BREAKOUT,
+    StrategyType.BREAKOUT_CONTINUATION,
+    StrategyType.BREAKOUT_RETEST,
+}
+_BREAKOUT_ROUTING_STAGE = "breakout_timeframe_authority"
 
 
 def apply_strategy_routing(
@@ -122,6 +130,7 @@ def build_strategy_routing_payload(
         ),
         "strategy_diagnostics": diagnostics,
         "strategy_applicability": _applicability_payload(strategy_analysis),
+        "breakout_routing": _breakout_routing_summary(strategy_analysis),
         "suppressed_candidates": _suppressed_payload(strategy_analysis),
         "candidate_diagnostics": _candidate_payloads(strategy_analysis),
         "eligible": setup is not None,
@@ -159,6 +168,68 @@ def _strategy_diagnostics(
             "higher_timeframe_breakout": diagnostic.higher_timeframe_breakout,
         }
         for strategy, diagnostic in analysis.strategy_diagnostics.items()
+    }
+
+
+def _breakout_routing_summary(
+    analysis: StrategyAnalysisResult | None,
+) -> dict[str, object]:
+    if analysis is None:
+        return {
+            "raw_breakout_candidate_count": 0,
+            "routed_breakout_candidate_count": 0,
+            "rejected_breakout_candidate_count": 0,
+            "conditional_breakout_candidate_count": 0,
+            "rejection_counts": {},
+            "timing_frame_direction_violation_count": 0,
+        }
+
+    retained_breakouts = tuple(
+        candidate
+        for candidate in analysis.candidates
+        if candidate.strategy in _BREAKOUT_STRATEGIES
+    )
+    rejected_breakouts = tuple(
+        item
+        for item in analysis.suppressed_candidates
+        if item.suppression_stage == _BREAKOUT_ROUTING_STAGE
+    )
+    rejection_counts = Counter(
+        code
+        for item in rejected_breakouts
+        for code in item.reason_codes
+    )
+    conditional_count = sum(
+        bool(candidate.metadata.get("refinement_requires_renewal"))
+        for candidate in retained_breakouts
+    )
+    timing_violation_count = sum(
+        candidate.metadata.get("timing_frame_used_for_direction") is not False
+        for candidate in retained_breakouts
+    ) + sum(
+        item.candidate.metadata.get("timing_frame_used_for_direction") is not False
+        for item in rejected_breakouts
+    )
+    return {
+        "raw_breakout_candidate_count": len(retained_breakouts) + len(rejected_breakouts),
+        "routed_breakout_candidate_count": len(retained_breakouts),
+        "rejected_breakout_candidate_count": len(rejected_breakouts),
+        "conditional_breakout_candidate_count": conditional_count,
+        "rejection_counts": dict(sorted(rejection_counts.items())),
+        "direction_authority_opposed_count": rejection_counts.get(
+            "30m_direction_authority_opposed", 0
+        ),
+        "setup_authority_opposed_count": rejection_counts.get(
+            "15m_setup_authority_opposed", 0
+        ),
+        "retest_failed_count": rejection_counts.get("5m_retest_failed", 0),
+        "retest_not_accepted_count": rejection_counts.get(
+            "5m_retest_not_accepted", 0
+        ),
+        "execution_authority_opposed_count": rejection_counts.get(
+            "5m_execution_authority_opposed", 0
+        ),
+        "timing_frame_direction_violation_count": timing_violation_count,
     }
 
 
