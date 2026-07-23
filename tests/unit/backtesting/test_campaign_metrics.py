@@ -21,6 +21,7 @@ from apex.cli_commands.backtesting import (
     _parse_as_of,
     _report_metrics,
     _shadow_replay_signals,
+    _thesis_metrics,
     _unique_geometry_population,
 )
 from apex.domain.models import Candle
@@ -668,3 +669,71 @@ def test_unique_geometry_population_aggregates_tp1_feasibility() -> None:
         "cost_only_infeasibility": 1,
         "target_type_only_infeasibility": 0,
     }
+
+
+def test_thesis_outcome_is_correct_when_target_precedes_invalidation() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=99.0, high=104.5, close=104.0),
+            _candle(2, low=97.5, high=101.0, close=98.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["thesis_outcome"] == "thesis_correct"
+    assert trade.metadata["target_before_invalidation"] is True
+    assert trade.metadata["invalidation_before_target"] is False
+    assert trade.metadata["thesis_first_target_candle"] == 1
+
+
+def test_thesis_outcome_is_wrong_when_invalidation_precedes_later_target() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=99.0, high=105.0, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["thesis_outcome"] == "thesis_wrong"
+    assert trade.metadata["target_before_invalidation"] is False
+    assert trade.metadata["invalidation_before_target"] is True
+    assert trade.metadata["thesis_first_invalidation_candle"] == 1
+
+
+def test_missed_entry_can_preserve_correct_thesis_and_late_reentry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=101.0, high=102.0, close=101.5),
+            _candle(2, low=99.5, high=101.0, close=100.5),
+            _candle(3, low=100.0, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["thesis_outcome"] == "thesis_correct"
+    assert trade.metadata["late_reentry_available"] is True
+    assert trade.metadata["late_reentry_first_candle"] == 2
+
+
+def test_thesis_metrics_do_not_change_production_authority() -> None:
+    correct = simulate_trade(
+        _signal(),
+        (_candle(1, low=99.0, high=104.5, close=104.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    wrong = simulate_trade(
+        _signal(),
+        (_candle(1, low=97.5, high=101.0, close=98.0),),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metrics = _thesis_metrics((correct, wrong))
+
+    assert metrics["strict_evaluable_count"] == 2
+    assert metrics["strict_thesis_accuracy"] == pytest.approx(0.5)
+    assert metrics["diagnostic_only"] is True
+    assert metrics["production_behavior_changed"] is False

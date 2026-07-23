@@ -442,6 +442,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_funnel": decision_funnel,
             "outcome_distribution": _outcome_distribution(report.trades),
             "risk_and_excursion": _risk_and_excursion(report.trades),
+            "thesis_metrics": _thesis_metrics(report.trades),
             "execution_assumptions": {
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
@@ -468,6 +469,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "execution_metrics": _execution_metrics(conditional_report.trades),
                 "outcome_distribution": _outcome_distribution(conditional_report.trades),
                 "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
+                "thesis_metrics": _thesis_metrics(conditional_report.trades),
                 "calibration_authoritative": False,
             },
             "opportunity_replay": {
@@ -486,6 +488,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "execution_metrics": _execution_metrics(opportunity_report.trades),
                 "outcome_distribution": _outcome_distribution(opportunity_report.trades),
                 "risk_and_excursion": _risk_and_excursion(opportunity_report.trades),
+                "thesis_metrics": _thesis_metrics(opportunity_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
                 "purpose": (
@@ -508,6 +511,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "risk_and_excursion": _risk_and_excursion(shadow_report.trades),
                 "source_distribution": _shadow_source_distribution(shadow_report.trades),
                 "direction_accuracy": _direction_accuracy(shadow_report.trades),
+                "thesis_metrics": _thesis_metrics(shadow_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
             },
@@ -1609,6 +1613,19 @@ def _canonical_trade_records(
                 "counterfactual_path_mfe_r": metadata_map.get("counterfactual_path_mfe_r"),
                 "counterfactual_path_mae_r": metadata_map.get("counterfactual_path_mae_r"),
                 "direction_correct_at_horizon": metadata_map.get("direction_correct_at_horizon"),
+                "thesis_outcome": metadata_map.get("thesis_outcome"),
+                "target_before_invalidation": metadata_map.get("target_before_invalidation"),
+                "invalidation_before_target": metadata_map.get("invalidation_before_target"),
+                "partial_directional_success": metadata_map.get("partial_directional_success"),
+                "late_reentry_available": metadata_map.get("late_reentry_available"),
+                "late_reentry_first_candle": metadata_map.get("late_reentry_first_candle"),
+                "thesis_evaluation_horizon_candles": metadata_map.get(
+                    "thesis_evaluation_horizon_candles"
+                ),
+                "thesis_first_target_candle": metadata_map.get("thesis_first_target_candle"),
+                "thesis_first_invalidation_candle": metadata_map.get(
+                    "thesis_first_invalidation_candle"
+                ),
                 "entry_follow_through": metadata_map.get("entry_follow_through"),
                 "same_candle_stop_target_ambiguous": metadata_map.get(
                     "same_candle_stop_target_ambiguous"
@@ -1854,6 +1871,54 @@ def _shadow_source_distribution(trades: object) -> dict[str, int]:
         if isinstance(source, str):
             counts[source] = counts.get(source, 0) + 1
     return counts
+
+
+def _thesis_metrics(trades: object) -> dict[str, object]:
+    """Aggregate prediction quality independently from activation and fill quality."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    counts = {
+        "thesis_correct": 0,
+        "thesis_partially_correct": 0,
+        "thesis_wrong": 0,
+        "thesis_unresolved": 0,
+    }
+    late_reentry = 0
+    target_before_invalidation = 0
+    invalidation_before_target = 0
+
+    for trade in values:
+        metadata = getattr(trade, "metadata", None)
+        if not isinstance(metadata, Mapping):
+            continue
+        outcome = metadata.get("thesis_outcome")
+        if isinstance(outcome, str) and outcome in counts:
+            counts[outcome] += 1
+        late_reentry += metadata.get("late_reentry_available") is True
+        target_before_invalidation += metadata.get("target_before_invalidation") is True
+        invalidation_before_target += metadata.get("invalidation_before_target") is True
+
+    evaluable = counts["thesis_correct"] + counts["thesis_wrong"]
+    directional_evaluable = evaluable + counts["thesis_partially_correct"]
+    total = sum(counts.values())
+    return {
+        **counts,
+        "total_thesis_records": total,
+        "strict_evaluable_count": evaluable,
+        "strict_thesis_accuracy": (counts["thesis_correct"] / evaluable if evaluable else None),
+        "directional_evaluable_count": directional_evaluable,
+        "directional_success_rate": (
+            (counts["thesis_correct"] + counts["thesis_partially_correct"]) / directional_evaluable
+            if directional_evaluable
+            else None
+        ),
+        "target_before_invalidation_count": target_before_invalidation,
+        "invalidation_before_target_count": invalidation_before_target,
+        "late_reentry_available_count": late_reentry,
+        "late_reentry_available_rate": late_reentry / total if total else None,
+        "diagnostic_only": True,
+        "production_behavior_changed": False,
+    }
 
 
 def _direction_accuracy(trades: object) -> dict[str, object]:

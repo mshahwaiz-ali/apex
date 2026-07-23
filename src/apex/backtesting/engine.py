@@ -20,6 +20,8 @@ from apex.backtesting.contracts import (
 from apex.domain.models import Candle
 from apex.strategies import TradeDirection
 
+THESIS_PARTIAL_MOVE_R = 0.5
+
 
 def simulate_trade(
     signal: BacktestSignal,
@@ -58,6 +60,7 @@ def simulate_trade(
     )
     metadata = {
         **({} if metadata is None else dict(metadata)),
+        **_thesis_outcome_metadata(signal, candles[:max_candles]),
         "counterfactual_path_mfe_r": path_mfe_r,
         "counterfactual_path_mae_r": path_mae_r,
         "direction_correct_at_horizon": direction_correct,
@@ -578,6 +581,85 @@ def _excursion_metadata(
     result["maximum_favorable_excursion_r"] = maximum_favorable_excursion_r
     result["maximum_adverse_excursion_r"] = maximum_adverse_excursion_r
     return result
+
+
+def _thesis_outcome_metadata(
+    signal: BacktestSignal,
+    candles: Sequence[Candle],
+) -> dict[str, str | int | float | bool]:
+    """Evaluate the frozen directional thesis independently from entry execution.
+
+    This diagnostic never changes activation, fill, stop, target, or production
+    authority. The planned TP1 is the thesis objective. Pre-entry invalidation is
+    preferred when available; otherwise the planned stop is the invalidation.
+    Conservative same-candle ordering treats invalidation as occurring first.
+    """
+
+    invalidation = signal.pre_entry_invalidation_price or signal.stop_price
+    risk_per_unit = abs(signal.entry_price - signal.stop_price)
+    first_target_candle = 0
+    first_invalidation_candle = 0
+    maximum_favorable_r = 0.0
+    late_reentry_candle = 0
+
+    for index, candle in enumerate(candles, start=1):
+        favorable_r, _ = _candle_excursions_r(signal, candle, signal.entry_price)
+        maximum_favorable_r = max(maximum_favorable_r, favorable_r)
+
+        if index > 1 and late_reentry_candle == 0 and _entry_touched(signal, candle):
+            late_reentry_candle = index
+
+        target_hit = _target_hit(signal, candle, signal.target_price)
+        invalidation_hit = (
+            candle.low <= invalidation
+            if signal.direction is TradeDirection.LONG
+            else candle.high >= invalidation
+        )
+
+        if invalidation_hit and first_invalidation_candle == 0:
+            first_invalidation_candle = index
+        if target_hit and first_target_candle == 0:
+            first_target_candle = index
+
+        if target_hit or invalidation_hit:
+            break
+
+    target_before_invalidation = first_target_candle > 0 and (
+        first_invalidation_candle == 0 or first_target_candle < first_invalidation_candle
+    )
+    invalidation_before_target = first_invalidation_candle > 0 and (
+        first_target_candle == 0 or first_invalidation_candle <= first_target_candle
+    )
+    partial_success = (
+        not target_before_invalidation
+        and not invalidation_before_target
+        and risk_per_unit > 0.0
+        and maximum_favorable_r >= THESIS_PARTIAL_MOVE_R
+    )
+
+    if target_before_invalidation:
+        outcome = "thesis_correct"
+    elif invalidation_before_target:
+        outcome = "thesis_wrong"
+    elif partial_success:
+        outcome = "thesis_partially_correct"
+    else:
+        outcome = "thesis_unresolved"
+
+    return {
+        "thesis_outcome": outcome,
+        "target_before_invalidation": target_before_invalidation,
+        "invalidation_before_target": invalidation_before_target,
+        "partial_directional_success": partial_success,
+        "thesis_target_price": signal.target_price,
+        "thesis_invalidation_price": invalidation,
+        "thesis_evaluation_horizon_candles": len(candles),
+        "thesis_first_target_candle": first_target_candle,
+        "thesis_first_invalidation_candle": first_invalidation_candle,
+        "thesis_maximum_favorable_excursion_r": maximum_favorable_r,
+        "late_reentry_available": (late_reentry_candle > 0 and not invalidation_before_target),
+        "late_reentry_first_candle": late_reentry_candle,
+    }
 
 
 def _post_stop_thesis_metadata(
