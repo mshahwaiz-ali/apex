@@ -39,6 +39,8 @@ def signal_from_discovery_setup(
         direction=setup.direction,
         generated_at=setup.decision_time,
         entry_price=setup.entry.preferred,
+        entry_zone_low=setup.entry.lower,
+        entry_zone_high=setup.entry.upper,
         stop_price=setup.stop_loss.price,
         target_price=targets[0].price,
         quantity=1.0,
