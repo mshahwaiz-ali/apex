@@ -99,9 +99,7 @@ def _retest_state(
         else latest.high >= level - tolerance
     )
     accepted = touched and (
-        latest.close >= level
-        if direction is TradeDirection.LONG
-        else latest.close <= level
+        latest.close >= level if direction is TradeDirection.LONG else latest.close <= level
     )
     failed = (
         latest.close < level - tolerance

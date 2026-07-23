@@ -36,7 +36,9 @@ def route_breakout_candidates(
         warnings = list(candidate.evidence.warnings)
         provisional = candidate.provisional
         if authority.conditional_only:
-            warnings.append("3m refinement strongly opposes immediate continuation; wait for renewal")
+            warnings.append(
+                "3m refinement strongly opposes immediate continuation; wait for renewal"
+            )
             metadata["entry_confirmation_complete"] = False
             metadata["refinement_requires_renewal"] = True
             provisional = True
