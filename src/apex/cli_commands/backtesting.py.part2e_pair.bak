@@ -2279,14 +2279,6 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
     episode_ids: set[str] = set()
     aggressive_raw = 0
     retest_raw = 0
-    paired_available_count = 0
-    paired_predicted_counts: dict[str, int] = {}
-    paired_realized_counts: dict[str, int] = {}
-    paired_prediction_evaluable_count = 0
-    paired_prediction_correct_count = 0
-    paired_net_r_deltas: list[float] = []
-    paired_false_aggressive_count = 0
-    paired_false_retest_count = 0
 
     for trade in values:
         metadata = getattr(trade, "metadata", None)
@@ -2313,31 +2305,6 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
                 else "neither_available"
             )
         paired_counts[pair] += 1
-
-        if metadata.get("recovery_pair_available") is True:
-            paired_available_count += 1
-            predicted = metadata.get("recovery_pair_predicted_mode")
-            if isinstance(predicted, str):
-                paired_predicted_counts[predicted] = paired_predicted_counts.get(predicted, 0) + 1
-            realized = metadata.get("recovery_pair_realized_winner")
-            if isinstance(realized, str):
-                paired_realized_counts[realized] = paired_realized_counts.get(realized, 0) + 1
-            delta = numeric(metadata, "recovery_pair_net_r_delta")
-            if delta is not None:
-                paired_net_r_deltas.append(delta)
-            if predicted in {"prefer_aggressive", "prefer_retest"} and realized in {
-                "aggressive",
-                "retest",
-            }:
-                paired_prediction_evaluable_count += 1
-                correct = metadata.get("recovery_pair_prediction_correct") is True
-                paired_prediction_correct_count += int(correct)
-                paired_false_aggressive_count += int(
-                    predicted == "prefer_aggressive" and realized == "retest"
-                )
-                paired_false_retest_count += int(
-                    predicted == "prefer_retest" and realized == "aggressive"
-                )
 
         for key, destination in (
             ("recovery_event_id_strict", strict_ids),
@@ -2495,27 +2462,17 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
         "aggressive_reclaim": aggressive_metrics,
         "retest_recovery": retest_metrics,
         "paired_entry_comparison": {
-            "classification_counts": paired_counts,
             "availability_counts": paired_counts,
-            "paired_available_count": paired_available_count,
-            "both_available_unique_event_count": paired_available_count,
-            "comparable_net_r_count": len(paired_net_r_deltas),
-            "predicted_mode_counts": paired_predicted_counts,
-            "realized_winner_counts": paired_realized_counts,
-            "prediction_evaluable_count": paired_prediction_evaluable_count,
-            "prediction_correct_count": paired_prediction_correct_count,
-            "prediction_accuracy": (
-                paired_prediction_correct_count / paired_prediction_evaluable_count
-                if paired_prediction_evaluable_count
+            "both_available_unique_event_count": len(both_event_ids),
+            "comparable_net_r_count": len(paired_net_differences),
+            "aggressive_better_count": aggressive_better,
+            "retest_better_count": retest_better,
+            "equal_net_r_count": tied,
+            "average_aggressive_minus_retest_net_r": (
+                sum(paired_net_differences) / len(paired_net_differences)
+                if paired_net_differences
                 else None
             ),
-            "false_aggressive_selection_count": paired_false_aggressive_count,
-            "false_retest_selection_count": paired_false_retest_count,
-            "average_aggressive_minus_retest_net_r": (
-                sum(paired_net_r_deltas) / len(paired_net_r_deltas) if paired_net_r_deltas else None
-            ),
-            "total_aggressive_minus_retest_net_r": sum(paired_net_r_deltas),
-            "comparison_basis": "entry_time_geometry_pre_outcome",
         },
         "event_identity_sensitivity": {
             "strict_unique_event_count": len(strict_ids),

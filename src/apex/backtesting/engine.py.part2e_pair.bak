@@ -1182,94 +1182,6 @@ def _post_stop_thesis_metadata(
     aggressive_net_r_value = float(aggressive_replay.get("net_r", 0.0))
     retest_net_r_value = float(retest_replay.get("net_r", 0.0))
 
-    def projected_recovery_net_r(entry_price: float) -> tuple[float, float, float]:
-        mode_risk = abs(entry_price - stop)
-        if mode_risk <= 0.0:
-            return 0.0, 0.0, 0.0
-        target_move = (
-            signal.target_price - entry_price
-            if signal.direction is TradeDirection.LONG
-            else entry_price - signal.target_price
-        )
-        gross_room_r = target_move / mode_risk
-        round_trip_cost = (
-            (entry_price + signal.target_price) * (config.fee_pct + config.slippage_pct) / 100.0
-        )
-        cost_drag_r = round_trip_cost / mode_risk
-        return gross_room_r, cost_drag_r, gross_room_r - cost_drag_r
-
-    aggressive_room_r = 0.0
-    aggressive_cost_drag_r = 0.0
-    aggressive_projected_net_r = 0.0
-    if aggressive_available:
-        (
-            aggressive_room_r,
-            aggressive_cost_drag_r,
-            aggressive_projected_net_r,
-        ) = projected_recovery_net_r(recovery_entry_price)
-
-    retest_room_r = 0.0
-    retest_cost_drag_r = 0.0
-    retest_projected_net_r = 0.0
-    if retest_recovery_available:
-        (
-            retest_room_r,
-            retest_cost_drag_r,
-            retest_projected_net_r,
-        ) = projected_recovery_net_r(retest_entry_price)
-
-    retest_delay_bars = (
-        max(0, retest_entry_candle - reclaim_candle_index) if retest_recovery_available else 0
-    )
-    aggressive_preference_score = aggressive_projected_net_r + (
-        0.10 if entry_level_held_next_candle else 0.0
-    )
-    retest_preference_score = (
-        retest_projected_net_r
-        + (0.10 if retest_held else 0.0)
-        - min(0.25, 0.05 * retest_delay_bars)
-    )
-
-    if aggressive_available and retest_recovery_available:
-        aggressive_gate = aggressive_projected_net_r >= 0.30
-        retest_gate = retest_projected_net_r >= 0.30
-        if aggressive_gate and not retest_gate:
-            recovery_pair_predicted_mode = "prefer_aggressive"
-        elif retest_gate and not aggressive_gate:
-            recovery_pair_predicted_mode = "prefer_retest"
-        elif aggressive_preference_score >= retest_preference_score + 0.10:
-            recovery_pair_predicted_mode = "prefer_aggressive"
-        elif retest_preference_score >= aggressive_preference_score + 0.10:
-            recovery_pair_predicted_mode = "prefer_retest"
-        else:
-            recovery_pair_predicted_mode = "no_clear_preference"
-    elif aggressive_available:
-        recovery_pair_predicted_mode = "single_mode_aggressive"
-    elif retest_recovery_available:
-        recovery_pair_predicted_mode = "single_mode_retest"
-    else:
-        recovery_pair_predicted_mode = "no_mode_available"
-
-    if aggressive_available and retest_recovery_available:
-        recovery_pair_net_r_delta = aggressive_net_r_value - retest_net_r_value
-        if recovery_pair_net_r_delta > 0.0:
-            recovery_pair_realized_winner = "aggressive"
-        elif recovery_pair_net_r_delta < 0.0:
-            recovery_pair_realized_winner = "retest"
-        else:
-            recovery_pair_realized_winner = "tie"
-    else:
-        recovery_pair_net_r_delta = 0.0
-        recovery_pair_realized_winner = "not_comparable"
-
-    recovery_pair_prediction_correct = (
-        recovery_pair_predicted_mode == "prefer_aggressive"
-        and recovery_pair_realized_winner == "aggressive"
-    ) or (
-        recovery_pair_predicted_mode == "prefer_retest"
-        and recovery_pair_realized_winner == "retest"
-    )
-
     recovery_event_id_strict = ""
     recovery_event_id_loose = ""
     recovery_market_episode_id = ""
@@ -1366,20 +1278,6 @@ def _post_stop_thesis_metadata(
         "recovery_event_id_loose": recovery_event_id_loose,
         "recovery_market_episode_id": recovery_market_episode_id,
         "recovery_entry_pair_classification": recovery_entry_pair_classification,
-        "recovery_pair_available": (aggressive_available and retest_recovery_available),
-        "recovery_pair_predicted_mode": recovery_pair_predicted_mode,
-        "recovery_pair_realized_winner": recovery_pair_realized_winner,
-        "recovery_pair_net_r_delta": recovery_pair_net_r_delta,
-        "recovery_pair_prediction_correct": recovery_pair_prediction_correct,
-        "recovery_pair_aggressive_remaining_room_r": aggressive_room_r,
-        "recovery_pair_retest_remaining_room_r": retest_room_r,
-        "recovery_pair_aggressive_cost_drag_r": aggressive_cost_drag_r,
-        "recovery_pair_retest_cost_drag_r": retest_cost_drag_r,
-        "recovery_pair_aggressive_projected_net_r": aggressive_projected_net_r,
-        "recovery_pair_retest_projected_net_r": retest_projected_net_r,
-        "recovery_pair_aggressive_preference_score": aggressive_preference_score,
-        "recovery_pair_retest_preference_score": retest_preference_score,
-        "recovery_pair_retest_delay_bars": retest_delay_bars,
         "recovery_target_before_failure": recovery_target_before_failure,
         "aggressive_reclaim_entry_available": bool(aggressive_replay.get("available")),
         "aggressive_reclaim_entry_price": recovery_entry_price,
