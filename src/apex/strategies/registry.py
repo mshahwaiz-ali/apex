@@ -7,7 +7,11 @@ from typing import Protocol
 
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.breakout_retest import generate_breakout_retest_candidates
-from apex.strategies.breakout_routing import route_breakout_candidates
+from apex.strategies.breakout_routing import (
+    BreakoutRoutingResult,
+    route_breakout_candidates,
+    route_breakout_candidates_with_diagnostics,
+)
 from apex.strategies.compression_expansion import (
     generate_compression_expansion_candidates,
 )
@@ -73,6 +77,18 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
     (StrategyType.MOMENTUM_SCALP, generate_momentum_scalp_candidates),
     (StrategyType.EXHAUSTION_REVERSAL, generate_exhaustion_reversal_candidates),
 )
+
+
+def run_strategy_generator_with_diagnostics(
+    generator: StrategyGenerator,
+    context: StrategyContext,
+    *,
+    decision_time: datetime,
+) -> BreakoutRoutingResult:
+    """Invoke one generator and preserve shared breakout routing diagnostics."""
+
+    generated = generator(context, decision_time=decision_time)
+    return route_breakout_candidates_with_diagnostics(context, generated)
 
 
 def run_strategy_generator(
