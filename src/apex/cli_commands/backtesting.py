@@ -673,6 +673,11 @@ def _calibration_record(
             None if setup is None else [target.target_basis for target in setup.take_profits]
         ),
         "candidate_diagnostics": _candidate_diagnostics(analysis),
+        "geometry_feasibility_diagnostics": (
+            methodology_routing.get("geometry_safety_audits")
+            if isinstance(methodology_routing, Mapping)
+            else None
+        ),
         "confirmation_diagnostics": _decision_confirmation_diagnostics(
             analysis=analysis,
             setup=setup,
@@ -1390,6 +1395,32 @@ def _unique_geometry_population(
                     "strategy_aliases": [],
                     "states": [],
                     "rejection_codes": [],
+                    "minimum_viable_tp1_price": number(geometry.get("minimum_viable_tp1_price")),
+                    "minimum_viable_tp1_distance": number(
+                        geometry.get("minimum_viable_tp1_distance")
+                    ),
+                    "minimum_viable_tp1_distance_atr": number(
+                        geometry.get("minimum_viable_tp1_distance_atr")
+                    ),
+                    "available_tp1_distance": number(geometry.get("available_tp1_distance")),
+                    "available_tp1_distance_atr": number(
+                        geometry.get("available_tp1_distance_atr")
+                    ),
+                    "tp1_feasibility_gap": number(geometry.get("tp1_feasibility_gap")),
+                    "tp1_feasibility_gap_atr": number(geometry.get("tp1_feasibility_gap_atr")),
+                    "geometry_feasible_before_quality": geometry.get(
+                        "geometry_feasible_before_quality"
+                    ),
+                    "feasible_existing_target_count": geometry.get(
+                        "feasible_existing_target_count"
+                    ),
+                    "nearest_feasible_existing_target_price": number(
+                        geometry.get("nearest_feasible_existing_target_price")
+                    ),
+                    "nearest_feasible_existing_target_index": geometry.get(
+                        "nearest_feasible_existing_target_index"
+                    ),
+                    "no_feasible_target_reason": geometry.get("no_feasible_target_reason"),
                 },
             )
 
@@ -1419,6 +1450,13 @@ def _unique_geometry_population(
     rejected_unique_count = 0
     passed_unique_count = 0
     multi_gate_rejection_count = 0
+    feasibility_counts = {
+        "current_tp1_infeasible_but_farther_existing_target_feasible": 0,
+        "no_existing_target_feasible": 0,
+        "minimum_viable_tp1_beyond_lane_horizon": 0,
+        "cost_only_infeasibility": 0,
+        "target_type_only_infeasibility": 0,
+    }
     serialized_groups: list[dict[str, object]] = []
 
     for group in groups.values():
@@ -1448,6 +1486,24 @@ def _unique_geometry_population(
             rejected_unique_count += 1
         else:
             passed_unique_count += 1
+
+        current_gap = group.get("tp1_feasibility_gap")
+        nearest_index = group.get("nearest_feasible_existing_target_index")
+        feasible_before_quality = group.get("geometry_feasible_before_quality")
+        no_feasible_reason = group.get("no_feasible_target_reason")
+        if (
+            isinstance(current_gap, int | float)
+            and not isinstance(current_gap, bool)
+            and float(current_gap) > 1e-9
+            and isinstance(nearest_index, int)
+            and not isinstance(nearest_index, bool)
+            and nearest_index > 1
+        ):
+            feasibility_counts["current_tp1_infeasible_but_farther_existing_target_feasible"] += 1
+        if feasible_before_quality is False:
+            feasibility_counts["no_existing_target_feasible"] += 1
+        if isinstance(no_feasible_reason, str) and no_feasible_reason in feasibility_counts:
+            feasibility_counts[no_feasible_reason] += 1
 
         if isinstance(codes, list):
             for code in codes:
@@ -1496,6 +1552,7 @@ def _unique_geometry_population(
         "multi_gate_rejection_count": multi_gate_rejection_count,
         "unique_rejection_distribution": dict(sorted(rejection_distribution.items())),
         "exclusive_rejection_distribution": dict(sorted(exclusive_rejection_distribution.items())),
+        "tp1_feasibility": feasibility_counts,
         "groups": serialized_groups,
         "production_behavior_changed": False,
     }

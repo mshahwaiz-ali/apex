@@ -232,6 +232,23 @@ def candidate_geometry_safety_audit_payload(
             "minimum_stop_to_cost_ratio": item.minimum_stop_to_cost_ratio,
             "tp1_distance_atr": item.tp1_distance_atr,
             "maximum_tp1_distance_atr": item.maximum_tp1_distance_atr,
+            "minimum_viable_tp1_price": item.minimum_viable_tp1_price,
+            "minimum_viable_tp1_distance": item.minimum_viable_tp1_distance,
+            "minimum_viable_tp1_distance_atr": item.minimum_viable_tp1_distance_atr,
+            "available_tp1_price": item.available_tp1_price,
+            "available_tp1_distance": item.available_tp1_distance,
+            "available_tp1_distance_atr": item.available_tp1_distance_atr,
+            "tp1_feasibility_gap": item.tp1_feasibility_gap,
+            "tp1_feasibility_gap_atr": item.tp1_feasibility_gap_atr,
+            "geometry_feasible_before_quality": item.geometry_feasible_before_quality,
+            "feasible_existing_target_count": item.feasible_existing_target_count,
+            "nearest_feasible_existing_target_price": (item.nearest_feasible_existing_target_price),
+            "nearest_feasible_existing_target_index": (item.nearest_feasible_existing_target_index),
+            "no_feasible_target_reason": (
+                None
+                if item.no_feasible_target_reason is None
+                else item.no_feasible_target_reason.value
+            ),
         }
 
     measured = audit.measured_assessment

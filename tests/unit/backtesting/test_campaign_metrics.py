@@ -603,3 +603,68 @@ def test_unique_geometry_population_separates_distinct_stops_and_gate_sets() -> 
     assert result["multi_gate_rejection_count"] == 1
     assert result["exclusive_rejection_distribution"] == {}
     assert result["production_behavior_changed"] is False
+
+
+def test_unique_geometry_population_aggregates_tp1_feasibility() -> None:
+    records = [
+        {
+            "decision_time": "2026-01-01T00:00:00+00:00",
+            "symbol": "BTCUSDT",
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "trend_pullback:long:0",
+                    "strategy": "trend_pullback",
+                    "geometry_lane": "nearby_structured",
+                    "geometry_state": "reject",
+                    "geometry_rejection_codes": ["tp1_below_lane_floor"],
+                    "geometry_audit": {
+                        "selected_entry": 100.0,
+                        "entry_zone_low": 99.5,
+                        "entry_zone_high": 100.5,
+                        "executable_stop": 98.0,
+                        "tp1_price": 101.0,
+                        "minimum_viable_tp1_price": 102.725,
+                        "minimum_viable_tp1_distance": 2.725,
+                        "minimum_viable_tp1_distance_atr": 1.3625,
+                        "available_tp1_distance": 1.0,
+                        "available_tp1_distance_atr": 0.5,
+                        "tp1_feasibility_gap": 1.725,
+                        "tp1_feasibility_gap_atr": 0.8625,
+                        "geometry_feasible_before_quality": True,
+                        "feasible_existing_target_count": 1,
+                        "nearest_feasible_existing_target_price": 103.0,
+                        "nearest_feasible_existing_target_index": 2,
+                        "no_feasible_target_reason": None,
+                    },
+                },
+                {
+                    "candidate_id": "momentum_breakout:long:0",
+                    "strategy": "momentum_breakout",
+                    "geometry_lane": "cmp_scalp",
+                    "geometry_state": "reject",
+                    "geometry_rejection_codes": ["tp1_below_lane_floor"],
+                    "geometry_audit": {
+                        "selected_entry": 100.0,
+                        "entry_zone_low": 99.5,
+                        "entry_zone_high": 100.5,
+                        "executable_stop": 98.0,
+                        "tp1_price": 102.0,
+                        "geometry_feasible_before_quality": False,
+                        "feasible_existing_target_count": 0,
+                        "nearest_feasible_existing_target_index": None,
+                        "no_feasible_target_reason": "cost_only_infeasibility",
+                    },
+                },
+            ],
+        }
+    ]
+
+    result = _unique_geometry_population(records)
+
+    assert result["tp1_feasibility"] == {
+        "current_tp1_infeasible_but_farther_existing_target_feasible": 1,
+        "no_existing_target_feasible": 1,
+        "minimum_viable_tp1_beyond_lane_horizon": 0,
+        "cost_only_infeasibility": 1,
+        "target_type_only_infeasibility": 0,
+    }

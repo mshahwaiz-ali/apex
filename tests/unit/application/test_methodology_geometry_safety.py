@@ -45,6 +45,7 @@ def _candidate(
     direction: TradeDirection = TradeDirection.LONG,
     target_prices: tuple[float, ...] = (103.0,),
     target_type: TargetType = TargetType.STRUCTURAL,
+    target_types: tuple[TargetType, ...] | None = None,
 ) -> TradeCandidate:
     if direction is TradeDirection.LONG:
         entry = EntryZone(
@@ -89,7 +90,7 @@ def _candidate(
         targets=TargetConcept(
             levels=tuple(
                 TargetLevel(
-                    kind=target_type,
+                    kind=(target_type if target_types is None else target_types[index - 1]),
                     price=price,
                     label=f"TP{index}",
                     rationale=("test target",),
@@ -336,3 +337,136 @@ def test_policy_requires_every_lane() -> None:
                 OpportunityLane.CMP_SCALP: LaneGeometryPolicy(1.0, 2.0, 45.0),
             }
         )
+
+
+def test_cost_adjusted_minimum_viable_tp1_long_and_short() -> None:
+    long_result = evaluate_geometry_safety(
+        _candidate(target_prices=(103.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=_policy(),
+    )
+    short_result = evaluate_geometry_safety(
+        _candidate(direction=TradeDirection.SHORT, target_prices=(97.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=102.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=_policy(),
+    )
+
+    assert long_result.diagnostics.minimum_viable_tp1_distance == pytest.approx(2.2)
+    assert long_result.diagnostics.minimum_viable_tp1_price == pytest.approx(102.2)
+    assert long_result.diagnostics.minimum_viable_tp1_distance_atr == pytest.approx(1.1)
+    assert short_result.diagnostics.minimum_viable_tp1_price == pytest.approx(97.8)
+
+
+def test_farther_existing_target_can_rescue_infeasible_current_tp1() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(101.0, 103.0)),
+        lane=OpportunityLane.NEARBY_STRUCTURED,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.tp1_feasibility_gap > 0.0
+    assert result.diagnostics.geometry_feasible_before_quality is True
+    assert result.diagnostics.feasible_existing_target_count == 1
+    assert result.diagnostics.nearest_feasible_existing_target_price == pytest.approx(103.0)
+    assert result.diagnostics.nearest_feasible_existing_target_index == 2
+    assert result.diagnostics.no_feasible_target_reason is None
+
+
+def test_no_existing_target_feasible_is_explicit() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(100.6, 101.0)),
+        lane=OpportunityLane.NEARBY_STRUCTURED,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.geometry_feasible_before_quality is False
+    assert result.diagnostics.feasible_existing_target_count == 0
+    assert result.diagnostics.no_feasible_target_reason.value == "no_existing_target_feasible"
+
+
+def test_minimum_viable_tp1_beyond_lane_horizon_is_explicit() -> None:
+    policy = GeometrySafetyPolicy(
+        lanes={
+            **_policy().lanes,
+            OpportunityLane.CMP_SCALP: LaneGeometryPolicy(
+                1.0, 2.0, 45.0, maximum_tp1_distance_atr=1.0
+            ),
+        }
+    )
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(103.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=policy,
+    )
+
+    assert result.diagnostics.minimum_viable_tp1_distance_atr == pytest.approx(1.1)
+    assert (
+        result.diagnostics.no_feasible_target_reason.value
+        == "minimum_viable_tp1_beyond_lane_horizon"
+    )
+
+
+def test_cost_only_target_infeasibility_is_distinguished() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(102.0,)),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.gross_tp1_reward_to_risk == pytest.approx(1.0)
+    assert result.diagnostics.net_tp1_reward_to_risk < 1.0
+    assert result.diagnostics.no_feasible_target_reason.value == "cost_only_infeasibility"
+
+
+def test_scalp_expansion_target_can_be_skipped_for_verified_farther_target() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(
+            target_prices=(103.0, 104.0),
+            target_types=(TargetType.EXPANSION, TargetType.STRUCTURAL),
+        ),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        decision_atr=2.0,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.geometry_feasible_before_quality is True
+    assert result.diagnostics.nearest_feasible_existing_target_index == 2
+
+
+def test_scalp_expansion_only_target_reports_target_type_infeasibility() -> None:
+    result = evaluate_geometry_safety(
+        _candidate(target_prices=(103.0,), target_type=TargetType.EXPANSION),
+        lane=OpportunityLane.CMP_SCALP,
+        executable_stop=98.0,
+        target_quality=70.0,
+        expected_cost_pct=0.10,
+        policy=_policy(),
+    )
+
+    assert result.diagnostics.geometry_feasible_before_quality is False
+    assert result.diagnostics.no_feasible_target_reason.value == "target_type_only_infeasibility"

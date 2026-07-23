@@ -22,6 +22,13 @@ class GeometrySafetyState(StrEnum):
     INCOMPLETE = "incomplete"
 
 
+class NoFeasibleTargetReason(StrEnum):
+    NO_EXISTING_TARGET_FEASIBLE = "no_existing_target_feasible"
+    MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON = "minimum_viable_tp1_beyond_lane_horizon"
+    COST_ONLY_INFEASIBILITY = "cost_only_infeasibility"
+    TARGET_TYPE_ONLY_INFEASIBILITY = "target_type_only_infeasibility"
+
+
 class GeometryRejectionCode(StrEnum):
     COSTS_UNAVAILABLE = "costs_unavailable"
     WRONG_SIDE_STOP = "wrong_side_stop"
@@ -121,6 +128,19 @@ class GeometrySafetyDiagnostics:
     minimum_stop_to_cost_ratio: float
     tp1_distance_atr: float | None
     maximum_tp1_distance_atr: float | None
+    minimum_viable_tp1_price: float | None
+    minimum_viable_tp1_distance: float | None
+    minimum_viable_tp1_distance_atr: float | None
+    available_tp1_price: float
+    available_tp1_distance: float
+    available_tp1_distance_atr: float | None
+    tp1_feasibility_gap: float | None
+    tp1_feasibility_gap_atr: float | None
+    geometry_feasible_before_quality: bool | None
+    feasible_existing_target_count: int | None
+    nearest_feasible_existing_target_price: float | None
+    nearest_feasible_existing_target_index: int | None
+    no_feasible_target_reason: NoFeasibleTargetReason | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +218,16 @@ def evaluate_geometry_safety(
         if gross_rr > 0.0 and net_rr is not None:
             cost_drag_on_gross_rr_pct = (gross_rr - net_rr) / gross_rr * 100.0
 
+    feasibility = _existing_target_feasibility(
+        candidate,
+        lane=lane,
+        selected_entry=selected_entry,
+        stop_distance=stop_distance,
+        cost_distance=cost_distance,
+        decision_atr=decision_atr,
+        policy=lane_policy,
+    )
+
     diagnostics = GeometrySafetyDiagnostics(
         lane=lane,
         selected_entry=selected_entry,
@@ -228,6 +258,19 @@ def evaluate_geometry_safety(
         minimum_stop_to_cost_ratio=lane_policy.minimum_stop_to_cost_ratio,
         tp1_distance_atr=tp1_distance_atr,
         maximum_tp1_distance_atr=lane_policy.maximum_tp1_distance_atr,
+        minimum_viable_tp1_price=feasibility.minimum_viable_tp1_price,
+        minimum_viable_tp1_distance=feasibility.minimum_viable_tp1_distance,
+        minimum_viable_tp1_distance_atr=feasibility.minimum_viable_tp1_distance_atr,
+        available_tp1_price=tp1.price,
+        available_tp1_distance=target_distance,
+        available_tp1_distance_atr=tp1_distance_atr,
+        tp1_feasibility_gap=feasibility.tp1_feasibility_gap,
+        tp1_feasibility_gap_atr=feasibility.tp1_feasibility_gap_atr,
+        geometry_feasible_before_quality=feasibility.geometry_feasible_before_quality,
+        feasible_existing_target_count=feasibility.feasible_existing_target_count,
+        nearest_feasible_existing_target_price=(feasibility.nearest_feasible_existing_target_price),
+        nearest_feasible_existing_target_index=(feasibility.nearest_feasible_existing_target_index),
+        no_feasible_target_reason=feasibility.no_feasible_target_reason,
     )
 
     if expected_cost_pct is None:
@@ -353,6 +396,127 @@ def evaluate_geometry_safety(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _ExistingTargetFeasibility:
+    minimum_viable_tp1_price: float | None
+    minimum_viable_tp1_distance: float | None
+    minimum_viable_tp1_distance_atr: float | None
+    tp1_feasibility_gap: float | None
+    tp1_feasibility_gap_atr: float | None
+    geometry_feasible_before_quality: bool | None
+    feasible_existing_target_count: int | None
+    nearest_feasible_existing_target_price: float | None
+    nearest_feasible_existing_target_index: int | None
+    no_feasible_target_reason: NoFeasibleTargetReason | None
+
+
+def _existing_target_feasibility(
+    candidate: TradeCandidate,
+    *,
+    lane: OpportunityLane,
+    selected_entry: float,
+    stop_distance: float,
+    cost_distance: float | None,
+    decision_atr: float | None,
+    policy: LaneGeometryPolicy,
+) -> _ExistingTargetFeasibility:
+    if cost_distance is None:
+        return _ExistingTargetFeasibility(
+            minimum_viable_tp1_price=None,
+            minimum_viable_tp1_distance=None,
+            minimum_viable_tp1_distance_atr=None,
+            tp1_feasibility_gap=None,
+            tp1_feasibility_gap_atr=None,
+            geometry_feasible_before_quality=None,
+            feasible_existing_target_count=None,
+            nearest_feasible_existing_target_price=None,
+            nearest_feasible_existing_target_index=None,
+            no_feasible_target_reason=None,
+        )
+
+    net_risk = stop_distance + cost_distance
+    minimum_distance = policy.minimum_tp1_reward_to_risk * net_risk + cost_distance
+    minimum_price = (
+        selected_entry + minimum_distance
+        if candidate.direction is TradeDirection.LONG
+        else selected_entry - minimum_distance
+    )
+    minimum_distance_atr = None if decision_atr is None else minimum_distance / decision_atr
+    available_distance = abs(candidate.targets.levels[0].price - selected_entry)
+    gap = max(0.0, minimum_distance - available_distance)
+    gap_atr = None if decision_atr is None else gap / decision_atr
+
+    feasible: list[tuple[int, float, float]] = []
+    cost_only = False
+    target_type_only = False
+    maximum_target_atr = policy.maximum_tp1_distance_atr
+
+    for index, level in enumerate(candidate.targets.levels, start=1):
+        price = level.price
+        correct_side = (
+            price > selected_entry
+            if candidate.direction is TradeDirection.LONG
+            else price < selected_entry
+        )
+        if not correct_side:
+            continue
+        distance = abs(price - selected_entry)
+        gross_rr = distance / stop_distance if stop_distance > 0.0 else 0.0
+        net_reward = distance - cost_distance
+        net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
+        distance_atr = None if decision_atr is None else distance / decision_atr
+        horizon_ok = (
+            maximum_target_atr is None
+            or distance_atr is None
+            or distance_atr <= maximum_target_atr + 1e-9
+        )
+        type_ok = not (lane.is_scalp and level.kind is TargetType.EXPANSION)
+        reward_ok = net_rr + 1e-9 >= policy.minimum_tp1_reward_to_risk
+
+        if reward_ok and horizon_ok and not type_ok:
+            target_type_only = True
+        if (
+            cost_distance > 0.0
+            and gross_rr + 1e-9 >= policy.minimum_tp1_reward_to_risk
+            and not reward_ok
+            and horizon_ok
+            and type_ok
+        ):
+            cost_only = True
+        if reward_ok and horizon_ok and type_ok:
+            feasible.append((index, price, distance))
+
+    feasible.sort(key=lambda item: (item[2], item[0]))
+    no_reason: NoFeasibleTargetReason | None = None
+    if not feasible:
+        if (
+            maximum_target_atr is not None
+            and minimum_distance_atr is not None
+            and minimum_distance_atr > maximum_target_atr + 1e-9
+        ):
+            no_reason = NoFeasibleTargetReason.MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON
+        elif target_type_only:
+            no_reason = NoFeasibleTargetReason.TARGET_TYPE_ONLY_INFEASIBILITY
+        elif cost_only:
+            no_reason = NoFeasibleTargetReason.COST_ONLY_INFEASIBILITY
+        else:
+            no_reason = NoFeasibleTargetReason.NO_EXISTING_TARGET_FEASIBLE
+
+    nearest = feasible[0] if feasible else None
+    return _ExistingTargetFeasibility(
+        minimum_viable_tp1_price=minimum_price,
+        minimum_viable_tp1_distance=minimum_distance,
+        minimum_viable_tp1_distance_atr=minimum_distance_atr,
+        tp1_feasibility_gap=gap,
+        tp1_feasibility_gap_atr=gap_atr,
+        geometry_feasible_before_quality=bool(feasible),
+        feasible_existing_target_count=len(feasible),
+        nearest_feasible_existing_target_price=None if nearest is None else nearest[1],
+        nearest_feasible_existing_target_index=None if nearest is None else nearest[0],
+        no_feasible_target_reason=no_reason,
+    )
+
+
 def _positive_finite(name: str, value: float) -> None:
     if not math.isfinite(value) or value <= 0.0:
         raise ValueError(f"{name} must be finite and positive")
@@ -375,5 +539,6 @@ __all__ = [
     "GeometrySafetyPolicy",
     "GeometrySafetyState",
     "LaneGeometryPolicy",
+    "NoFeasibleTargetReason",
     "evaluate_geometry_safety",
 ]
