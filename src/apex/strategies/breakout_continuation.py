@@ -99,7 +99,7 @@ def _frame_opposed(frame: TimeframeContext | None, *, bullish: bool) -> bool:
     opposed = _BEARISH_TRENDS if bullish else _BULLISH_TRENDS
     votes, total = _momentum_votes(frame, bullish=bullish)
     return frame.structure.trend.direction in opposed and (
-        total == 0 or (total >= 2 and votes * 2 < total)
+        total == 0 or votes * 2 < total
     )
 
 
