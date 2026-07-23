@@ -31,7 +31,10 @@ from apex.strategies.execution_quality import (
     DEFAULT_EXECUTION_QUALITY_CAP_POLICY,
     ExecutionQualityCapPolicy,
 )
-from apex.strategies.registry import STRATEGY_REGISTRY, run_strategy_generator
+from apex.strategies.registry import (
+    STRATEGY_REGISTRY,
+    run_strategy_generator_with_diagnostics,
+)
 from apex.strategies.strategy_types import StrategyType
 from apex.structure.regime import MarketRegime, classify_market_regime
 
@@ -152,7 +155,7 @@ def analyze_strategies(
         DEFAULT_EXECUTION_QUALITY_CAP_POLICY
     ),
 ) -> StrategyAnalysisResult:
-    """Route registered strategies before generation and retain valid candidates."""
+    """Route registered strategies and retain deterministic routing lineage."""
 
     evaluated = tuple(strategy for strategy, _generator in STRATEGY_REGISTRY)
     decision_regime = classify_market_regime(context.decision_frame.structure)
@@ -172,16 +175,30 @@ def analyze_strategies(
         for strategy in evaluated
         if strategy not in eligible
     }
-    generated_candidates = tuple(
-        candidate
-        for strategy, generator in STRATEGY_REGISTRY
-        if strategy in eligible
-        for candidate in run_strategy_generator(
+
+    generated_candidates: list[TradeCandidate] = []
+    routing_suppressed: list[SuppressedStrategyCandidate] = []
+    for strategy, generator in STRATEGY_REGISTRY:
+        if strategy not in eligible:
+            continue
+        routing = run_strategy_generator_with_diagnostics(
             generator,
             context,
             decision_time=decision_time,
         )
-    )
+        generated_candidates.extend(routing.candidates)
+        routing_suppressed.extend(
+            SuppressedStrategyCandidate(
+                candidate=item.candidate,
+                reason_codes=(item.reason_code,),
+                reasons=(
+                    item.reason_code.replace("_", " "),
+                ),
+                suppression_stage="breakout_timeframe_authority",
+            )
+            for item in routing.rejected
+        )
+
     candidates = tuple(
         _normalize_candidate(
             entry_path,
@@ -218,6 +235,7 @@ def analyze_strategies(
         higher_timeframe_breakout=higher_breakout,
         strategy_applicability=applicability,
         candidate_actionability=actionability,
+        suppressed_candidates=tuple(routing_suppressed),
     )
 
 
