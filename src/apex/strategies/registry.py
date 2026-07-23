@@ -7,6 +7,7 @@ from typing import Protocol
 
 from apex.strategies.breakout_continuation import generate_breakout_continuation_candidates
 from apex.strategies.breakout_retest import generate_breakout_retest_candidates
+from apex.strategies.breakout_routing import route_breakout_candidates
 from apex.strategies.compression_expansion import (
     generate_compression_expansion_candidates,
 )
@@ -80,6 +81,7 @@ def run_strategy_generator(
     *,
     decision_time: datetime,
 ) -> tuple[TradeCandidate, ...]:
-    """Invoke exactly one registered generator through the typed boundary."""
+    """Invoke one registered generator and apply shared production routing."""
 
-    return generator(context, decision_time=decision_time)
+    generated = generator(context, decision_time=decision_time)
+    return route_breakout_candidates(context, generated)
