@@ -443,6 +443,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "outcome_distribution": _outcome_distribution(report.trades),
             "risk_and_excursion": _risk_and_excursion(report.trades),
             "thesis_metrics": _thesis_metrics(report.trades),
+            "stop_breach_metrics": _stop_breach_metrics(report.trades),
             "execution_assumptions": {
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
@@ -470,6 +471,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "outcome_distribution": _outcome_distribution(conditional_report.trades),
                 "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
                 "thesis_metrics": _thesis_metrics(conditional_report.trades),
+                "stop_breach_metrics": _stop_breach_metrics(conditional_report.trades),
                 "calibration_authoritative": False,
             },
             "opportunity_replay": {
@@ -489,6 +491,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "outcome_distribution": _outcome_distribution(opportunity_report.trades),
                 "risk_and_excursion": _risk_and_excursion(opportunity_report.trades),
                 "thesis_metrics": _thesis_metrics(opportunity_report.trades),
+                "stop_breach_metrics": _stop_breach_metrics(opportunity_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
                 "purpose": (
@@ -512,6 +515,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "source_distribution": _shadow_source_distribution(shadow_report.trades),
                 "direction_accuracy": _direction_accuracy(shadow_report.trades),
                 "thesis_metrics": _thesis_metrics(shadow_report.trades),
+                "stop_breach_metrics": _stop_breach_metrics(shadow_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
             },
@@ -1632,6 +1636,26 @@ def _canonical_trade_records(
                 ),
                 "target_touched": metadata_map.get("target_touched"),
                 "net_profitable_target": metadata_map.get("net_profitable_target"),
+                "stop_breach_classification": metadata_map.get("post_stop_classification"),
+                "stop_breach_depth_r": metadata_map.get(
+                    "post_stop_maximum_excursion_beyond_stop_r"
+                ),
+                "maximum_close_beyond_stop_r": metadata_map.get(
+                    "post_stop_maximum_close_beyond_stop_r"
+                ),
+                "bars_traded_beyond_stop": metadata_map.get("post_stop_bars_traded_beyond_stop"),
+                "bars_closed_beyond_stop": metadata_map.get("post_stop_bars_closed_beyond_stop"),
+                "consecutive_closes_beyond_stop": metadata_map.get(
+                    "post_stop_max_consecutive_closes_beyond_stop"
+                ),
+                "bars_to_stop_reclaim": metadata_map.get("post_stop_bars_to_stop_reclaim"),
+                "bars_to_entry_reclaim": metadata_map.get("post_stop_bars_to_reclaim"),
+                "shallow_stop_sweep": metadata_map.get("shallow_stop_sweep"),
+                "moderate_stop_breach": metadata_map.get("moderate_stop_breach"),
+                "deep_directional_failure": metadata_map.get("deep_directional_failure"),
+                "later_recovery_after_directional_failure": metadata_map.get(
+                    "later_recovery_after_directional_failure"
+                ),
                 "diagnostics": enriched_diagnostics,
                 "r_progress": _r_progress_diagnostics(
                     metadata=metadata_map,
@@ -1916,6 +1940,60 @@ def _thesis_metrics(trades: object) -> dict[str, object]:
         "invalidation_before_target_count": invalidation_before_target,
         "late_reentry_available_count": late_reentry,
         "late_reentry_available_rate": late_reentry / total if total else None,
+        "diagnostic_only": True,
+        "production_behavior_changed": False,
+    }
+
+
+def _stop_breach_metrics(trades: object) -> dict[str, object]:
+    """Aggregate diagnostic post-stop severity without changing trade outcomes."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    counts: dict[str, int] = {}
+    stop_count = 0
+    shallow = 0
+    moderate = 0
+    deep = 0
+    later_recovery_after_failure = 0
+    breach_depths: list[float] = []
+    close_depths: list[float] = []
+
+    for trade in values:
+        metadata = getattr(trade, "metadata", None)
+        if not isinstance(metadata, Mapping) or metadata.get("stop_hit") is not True:
+            continue
+        stop_count += 1
+        classification = metadata.get("post_stop_classification")
+        if isinstance(classification, str):
+            counts[classification] = counts.get(classification, 0) + 1
+        shallow += metadata.get("shallow_stop_sweep") is True
+        moderate += metadata.get("moderate_stop_breach") is True
+        deep += metadata.get("deep_directional_failure") is True
+        later_recovery_after_failure += (
+            metadata.get("later_recovery_after_directional_failure") is True
+        )
+        depth = metadata.get("post_stop_maximum_excursion_beyond_stop_r")
+        if isinstance(depth, int | float) and not isinstance(depth, bool):
+            breach_depths.append(float(depth))
+        close_depth = metadata.get("post_stop_maximum_close_beyond_stop_r")
+        if isinstance(close_depth, int | float) and not isinstance(close_depth, bool):
+            close_depths.append(float(close_depth))
+
+    return {
+        "stop_count": stop_count,
+        "classification_counts": counts,
+        "shallow_stop_sweep_count": shallow,
+        "moderate_stop_breach_count": moderate,
+        "deep_directional_failure_count": deep,
+        "later_recovery_after_directional_failure_count": (later_recovery_after_failure),
+        "deep_directional_failure_rate": deep / stop_count if stop_count else None,
+        "average_stop_breach_depth_r": (
+            sum(breach_depths) / len(breach_depths) if breach_depths else None
+        ),
+        "maximum_stop_breach_depth_r": max(breach_depths) if breach_depths else None,
+        "average_close_beyond_stop_r": (
+            sum(close_depths) / len(close_depths) if close_depths else None
+        ),
         "diagnostic_only": True,
         "production_behavior_changed": False,
     }

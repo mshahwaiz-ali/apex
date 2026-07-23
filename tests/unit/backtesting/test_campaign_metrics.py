@@ -21,6 +21,7 @@ from apex.cli_commands.backtesting import (
     _parse_as_of,
     _report_metrics,
     _shadow_replay_signals,
+    _stop_breach_metrics,
     _thesis_metrics,
     _unique_geometry_population,
 )
@@ -400,7 +401,7 @@ def test_post_stop_recovery_to_tp_is_attributed_to_execution_geometry() -> None:
 
     assert trade.outcome is BacktestOutcome.STOP
     assert trade.metadata["stop_hit"] is True
-    assert trade.metadata["post_stop_classification"] == "stop_run_then_tp"
+    assert trade.metadata["post_stop_classification"] == "shallow_stop_sweep_then_tp"
     assert trade.metadata["post_stop_entry_reclaimed"] is True
     assert trade.metadata["post_stop_bars_to_reclaim"] == 1
     assert trade.metadata["post_stop_tp1_reached"] is True
@@ -417,7 +418,7 @@ def test_post_stop_reclaim_without_tp_is_recovery_not_directional_failure() -> N
         config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
     )
 
-    assert trade.metadata["post_stop_classification"] == "stop_run_then_recovery"
+    assert trade.metadata["post_stop_classification"] == "shallow_stop_sweep_then_recovery"
     assert trade.metadata["post_stop_entry_reclaimed"] is True
     assert trade.metadata["post_stop_tp1_reached"] is False
 
@@ -432,7 +433,7 @@ def test_post_stop_adverse_continuation_is_directional_failure() -> None:
         config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
     )
 
-    assert trade.metadata["post_stop_classification"] == "directional_failure"
+    assert trade.metadata["post_stop_classification"] == "deep_directional_failure"
     assert trade.metadata["post_stop_entry_reclaimed"] is False
     assert trade.metadata["post_stop_adverse_close_beyond_stop"] is True
     assert trade.metadata["post_stop_maximum_excursion_beyond_stop_r"] == pytest.approx(1.0)
@@ -735,5 +736,83 @@ def test_thesis_metrics_do_not_change_production_authority() -> None:
 
     assert metrics["strict_evaluable_count"] == 2
     assert metrics["strict_thesis_accuracy"] == pytest.approx(0.5)
+    assert metrics["diagnostic_only"] is True
+    assert metrics["production_behavior_changed"] is False
+
+
+def test_shallow_stop_sweep_requires_small_breach_and_fast_reclaim() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=97.8, high=100.5, close=98.5),
+            _candle(3, low=98.2, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.metadata["shallow_stop_sweep"] is True
+    assert trade.metadata["deep_directional_failure"] is False
+    assert trade.metadata["post_stop_classification"] == "shallow_stop_sweep_then_tp"
+
+
+def test_deep_breach_keeps_failure_precedence_even_if_tp1_is_reached_later() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=96.0, high=97.5, close=96.5),
+            _candle(3, low=99.0, high=105.0, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["post_stop_maximum_excursion_beyond_stop_r"] == pytest.approx(1.0)
+    assert trade.metadata["deep_directional_failure"] is True
+    assert trade.metadata["later_recovery_after_directional_failure"] is True
+    assert trade.metadata["post_stop_tp1_reached"] is True
+    assert trade.metadata["post_stop_classification"] == "deep_directional_failure_then_recovery"
+
+
+def test_two_adverse_closes_make_stop_breach_directional_failure() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=97.6, high=98.1, close=97.8),
+            _candle(3, low=97.5, high=98.2, close=97.9),
+            _candle(4, low=98.5, high=100.5, close=99.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["post_stop_max_consecutive_closes_beyond_stop"] == 2
+    assert trade.metadata["deep_directional_failure"] is True
+
+
+def test_stop_breach_metrics_are_diagnostic_only() -> None:
+    shallow = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=97.8, high=100.5, close=98.5),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+    deep = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=101.0, close=98.0),
+            _candle(2, low=96.0, high=97.0, close=96.5),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metrics = _stop_breach_metrics((shallow, deep))
+
+    assert metrics["stop_count"] == 2
+    assert metrics["shallow_stop_sweep_count"] == 1
+    assert metrics["deep_directional_failure_count"] == 1
     assert metrics["diagnostic_only"] is True
     assert metrics["production_behavior_changed"] is False

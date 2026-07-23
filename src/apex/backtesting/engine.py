@@ -21,6 +21,12 @@ from apex.domain.models import Candle
 from apex.strategies import TradeDirection
 
 THESIS_PARTIAL_MOVE_R = 0.5
+STOP_BREACH_SHALLOW_MAX_R = 0.25
+STOP_BREACH_DEEP_MIN_R = 0.60
+STOP_BREACH_DEEP_CLOSE_MIN_R = 0.35
+STOP_BREACH_SHALLOW_RECLAIM_MAX_BARS = 2
+STOP_BREACH_DEEP_RECLAIM_BARS = 4
+STOP_BREACH_DEEP_CONSECUTIVE_CLOSES = 2
 
 
 def simulate_trade(
@@ -669,11 +675,11 @@ def _post_stop_thesis_metadata(
     entry: float,
     stop: float,
 ) -> dict[str, str | int | float | bool]:
-    """Classify whether a stop exposed bad execution geometry or a bad thesis.
+    """Classify post-stop behavior without retroactively forgiving deep failure.
 
-    The stop candle itself is intentionally excluded by callers. Its intrabar
-    sequence is unknowable, so only later closed candles may prove recovery or
-    adverse continuation. This is diagnostic-only and never changes the exit.
+    The stop candle itself is excluded by callers because intrabar ordering is
+    unknowable. Later recovery is diagnostic only. A deep adverse breach keeps
+    precedence over any subsequent reclaim or TP1 touch.
     """
 
     risk_per_unit = abs(entry - stop)
@@ -683,21 +689,39 @@ def _post_stop_thesis_metadata(
             "post_stop_classification": "ambiguous_after_stop",
             "post_stop_followup_candles": len(candles),
             "post_stop_maximum_excursion_beyond_stop_r": 0.0,
+            "post_stop_maximum_close_beyond_stop_r": 0.0,
+            "post_stop_bars_traded_beyond_stop": 0,
+            "post_stop_bars_closed_beyond_stop": 0,
+            "post_stop_max_consecutive_closes_beyond_stop": 0,
             "post_stop_entry_reclaimed": False,
+            "post_stop_stop_reclaimed": False,
             "post_stop_bars_to_reclaim": 0,
+            "post_stop_bars_to_stop_reclaim": 0,
             "post_stop_tp1_reached": False,
             "post_stop_maximum_favorable_excursion_r": 0.0,
             "post_stop_maximum_adverse_excursion_r": 0.0,
             "post_stop_adverse_close_beyond_stop": False,
+            "shallow_stop_sweep": False,
+            "moderate_stop_breach": False,
+            "deep_directional_failure": False,
+            "directional_failure_before_recovery": False,
+            "later_recovery_after_directional_failure": False,
         }
 
     maximum_favorable_r = 0.0
     maximum_adverse_r = 0.0
     maximum_beyond_stop_r = 0.0
-    bars_to_reclaim = 0
+    maximum_close_beyond_stop_r = 0.0
+    bars_traded_beyond_stop = 0
+    bars_closed_beyond_stop = 0
+    consecutive_closes_beyond_stop = 0
+    maximum_consecutive_closes_beyond_stop = 0
+    bars_to_entry_reclaim = 0
+    bars_to_stop_reclaim = 0
     entry_reclaimed = False
+    stop_reclaimed = False
     tp1_reached = False
-    adverse_close_beyond_stop = False
+    first_recovery_candle = 0
 
     for index, candle in enumerate(candles, start=1):
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
@@ -706,26 +730,89 @@ def _post_stop_thesis_metadata(
 
         if signal.direction is TradeDirection.LONG:
             beyond_stop = max(0.0, stop - candle.low) / risk_per_unit
-            reclaimed = candle.high >= entry
-            adverse_close = candle.close < stop
+            close_beyond_stop = max(0.0, stop - candle.close) / risk_per_unit
+            traded_beyond_stop = candle.low < stop
+            closed_beyond_stop = candle.close < stop
+            stop_reclaim = candle.close >= stop
+            entry_reclaim = candle.high >= entry
         else:
             beyond_stop = max(0.0, candle.high - stop) / risk_per_unit
-            reclaimed = candle.low <= entry
-            adverse_close = candle.close > stop
+            close_beyond_stop = max(0.0, candle.close - stop) / risk_per_unit
+            traded_beyond_stop = candle.high > stop
+            closed_beyond_stop = candle.close > stop
+            stop_reclaim = candle.close <= stop
+            entry_reclaim = candle.low <= entry
 
         maximum_beyond_stop_r = max(maximum_beyond_stop_r, beyond_stop)
-        adverse_close_beyond_stop = adverse_close_beyond_stop or adverse_close
-        tp1_reached = tp1_reached or _target_hit(signal, candle, signal.target_price)
-        if reclaimed and not entry_reclaimed:
-            entry_reclaimed = True
-            bars_to_reclaim = index
+        maximum_close_beyond_stop_r = max(
+            maximum_close_beyond_stop_r,
+            close_beyond_stop,
+        )
+        if traded_beyond_stop:
+            bars_traded_beyond_stop += 1
+        if closed_beyond_stop:
+            bars_closed_beyond_stop += 1
+            consecutive_closes_beyond_stop += 1
+            maximum_consecutive_closes_beyond_stop = max(
+                maximum_consecutive_closes_beyond_stop,
+                consecutive_closes_beyond_stop,
+            )
+        else:
+            consecutive_closes_beyond_stop = 0
 
-    if tp1_reached:
-        classification = "stop_run_then_tp"
+        if stop_reclaim and not stop_reclaimed:
+            stop_reclaimed = True
+            bars_to_stop_reclaim = index
+            first_recovery_candle = index
+        if entry_reclaim and not entry_reclaimed:
+            entry_reclaimed = True
+            bars_to_entry_reclaim = index
+            if first_recovery_candle == 0:
+                first_recovery_candle = index
+        tp1_reached = tp1_reached or _target_hit(signal, candle, signal.target_price)
+
+    adverse_close_beyond_stop = bars_closed_beyond_stop > 0
+    deep_directional_failure = (
+        maximum_beyond_stop_r >= STOP_BREACH_DEEP_MIN_R
+        or maximum_close_beyond_stop_r >= STOP_BREACH_DEEP_CLOSE_MIN_R
+        or maximum_consecutive_closes_beyond_stop >= STOP_BREACH_DEEP_CONSECUTIVE_CLOSES
+        or (
+            bars_traded_beyond_stop > 0
+            and (not stop_reclaimed or bars_to_stop_reclaim > STOP_BREACH_DEEP_RECLAIM_BARS)
+        )
+    )
+    shallow_stop_sweep = (
+        not deep_directional_failure
+        and maximum_beyond_stop_r <= STOP_BREACH_SHALLOW_MAX_R
+        and bars_closed_beyond_stop <= 1
+        and stop_reclaimed
+        and 0 < bars_to_stop_reclaim <= STOP_BREACH_SHALLOW_RECLAIM_MAX_BARS
+    )
+    moderate_stop_breach = (
+        not deep_directional_failure and not shallow_stop_sweep and maximum_beyond_stop_r > 0.0
+    )
+    later_recovery_after_directional_failure = deep_directional_failure and (
+        entry_reclaimed or tp1_reached
+    )
+
+    if deep_directional_failure:
+        classification = (
+            "deep_directional_failure_then_recovery"
+            if later_recovery_after_directional_failure
+            else "deep_directional_failure"
+        )
+    elif shallow_stop_sweep and tp1_reached:
+        classification = "shallow_stop_sweep_then_tp"
+    elif shallow_stop_sweep:
+        classification = "shallow_stop_sweep_then_recovery"
+    elif moderate_stop_breach and (entry_reclaimed or tp1_reached):
+        classification = "moderate_stop_breach_then_recovery"
+    elif moderate_stop_breach:
+        classification = "moderate_stop_breach"
+    elif tp1_reached:
+        classification = "recovery_without_material_stop_breach_then_tp"
     elif entry_reclaimed:
-        classification = "stop_run_then_recovery"
-    elif maximum_beyond_stop_r >= 0.5 and adverse_close_beyond_stop:
-        classification = "directional_failure"
+        classification = "recovery_without_material_stop_breach"
     else:
         classification = "ambiguous_after_stop"
 
@@ -734,12 +821,24 @@ def _post_stop_thesis_metadata(
         "post_stop_classification": classification,
         "post_stop_followup_candles": len(candles),
         "post_stop_maximum_excursion_beyond_stop_r": maximum_beyond_stop_r,
+        "post_stop_maximum_close_beyond_stop_r": maximum_close_beyond_stop_r,
+        "post_stop_bars_traded_beyond_stop": bars_traded_beyond_stop,
+        "post_stop_bars_closed_beyond_stop": bars_closed_beyond_stop,
+        "post_stop_max_consecutive_closes_beyond_stop": (maximum_consecutive_closes_beyond_stop),
         "post_stop_entry_reclaimed": entry_reclaimed,
-        "post_stop_bars_to_reclaim": bars_to_reclaim,
+        "post_stop_stop_reclaimed": stop_reclaimed,
+        "post_stop_bars_to_reclaim": bars_to_entry_reclaim,
+        "post_stop_bars_to_stop_reclaim": bars_to_stop_reclaim,
+        "post_stop_first_recovery_candle": first_recovery_candle,
         "post_stop_tp1_reached": tp1_reached,
         "post_stop_maximum_favorable_excursion_r": maximum_favorable_r,
         "post_stop_maximum_adverse_excursion_r": maximum_adverse_r,
         "post_stop_adverse_close_beyond_stop": adverse_close_beyond_stop,
+        "shallow_stop_sweep": shallow_stop_sweep,
+        "moderate_stop_breach": moderate_stop_breach,
+        "deep_directional_failure": deep_directional_failure,
+        "directional_failure_before_recovery": deep_directional_failure,
+        "later_recovery_after_directional_failure": (later_recovery_after_directional_failure),
     }
 
 
