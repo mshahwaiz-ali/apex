@@ -38,9 +38,7 @@ def _first_pullback_entry(candidate: TradeCandidate) -> EntryZone | None:
 
     opportunities = candidate.entry_opportunities or (candidate.entry,)
     eligible = tuple(
-        zone
-        for zone in opportunities
-        if zone.atr_distance <= 1.0 and not zone.is_extended
+        zone for zone in opportunities if zone.atr_distance <= 1.0 and not zone.is_extended
     )
     if not eligible:
         return None

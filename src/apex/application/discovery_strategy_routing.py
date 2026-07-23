@@ -185,20 +185,14 @@ def _breakout_routing_summary(
         }
 
     retained_breakouts = tuple(
-        candidate
-        for candidate in analysis.candidates
-        if candidate.strategy in _BREAKOUT_STRATEGIES
+        candidate for candidate in analysis.candidates if candidate.strategy in _BREAKOUT_STRATEGIES
     )
     rejected_breakouts = tuple(
         item
         for item in analysis.suppressed_candidates
         if item.suppression_stage == _BREAKOUT_ROUTING_STAGE
     )
-    rejection_counts = Counter(
-        code
-        for item in rejected_breakouts
-        for code in item.reason_codes
-    )
+    rejection_counts = Counter(code for item in rejected_breakouts for code in item.reason_codes)
     conditional_count = sum(
         bool(candidate.metadata.get("refinement_requires_renewal"))
         for candidate in retained_breakouts
@@ -219,13 +213,9 @@ def _breakout_routing_summary(
         "direction_authority_opposed_count": rejection_counts.get(
             "30m_direction_authority_opposed", 0
         ),
-        "setup_authority_opposed_count": rejection_counts.get(
-            "15m_setup_authority_opposed", 0
-        ),
+        "setup_authority_opposed_count": rejection_counts.get("15m_setup_authority_opposed", 0),
         "retest_failed_count": rejection_counts.get("5m_retest_failed", 0),
-        "retest_not_accepted_count": rejection_counts.get(
-            "5m_retest_not_accepted", 0
-        ),
+        "retest_not_accepted_count": rejection_counts.get("5m_retest_not_accepted", 0),
         "execution_authority_opposed_count": rejection_counts.get(
             "5m_execution_authority_opposed", 0
         ),

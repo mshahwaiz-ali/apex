@@ -191,9 +191,7 @@ def analyze_strategies(
             SuppressedStrategyCandidate(
                 candidate=item.candidate,
                 reason_codes=(item.reason_code,),
-                reasons=(
-                    item.reason_code.replace("_", " "),
-                ),
+                reasons=(item.reason_code.replace("_", " "),),
                 suppression_stage="breakout_timeframe_authority",
             )
             for item in routing.rejected
