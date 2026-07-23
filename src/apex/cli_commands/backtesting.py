@@ -517,6 +517,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "risk_and_excursion": _risk_and_excursion(shadow_report.trades),
                 "source_distribution": _shadow_source_distribution(shadow_report.trades),
                 "direction_accuracy": _direction_accuracy(shadow_report.trades),
+                "geometry_rejection_summary": _geometry_rejection_summary(calibration_records),
                 "thesis_metrics": _thesis_metrics(shadow_report.trades),
                 "stop_breach_metrics": _stop_breach_metrics(shadow_report.trades),
                 "sweep_reclaim_metrics": _sweep_reclaim_metrics(shadow_report.trades),
@@ -530,6 +531,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "skipped_signal_count": study.skipped_signal_count,
             },
         }
+        _classify_replay_trade_records(
+            payload, section="conditional_replay", replay_class="conditional"
+        )
+        _classify_replay_trade_records(
+            payload, section="opportunity_replay", replay_class="opportunity"
+        )
+        _classify_replay_trade_records(payload, section="shadow_replay", replay_class="shadow")
         if len(report.trades) == 1:
             payload["trade"] = _jsonable(report.trades[0])
         if report_file is not None:
@@ -538,6 +546,117 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
             )
         _emit(payload, render_backtest(payload), output_mode)
+
+
+def _classify_replay_trade_records(
+    payload: dict[str, object],
+    *,
+    section: str,
+    replay_class: str,
+) -> None:
+    """Mark diagnostic replay records as non-canonical portfolio observations."""
+
+    section_payload = payload.get(section)
+    if not isinstance(section_payload, dict):
+        return
+    trades = section_payload.get("trades")
+    if not isinstance(trades, list):
+        return
+    for record in trades:
+        if not isinstance(record, dict):
+            continue
+        record["canonical_portfolio"] = False
+        record["replay_class"] = replay_class
+
+
+def _geometry_rejection_summary(
+    calibration_records: list[dict[str, object]],
+) -> dict[str, object]:
+    """Aggregate geometry rejection causes without changing production selection."""
+
+    code_counts: dict[str, int] = {}
+    strategy_counts: dict[str, int] = {}
+    legacy_lane_counts: dict[str, int] = {}
+    measured_lane_counts: dict[str, int] = {}
+    lane_change_count = 0
+    result_change_count = 0
+    rejected_candidate_count = 0
+
+    numeric_fields = (
+        "gross_tp1_reward_to_risk",
+        "net_tp1_reward_to_risk",
+        "stop_to_cost_ratio",
+        "target_to_cost_ratio",
+        "tp1_distance_atr",
+        "maximum_tp1_distance_atr",
+    )
+    numeric_totals = {field: 0.0 for field in numeric_fields}
+    numeric_counts = {field: 0 for field in numeric_fields}
+
+    for record in calibration_records:
+        diagnostics = record.get("candidate_diagnostics")
+        if not isinstance(diagnostics, list):
+            continue
+        for candidate in diagnostics:
+            if not isinstance(candidate, dict):
+                continue
+            codes = candidate.get("geometry_rejection_codes")
+            if not isinstance(codes, list) or not codes:
+                continue
+
+            rejected_candidate_count += 1
+            for code in codes:
+                if isinstance(code, str) and code:
+                    code_counts[code] = code_counts.get(code, 0) + 1
+
+            strategy = candidate.get("strategy")
+            if isinstance(strategy, str) and strategy:
+                strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+
+            legacy_lane = candidate.get("legacy_context_lane")
+            if isinstance(legacy_lane, str) and legacy_lane:
+                legacy_lane_counts[legacy_lane] = legacy_lane_counts.get(legacy_lane, 0) + 1
+
+            measured_lane = candidate.get("measured_geometry_lane")
+            if isinstance(measured_lane, str) and measured_lane:
+                measured_lane_counts[measured_lane] = measured_lane_counts.get(measured_lane, 0) + 1
+
+            if candidate.get("would_change_lane") is True:
+                lane_change_count += 1
+            if candidate.get("would_change_geometry_result") is True:
+                result_change_count += 1
+
+            audit = candidate.get("geometry_audit")
+            if not isinstance(audit, dict):
+                continue
+            for field in numeric_fields:
+                value = audit.get(field)
+                if isinstance(value, (int, float)):
+                    numeric_totals[field] += float(value)
+                    numeric_counts[field] += 1
+
+    averages = {
+        field: (numeric_totals[field] / numeric_counts[field] if numeric_counts[field] else None)
+        for field in numeric_fields
+    }
+    return {
+        "rejected_candidate_count": rejected_candidate_count,
+        "rejection_code_counts": dict(
+            sorted(code_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "strategy_counts": dict(
+            sorted(strategy_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "legacy_lane_counts": dict(
+            sorted(legacy_lane_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "measured_lane_counts": dict(
+            sorted(measured_lane_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "would_change_lane_count": lane_change_count,
+        "would_change_geometry_result_count": result_change_count,
+        "averages": averages,
+    }
 
 
 def _emit(payload: object, text: str, output_mode: OutputMode) -> None:
