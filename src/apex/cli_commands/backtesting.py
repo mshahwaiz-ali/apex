@@ -2400,6 +2400,14 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
     selector_correct_count = 0
     selector_failure_to_abstain_count = 0
     selector_less_bad_selection_count = 0
+    aggressive_projection_errors: list[float] = []
+    retest_projection_errors: list[float] = []
+    aggressive_projection_absolute_errors: list[float] = []
+    retest_projection_absolute_errors: list[float] = []
+    aggressive_projection_over_count = 0
+    retest_projection_over_count = 0
+    aggressive_projection_under_count = 0
+    retest_projection_under_count = 0
 
     for selector_trade in selector_representatives:
         selector_metadata = getattr(selector_trade, "metadata", {})
@@ -2425,6 +2433,36 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
             selector_outcome in {"select_aggressive", "select_retest"}
             and selector_realized == "both_negative"
         )
+
+        aggressive_projected = numeric(
+            selector_metadata,
+            "recovery_pair_aggressive_projected_net_r",
+        )
+        aggressive_realized = numeric(
+            selector_metadata,
+            "aggressive_reclaim_net_r",
+        )
+        if aggressive_projected is not None and aggressive_realized is not None:
+            aggressive_error = aggressive_projected - aggressive_realized
+            aggressive_projection_errors.append(aggressive_error)
+            aggressive_projection_absolute_errors.append(abs(aggressive_error))
+            aggressive_projection_over_count += int(aggressive_error > 0.0)
+            aggressive_projection_under_count += int(aggressive_error < 0.0)
+
+        retest_projected = numeric(
+            selector_metadata,
+            "recovery_pair_retest_projected_net_r",
+        )
+        retest_realized = numeric(
+            selector_metadata,
+            "retest_recovery_net_r",
+        )
+        if retest_projected is not None and retest_realized is not None:
+            retest_error = retest_projected - retest_realized
+            retest_projection_errors.append(retest_error)
+            retest_projection_absolute_errors.append(abs(retest_error))
+            retest_projection_over_count += int(retest_error > 0.0)
+            retest_projection_under_count += int(retest_error < 0.0)
     aggressive_summary = mode_summary(
         unique_aggressive,
         prefix="aggressive_reclaim",
@@ -2609,6 +2647,47 @@ def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
             "selector_failure_to_abstain_count": (selector_failure_to_abstain_count),
             "selector_less_bad_selection_count": (selector_less_bad_selection_count),
             "selector_basis": "absolute_viability_then_relative_preference",
+            "projection_calibration": {
+                "aggressive_count": len(aggressive_projection_errors),
+                "aggressive_average_error_r": (
+                    sum(aggressive_projection_errors) / len(aggressive_projection_errors)
+                    if aggressive_projection_errors
+                    else None
+                ),
+                "aggressive_mean_absolute_error_r": (
+                    sum(aggressive_projection_absolute_errors)
+                    / len(aggressive_projection_absolute_errors)
+                    if aggressive_projection_absolute_errors
+                    else None
+                ),
+                "aggressive_overprediction_count": aggressive_projection_over_count,
+                "aggressive_underprediction_count": aggressive_projection_under_count,
+                "aggressive_overprediction_rate": (
+                    aggressive_projection_over_count / len(aggressive_projection_errors)
+                    if aggressive_projection_errors
+                    else None
+                ),
+                "retest_count": len(retest_projection_errors),
+                "retest_average_error_r": (
+                    sum(retest_projection_errors) / len(retest_projection_errors)
+                    if retest_projection_errors
+                    else None
+                ),
+                "retest_mean_absolute_error_r": (
+                    sum(retest_projection_absolute_errors) / len(retest_projection_absolute_errors)
+                    if retest_projection_absolute_errors
+                    else None
+                ),
+                "retest_overprediction_count": retest_projection_over_count,
+                "retest_underprediction_count": retest_projection_under_count,
+                "retest_overprediction_rate": (
+                    retest_projection_over_count / len(retest_projection_errors)
+                    if retest_projection_errors
+                    else None
+                ),
+                "diagnostic_only": True,
+                "production_behavior_changed": False,
+            },
             "average_aggressive_minus_retest_net_r": (
                 sum(paired_net_r_deltas) / len(paired_net_r_deltas) if paired_net_r_deltas else None
             ),

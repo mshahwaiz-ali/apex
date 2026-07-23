@@ -515,4 +515,363 @@ def _print_selector_diagnostics() -> None:
     print("  Production changed    : False")
 
 
+def _print_selector_event_details() -> None:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for report_path in files:
+        payload = json.loads(report_path.read_text())
+        symbol = str(payload.get("symbol") or "unknown")
+        timeframe = str(payload.get("replay_timeframe") or payload.get("timeframe") or "unknown")
+
+        for trade in trades_from(payload):
+            if value(trade, "recovery_pair_available") is not True:
+                continue
+
+            event_id = str(value(trade, "recovery_event_id") or "")
+            if not event_id:
+                continue
+
+            rank = value(trade, "recovery_event_rank")
+            selected = value(trade, "recovery_event_selected") is True
+            generated_at = str(
+                value(trade, "generated_at") or value(trade, "signal_generated_at") or ""
+            )
+            candidate_id = str(value(trade, "candidate_id") or value(trade, "signal_id") or "")
+
+            grouped[event_id].append(
+                {
+                    "file": report_path.name,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "strategy": signal_value(trade, "strategy", "unknown"),
+                    "direction": signal_value(trade, "direction", "unknown"),
+                    "selected": selected,
+                    "rank": rank if isinstance(rank, int) else None,
+                    "generated_at": generated_at,
+                    "candidate_id": candidate_id,
+                    "selector_outcome": str(value(trade, "recovery_selector_outcome") or "unknown"),
+                    "selector_reason": str(value(trade, "recovery_selector_reason") or "unknown"),
+                    "aggressive_viability": str(
+                        value(
+                            trade,
+                            "recovery_selector_aggressive_viability",
+                        )
+                        or "unknown"
+                    ),
+                    "retest_viability": str(
+                        value(
+                            trade,
+                            "recovery_selector_retest_viability",
+                        )
+                        or "unknown"
+                    ),
+                    "aggressive_projected_net_r": number(
+                        value(
+                            trade,
+                            "recovery_pair_aggressive_projected_net_r",
+                        )
+                    ),
+                    "retest_projected_net_r": number(
+                        value(
+                            trade,
+                            "recovery_pair_retest_projected_net_r",
+                        )
+                    ),
+                    "aggressive_preference_score": number(
+                        value(
+                            trade,
+                            "recovery_pair_aggressive_preference_score",
+                        )
+                    ),
+                    "retest_preference_score": number(
+                        value(
+                            trade,
+                            "recovery_pair_retest_preference_score",
+                        )
+                    ),
+                    "aggressive_realized_net_r": number(value(trade, "aggressive_reclaim_net_r")),
+                    "retest_realized_net_r": number(value(trade, "retest_recovery_net_r")),
+                    "realized_classification": str(
+                        value(
+                            trade,
+                            "recovery_selector_realized_classification",
+                        )
+                        or "unknown"
+                    ),
+                    "correct": value(trade, "recovery_selector_correct") is True,
+                }
+            )
+
+    def representative_sort_key(row: dict[str, Any]) -> tuple[Any, ...]:
+        rank = row["rank"]
+        return (
+            0 if row["selected"] else 1,
+            rank if isinstance(rank, int) else 999999,
+            row["generated_at"],
+            row["candidate_id"],
+            row["file"],
+        )
+
+    representatives = [
+        sorted(members, key=representative_sort_key)[0] for members in grouped.values()
+    ]
+    representatives.sort(
+        key=lambda row: (
+            row["symbol"],
+            row["timeframe"],
+            row["strategy"],
+            row["direction"],
+        )
+    )
+
+    print()
+    print("SELECTOR EVENT DETAILS")
+    if not representatives:
+        print("  No paired selector events found.")
+        return
+
+    for row in representatives:
+        print(f"  {row['symbol']} {row['timeframe']} {row['strategy']} {row['direction']}")
+        print(f"    Decision     : {row['selector_outcome']} | correct={row['correct']}")
+        print(f"    Reason       : {row['selector_reason']}")
+        print(
+            "    Viability    : "
+            f"aggressive={row['aggressive_viability']} "
+            f"| retest={row['retest_viability']}"
+        )
+        print(
+            "    Projected R  : "
+            f"aggressive={row['aggressive_projected_net_r']} "
+            f"| retest={row['retest_projected_net_r']}"
+        )
+        print(
+            "    Pref score   : "
+            f"aggressive={row['aggressive_preference_score']} "
+            f"| retest={row['retest_preference_score']}"
+        )
+        print(
+            "    Realized R   : "
+            f"aggressive={row['aggressive_realized_net_r']} "
+            f"| retest={row['retest_realized_net_r']}"
+        )
+        print(f"    Realized class: {row['realized_classification']}")
+
+
+_print_selector_event_details()
+
+
+def _print_projection_calibration() -> None:
+    aggressive_errors: list[float] = []
+    retest_errors: list[float] = []
+    aggressive_absolute_errors: list[float] = []
+    retest_absolute_errors: list[float] = []
+    aggressive_over = 0
+    aggressive_under = 0
+    retest_over = 0
+    retest_under = 0
+    by_timeframe: dict[str, dict[str, list[float]]] = defaultdict(
+        lambda: {"aggressive": [], "retest": []}
+    )
+    by_strategy: dict[str, dict[str, list[float]]] = defaultdict(
+        lambda: {"aggressive": [], "retest": []}
+    )
+
+    seen_events: set[str] = set()
+
+    for report_path in files:
+        payload = json.loads(report_path.read_text())
+        timeframe = str(payload.get("replay_timeframe") or payload.get("timeframe") or "unknown")
+
+        for trade in trades_from(payload):
+            if value(trade, "recovery_pair_available") is not True:
+                continue
+
+            event_id = str(value(trade, "recovery_event_id") or "")
+            if not event_id or event_id in seen_events:
+                continue
+            seen_events.add(event_id)
+
+            strategy = signal_value(trade, "strategy", "unknown")
+            aggressive_projected = number(value(trade, "recovery_pair_aggressive_projected_net_r"))
+            aggressive_realized = number(value(trade, "aggressive_reclaim_net_r"))
+            retest_projected = number(value(trade, "recovery_pair_retest_projected_net_r"))
+            retest_realized = number(value(trade, "retest_recovery_net_r"))
+
+            if aggressive_projected is not None and aggressive_realized is not None:
+                error = aggressive_projected - aggressive_realized
+                aggressive_errors.append(error)
+                aggressive_absolute_errors.append(abs(error))
+                aggressive_over += int(error > 0.0)
+                aggressive_under += int(error < 0.0)
+                by_timeframe[timeframe]["aggressive"].append(error)
+                by_strategy[strategy]["aggressive"].append(error)
+
+            if retest_projected is not None and retest_realized is not None:
+                error = retest_projected - retest_realized
+                retest_errors.append(error)
+                retest_absolute_errors.append(abs(error))
+                retest_over += int(error > 0.0)
+                retest_under += int(error < 0.0)
+                by_timeframe[timeframe]["retest"].append(error)
+                by_strategy[strategy]["retest"].append(error)
+
+    def avg(values: list[float]) -> float | None:
+        return sum(values) / len(values) if values else None
+
+    print()
+    print("PROJECTION CALIBRATION")
+    print(
+        "  Aggressive count/avg error/MAE : "
+        f"{len(aggressive_errors)} / {avg(aggressive_errors)} / "
+        f"{avg(aggressive_absolute_errors)}"
+    )
+    print(f"  Aggressive over/under          : {aggressive_over} / {aggressive_under}")
+    print(
+        "  Retest count/avg error/MAE     : "
+        f"{len(retest_errors)} / {avg(retest_errors)} / "
+        f"{avg(retest_absolute_errors)}"
+    )
+    print(f"  Retest over/under              : {retest_over} / {retest_under}")
+
+    print("  By timeframe:")
+    for timeframe, modes in sorted(by_timeframe.items()):
+        print(
+            f"    {timeframe}: "
+            f"aggressive_avg_error={avg(modes['aggressive'])} "
+            f"| retest_avg_error={avg(modes['retest'])}"
+        )
+
+    print("  By strategy:")
+    for strategy, modes in sorted(by_strategy.items()):
+        print(
+            f"    {strategy}: "
+            f"aggressive_avg_error={avg(modes['aggressive'])} "
+            f"| retest_avg_error={avg(modes['retest'])}"
+        )
+
+    print("  Diagnostic only                : True")
+    print("  Production changed             : False")
+
+
+_print_projection_calibration()
+
+
+def _print_attainability_diagnostics() -> None:
+    rows: list[dict[str, Any]] = []
+    seen_events: set[str] = set()
+
+    for report_path in files:
+        payload = json.loads(report_path.read_text())
+        symbol = str(payload.get("symbol") or "unknown")
+        timeframe = str(payload.get("replay_timeframe") or payload.get("timeframe") or "unknown")
+
+        for trade in trades_from(payload):
+            if value(trade, "recovery_pair_available") is not True:
+                continue
+
+            event_id = str(value(trade, "recovery_event_id") or "")
+            if not event_id or event_id in seen_events:
+                continue
+            seen_events.add(event_id)
+
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "strategy": signal_value(trade, "strategy", "unknown"),
+                    "direction": signal_value(trade, "direction", "unknown"),
+                    "aggressive_structural": number(
+                        value(trade, "recovery_pair_aggressive_projected_net_r")
+                    ),
+                    "aggressive_factor": number(
+                        value(trade, "recovery_pair_aggressive_attainability_factor")
+                    ),
+                    "aggressive_attainable": number(
+                        value(
+                            trade,
+                            "recovery_pair_aggressive_attainable_projected_net_r",
+                        )
+                    ),
+                    "aggressive_viability": str(
+                        value(
+                            trade,
+                            "recovery_pair_aggressive_attainability_viability",
+                        )
+                        or "unknown"
+                    ),
+                    "retest_structural": number(
+                        value(trade, "recovery_pair_retest_projected_net_r")
+                    ),
+                    "retest_factor": number(
+                        value(trade, "recovery_pair_retest_attainability_factor")
+                    ),
+                    "retest_attainable": number(
+                        value(
+                            trade,
+                            "recovery_pair_retest_attainable_projected_net_r",
+                        )
+                    ),
+                    "retest_viability": str(
+                        value(
+                            trade,
+                            "recovery_pair_retest_attainability_viability",
+                        )
+                        or "unknown"
+                    ),
+                    "aggressive_expected_bars": number(
+                        value(trade, "recovery_pair_aggressive_expected_bars")
+                    ),
+                    "retest_expected_bars": number(
+                        value(trade, "recovery_pair_retest_expected_bars")
+                    ),
+                    "profile_bars": number(
+                        value(
+                            trade,
+                            "recovery_attainability_expected_bars_profile",
+                        )
+                    ),
+                }
+            )
+
+    rows.sort(
+        key=lambda row: (
+            row["symbol"],
+            row["timeframe"],
+            row["strategy"],
+            row["direction"],
+        )
+    )
+
+    print()
+    print("TIMEFRAME-AWARE ATTAINABILITY")
+    if not rows:
+        print("  No paired selector events found.")
+        return
+
+    for row in rows:
+        print(f"  {row['symbol']} {row['timeframe']} {row['strategy']} {row['direction']}")
+        print(
+            "    Aggressive : "
+            f"structural={row['aggressive_structural']} "
+            f"| factor={row['aggressive_factor']} "
+            f"| attainable={row['aggressive_attainable']} "
+            f"| viability={row['aggressive_viability']} "
+            f"| expected_bars={row['aggressive_expected_bars']}"
+        )
+        print(
+            "    Retest     : "
+            f"structural={row['retest_structural']} "
+            f"| factor={row['retest_factor']} "
+            f"| attainable={row['retest_attainable']} "
+            f"| viability={row['retest_viability']} "
+            f"| expected_bars={row['retest_expected_bars']}"
+        )
+        print(f"    TF profile  : {row['profile_bars']} expected bars")
+
+    print("  Diagnostic only   : True")
+    print("  Production changed: False")
+
+
+_print_attainability_diagnostics()
+
 _print_selector_diagnostics()

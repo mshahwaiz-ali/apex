@@ -1221,6 +1221,102 @@ def _post_stop_thesis_metadata(
     retest_delay_bars = (
         max(0, retest_entry_candle - reclaim_candle_index) if retest_recovery_available else 0
     )
+
+    raw_timeframe = getattr(signal, "timeframe", "unknown")
+    recovery_timeframe = str(getattr(raw_timeframe, "value", raw_timeframe))
+    timeframe_expected_bars = {
+        "1m": 4.0,
+        "3m": 5.0,
+        "5m": 6.0,
+        "15m": 8.0,
+        "30m": 10.0,
+        "1h": 12.0,
+        "4h": 16.0,
+    }.get(recovery_timeframe, 8.0)
+
+    pre_entry_ranges = [
+        max(0.0, candle.high - candle.low)
+        for candle in candles[: max(1, reclaim_candle_index)]
+        if candle.high > candle.low
+    ]
+    recent_ranges = pre_entry_ranges[-8:]
+    recent_average_range = sum(recent_ranges) / len(recent_ranges) if recent_ranges else 0.0
+
+    def attainability_diagnostics(
+        *,
+        available: bool,
+        entry_price: float,
+        projected_net_r: float,
+        structure_held: bool,
+    ) -> tuple[float, float, float, float, str]:
+        if not available or entry_price <= 0.0:
+            return 0.0, 0.0, 0.0, 0.0, "invalid"
+
+        target_move = abs(signal.target_price - entry_price)
+        target_range_multiple = (
+            target_move / recent_average_range if recent_average_range > 0.0 else 0.0
+        )
+        expected_bars = target_range_multiple
+
+        body_quality = min(
+            1.0,
+            reclaim_body_ratio / max(SWEEP_RECLAIM_BODY_RATIO_MIN, 1e-9),
+        )
+        close_quality = min(
+            1.0,
+            reclaim_close_location / max(SWEEP_RECLAIM_CLOSE_LOCATION_MIN, 1e-9),
+        )
+        structure_quality = 1.0 if structure_held else 0.0
+        reclaim_quality = (
+            0.45 + 0.25 * body_quality + 0.20 * close_quality + 0.10 * structure_quality
+        )
+
+        stretch_factor = (
+            min(1.0, timeframe_expected_bars / expected_bars) if expected_bars > 0.0 else 1.0
+        )
+        attainability_factor = max(0.20, min(1.0, reclaim_quality * stretch_factor))
+        attainable_projected_net_r = projected_net_r * attainability_factor
+
+        if attainable_projected_net_r >= 0.30:
+            viability = "viable"
+        elif attainable_projected_net_r > 0.0:
+            viability = "marginal"
+        else:
+            viability = "weak"
+
+        return (
+            target_range_multiple,
+            expected_bars,
+            attainability_factor,
+            attainable_projected_net_r,
+            viability,
+        )
+
+    (
+        aggressive_target_range_multiple,
+        aggressive_expected_bars,
+        aggressive_attainability_factor,
+        aggressive_attainable_projected_net_r,
+        aggressive_attainability_viability,
+    ) = attainability_diagnostics(
+        available=aggressive_available,
+        entry_price=recovery_entry_price,
+        projected_net_r=aggressive_projected_net_r,
+        structure_held=entry_level_held_next_candle,
+    )
+    (
+        retest_target_range_multiple,
+        retest_expected_bars,
+        retest_attainability_factor,
+        retest_attainable_projected_net_r,
+        retest_attainability_viability,
+    ) = attainability_diagnostics(
+        available=retest_recovery_available,
+        entry_price=retest_entry_price,
+        projected_net_r=retest_projected_net_r,
+        structure_held=retest_held,
+    )
+
     aggressive_preference_score = aggressive_projected_net_r + (
         0.10 if entry_level_held_next_candle else 0.0
     )
@@ -1486,6 +1582,23 @@ def _post_stop_thesis_metadata(
         "recovery_pair_aggressive_preference_score": aggressive_preference_score,
         "recovery_pair_retest_preference_score": retest_preference_score,
         "recovery_pair_retest_delay_bars": retest_delay_bars,
+        "recovery_attainability_timeframe": recovery_timeframe,
+        "recovery_attainability_expected_bars_profile": timeframe_expected_bars,
+        "recovery_attainability_recent_average_range": recent_average_range,
+        "recovery_pair_aggressive_target_range_multiple": aggressive_target_range_multiple,
+        "recovery_pair_retest_target_range_multiple": retest_target_range_multiple,
+        "recovery_pair_aggressive_expected_bars": aggressive_expected_bars,
+        "recovery_pair_retest_expected_bars": retest_expected_bars,
+        "recovery_pair_aggressive_attainability_factor": aggressive_attainability_factor,
+        "recovery_pair_retest_attainability_factor": retest_attainability_factor,
+        "recovery_pair_aggressive_attainable_projected_net_r": (
+            aggressive_attainable_projected_net_r
+        ),
+        "recovery_pair_retest_attainable_projected_net_r": (retest_attainable_projected_net_r),
+        "recovery_pair_aggressive_attainability_viability": (aggressive_attainability_viability),
+        "recovery_pair_retest_attainability_viability": (retest_attainability_viability),
+        "recovery_attainability_diagnostic_only": True,
+        "recovery_attainability_production_behavior_changed": False,
         "recovery_selector_outcome": recovery_selector_outcome,
         "recovery_selector_reason": recovery_selector_reason,
         "recovery_selector_aggressive_viability": aggressive_viability,

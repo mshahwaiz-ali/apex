@@ -1275,3 +1275,56 @@ def test_recovery_selector_metrics_deduplicate_event_members() -> None:
     assert paired["selector_unique_event_count"] == 1
     assert paired["selector_duplicate_row_count"] == 1
     assert paired["selector_evaluable_count"] == 1
+
+
+def test_recovery_selector_projection_calibration_metrics() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    paired = _sweep_reclaim_metrics((trade,))["paired_entry_comparison"]
+    calibration = paired["projection_calibration"]
+
+    assert calibration["aggressive_count"] == 1
+    assert calibration["retest_count"] == 1
+    assert isinstance(calibration["aggressive_average_error_r"], float)
+    assert isinstance(calibration["retest_average_error_r"], float)
+    assert isinstance(calibration["aggressive_mean_absolute_error_r"], float)
+    assert isinstance(calibration["retest_mean_absolute_error_r"], float)
+    assert calibration["diagnostic_only"] is True
+    assert calibration["production_behavior_changed"] is False
+
+
+def test_recovery_attainability_is_diagnostic_only() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=99.8, high=101.5, close=100.5, open_=101.0),
+            _candle(4, low=100.0, high=105.5, close=105.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metadata = trade.metadata
+
+    assert metadata["recovery_attainability_diagnostic_only"] is True
+    assert metadata["recovery_attainability_production_behavior_changed"] is False
+    assert 0.0 <= metadata["recovery_pair_aggressive_attainability_factor"] <= 1.0
+    assert 0.0 <= metadata["recovery_pair_retest_attainability_factor"] <= 1.0
+    assert (
+        metadata["recovery_pair_aggressive_attainable_projected_net_r"]
+        <= (metadata["recovery_pair_aggressive_projected_net_r"])
+    )
+    assert (
+        metadata["recovery_pair_retest_attainable_projected_net_r"]
+        <= (metadata["recovery_pair_retest_projected_net_r"])
+    )
