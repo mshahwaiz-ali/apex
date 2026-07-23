@@ -22,6 +22,7 @@ from apex.cli_commands.backtesting import (
     _report_metrics,
     _shadow_replay_signals,
     _stop_breach_metrics,
+    _sweep_reclaim_metrics,
     _thesis_metrics,
     _unique_geometry_population,
 )
@@ -68,14 +69,21 @@ def _conditional_signal(
     )
 
 
-def _candle(index: int, *, low: float, high: float, close: float) -> Candle:
+def _candle(
+    index: int,
+    *,
+    low: float,
+    high: float,
+    close: float,
+    open_: float | None = None,
+) -> Candle:
     opened = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=5 * index)
     return Candle(
         symbol="BTCUSDT",
         timeframe="5m",
         open_time=opened,
         close_time=opened + timedelta(minutes=5),
-        open=close,
+        open=close if open_ is None else open_,
         high=high,
         low=low,
         close=close,
@@ -814,5 +822,76 @@ def test_stop_breach_metrics_are_diagnostic_only() -> None:
     assert metrics["stop_count"] == 2
     assert metrics["shallow_stop_sweep_count"] == 1
     assert metrics["deep_directional_failure_count"] == 1
+    assert metrics["diagnostic_only"] is True
+    assert metrics["production_behavior_changed"] is False
+
+
+def test_deep_wick_without_close_acceptance_can_be_sweep_candidate() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=96.0, high=101.0, close=98.5),
+            _candle(2, low=98.5, high=101.5, close=101.0),
+            _candle(3, low=99.5, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.outcome is BacktestOutcome.STOP
+    assert trade.metadata["wick_only_stop_sweep"] is True
+    assert trade.metadata["deep_directional_failure"] is False
+    assert trade.metadata["sweep_reclaim_candidate"] is True
+
+
+def test_close_acceptance_beyond_stop_rejects_recovery_entry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=96.0, high=101.0, close=96.5),
+            _candle(2, low=98.5, high=101.5, close=101.0),
+            _candle(3, low=99.5, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["deep_directional_failure"] is True
+    assert trade.metadata["recovery_entry_authorized"] is False
+    assert trade.metadata["sweep_reclaim_rejected_reason"] == "deep_directional_failure"
+
+
+def test_strong_fast_reclaim_with_hold_authorizes_diagnostic_recovery_entry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=102.5, close=101.0),
+            _candle(4, low=100.5, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    assert trade.metadata["sweep_reclaim_confirmed"] is True
+    assert trade.metadata["entry_level_held_next_candle"] is True
+    assert trade.metadata["recovery_entry_authorized"] is True
+    assert trade.metadata["post_stop_classification"] == "qualified_sweep_reclaim_setup"
+
+
+def test_sweep_reclaim_metrics_remain_diagnostic_only() -> None:
+    qualified = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=97.5, high=100.5, close=98.5),
+            _candle(2, low=98.5, high=102.0, close=101.5, open_=99.0),
+            _candle(3, low=100.0, high=102.5, close=101.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+    )
+
+    metrics = _sweep_reclaim_metrics((qualified,))
+
+    assert metrics["candidate_count"] == 1
+    assert metrics["confirmed_count"] == 1
+    assert metrics["authorized_count"] == 1
     assert metrics["diagnostic_only"] is True
     assert metrics["production_behavior_changed"] is False

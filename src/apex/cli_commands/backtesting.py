@@ -444,6 +444,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "risk_and_excursion": _risk_and_excursion(report.trades),
             "thesis_metrics": _thesis_metrics(report.trades),
             "stop_breach_metrics": _stop_breach_metrics(report.trades),
+            "sweep_reclaim_metrics": _sweep_reclaim_metrics(report.trades),
             "execution_assumptions": {
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
@@ -472,6 +473,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "risk_and_excursion": _risk_and_excursion(conditional_report.trades),
                 "thesis_metrics": _thesis_metrics(conditional_report.trades),
                 "stop_breach_metrics": _stop_breach_metrics(conditional_report.trades),
+                "sweep_reclaim_metrics": _sweep_reclaim_metrics(conditional_report.trades),
                 "calibration_authoritative": False,
             },
             "opportunity_replay": {
@@ -492,6 +494,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "risk_and_excursion": _risk_and_excursion(opportunity_report.trades),
                 "thesis_metrics": _thesis_metrics(opportunity_report.trades),
                 "stop_breach_metrics": _stop_breach_metrics(opportunity_report.trades),
+                "sweep_reclaim_metrics": _sweep_reclaim_metrics(opportunity_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
                 "purpose": (
@@ -516,6 +519,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "direction_accuracy": _direction_accuracy(shadow_report.trades),
                 "thesis_metrics": _thesis_metrics(shadow_report.trades),
                 "stop_breach_metrics": _stop_breach_metrics(shadow_report.trades),
+                "sweep_reclaim_metrics": _sweep_reclaim_metrics(shadow_report.trades),
                 "calibration_authoritative": False,
                 "portfolio_drawdown_valid": False,
             },
@@ -1656,6 +1660,23 @@ def _canonical_trade_records(
                 "later_recovery_after_directional_failure": metadata_map.get(
                     "later_recovery_after_directional_failure"
                 ),
+                "wick_only_stop_sweep": metadata_map.get("wick_only_stop_sweep"),
+                "sweep_reclaim_candidate": metadata_map.get("sweep_reclaim_candidate"),
+                "sweep_reclaim_confirmed": metadata_map.get("sweep_reclaim_confirmed"),
+                "sweep_reclaim_rejected_reason": metadata_map.get("sweep_reclaim_rejected_reason"),
+                "reclaim_candle_body_ratio": metadata_map.get("reclaim_candle_body_ratio"),
+                "reclaim_close_location": metadata_map.get("reclaim_close_location"),
+                "entry_level_reclaimed": metadata_map.get("entry_level_reclaimed"),
+                "entry_level_held_next_candle": metadata_map.get("entry_level_held_next_candle"),
+                "retest_available": metadata_map.get("retest_available"),
+                "retest_held": metadata_map.get("retest_held"),
+                "remaining_target_room_r": metadata_map.get("remaining_target_room_r"),
+                "recovery_entry_authorized": metadata_map.get("recovery_entry_authorized"),
+                "recovery_entry_price": metadata_map.get("recovery_entry_price"),
+                "recovery_entry_candle": metadata_map.get("recovery_entry_candle"),
+                "recovery_target_before_failure": metadata_map.get(
+                    "recovery_target_before_failure"
+                ),
                 "diagnostics": enriched_diagnostics,
                 "r_progress": _r_progress_diagnostics(
                     metadata=metadata_map,
@@ -1994,6 +2015,48 @@ def _stop_breach_metrics(trades: object) -> dict[str, object]:
         "average_close_beyond_stop_r": (
             sum(close_depths) / len(close_depths) if close_depths else None
         ),
+        "diagnostic_only": True,
+        "production_behavior_changed": False,
+    }
+
+
+def _sweep_reclaim_metrics(trades: object) -> dict[str, object]:
+    """Aggregate diagnostic sweep-reclaim qualification evidence."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    candidates = 0
+    confirmed = 0
+    authorized = 0
+    retests = 0
+    retests_held = 0
+    targets_before_failure = 0
+    rejected: dict[str, int] = {}
+
+    for trade in values:
+        metadata = getattr(trade, "metadata", None)
+        if not isinstance(metadata, Mapping):
+            continue
+        candidates += metadata.get("sweep_reclaim_candidate") is True
+        confirmed += metadata.get("sweep_reclaim_confirmed") is True
+        authorized += metadata.get("recovery_entry_authorized") is True
+        retests += metadata.get("retest_available") is True
+        retests_held += metadata.get("retest_held") is True
+        targets_before_failure += metadata.get("recovery_target_before_failure") is True
+        reason = metadata.get("sweep_reclaim_rejected_reason")
+        if isinstance(reason, str) and reason != "none":
+            rejected[reason] = rejected.get(reason, 0) + 1
+
+    return {
+        "candidate_count": candidates,
+        "confirmed_count": confirmed,
+        "authorized_count": authorized,
+        "candidate_rate": candidates / len(values) if values else None,
+        "confirmation_rate": confirmed / candidates if candidates else None,
+        "authorization_rate": authorized / candidates if candidates else None,
+        "retest_available_count": retests,
+        "retest_held_count": retests_held,
+        "recovery_target_before_failure_count": targets_before_failure,
+        "rejected_reason_counts": rejected,
         "diagnostic_only": True,
         "production_behavior_changed": False,
     }

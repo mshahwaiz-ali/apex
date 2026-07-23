@@ -27,6 +27,10 @@ STOP_BREACH_DEEP_CLOSE_MIN_R = 0.35
 STOP_BREACH_SHALLOW_RECLAIM_MAX_BARS = 2
 STOP_BREACH_DEEP_RECLAIM_BARS = 4
 STOP_BREACH_DEEP_CONSECUTIVE_CLOSES = 2
+SWEEP_RECLAIM_BODY_RATIO_MIN = 0.40
+SWEEP_RECLAIM_CLOSE_LOCATION_MIN = 0.65
+SWEEP_RECLAIM_MAX_CONFIRM_BARS = 2
+SWEEP_RECLAIM_MIN_REMAINING_TARGET_R = 1.00
 
 
 def simulate_trade(
@@ -226,6 +230,7 @@ def simulate_trade(
                         candles[index:max_candles],
                         entry=entry,
                         stop=stop,
+                        stop_candle=candle,
                     ),
                 },
                 partial_target_count=next_target_index,
@@ -288,6 +293,7 @@ def simulate_trade(
                         candles[index:max_candles],
                         entry=entry,
                         stop=stop,
+                        stop_candle=candle,
                     ),
                 },
                 partial_target_count=next_target_index,
@@ -674,12 +680,14 @@ def _post_stop_thesis_metadata(
     *,
     entry: float,
     stop: float,
+    stop_candle: Candle,
 ) -> dict[str, str | int | float | bool]:
-    """Classify post-stop behavior without retroactively forgiving deep failure.
+    """Classify stop severity and a possible post-stop recovery setup.
 
-    The stop candle itself is excluded by callers because intrabar ordering is
-    unknowable. Later recovery is diagnostic only. A deep adverse breach keeps
-    precedence over any subsequent reclaim or TP1 touch.
+    The original trade remains stopped. A later reclaim can only become a new,
+    diagnostic recovery setup. The stop candle is included for breach depth and
+    close acceptance, while later candles confirm reclaim, hold, retest, and
+    target sequencing.
     """
 
     risk_per_unit = abs(entry - stop)
@@ -706,101 +714,243 @@ def _post_stop_thesis_metadata(
             "deep_directional_failure": False,
             "directional_failure_before_recovery": False,
             "later_recovery_after_directional_failure": False,
+            "wick_only_stop_sweep": False,
+            "sweep_reclaim_candidate": False,
+            "sweep_reclaim_confirmed": False,
+            "sweep_reclaim_rejected_reason": "invalid_risk_geometry",
+            "reclaim_candle_body_ratio": 0.0,
+            "reclaim_close_location": 0.0,
+            "entry_level_reclaimed": False,
+            "entry_level_held_next_candle": False,
+            "retest_available": False,
+            "retest_held": False,
+            "remaining_target_room_r": 0.0,
+            "recovery_entry_authorized": False,
+            "recovery_entry_price": 0.0,
+            "recovery_entry_candle": 0,
+            "recovery_target_before_failure": False,
         }
+
+    def beyond_stop_r(candle: Candle) -> float:
+        if signal.direction is TradeDirection.LONG:
+            return max(0.0, stop - candle.low) / risk_per_unit
+        return max(0.0, candle.high - stop) / risk_per_unit
+
+    def close_beyond_stop_r(candle: Candle) -> float:
+        if signal.direction is TradeDirection.LONG:
+            return max(0.0, stop - candle.close) / risk_per_unit
+        return max(0.0, candle.close - stop) / risk_per_unit
+
+    def traded_beyond_stop(candle: Candle) -> bool:
+        return candle.low < stop if signal.direction is TradeDirection.LONG else candle.high > stop
+
+    def closed_beyond_stop(candle: Candle) -> bool:
+        return (
+            candle.close < stop if signal.direction is TradeDirection.LONG else candle.close > stop
+        )
+
+    def stop_reclaimed_on_close(candle: Candle) -> bool:
+        return (
+            candle.close >= stop
+            if signal.direction is TradeDirection.LONG
+            else candle.close <= stop
+        )
+
+    def entry_reclaimed_on_close(candle: Candle) -> bool:
+        return (
+            candle.close >= entry
+            if signal.direction is TradeDirection.LONG
+            else candle.close <= entry
+        )
+
+    def entry_touched(candle: Candle) -> bool:
+        return candle.low <= entry <= candle.high
+
+    def favorable_close(candle: Candle, level: float) -> bool:
+        return (
+            candle.close >= level
+            if signal.direction is TradeDirection.LONG
+            else candle.close <= level
+        )
+
+    all_breach_candles = (stop_candle, *candles)
+    maximum_beyond_stop_r = max(beyond_stop_r(candle) for candle in all_breach_candles)
+    maximum_close_beyond_stop_r = max(close_beyond_stop_r(candle) for candle in all_breach_candles)
+    bars_traded_beyond_stop = sum(traded_beyond_stop(candle) for candle in all_breach_candles)
+    bars_closed_beyond_stop = sum(closed_beyond_stop(candle) for candle in all_breach_candles)
+
+    consecutive_closes = 0
+    maximum_consecutive_closes = 0
+    for candle in all_breach_candles:
+        if closed_beyond_stop(candle):
+            consecutive_closes += 1
+            maximum_consecutive_closes = max(
+                maximum_consecutive_closes,
+                consecutive_closes,
+            )
+        else:
+            consecutive_closes = 0
 
     maximum_favorable_r = 0.0
     maximum_adverse_r = 0.0
-    maximum_beyond_stop_r = 0.0
-    maximum_close_beyond_stop_r = 0.0
-    bars_traded_beyond_stop = 0
-    bars_closed_beyond_stop = 0
-    consecutive_closes_beyond_stop = 0
-    maximum_consecutive_closes_beyond_stop = 0
-    bars_to_entry_reclaim = 0
     bars_to_stop_reclaim = 0
-    entry_reclaimed = False
-    stop_reclaimed = False
+    bars_to_entry_reclaim = 0
+    stop_reclaimed = stop_reclaimed_on_close(stop_candle)
+    entry_reclaimed = entry_reclaimed_on_close(stop_candle)
     tp1_reached = False
-    first_recovery_candle = 0
+    reclaim_candle: Candle | None = None
+    reclaim_candle_index = 0
 
     for index, candle in enumerate(candles, start=1):
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
         maximum_favorable_r = max(maximum_favorable_r, favorable_r)
         maximum_adverse_r = max(maximum_adverse_r, adverse_r)
 
-        if signal.direction is TradeDirection.LONG:
-            beyond_stop = max(0.0, stop - candle.low) / risk_per_unit
-            close_beyond_stop = max(0.0, stop - candle.close) / risk_per_unit
-            traded_beyond_stop = candle.low < stop
-            closed_beyond_stop = candle.close < stop
-            stop_reclaim = candle.close >= stop
-            entry_reclaim = candle.high >= entry
-        else:
-            beyond_stop = max(0.0, candle.high - stop) / risk_per_unit
-            close_beyond_stop = max(0.0, candle.close - stop) / risk_per_unit
-            traded_beyond_stop = candle.high > stop
-            closed_beyond_stop = candle.close > stop
-            stop_reclaim = candle.close <= stop
-            entry_reclaim = candle.low <= entry
-
-        maximum_beyond_stop_r = max(maximum_beyond_stop_r, beyond_stop)
-        maximum_close_beyond_stop_r = max(
-            maximum_close_beyond_stop_r,
-            close_beyond_stop,
-        )
-        if traded_beyond_stop:
-            bars_traded_beyond_stop += 1
-        if closed_beyond_stop:
-            bars_closed_beyond_stop += 1
-            consecutive_closes_beyond_stop += 1
-            maximum_consecutive_closes_beyond_stop = max(
-                maximum_consecutive_closes_beyond_stop,
-                consecutive_closes_beyond_stop,
-            )
-        else:
-            consecutive_closes_beyond_stop = 0
-
-        if stop_reclaim and not stop_reclaimed:
+        if not stop_reclaimed and stop_reclaimed_on_close(candle):
             stop_reclaimed = True
             bars_to_stop_reclaim = index
-            first_recovery_candle = index
-        if entry_reclaim and not entry_reclaimed:
+        if not entry_reclaimed and entry_reclaimed_on_close(candle):
             entry_reclaimed = True
             bars_to_entry_reclaim = index
-            if first_recovery_candle == 0:
-                first_recovery_candle = index
-        tp1_reached = tp1_reached or _target_hit(signal, candle, signal.target_price)
-
-    adverse_close_beyond_stop = bars_closed_beyond_stop > 0
-    deep_directional_failure = (
-        maximum_beyond_stop_r >= STOP_BREACH_DEEP_MIN_R
-        or maximum_close_beyond_stop_r >= STOP_BREACH_DEEP_CLOSE_MIN_R
-        or maximum_consecutive_closes_beyond_stop >= STOP_BREACH_DEEP_CONSECUTIVE_CLOSES
-        or (
-            bars_traded_beyond_stop > 0
-            and (not stop_reclaimed or bars_to_stop_reclaim > STOP_BREACH_DEEP_RECLAIM_BARS)
+        if reclaim_candle is None and entry_reclaimed_on_close(candle):
+            reclaim_candle = candle
+            reclaim_candle_index = index
+        tp1_reached = tp1_reached or _target_hit(
+            signal,
+            candle,
+            signal.target_price,
         )
+
+    stop_candle_reclaimed = stop_reclaimed_on_close(stop_candle)
+    wick_only_stop_sweep = (
+        maximum_beyond_stop_r > STOP_BREACH_SHALLOW_MAX_R
+        and close_beyond_stop_r(stop_candle) == 0.0
+        and stop_candle_reclaimed
+        and bars_closed_beyond_stop == 0
+    )
+
+    close_failure = (
+        maximum_close_beyond_stop_r >= STOP_BREACH_DEEP_CLOSE_MIN_R
+        or maximum_consecutive_closes >= STOP_BREACH_DEEP_CONSECUTIVE_CLOSES
+    )
+    slow_or_failed_reclaim = (
+        not stop_reclaimed or bars_to_stop_reclaim > STOP_BREACH_DEEP_RECLAIM_BARS
+    )
+    deep_directional_failure = close_failure or (
+        maximum_beyond_stop_r >= STOP_BREACH_DEEP_MIN_R
+        and not wick_only_stop_sweep
+        and slow_or_failed_reclaim
     )
     shallow_stop_sweep = (
         not deep_directional_failure
         and maximum_beyond_stop_r <= STOP_BREACH_SHALLOW_MAX_R
         and bars_closed_beyond_stop <= 1
         and stop_reclaimed
-        and 0 < bars_to_stop_reclaim <= STOP_BREACH_SHALLOW_RECLAIM_MAX_BARS
+        and (
+            stop_candle_reclaimed
+            or 0 < bars_to_stop_reclaim <= STOP_BREACH_SHALLOW_RECLAIM_MAX_BARS
+        )
+    )
+    sweep_reclaim_candidate = not deep_directional_failure and (
+        shallow_stop_sweep or wick_only_stop_sweep
     )
     moderate_stop_breach = (
-        not deep_directional_failure and not shallow_stop_sweep and maximum_beyond_stop_r > 0.0
+        not deep_directional_failure and not sweep_reclaim_candidate and maximum_beyond_stop_r > 0.0
     )
+
+    reclaim_body_ratio = 0.0
+    reclaim_close_location = 0.0
+    remaining_target_room_r = 0.0
+    recovery_entry_price = 0.0
+    entry_level_held_next_candle = False
+    retest_available = False
+    retest_held = False
+    recovery_target_before_failure = False
+
+    if reclaim_candle is not None:
+        candle_range = reclaim_candle.high - reclaim_candle.low
+        if candle_range > 0.0:
+            reclaim_body_ratio = abs(reclaim_candle.close - reclaim_candle.open) / candle_range
+            if signal.direction is TradeDirection.LONG:
+                reclaim_close_location = (reclaim_candle.close - reclaim_candle.low) / candle_range
+            else:
+                reclaim_close_location = (reclaim_candle.high - reclaim_candle.close) / candle_range
+
+        recovery_entry_price = reclaim_candle.close
+        remaining_target_room_r = (
+            (signal.target_price - recovery_entry_price) / risk_per_unit
+            if signal.direction is TradeDirection.LONG
+            else (recovery_entry_price - signal.target_price) / risk_per_unit
+        )
+
+        next_index = reclaim_candle_index
+        if next_index < len(candles):
+            next_candle = candles[next_index]
+            entry_level_held_next_candle = favorable_close(next_candle, entry)
+
+        for later in candles[reclaim_candle_index:]:
+            if closed_beyond_stop(later):
+                break
+            if entry_touched(later):
+                retest_available = True
+                if favorable_close(later, entry):
+                    retest_held = True
+            if _target_hit(signal, later, signal.target_price):
+                recovery_target_before_failure = True
+                break
+
+    strong_reclaim_candle = (
+        reclaim_candle is not None
+        and reclaim_body_ratio >= SWEEP_RECLAIM_BODY_RATIO_MIN
+        and reclaim_close_location >= SWEEP_RECLAIM_CLOSE_LOCATION_MIN
+    )
+    timely_reclaim = 0 < reclaim_candle_index <= SWEEP_RECLAIM_MAX_CONFIRM_BARS
+    structure_confirmed = entry_level_held_next_candle or retest_held
+    sweep_reclaim_confirmed = (
+        sweep_reclaim_candidate
+        and timely_reclaim
+        and strong_reclaim_candle
+        and remaining_target_room_r >= SWEEP_RECLAIM_MIN_REMAINING_TARGET_R
+    )
+    recovery_entry_authorized = (
+        sweep_reclaim_confirmed and structure_confirmed and not deep_directional_failure
+    )
+
+    if deep_directional_failure:
+        rejected_reason = "deep_directional_failure"
+    elif not sweep_reclaim_candidate:
+        rejected_reason = "not_a_sweep_candidate"
+    elif reclaim_candle is None:
+        rejected_reason = "entry_level_not_reclaimed"
+    elif not timely_reclaim:
+        rejected_reason = "reclaim_too_slow"
+    elif not strong_reclaim_candle:
+        rejected_reason = "weak_reclaim_candle"
+    elif remaining_target_room_r < SWEEP_RECLAIM_MIN_REMAINING_TARGET_R:
+        rejected_reason = "insufficient_remaining_target_room"
+    elif not structure_confirmed:
+        rejected_reason = "reclaim_not_held_or_retested"
+    else:
+        rejected_reason = "none"
+
     later_recovery_after_directional_failure = deep_directional_failure and (
         entry_reclaimed or tp1_reached
     )
 
-    if deep_directional_failure:
+    if not candles:
+        classification = "ambiguous_after_stop"
+    elif deep_directional_failure:
         classification = (
             "deep_directional_failure_then_recovery"
             if later_recovery_after_directional_failure
             else "deep_directional_failure"
         )
+    elif recovery_entry_authorized:
+        classification = "qualified_sweep_reclaim_setup"
+    elif sweep_reclaim_confirmed:
+        classification = "sweep_reclaim_confirmed_waiting_hold"
+    elif wick_only_stop_sweep:
+        classification = "wick_only_sweep_unqualified"
     elif shallow_stop_sweep and tp1_reached:
         classification = "shallow_stop_sweep_then_tp"
     elif shallow_stop_sweep:
@@ -824,21 +974,36 @@ def _post_stop_thesis_metadata(
         "post_stop_maximum_close_beyond_stop_r": maximum_close_beyond_stop_r,
         "post_stop_bars_traded_beyond_stop": bars_traded_beyond_stop,
         "post_stop_bars_closed_beyond_stop": bars_closed_beyond_stop,
-        "post_stop_max_consecutive_closes_beyond_stop": (maximum_consecutive_closes_beyond_stop),
+        "post_stop_max_consecutive_closes_beyond_stop": (maximum_consecutive_closes),
         "post_stop_entry_reclaimed": entry_reclaimed,
         "post_stop_stop_reclaimed": stop_reclaimed,
         "post_stop_bars_to_reclaim": bars_to_entry_reclaim,
         "post_stop_bars_to_stop_reclaim": bars_to_stop_reclaim,
-        "post_stop_first_recovery_candle": first_recovery_candle,
+        "post_stop_first_recovery_candle": reclaim_candle_index,
         "post_stop_tp1_reached": tp1_reached,
         "post_stop_maximum_favorable_excursion_r": maximum_favorable_r,
         "post_stop_maximum_adverse_excursion_r": maximum_adverse_r,
-        "post_stop_adverse_close_beyond_stop": adverse_close_beyond_stop,
+        "post_stop_adverse_close_beyond_stop": bars_closed_beyond_stop > 0,
         "shallow_stop_sweep": shallow_stop_sweep,
         "moderate_stop_breach": moderate_stop_breach,
         "deep_directional_failure": deep_directional_failure,
         "directional_failure_before_recovery": deep_directional_failure,
         "later_recovery_after_directional_failure": (later_recovery_after_directional_failure),
+        "wick_only_stop_sweep": wick_only_stop_sweep,
+        "sweep_reclaim_candidate": sweep_reclaim_candidate,
+        "sweep_reclaim_confirmed": sweep_reclaim_confirmed,
+        "sweep_reclaim_rejected_reason": rejected_reason,
+        "reclaim_candle_body_ratio": reclaim_body_ratio,
+        "reclaim_close_location": reclaim_close_location,
+        "entry_level_reclaimed": reclaim_candle is not None,
+        "entry_level_held_next_candle": entry_level_held_next_candle,
+        "retest_available": retest_available,
+        "retest_held": retest_held,
+        "remaining_target_room_r": remaining_target_room_r,
+        "recovery_entry_authorized": recovery_entry_authorized,
+        "recovery_entry_price": recovery_entry_price,
+        "recovery_entry_candle": reclaim_candle_index,
+        "recovery_target_before_failure": recovery_target_before_failure,
     }
 
 
