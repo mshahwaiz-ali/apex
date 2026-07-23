@@ -4,9 +4,8 @@ import argparse
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 
 def as_dict(value: object) -> dict[str, object]:
@@ -31,8 +30,8 @@ def parse_time(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -101,7 +100,9 @@ def load_rows(report_dir: Path) -> list[LossRow]:
                     strategy=str(signal.get("strategy") or "unknown"),
                     direction=str(signal.get("direction") or "unknown"),
                     decision_time=decision_time,
-                    outcome=str(trade.get("outcome") or metadata.get("terminal_state") or "unknown"),
+                    outcome=str(
+                        trade.get("outcome") or metadata.get("terminal_state") or "unknown"
+                    ),
                     net_r=net_r,
                     mfe_r=number(
                         trade.get("maximum_favorable_excursion_r")
@@ -125,8 +126,7 @@ def load_rows(report_dir: Path) -> list[LossRow]:
                     ),
                     entry_filled=bool_or_none(metadata.get("entry_filled")),
                     same_candle_ambiguous=bool_or_none(
-                        metadata.get("same_candle_ambiguous")
-                        or trade.get("same_candle_ambiguous")
+                        metadata.get("same_candle_ambiguous") or trade.get("same_candle_ambiguous")
                     ),
                     event_key=event_key,
                 )
@@ -194,7 +194,9 @@ def summarize(rows: list[LossRow]) -> None:
         print(f"  {cause:32} {count:4d}  ({count / len(rows) * 100.0:6.2f}%)")
     print()
     print("BY STRATEGY")
-    for strategy, members in sorted(by_strategy.items(), key=lambda item: sum(row.net_r for row in item[1])):
+    for strategy, members in sorted(
+        by_strategy.items(), key=lambda item: sum(row.net_r for row in item[1])
+    ):
         print(
             f"  {strategy:28} losses={len(members):3d} "
             f"total_r={sum(row.net_r for row in members):9.4f} "
@@ -202,7 +204,9 @@ def summarize(rows: list[LossRow]) -> None:
         )
     print()
     print("BY TIMEFRAME")
-    for timeframe, members in sorted(by_timeframe.items(), key=lambda item: sum(row.net_r for row in item[1])):
+    for timeframe, members in sorted(
+        by_timeframe.items(), key=lambda item: sum(row.net_r for row in item[1])
+    ):
         print(
             f"  {timeframe:8} losses={len(members):3d} "
             f"total_r={sum(row.net_r for row in members):9.4f} "
