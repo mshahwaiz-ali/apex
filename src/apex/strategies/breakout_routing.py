@@ -45,7 +45,7 @@ def route_breakout_candidates_with_diagnostics(
     raw_breakout_candidate_count = 0
     conditional_candidate_count = 0
 
-    for candidate in candidates:
+    for breakout_index, candidate in enumerate(candidates):
         if candidate.strategy not in _BREAKOUT_FAMILIES:
             routed.append(candidate)
             continue
@@ -53,6 +53,7 @@ def route_breakout_candidates_with_diagnostics(
         raw_breakout_candidate_count += 1
         authority = resolve_breakout_direction_authority(context, candidate)
         metadata = {**dict(candidate.metadata), **authority.metadata()}
+        metadata["breakout_routing_candidate_id"] = f"{candidate.strategy.value}:{breakout_index}"
         if not authority.allowed:
             rejected.append(
                 BreakoutRoutingRejection(

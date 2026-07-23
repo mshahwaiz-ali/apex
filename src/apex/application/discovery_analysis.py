@@ -453,6 +453,66 @@ def _methodology_parity_diagnostics(
     return methodology_routing_parity_payload(audit)
 
 
+def _breakout_routing_diagnostics(strategy_analysis: Any) -> dict[str, Any]:
+    # Aggregate preserved breakout authority lineage for backtest/report export.
+
+    breakout_strategies = {
+        "breakout_retest",
+        "breakout_continuation",
+        "momentum_breakout",
+    }
+    retained_by_id: dict[str, Any] = {}
+    rejected_by_id: dict[str, Any] = {}
+
+    for candidate in getattr(strategy_analysis, "candidates", ()):
+        if candidate.strategy.value not in breakout_strategies:
+            continue
+        candidate_id = str(
+            candidate.metadata.get(
+                "breakout_routing_candidate_id",
+                f"retained:{id(candidate)}",
+            )
+        )
+        retained_by_id.setdefault(candidate_id, candidate)
+
+    rejection_counts: Counter[str] = Counter()
+    for suppressed in getattr(strategy_analysis, "suppressed_candidates", ()):
+        if getattr(suppressed, "suppression_stage", "") != "breakout_timeframe_authority":
+            continue
+        candidate = suppressed.candidate
+        candidate_id = str(
+            candidate.metadata.get(
+                "breakout_routing_candidate_id",
+                f"rejected:{id(candidate)}",
+            )
+        )
+        rejected_by_id.setdefault(candidate_id, candidate)
+        rejection_counts.update(str(code) for code in suppressed.reason_codes)
+
+    retained = tuple(retained_by_id.values())
+    rejected = tuple(rejected_by_id.values())
+    all_breakout = (*retained, *rejected)
+
+    return {
+        "raw_breakout_candidate_count": len(retained) + len(rejected),
+        "retained_breakout_candidate_count": len(retained),
+        "rejected_breakout_candidate_count": len(rejected),
+        "conditional_breakout_candidate_count": sum(
+            bool(candidate.metadata.get("refinement_requires_renewal")) for candidate in retained
+        ),
+        "rejection_counts": dict(sorted(rejection_counts.items())),
+        "direction_authority_opposed_count": rejection_counts["30m_direction_authority_opposed"],
+        "setup_authority_opposed_count": rejection_counts["15m_setup_authority_opposed"],
+        "retest_failed_count": rejection_counts["5m_retest_failed"],
+        "retest_not_accepted_count": rejection_counts["5m_retest_not_accepted"],
+        "execution_authority_opposed_count": rejection_counts["5m_execution_authority_opposed"],
+        "timing_frame_direction_violation_count": sum(
+            bool(candidate.metadata.get("timing_frame_used_for_direction"))
+            for candidate in all_breakout
+        ),
+    }
+
+
 def _zero_trade_diagnostics(
     *,
     strategy_analysis: Any,
@@ -522,6 +582,7 @@ def _zero_trade_diagnostics(
     selection_metadata = getattr(selection, "metadata", {}) or {}
     return {
         "diagnostic_version": 1,
+        "breakout_routing": _breakout_routing_diagnostics(strategy_analysis),
         "execution_filter_policy": (
             "strict: diagnostics may explain zero trades, but do not loosen entry filters"
         ),
