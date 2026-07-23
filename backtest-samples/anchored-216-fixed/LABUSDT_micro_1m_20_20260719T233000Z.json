@@ -4348,7 +4348,7 @@
         "maximum_favorable_excursion_r": 2.587948974735681,
         "metadata": {
           "activation_candle": 1,
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1502,
           "activation_outcome": "triggered",
           "activation_price": 0.1502,
@@ -4433,7 +4433,7 @@
         "same_candle_stop_target_ambiguous": false,
         "sequence_role": "nearby",
         "signal": {
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1502,
           "activation_type": "retest_hold",
           "candidate_id": "compression_expansion:short:0",
@@ -5319,7 +5319,7 @@
         "maximum_favorable_excursion_r": 2.587948974735681,
         "metadata": {
           "activation_candle": 1,
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1502,
           "activation_outcome": "triggered",
           "activation_price": 0.1502,
@@ -5404,7 +5404,7 @@
         "same_candle_stop_target_ambiguous": false,
         "sequence_role": "nearby",
         "signal": {
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1502,
           "activation_type": "retest_hold",
           "candidate_id": "compression_expansion:short:0",

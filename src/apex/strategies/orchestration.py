@@ -241,9 +241,6 @@ def _expand_candidate_entry_paths(candidate: TradeCandidate) -> tuple[TradeCandi
             ),
         )
     )
-    if len(opportunities) <= 1:
-        return (candidate,)
-
     return tuple(_candidate_for_entry_path(candidate, entry=entry) for entry in opportunities)
 
 
@@ -252,41 +249,65 @@ def _candidate_for_entry_path(
     *,
     entry: EntryZone,
 ) -> TradeCandidate:
-    if entry == candidate.entry:
-        metadata = {
-            **candidate.metadata,
-            "entry_sequence_role": "strategy_primary",
+    metadata = {
+        key: value
+        for key, value in candidate.metadata.items()
+        if key not in _ENTRY_SPECIFIC_METADATA_KEYS
+    }
+    metadata.update(
+        {
+            "entry_sequence_role": (
+                "strategy_primary" if entry == candidate.entry else "alternative"
+            ),
         }
-    else:
-        metadata = {
-            key: value
-            for key, value in candidate.metadata.items()
-            if key not in _ENTRY_SPECIFIC_METADATA_KEYS
-        }
+    )
+
+    if entry.mode is EntryMode.MARKET_NEAR:
         metadata.update(
             {
-                "entry_geometry_owner": "shared_entry_selector_alternative",
+                "entry_geometry_owner": (
+                    candidate.metadata.get("entry_geometry_owner", "strategy_primary")
+                    if entry == candidate.entry
+                    else "shared_entry_selector_alternative"
+                ),
                 "entry_sequence_role": (
-                    "current_cmp" if entry.mode is EntryMode.MARKET_NEAR else "alternative"
+                    "strategy_primary" if entry == candidate.entry else "current_cmp"
                 ),
             }
         )
-        if entry.mode is EntryMode.SWEEP_RECOVERY:
-            reclaim_trigger = (
-                entry.upper if candidate.direction is TradeDirection.LONG else entry.lower
-            )
-            metadata.update(
-                {
-                    "retest_trigger_level": reclaim_trigger,
-                    "retest_zone_low": entry.lower,
-                    "retest_zone_high": entry.upper,
-                    "retest_confirmation_rule": (
-                        "price must sweep into the projected zone and reclaim "
-                        "the trigger before entry"
-                    ),
-                    "entry_geometry_owner": "shared_sweep_recovery_projection",
-                }
-            )
+    elif entry.mode is EntryMode.SWEEP_RECOVERY:
+        reclaim_trigger = entry.upper if candidate.direction is TradeDirection.LONG else entry.lower
+        metadata.update(
+            {
+                "retest_trigger_level": reclaim_trigger,
+                "retest_zone_low": entry.lower,
+                "retest_zone_high": entry.upper,
+                "retest_confirmation_rule": (
+                    "price must sweep into the projected zone and reclaim the trigger before entry"
+                ),
+                "entry_geometry_owner": "shared_sweep_recovery_projection",
+            }
+        )
+    else:
+        metadata.update(
+            {
+                "retest_trigger_level": entry.preferred,
+                "retest_zone_low": entry.lower,
+                "retest_zone_high": entry.upper,
+                "retest_confirmation_rule": (
+                    "price must confirm the selected entry zone before execution"
+                ),
+                "entry_geometry_owner": (
+                    candidate.metadata.get(
+                        "entry_geometry_owner",
+                        "strategy_primary",
+                    )
+                    if entry == candidate.entry
+                    else "shared_entry_selector_alternative"
+                ),
+            }
+        )
+
     return replace(
         candidate,
         entry=entry,

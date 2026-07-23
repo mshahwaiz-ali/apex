@@ -3345,7 +3345,7 @@
         "maximum_favorable_excursion_r": 0.8127827077794464,
         "metadata": {
           "activation_candle": 1,
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1461,
           "activation_outcome": "triggered",
           "activation_price": 0.1461,
@@ -3430,7 +3430,7 @@
         "same_candle_stop_target_ambiguous": false,
         "sequence_role": "nearby",
         "signal": {
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1461,
           "activation_type": "retest_hold",
           "candidate_id": "compression_expansion:short:0",
@@ -4213,7 +4213,7 @@
         "maximum_favorable_excursion_r": 0.8127827077794464,
         "metadata": {
           "activation_candle": 1,
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1461,
           "activation_outcome": "triggered",
           "activation_price": 0.1461,
@@ -4298,7 +4298,7 @@
         "same_candle_stop_target_ambiguous": false,
         "sequence_role": "nearby",
         "signal": {
-          "activation_expiry_candles": 3,
+          "activation_expiry_candles": 6,
           "activation_level": 0.1461,
           "activation_type": "retest_hold",
           "candidate_id": "compression_expansion:short:0",
@@ -5680,7 +5680,7 @@
   "study": {
     "code_hash": "023d144a452ffbedb43e8fdbbc79cdef4eb937e4993700b44028ce8e573f3986",
     "config_hash": "d4a8f752b9930e73a643a9e1e0d42a4def8b83041270696479e4bf26d9df041b",
-    "dataset_hash": "0ec30796d613f737b5334161075f44e701d3b70429817897ce8fd047bdf44445",
+    "dataset_hash": "6d906a5556f87a0f1c3459e976fdd4a668141e92c2ff46f778b9fd6d53011027",
     "skipped_signal_count": 0
   },
   "symbol": "LAB/USDT",

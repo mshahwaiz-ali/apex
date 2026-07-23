@@ -191,6 +191,58 @@ def _missed_setup_htf_valid(candidate: TradeCandidate) -> bool:
     )
 
 
+def _metadata_for_selected_entry_zone(
+    candidate: TradeCandidate,
+    *,
+    selected_entry_zone: EntryZone,
+) -> dict[str, str | int | float | bool]:
+    """Return entry-specific metadata aligned with the selected setup zone."""
+
+    entry_specific_keys = {
+        "retest_trigger_level",
+        "retest_zone_low",
+        "retest_zone_high",
+        "retest_confirmation_rule",
+    }
+    metadata = {
+        key: value for key, value in candidate.metadata.items() if key not in entry_specific_keys
+    }
+
+    if selected_entry_zone.mode is EntryMode.MARKET_NEAR:
+        return metadata
+
+    if selected_entry_zone.mode is EntryMode.SWEEP_RECOVERY:
+        trigger = (
+            selected_entry_zone.upper
+            if candidate.direction is TradeDirection.LONG
+            else selected_entry_zone.lower
+        )
+        metadata.update(
+            {
+                "retest_trigger_level": trigger,
+                "retest_zone_low": selected_entry_zone.lower,
+                "retest_zone_high": selected_entry_zone.upper,
+                "retest_confirmation_rule": (
+                    "price must sweep into the projected zone and reclaim the trigger before entry"
+                ),
+                "entry_geometry_owner": "shared_sweep_recovery_projection",
+            }
+        )
+        return metadata
+
+    metadata.update(
+        {
+            "retest_trigger_level": selected_entry_zone.preferred,
+            "retest_zone_low": selected_entry_zone.lower,
+            "retest_zone_high": selected_entry_zone.upper,
+            "retest_confirmation_rule": (
+                "price must confirm the selected entry zone before execution"
+            ),
+        }
+    )
+    return metadata
+
+
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     candidate = ranked.candidate
     entry_status = classify_candidate_actionability(candidate)
@@ -200,7 +252,10 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     )
     entry_authority = resolve_candidate_entry_authority(
         selected_entry_zone,
-        candidate.metadata,
+        _metadata_for_selected_entry_zone(
+            candidate,
+            selected_entry_zone=selected_entry_zone,
+        ),
     )
     entry = _entry_zone(selected_entry_zone, candidate.direction)
     ordered_entry_opportunities = (

@@ -171,3 +171,253 @@ def test_unqualified_reference_does_not_hide_valid_market_entry() -> None:
     assert (
         "preserved as a future setup despite limited R:R improvement over CMP" in zones[1].rationale
     )
+
+
+def test_market_primary_drops_stale_retest_metadata() -> None:
+    from datetime import UTC, datetime
+
+    from apex.strategies.contracts import (
+        EntryMode,
+        InvalidationConcept,
+        InvalidationType,
+        RawQualityMetrics,
+        StrategyEvidence,
+        TargetConcept,
+        TargetLevel,
+        TargetType,
+        TradeCandidate,
+        TradeDirection,
+    )
+    from apex.strategies.entry import EntryReference, EntrySelectionConfig, find_entry_zones
+    from apex.strategies.orchestration import _expand_candidate_entry_paths
+    from apex.strategies.strategy_types import StrategyType
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=95.0,
+        target_price=112.0,
+        references=(
+            EntryReference(
+                price=98.5,
+                mode=EntryMode.RETEST,
+                rationale=("structural retest",),
+            ),
+        ),
+        config=EntrySelectionConfig(
+            sweep_projection_enabled=True,
+            max_percentage_distance=0.03,
+            max_atr_distance=1.0,
+        ),
+    )
+
+    candidate = TradeCandidate(
+        symbol="BTCUSDT",
+        strategy=StrategyType.TREND_PULLBACK,
+        direction=TradeDirection.LONG,
+        decision_time=datetime(2026, 7, 22, tzinfo=UTC),
+        entry=zones[0],
+        entry_opportunities=zones,
+        invalidation=InvalidationConcept(
+            kind=InvalidationType.STRUCTURAL,
+            price=95.0,
+            rationale=("support failure",),
+        ),
+        targets=TargetConcept(
+            levels=(
+                TargetLevel(
+                    kind=TargetType.STRUCTURAL,
+                    price=112.0,
+                    label="TP1",
+                    rationale=("prior high",),
+                ),
+            )
+        ),
+        quality=RawQualityMetrics(
+            trend_alignment=0.8,
+            structure_quality=0.8,
+            entry_quality=0.8,
+            momentum_quality=0.8,
+            volume_quality=0.8,
+            liquidity_quality=0.8,
+            target_space_quality=0.8,
+        ),
+        evidence=StrategyEvidence(supporting=("trend remains intact",)),
+        metadata={
+            "entry_geometry_owner": "strategy_structure_level",
+            "retest_trigger_level": 98.5,
+            "retest_zone_low": 98.0,
+            "retest_zone_high": 99.0,
+            "retest_confirmation_rule": "hold_or_reclaim_above_retest_zone",
+        },
+    )
+
+    paths = _expand_candidate_entry_paths(candidate)
+    market = next(path for path in paths if path.entry.mode is EntryMode.MARKET_NEAR)
+
+    assert "retest_trigger_level" not in market.metadata
+    assert "retest_zone_low" not in market.metadata
+    assert "retest_zone_high" not in market.metadata
+
+
+def test_each_conditional_path_receives_its_own_valid_trigger_geometry() -> None:
+    from datetime import UTC, datetime
+
+    from apex.strategies.contracts import (
+        EntryMode,
+        InvalidationConcept,
+        InvalidationType,
+        RawQualityMetrics,
+        StrategyEvidence,
+        TargetConcept,
+        TargetLevel,
+        TargetType,
+        TradeCandidate,
+        TradeDirection,
+    )
+    from apex.strategies.entry import EntryReference, EntrySelectionConfig, find_entry_zones
+    from apex.strategies.orchestration import _expand_candidate_entry_paths
+    from apex.strategies.strategy_types import StrategyType
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=95.0,
+        target_price=112.0,
+        references=(
+            EntryReference(
+                price=98.5,
+                mode=EntryMode.RETEST,
+                rationale=("structural retest",),
+            ),
+        ),
+        config=EntrySelectionConfig(sweep_projection_enabled=True),
+    )
+
+    candidate = TradeCandidate(
+        symbol="BTCUSDT",
+        strategy=StrategyType.TREND_PULLBACK,
+        direction=TradeDirection.LONG,
+        decision_time=datetime(2026, 7, 22, tzinfo=UTC),
+        entry=zones[0],
+        entry_opportunities=zones,
+        invalidation=InvalidationConcept(
+            kind=InvalidationType.STRUCTURAL,
+            price=95.0,
+            rationale=("support failure",),
+        ),
+        targets=TargetConcept(
+            levels=(
+                TargetLevel(
+                    kind=TargetType.STRUCTURAL,
+                    price=112.0,
+                    label="TP1",
+                    rationale=("prior high",),
+                ),
+            )
+        ),
+        quality=RawQualityMetrics(
+            trend_alignment=0.8,
+            structure_quality=0.8,
+            entry_quality=0.8,
+            momentum_quality=0.8,
+            volume_quality=0.8,
+            liquidity_quality=0.8,
+            target_space_quality=0.8,
+        ),
+        evidence=StrategyEvidence(supporting=("trend remains intact",)),
+        metadata={},
+    )
+
+    for path_candidate in _expand_candidate_entry_paths(candidate):
+        entry = path_candidate.entry
+        trigger = path_candidate.metadata.get("retest_trigger_level")
+
+        if entry.mode is EntryMode.MARKET_NEAR:
+            assert trigger is None
+        else:
+            assert isinstance(trigger, float)
+            assert entry.lower <= trigger <= entry.upper
+
+
+def test_single_market_entry_drops_stale_retest_metadata() -> None:
+    from datetime import UTC, datetime
+
+    from apex.strategies.contracts import (
+        EntryMode,
+        InvalidationConcept,
+        InvalidationType,
+        RawQualityMetrics,
+        StrategyEvidence,
+        TargetConcept,
+        TargetLevel,
+        TargetType,
+        TradeCandidate,
+        TradeDirection,
+    )
+    from apex.strategies.entry import EntrySelectionConfig, find_entry_zones
+    from apex.strategies.orchestration import _expand_candidate_entry_paths
+    from apex.strategies.strategy_types import StrategyType
+
+    zones = find_entry_zones(
+        current_price=100.0,
+        atr=2.0,
+        direction=TradeDirection.LONG,
+        invalidation_price=95.0,
+        target_price=112.0,
+        config=EntrySelectionConfig(sweep_projection_enabled=False),
+    )
+
+    assert len(zones) == 1
+    assert zones[0].mode is EntryMode.MARKET_NEAR
+
+    candidate = TradeCandidate(
+        symbol="BTCUSDT",
+        strategy=StrategyType.TREND_PULLBACK,
+        direction=TradeDirection.LONG,
+        decision_time=datetime(2026, 7, 22, tzinfo=UTC),
+        entry=zones[0],
+        entry_opportunities=zones,
+        invalidation=InvalidationConcept(
+            kind=InvalidationType.STRUCTURAL,
+            price=95.0,
+            rationale=("support failure",),
+        ),
+        targets=TargetConcept(
+            levels=(
+                TargetLevel(
+                    kind=TargetType.STRUCTURAL,
+                    price=112.0,
+                    label="TP1",
+                    rationale=("prior high",),
+                ),
+            )
+        ),
+        quality=RawQualityMetrics(
+            trend_alignment=0.8,
+            structure_quality=0.8,
+            entry_quality=0.8,
+            momentum_quality=0.8,
+            volume_quality=0.8,
+            liquidity_quality=0.8,
+            target_space_quality=0.8,
+        ),
+        evidence=StrategyEvidence(supporting=("trend remains intact",)),
+        metadata={
+            "entry_geometry_owner": "strategy_structure_level",
+            "retest_trigger_level": 98.5,
+            "retest_zone_low": 98.0,
+            "retest_zone_high": 99.0,
+            "retest_confirmation_rule": "hold_or_reclaim_above_retest_zone",
+        },
+    )
+
+    paths = _expand_candidate_entry_paths(candidate)
+
+    assert len(paths) == 1
+    assert paths[0].entry.mode is EntryMode.MARKET_NEAR
+    assert "retest_trigger_level" not in paths[0].metadata
+    assert "retest_zone_low" not in paths[0].metadata
+    assert "retest_zone_high" not in paths[0].metadata
