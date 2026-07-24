@@ -59,6 +59,14 @@ _ReplayDecision = CanonicalOpportunityDecision
 _select_replay_decision = select_canonical_opportunity_decision
 
 
+def _conditional_replay_authorized(setup: DiscoverySetup | None) -> bool:
+    "Only canonical future-authorized setups may enter conditional replay."
+
+    return (
+        setup is not None and setup.future_activation_allowed and setup.conditional_plan is not None
+    )
+
+
 def register_backtesting_commands(app: typer.Typer) -> None:
     """Register one leak-proof historical strategy-evaluation command."""
 
@@ -259,7 +267,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                             "canonical_portfolio": replay_decision.canonical_portfolio,
                         }
                     )
-                    if setup is not None and setup.conditional_plan is not None:
+                    if _conditional_replay_authorized(setup):
+                        assert setup is not None
                         conditional_signals.append(
                             signal_from_discovery_setup(
                                 setup,
@@ -937,7 +946,13 @@ def _signal_from_ranking_record(
         target=targets[0],
         confidence=record.final_score,
         source=source,
-        diagnostics=_ranking_diagnostics(record, entry=entry, stop=stop, target=targets[0]),
+        diagnostics=_ranking_diagnostics(
+            record,
+            entry=entry,
+            stop=stop,
+            target=targets[0],
+            analysis=analysis,
+        ),
     )
 
 
@@ -964,7 +979,7 @@ def _signal_from_geometry_audit(analysis: object, audit: object) -> BacktestSign
         target=_mapping_value(item, "tp1_price"),
         confidence=0.0,
         source="geometry_rejected",
-        diagnostics=_geometry_audit_diagnostics(item),
+        diagnostics=_geometry_audit_diagnostics(item, analysis=analysis),
     )
 
 
@@ -1063,8 +1078,268 @@ def _confirmation_diagnostics(value: object) -> dict[str, object | None]:
     }
 
 
+def _directional_value(value: object, *keys: str) -> object | None:
+    """Read one JSON-safe decision-time value without adding strategy authority."""
+
+    return _recursive_lookup(value, tuple(keys))
+
+
+def _timeframe_directional_snapshots(value: object) -> dict[str, object]:
+    """Extract compact per-timeframe evidence from serialized decision context."""
+
+    supported_timeframes = ("1m", "3m", "5m", "15m", "30m", "1h", "4h")
+    snapshots: dict[str, dict[str, object | None]] = {}
+
+    def visit(node: object) -> None:
+        if isinstance(node, Mapping):
+            timeframe_value = node.get("timeframe") or node.get("interval") or node.get("name")
+            timeframe = str(timeframe_value) if timeframe_value is not None else ""
+            if timeframe in supported_timeframes:
+                current = snapshots.setdefault(timeframe, {})
+                aliases: Mapping[str, tuple[str, ...]] = {
+                    "trend_direction": ("trend_direction", "trend", "direction", "trend_bias"),
+                    "structure_bias": (
+                        "structure_bias",
+                        "market_structure",
+                        "structure",
+                        "structure_direction",
+                    ),
+                    "momentum_direction": (
+                        "momentum_direction",
+                        "momentum_bias",
+                        "momentum",
+                    ),
+                    "rsi": ("rsi", "rsi_value"),
+                    "rsi_slope": ("rsi_slope", "rsi_delta"),
+                    "macd_direction": ("macd_direction", "macd_bias", "macd_state"),
+                    "macd_histogram": ("macd_histogram", "macd_hist"),
+                    "ema_alignment": (
+                        "ema_alignment",
+                        "ema_state",
+                        "moving_average_alignment",
+                    ),
+                    "vwap_relationship": (
+                        "vwap_relationship",
+                        "vwap_state",
+                        "price_vs_vwap",
+                    ),
+                    "volume_state": (
+                        "volume_state",
+                        "participation_state",
+                        "volume_participation",
+                    ),
+                    "relative_volume": (
+                        "relative_volume",
+                        "rvol",
+                        "relative_volume_ratio",
+                    ),
+                    "atr": ("atr", "average_true_range"),
+                    "regime": ("regime", "market_regime", "primary_regime"),
+                    "exhaustion_state": ("exhaustion_state", "exhaustion"),
+                }
+                for output_key, lookup_keys in aliases.items():
+                    found = _recursive_lookup(node, lookup_keys)
+                    if found is not None and current.get(output_key) is None:
+                        current[output_key] = found
+            for nested in node.values():
+                visit(nested)
+        elif isinstance(node, (list, tuple)):
+            for nested in node:
+                visit(nested)
+
+    visit(value)
+    return {
+        timeframe: {
+            key: field_value for key, field_value in fields.items() if field_value is not None
+        }
+        for timeframe, fields in snapshots.items()
+        if any(field_value is not None for field_value in fields.values())
+    }
+
+
+def _analysis_diagnostic_context(analysis: object | None) -> Mapping[str, object]:
+    """Return best-effort JSON-safe analysis context for diagnostics and tests."""
+
+    if analysis is None:
+        return {}
+    try:
+        serialized = _jsonable(
+            serialize_symbol_analysis(analysis)  # type: ignore[arg-type]
+        )
+    except (AttributeError, TypeError, ValueError):
+        if isinstance(analysis, Mapping):
+            serialized = _jsonable(analysis)
+        else:
+            attributes = getattr(analysis, "__dict__", None)
+            serialized = _jsonable(attributes) if isinstance(attributes, Mapping) else {}
+    return serialized if isinstance(serialized, Mapping) else {}
+
+
+def _enum_value(value: object) -> object | None:
+    """Return a JSON-safe enum or scalar value."""
+
+    raw = getattr(value, "value", value)
+    return _jsonable(raw) if raw is not None else None
+
+
+def _mapping_or_empty(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _analysis_payload(analysis: object | None) -> Mapping[str, object]:
+    """Serialize a complete analysis when possible, with safe test fallbacks."""
+
+    if analysis is None:
+        return {}
+    try:
+        payload = _jsonable(
+            serialize_symbol_analysis(analysis)  # type: ignore[arg-type]
+        )
+    except (AttributeError, TypeError, ValueError):
+        if isinstance(analysis, Mapping):
+            payload = _jsonable(analysis)
+        else:
+            attributes = getattr(analysis, "__dict__", None)
+            payload = _jsonable(attributes) if isinstance(attributes, Mapping) else {}
+    return payload if isinstance(payload, Mapping) else {}
+
+
+def _strategy_signal_diagnostics(
+    *,
+    payload: Mapping[str, object],
+    strategy: object,
+) -> Mapping[str, object]:
+    phase5 = _mapping_or_empty(payload.get("phase5_diagnostics"))
+    zero_trade = _mapping_or_empty(phase5.get("zero_trade_diagnostics"))
+    diagnostics = _mapping_or_empty(zero_trade.get("strategy_diagnostics"))
+    selected = diagnostics.get(str(strategy))
+    return _mapping_or_empty(selected)
+
+
+def _decision_directional_snapshot(
+    *,
+    analysis: object | None,
+    candidate: object,
+) -> dict[str, object]:
+    """Capture existing decision-time directional evidence for calibration only."""
+
+    payload = _analysis_payload(analysis)
+    candidate_context = _mapping_or_empty(_jsonable(candidate))
+    environment = _mapping_or_empty(payload.get("market_environment"))
+    regime_by_timeframe = _mapping_or_empty(payload.get("regime_by_timeframe"))
+    phase5 = _mapping_or_empty(payload.get("phase5_diagnostics"))
+    zero_trade = _mapping_or_empty(phase5.get("zero_trade_diagnostics"))
+    breakout_routing = _mapping_or_empty(zero_trade.get("breakout_routing"))
+
+    strategy = (
+        _directional_value(candidate_context, "strategy")
+        or _directional_value(candidate_context, "candidate_id")
+        or ""
+    )
+    if isinstance(strategy, str) and ":" in strategy:
+        strategy = strategy.split(":", maxsplit=1)[0]
+
+    strategy_diagnostics = _strategy_signal_diagnostics(
+        payload=payload,
+        strategy=strategy,
+    )
+
+    direction = _directional_value(candidate_context, "direction")
+    if direction is None:
+        candidate_id = _directional_value(candidate_context, "candidate_id")
+        if isinstance(candidate_id, str):
+            parts = candidate_id.split(":")
+            direction = parts[1] if len(parts) > 1 else None
+
+    long_score = _directional_value(
+        environment,
+        "long_suitability_score",
+        "long_score",
+    )
+    short_score = _directional_value(
+        environment,
+        "short_suitability_score",
+        "short_score",
+    )
+    long_numeric = (
+        float(long_score)
+        if isinstance(long_score, int | float) and not isinstance(long_score, bool)
+        else None
+    )
+    short_numeric = (
+        float(short_score)
+        if isinstance(short_score, int | float) and not isinstance(short_score, bool)
+        else None
+    )
+
+    direction_text = str(direction).lower() if direction is not None else ""
+    chosen_advantage = None
+    if long_numeric is not None and short_numeric is not None:
+        if direction_text == "long":
+            chosen_advantage = long_numeric - short_numeric
+        elif direction_text == "short":
+            chosen_advantage = short_numeric - long_numeric
+
+    rejection_codes = strategy_diagnostics.get("rejection_codes")
+    reasons = strategy_diagnostics.get("reasons")
+    reason_codes = environment.get("reason_codes")
+
+    return {
+        "snapshot_schema_version": 3,
+        "primary_regime": _directional_value(
+            environment,
+            "primary_regime",
+            "regime",
+        ),
+        "higher_timeframe_bias": _directional_value(
+            environment,
+            "higher_timeframe_bias",
+            "htf_bias",
+        ),
+        "alignment_score": _directional_value(environment, "alignment_score"),
+        "conflict_score": _directional_value(environment, "conflict_score"),
+        "tradeable": _directional_value(environment, "tradeable"),
+        "environment_reason_codes": (
+            list(reason_codes) if isinstance(reason_codes, (list, tuple)) else []
+        ),
+        "long_evidence_score": long_numeric,
+        "short_evidence_score": short_numeric,
+        "chosen_direction_advantage": chosen_advantage,
+        "strategy_rejection_codes": (
+            list(rejection_codes) if isinstance(rejection_codes, (list, tuple)) else []
+        ),
+        "strategy_rejection_reasons": (list(reasons) if isinstance(reasons, (list, tuple)) else []),
+        "momentum_mismatch": (
+            isinstance(rejection_codes, (list, tuple)) and "momentum_mismatch" in rejection_codes
+        ),
+        "higher_timeframe_contradiction": (
+            isinstance(rejection_codes, (list, tuple))
+            and "higher_timeframe_contradiction" in rejection_codes
+        ),
+        "direction_authority_opposed_count": breakout_routing.get(
+            "direction_authority_opposed_count"
+        ),
+        "setup_authority_opposed_count": breakout_routing.get("setup_authority_opposed_count"),
+        "execution_authority_opposed_count": breakout_routing.get(
+            "execution_authority_opposed_count"
+        ),
+        "timing_frame_direction_violation_count": breakout_routing.get(
+            "timing_frame_direction_violation_count"
+        ),
+        "timeframes": {
+            str(timeframe): {"regime": _enum_value(regime)}
+            for timeframe, regime in regime_by_timeframe.items()
+        },
+    }
+
+
 def _ranking_diagnostics(
-    record: CandidateRankingRecord, *, entry: float, stop: float, target: float
+    record: CandidateRankingRecord,
+    *,
+    entry: float,
+    stop: float,
+    target: float,
+    analysis: object | None = None,
 ) -> dict[str, object]:
     risk = abs(entry - stop)
     target_payload = record.targets[0] if record.targets else {}
@@ -1080,7 +1355,11 @@ def _ranking_diagnostics(
     }
     dimensions = _jsonable(record.score_dimensions)
     return {
-        "diagnostic_schema_version": 1,
+        "diagnostic_schema_version": 2,
+        "directional_snapshot": _decision_directional_snapshot(
+            analysis=analysis,
+            candidate=combined,
+        ),
         "candidate_id": record.candidate_id,
         "ranking_role": record.role.value,
         "strategy": record.strategy,
@@ -1142,7 +1421,11 @@ def _ranking_diagnostics(
     }
 
 
-def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object]:
+def _geometry_audit_diagnostics(
+    audit: Mapping[str, object],
+    *,
+    analysis: object | None = None,
+) -> dict[str, object]:
     diagnostics = audit.get("diagnostics")
     diagnostic_values = diagnostics if isinstance(diagnostics, Mapping) else {}
     candidate_id = audit.get("candidate_id")
@@ -1174,7 +1457,11 @@ def _geometry_audit_diagnostics(audit: Mapping[str, object]) -> dict[str, object
     reasons = audit.get("reasons")
 
     return {
-        "diagnostic_schema_version": 2,
+        "diagnostic_schema_version": 3,
+        "directional_snapshot": _decision_directional_snapshot(
+            analysis=analysis,
+            candidate=diagnostic_values,
+        ),
         "geometry_audit": _jsonable(diagnostic_values),
         "geometry_available": bool(audit.get("available")),
         "geometry_complete": bool(audit.get("available")) and not bool(missing),
@@ -1267,6 +1554,7 @@ def _candidate_diagnostics(analysis: object) -> list[dict[str, object]]:
                 entry=entry,
                 stop=stop,
                 target=targets[0],
+                analysis=analysis,
             )
             item["geometry_complete"] = True
             diagnostics.append(item)
@@ -1281,7 +1569,10 @@ def _candidate_diagnostics(analysis: object) -> list[dict[str, object]]:
             audit_diagnostics = audit.get("diagnostics")
             if not isinstance(audit_diagnostics, Mapping):
                 continue
-            item = _geometry_audit_diagnostics(audit)
+            item = _geometry_audit_diagnostics(
+                audit,
+                analysis=analysis,
+            )
             candidate_id = audit.get("candidate_id")
             if isinstance(candidate_id, str):
                 item["candidate_id"] = candidate_id
@@ -1363,13 +1654,6 @@ def _mapping_value(values: Mapping[str, object], key: str) -> float | None:
         return None
     numeric = float(value)
     return numeric if math.isfinite(numeric) and numeric > 0.0 else None
-
-
-def _enum_value(value: object) -> str | None:
-    if value is None:
-        return None
-    raw = getattr(value, "value", value)
-    return str(raw)
 
 
 def _jsonable(value: object) -> object:

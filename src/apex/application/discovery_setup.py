@@ -260,6 +260,22 @@ def _metadata_for_selected_entry_zone(
     return metadata
 
 
+def _conditional_plan_has_execution_room(
+    entry: ActionableEntry,
+    *,
+    direction: TradeDirection,
+    trigger_kind: ActivationTriggerType,
+) -> bool:
+    "Return whether confirmation can complete before the chase boundary is stale."
+
+    if trigger_kind is ActivationTriggerType.PRICE_TOUCH:
+        return True
+    tolerance = max(abs(entry.preferred) * 1e-9, 1e-12)
+    if direction is TradeDirection.LONG:
+        return entry.maximum_chase_price > entry.upper + tolerance
+    return entry.maximum_chase_price < entry.lower - tolerance
+
+
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     candidate = ranked.candidate
     entry_status = classify_candidate_actionability(candidate)
@@ -318,9 +334,23 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         stop=stop,
         entry_authority=entry_authority,
     )
+    conditional_has_execution_room = (
+        conditional_plan is not None
+        and _conditional_plan_has_execution_room(
+            entry,
+            direction=candidate.direction,
+            trigger_kind=conditional_plan.trigger.kind,
+        )
+    )
+    suppressed_conditional_plan = (
+        conditional_plan is not None and not conditional_has_execution_room
+    )
+    if suppressed_conditional_plan:
+        conditional_plan = None
     execution_allowed_now = is_entry_status_executable(entry_status)
     future_activation_allowed = (
-        not execution_allowed_now
+        ranked.outcome in _VALID_DEVELOPING_OUTCOMES
+        and not execution_allowed_now
         and conditional_plan is not None
         and entry_status is not EntryStatus.INVALIDATED
     )
@@ -333,6 +363,13 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             else ExecutionAuthority.MONITOR_ONLY
         )
     )
+    setup_warnings = tuple(candidate.evidence.warnings)
+    if suppressed_conditional_plan:
+        setup_warnings = (
+            *setup_warnings,
+            "Confirmation-required setup has no post-confirmation execution room "
+            "while preserving minimum net reward-to-risk.",
+        )
     return DiscoverySetup(
         symbol=candidate.symbol,
         direction=candidate.direction,
@@ -349,7 +386,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             candidate.strategy,
             runner_qualified=runner_qualified,
         ),
-        warnings=tuple(candidate.evidence.warnings),
+        warnings=setup_warnings,
         quality_dimensions=_canonical_quality_dimensions(candidate),
         execution_allowed_now=execution_allowed_now,
         future_activation_allowed=future_activation_allowed,

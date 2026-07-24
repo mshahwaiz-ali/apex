@@ -11,13 +11,25 @@ from apex.application.methodology_candidate_geometry_safety import (
 from apex.application.methodology_candidate_routing import (
     MethodologyCandidateRoutingResult,
 )
-from apex.application.methodology_geometry_safety import GeometrySafetyState
+from apex.application.methodology_geometry_safety import (
+    GeometrySafetyAssessment,
+    GeometrySafetyState,
+)
 from apex.strategies.analysis import (
     CandidateActionability,
     StrategyAnalysisResult,
     SuppressedStrategyCandidate,
 )
 from apex.strategies.candidate_identity import candidate_identities
+
+
+def _effective_assessment(
+    audit: CandidateGeometrySafetyAudit,
+) -> GeometrySafetyAssessment | None:
+    "Prefer measured geometry while preserving lightweight audit compatibility."
+
+    measured = getattr(audit, "measured_assessment", None)
+    return measured if measured is not None else audit.assessment
 
 
 class GeometrySafetyGateMode(StrEnum):
@@ -87,7 +99,11 @@ def apply_geometry_safety_enforcement(
             missing_audits.append(candidate_id)
             continue
         retained_audits.append(audit)
-        if audit.assessment is None or audit.assessment.state is GeometrySafetyState.INCOMPLETE:
+        effective_assessment = _effective_assessment(audit)
+        if (
+            effective_assessment is None
+            or effective_assessment.state is GeometrySafetyState.INCOMPLETE
+        ):
             incomplete_audits.append(candidate_id)
 
     if missing_audits or incomplete_audits:
@@ -101,11 +117,12 @@ def apply_geometry_safety_enforcement(
             + "; ".join(details)
         )
 
-    rejected_ids = tuple(
-        audit.candidate_id
-        for audit in retained_audits
-        if audit.assessment is not None and audit.assessment.state is GeometrySafetyState.REJECT
-    )
+    rejected_ids_list: list[str] = []
+    for audit in retained_audits:
+        assessment = _effective_assessment(audit)
+        if assessment is not None and assessment.state is GeometrySafetyState.REJECT:
+            rejected_ids_list.append(audit.candidate_id)
+    rejected_ids = tuple(rejected_ids_list)
     rejected_set = set(rejected_ids)
     status_by_object = {
         id(item.candidate): item.status for item in analysis.candidate_actionability
@@ -126,7 +143,7 @@ def apply_geometry_safety_enforcement(
     candidate_by_id = dict(zip(identities, analysis.candidates, strict=True))
     rejected_suppressed: list[SuppressedStrategyCandidate] = []
     for audit in retained_audits:
-        assessment = audit.assessment
+        assessment = _effective_assessment(audit)
         if assessment is None or assessment.state is not GeometrySafetyState.REJECT:
             continue
         candidate = candidate_by_id[audit.candidate_id]

@@ -180,17 +180,25 @@ def measured_geometry_lane(
     legacy_lane: OpportunityLane,
     decision_atr: float | None,
 ) -> OpportunityLane:
-    """Map measured TP1 travel to an existing canonical policy lane."""
+    """Map measured TP1 travel to a policy lane whose horizon can contain it."""
 
     if decision_atr is None or decision_atr <= 0.0:
         return legacy_lane
+
     distance = abs(candidate.targets.levels[0].price - candidate.entry.preferred)
-    expected_bars = max(1, min(64, math.ceil(distance / decision_atr)))
-    if expected_bars <= 3:
+    distance_atr = distance / decision_atr
+
+    if distance_atr <= 1.5:
         return legacy_lane if legacy_lane.is_scalp else OpportunityLane.CONFIRMATION_SCALP
-    if expected_bars <= 8:
+    if distance_atr <= 2.0:
+        return (
+            OpportunityLane.PULLBACK_SCALP
+            if legacy_lane is OpportunityLane.PULLBACK_SCALP
+            else OpportunityLane.CONFIRMATION_SCALP
+        )
+    if distance_atr <= 3.0:
         return OpportunityLane.NEARBY_STRUCTURED
-    if expected_bars <= 20:
+    if distance_atr <= 20.0:
         return OpportunityLane.DEVELOPING
     return OpportunityLane.RUNNER
 
@@ -200,7 +208,10 @@ def candidate_geometry_safety_audit_payload(
 ) -> dict[str, object]:
     """Serialize one shadow geometry audit with actual-versus-required values."""
 
-    assessment = audit.assessment
+    legacy_assessment = audit.assessment
+    measured_assessment = audit.measured_assessment
+    assessment = measured_assessment or legacy_assessment
+    effective_lane = audit.measured_lane or audit.lane
     diagnostics = None
     if assessment is not None:
         item = assessment.diagnostics
@@ -251,11 +262,20 @@ def candidate_geometry_safety_audit_payload(
             ),
         }
 
-    measured = audit.measured_assessment
-    legacy_codes = [] if assessment is None else [item.value for item in assessment.rejection_codes]
+    measured = measured_assessment
+    legacy_codes = (
+        []
+        if legacy_assessment is None
+        else [item.value for item in legacy_assessment.rejection_codes]
+    )
     measured_codes = [] if measured is None else [item.value for item in measured.rejection_codes]
+    effective_codes = (
+        [] if assessment is None else [item.value for item in assessment.rejection_codes]
+    )
     legacy_maximum_tp1_distance_atr = (
-        None if assessment is None else assessment.diagnostics.maximum_tp1_distance_atr
+        None
+        if legacy_assessment is None
+        else legacy_assessment.diagnostics.maximum_tp1_distance_atr
     )
     measured_maximum_tp1_distance_atr = (
         None if measured is None else measured.diagnostics.maximum_tp1_distance_atr
@@ -263,14 +283,15 @@ def candidate_geometry_safety_audit_payload(
 
     return {
         "candidate_id": audit.candidate_id,
-        "lane": audit.lane.value,
+        "lane": effective_lane.value,
+        "legacy_lane": audit.lane.value,
         "available": assessment is not None,
         "state": None if assessment is None else assessment.state.value,
         "missing_measurements": list(audit.missing_measurements),
-        "rejection_codes": legacy_codes,
-        "reasons": list(audit.reasons),
+        "rejection_codes": effective_codes,
+        "reasons": [] if assessment is None else list(assessment.reasons),
         "diagnostics": diagnostics,
-        "legacy_geometry_passed": None if assessment is None else assessment.passed,
+        "legacy_geometry_passed": (None if legacy_assessment is None else legacy_assessment.passed),
         "measured_geometry_lane": (
             None if audit.measured_lane is None else audit.measured_lane.value
         ),
@@ -283,8 +304,11 @@ def candidate_geometry_safety_audit_payload(
         "legacy_maximum_tp1_distance_atr": legacy_maximum_tp1_distance_atr,
         "measured_maximum_tp1_distance_atr": measured_maximum_tp1_distance_atr,
         "measured_geometry_reasons": ([] if measured is None else list(measured.reasons)),
-        "measured_lane_basis": "ceil_tp1_distance_atr_bucket",
-        "shadow_only": True,
+        "measured_lane_basis": "tp1_distance_atr_policy_bucket",
+        "effective_geometry_authority": (
+            "measured" if measured_assessment is not None else "legacy"
+        ),
+        "shadow_only": False,
     }
 
 

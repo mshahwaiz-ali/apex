@@ -43,6 +43,15 @@ def test_measured_lane_uses_confirmation_policy_for_non_scalp_immediate() -> Non
     assert lane is OpportunityLane.CONFIRMATION_SCALP
 
 
+def test_measured_lane_promotes_out_of_horizon_nearby_target_to_developing() -> None:
+    lane = measured_geometry_lane(
+        _Candidate(104.0),  # type: ignore[arg-type]
+        legacy_lane=OpportunityLane.PULLBACK_SCALP,
+        decision_atr=1.0,
+    )
+    assert lane is OpportunityLane.DEVELOPING
+
+
 def test_measured_lane_maps_longer_projections() -> None:
     assert (
         measured_geometry_lane(
@@ -50,7 +59,7 @@ def test_measured_lane_maps_longer_projections() -> None:
             legacy_lane=OpportunityLane.CMP_SCALP,
             decision_atr=1.0,
         )
-        is OpportunityLane.NEARBY_STRUCTURED
+        is OpportunityLane.DEVELOPING
     )
     assert (
         measured_geometry_lane(
