@@ -12,6 +12,14 @@ from typing import TextIO
 import typer
 
 _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_SECTION_HEADINGS = {
+    "ENTRY",
+    "RISK",
+    "TARGETS",
+    "SETUP",
+    "WHY THIS TRADE",
+    "WARNINGS",
+}
 
 
 class CliProgress(AbstractContextManager["CliProgress"]):
@@ -106,7 +114,7 @@ def cli_progress(*, stream: TextIO | None = None) -> CliProgress:
 
 
 def emit_terminal(text: str) -> None:
-    """Print reports with a restrained semantic terminal palette."""
+    """Print reports with one cyan header system and semantic trade values."""
 
     for line in text.splitlines():
         stripped = line.lstrip()
@@ -123,7 +131,7 @@ def emit_terminal(text: str) -> None:
             typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
         elif line.startswith("▶"):
             typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
-        elif stripped in {"ENTRY", "RISK", "TARGETS", "SETUP", "WHY THIS TRADE", "WARNINGS"}:
+        elif stripped in _SECTION_HEADINGS:
             typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
         elif stripped.startswith(("Stop loss ", "Invalidation ", "Pre-entry invalidation ")):
             typer.secho(line, fg=typer.colors.BRIGHT_RED)
