@@ -92,7 +92,8 @@ def test_child_lineage_uses_15m_for_setup_and_5m_for_execution() -> None:
         "execution_timeframe": "5m",
         "confirmation_timeframe": "5m",
         "invalidation_timeframe": "15m",
-        "target_timeframe": "30m",
+        "target_timeframe": "15m",
+        "extension_target_timeframe": "30m",
     }
 
 

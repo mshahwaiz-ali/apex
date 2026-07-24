@@ -157,6 +157,7 @@ def apply_hierarchical_timeframe_routing(
     retained: list[TradeCandidate] = []
     retained_actionability: list[CandidateActionability] = []
     newly_suppressed: list[SuppressedStrategyCandidate] = []
+    geometry_representative_index: dict[tuple[object, ...], int] = {}
     status_by_object = {
         id(item.candidate): item.status for item in analysis.candidate_actionability
     }
@@ -187,6 +188,41 @@ def apply_hierarchical_timeframe_routing(
                 )
             )
             continue
+        geometry_key = _candidate_geometry_key(enriched)
+        representative_index = geometry_representative_index.get(geometry_key)
+        if representative_index is not None:
+            representative = retained[representative_index]
+            aliases = _strategy_aliases(representative)
+            aliases.add(enriched.strategy.value)
+            representative_metadata = dict(representative.metadata)
+            representative_metadata["strategy_aliases"] = ",".join(sorted(aliases))
+            representative_metadata["duplicate_geometry_count"] = (
+                int(representative_metadata.get("duplicate_geometry_count", 0)) + 1
+            )
+            representative = replace(
+                representative,
+                metadata=MappingProxyType(representative_metadata),
+            )
+            retained[representative_index] = representative
+            retained_actionability[representative_index] = CandidateActionability(
+                candidate=representative,
+                status=retained_actionability[representative_index].status,
+            )
+            newly_suppressed.append(
+                SuppressedStrategyCandidate(
+                    candidate=enriched,
+                    reason_codes=("DUPLICATE_GEOMETRY_ALIAS",),
+                    reasons=(
+                        "candidate duplicates an already retained geometry; "
+                        "strategy lineage was preserved as an alias",
+                    ),
+                    entry_status=entry_status,
+                    suppression_stage="hierarchical_geometry_deduplication",
+                )
+            )
+            continue
+
+        geometry_representative_index[geometry_key] = len(retained)
         retained.append(enriched)
         retained_actionability.append(
             CandidateActionability(
@@ -235,14 +271,17 @@ def child_timeframe_lineage(
     """Return deterministic setup, execution, invalidation, and target ownership."""
 
     setup_timeframe = thesis.parent_timeframes[-1] if thesis.parent_timeframes else "unavailable"
-    target_timeframe = thesis.parent_timeframes[0] if thesis.parent_timeframes else setup_timeframe
+    extension_timeframe = (
+        thesis.parent_timeframes[0] if thesis.parent_timeframes else setup_timeframe
+    )
     execution_timeframe = thesis.execution_timeframe or "unavailable"
     return {
         "setup_timeframe": setup_timeframe,
         "execution_timeframe": execution_timeframe,
         "confirmation_timeframe": execution_timeframe,
         "invalidation_timeframe": setup_timeframe,
-        "target_timeframe": target_timeframe,
+        "target_timeframe": setup_timeframe,
+        "extension_target_timeframe": extension_timeframe,
     }
 
 
@@ -299,6 +338,48 @@ def is_hierarchical_pre_entry_candidate(
         and metadata.get("hierarchical_child_entry_search") == 1
         and metadata.get("parent_thesis_waiting_for_child_trigger") == 1
     )
+
+
+def _candidate_geometry_key(candidate: TradeCandidate) -> tuple[object, ...]:
+    "Return an exact, strategy-independent geometry identity."
+
+    opportunities = tuple(
+        (
+            round(opportunity.lower, 12),
+            round(opportunity.upper, 12),
+            round(opportunity.preferred, 12),
+            opportunity.mode.value,
+        )
+        for opportunity in candidate.entry_opportunities
+    )
+    targets = tuple(
+        (
+            level.kind.value,
+            round(level.price, 12),
+            level.label,
+        )
+        for level in candidate.targets.levels
+    )
+    return (
+        candidate.symbol,
+        candidate.direction.value,
+        opportunities,
+        candidate.invalidation.kind.value,
+        round(candidate.invalidation.price, 12),
+        targets,
+        candidate.metadata.get("parent_thesis_state"),
+        candidate.metadata.get("parent_thesis_direction"),
+        candidate.metadata.get("setup_timeframe"),
+        candidate.metadata.get("execution_timeframe"),
+    )
+
+
+def _strategy_aliases(candidate: TradeCandidate) -> set[str]:
+    aliases = {candidate.strategy.value}
+    raw_aliases = candidate.metadata.get("strategy_aliases")
+    if isinstance(raw_aliases, str):
+        aliases.update(alias for alias in raw_aliases.split(",") if alias)
+    return aliases
 
 
 def _has_confirmed_reversal_override(candidate: TradeCandidate) -> bool:
