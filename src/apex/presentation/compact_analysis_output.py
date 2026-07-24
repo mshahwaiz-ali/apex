@@ -5,7 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 
-from apex.presentation import format_price, format_score, humanize_code, render_fields, render_section, render_title
+from apex.presentation import (
+    format_price,
+    format_score,
+    humanize_code,
+    render_fields,
+    render_section,
+    render_title,
+)
 
 
 def _mapping(value: object) -> Mapping[str, object]:
@@ -27,7 +34,7 @@ def _number(value: object) -> float | None:
 def _percentage(price: object, reference: object) -> str:
     price_number = _number(price)
     reference_number = _number(reference)
-    if price_number is None or reference_number in {None, 0.0}:
+    if price_number is None or reference_number is None or reference_number == 0.0:
         return "Unavailable"
     move = (price_number - reference_number) / reference_number * 100.0
     return f"{move:+.2f}%"
@@ -45,9 +52,16 @@ def _timestamp(value: object) -> str:
 def _entry_line(entry: Mapping[str, object]) -> tuple[str, object]:
     lower = _number(entry.get("lower"))
     upper = _number(entry.get("upper"))
-    if lower is not None and upper is not None and abs(lower - upper) <= max(abs(lower), 1.0) * 1e-12:
+    if (
+        lower is not None
+        and upper is not None
+        and abs(lower - upper) <= max(abs(lower), 1.0) * 1e-12
+    ):
         return ("Entry", format_price(lower))
-    return ("Entry zone", f"{format_price(entry.get('lower'))} - {format_price(entry.get('upper'))}")
+    return (
+        "Entry zone",
+        f"{format_price(entry.get('lower'))} - {format_price(entry.get('upper'))}",
+    )
 
 
 def _status(setup: Mapping[str, object]) -> str:
@@ -85,7 +99,9 @@ def _trigger(setup: Mapping[str, object]) -> str:
     plan = _mapping(setup.get("conditional_plan"))
     trigger = _mapping(plan.get("trigger"))
     if not trigger:
-        return "No additional trigger required" if setup.get("execution_allowed_now") is True else "Monitor stated entry conditions"
+        if setup.get("execution_allowed_now") is True:
+            return "No additional trigger required"
+        return "Monitor stated entry conditions"
     kind = humanize_code(trigger.get("type") or trigger.get("kind"))
     level = format_price(trigger.get("level"))
     return f"{kind} at {level}"
@@ -107,6 +123,10 @@ def _quality(setup: Mapping[str, object], opportunity: Mapping[str, object]) -> 
         or setup.get("confidence_score")
         or quality.get("overall_trade_quality")
     )
+
+
+def _price_move(price: object, reference: object) -> str:
+    return f"{format_price(price)}  {_percentage(price, reference)}"
 
 
 def _trade_card(
@@ -144,9 +164,7 @@ def _trade_card(
         ),
         "",
         "  RISK",
-        render_fields(
-            (("Stop loss", f"{format_price(stop.get('price'))}  {_percentage(stop.get('price'), reference)}"),)
-        ),
+        render_fields((("Stop loss", _price_move(stop.get("price"), reference)),)),
     ]
 
     if targets:
@@ -156,7 +174,7 @@ def _trade_card(
                 tuple(
                     (
                         f"TP{target_index}",
-                        f"{format_price(target.get('price'))}  {_percentage(target.get('price'), reference)}",
+                        _price_move(target.get("price"), reference),
                     )
                     for target_index, target in enumerate(targets[:3], start=1)
                 )
@@ -192,18 +210,31 @@ def _trade_card(
                 render_fields(
                     (
                         ("Setup quality", f"{format_score(quality.get('setup_quality'))}/100"),
-                        ("Execution quality", f"{format_score(quality.get('execution_quality'))}/100"),
+                        (
+                            "Execution quality",
+                            f"{format_score(quality.get('execution_quality'))}/100",
+                        ),
                         ("Target quality", f"{format_score(quality.get('target_quality'))}/100"),
-                        ("Execution authority", humanize_code(setup.get("execution_authority"))),
+                        (
+                            "Execution authority",
+                            humanize_code(setup.get("execution_authority")),
+                        ),
                         ("Entry mode", humanize_code(setup.get("entry_mode"))),
                     )
                 ),
             )
         )
         if warning_values:
-            body.extend(("", "  WARNINGS", "\n".join(f"    - {value}" for value in warning_values)))
+            body.extend(
+                (
+                    "",
+                    "  WARNINGS",
+                    "\n".join(f"    - {value}" for value in warning_values),
+                )
+            )
 
-    return render_section(f"TRADE {index} • {symbol} • {direction} • {strategy}", "\n".join(body))
+    title = f"TRADE {index} • {symbol} • {direction} • {strategy}"
+    return render_section(title, "\n".join(body))
 
 
 def _collect_opportunities(payload: Mapping[str, object]) -> tuple[Mapping[str, object], ...]:
@@ -250,7 +281,7 @@ def render_compact_analysis(payload: Mapping[str, object], *, explain: bool = Fa
     portfolio = _mapping(payload.get("opportunity_portfolio"))
     opportunities = _collect_opportunities(payload)
 
-    sections = [render_title(f"Apex Analyze • {symbol}")]
+    sections = [render_title(f"Apex Analysis • {symbol}")]
     sections.append(
         render_section(
             "MARKET VIEW",
@@ -280,14 +311,17 @@ def render_compact_analysis(payload: Mapping[str, object], *, explain: bool = Fa
         plan = _mapping(payload.get("setup_plan"))
         sections.append(
             render_section(
-                "NO CURRENT TRADE",
+                "Decision",
                 render_fields(
                     (
                         ("Status", "No valid setup yet"),
                         ("Current state", plan.get("current_state")),
                         ("Long trigger", plan.get("long_trigger")),
                         ("Short trigger", plan.get("short_trigger")),
-                        ("Next action", "Re-run after a material structure or entry-condition change"),
+                        (
+                            "Next action",
+                            "Re-run after a material structure or entry-condition change",
+                        ),
                     )
                 ),
             )
