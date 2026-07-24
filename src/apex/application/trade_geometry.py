@@ -1,4 +1,4 @@
-"Shared structural stop and target geometry."
+"""Shared structural stop and target geometry."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ _TARGET_SOURCE_PRIORITY = {
 
 @dataclass(frozen=True, slots=True)
 class StopGeometry:
-    "Final stop after applying one and only one noise buffer."
+    """Final stop after applying one and only one noise buffer."""
 
     price: float
     distance: float
@@ -56,6 +56,40 @@ class StopGeometry:
             raise ValueError("stop buffer reason cannot be empty")
 
 
+def _adaptive_structural_buffer_atr(
+    *,
+    preferred_entry: float,
+    atr: float,
+    configured_floor: float,
+) -> tuple[float, str]:
+    """Return a symbol-relative ATR noise floor for structural invalidation.
+
+    The ATR percentage makes the policy naturally adapt to each symbol instead
+    of assigning the same absolute behaviour to BTC, ETH and small-cap futures.
+    The floor grows gradually with volatility, while an entry-relative cap keeps
+    extreme candles from creating an untradeably wide stop.
+    """
+
+    atr_pct = atr / preferred_entry * 100.0
+    if atr_pct < 0.25:
+        adaptive_floor = 0.45
+        volatility_band = "low"
+    elif atr_pct < 0.75:
+        adaptive_floor = 0.60
+        volatility_band = "normal"
+    elif atr_pct < 1.50:
+        adaptive_floor = 0.75
+        volatility_band = "high"
+    else:
+        adaptive_floor = 0.90
+        volatility_band = "extreme"
+
+    requested_ratio = max(configured_floor, adaptive_floor)
+    maximum_buffer = preferred_entry * 1.25 / 100.0
+    effective_ratio = min(requested_ratio, maximum_buffer / atr)
+    return max(0.0, effective_ratio), volatility_band
+
+
 def build_stop_geometry(
     *,
     direction: TradeDirection,
@@ -68,7 +102,7 @@ def build_stop_geometry(
     invalidation_already_buffered: bool = False,
     execution_buffer_override: float | None = None,
 ) -> StopGeometry:
-    "Apply a single buffer outside raw thesis invalidation."
+    """Apply a single symbol-relative buffer outside raw thesis invalidation."""
 
     for name, value in (
         ("preferred entry", preferred_entry),
@@ -100,10 +134,21 @@ def build_stop_geometry(
         buffer = percentage_buffer
         reason = f"single minimum {minimum_buffer_pct:g}% execution buffer"
     else:
-        atr_buffer = 0.0 if atr is None else atr * structural_buffer_atr
+        if atr is None:
+            atr_buffer = 0.0
+            volatility_band = "unavailable"
+            effective_ratio = structural_buffer_atr
+        else:
+            effective_ratio, volatility_band = _adaptive_structural_buffer_atr(
+                preferred_entry=preferred_entry,
+                atr=atr,
+                configured_floor=structural_buffer_atr,
+            )
+            atr_buffer = atr * effective_ratio
         buffer = max(percentage_buffer, atr_buffer)
         reason = (
-            f"single {structural_buffer_atr:g} ATR structural-noise buffer"
+            f"single {effective_ratio:g} ATR symbol-relative {volatility_band}-volatility "
+            "structural-noise buffer"
             if atr is not None and atr_buffer >= percentage_buffer
             else f"single minimum {minimum_buffer_pct:g}% structural-noise buffer"
         )
