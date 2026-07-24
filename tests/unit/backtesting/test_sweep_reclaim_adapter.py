@@ -15,7 +15,6 @@ from apex.domain.models import Candle
 from apex.domain.sweep_reclaim import SweepReclaimState
 from apex.strategies import StrategyType, TradeDirection
 
-
 _BASE_TIME = datetime(2026, 7, 24, 12, 0, tzinfo=UTC)
 
 

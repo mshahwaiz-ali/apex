@@ -15,7 +15,6 @@ from apex.backtesting.sweep_reclaim_adapter import (
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
-
 _BASE_TIME = datetime(2026, 7, 24, 12, 0, tzinfo=UTC)
 _PARITY_KEYS = (
     "post_stop_maximum_excursion_beyond_stop_r",
