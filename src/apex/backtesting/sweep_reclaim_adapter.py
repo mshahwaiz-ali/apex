@@ -1,7 +1,7 @@
 """Backtest adapter for the shared sweep/reclaim evaluator.
 
 The adapter preserves existing diagnostic metadata names while delegating path
-classification to the provider-independent domain evaluator.  It does not alter
+classification to the provider-independent domain evaluator. It does not alter
 trade outcomes or production authority.
 """
 
@@ -15,7 +15,6 @@ from apex.domain.sweep_reclaim import (
     DEFAULT_SWEEP_RECLAIM_POLICY,
     SweepReclaimAssessment,
     SweepReclaimPolicy,
-    SweepReclaimState,
     evaluate_sweep_reclaim,
 )
 
@@ -66,18 +65,16 @@ def sweep_reclaim_metadata(
         "shallow_stop_sweep": assessment.shallow_sweep,
         "wick_only_stop_sweep": assessment.wick_only_sweep,
         "deep_directional_failure": assessment.deep_failure,
-        "sweep_reclaim_candidate": assessment.state
-        in {
-            SweepReclaimState.SHALLOW_SWEEP_PENDING,
-            SweepReclaimState.RECLAIM_CONFIRMED,
-            SweepReclaimState.RETEST_CONFIRMED,
-        },
+        "sweep_reclaim_candidate": assessment.sweep_candidate,
         "sweep_reclaim_confirmed": assessment.reclaim_confirmed,
         "sweep_reclaim_rejected_reason": assessment.rejected_reason,
         "reclaim_candle_body_ratio": assessment.reclaim_body_ratio,
         "reclaim_close_location": assessment.reclaim_close_location,
         "entry_level_reclaimed": bars_to_entry_reclaim is not None,
-        "retest_held": assessment.retest_confirmed,
+        "entry_level_held_next_candle": assessment.entry_level_held_next_candle,
+        "retest_available": assessment.retest_available,
+        "retest_held": assessment.retest_held,
+        "sweep_reclaim_structure_confirmed": assessment.structure_confirmed,
         "remaining_target_room_r": assessment.remaining_target_room_r,
         "recovery_entry_authorized": assessment.recovery_entry_authorized,
         "recovery_entry_price": reclaim_entry_price or 0.0,
