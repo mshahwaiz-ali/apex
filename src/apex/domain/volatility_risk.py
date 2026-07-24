@@ -13,6 +13,7 @@ class VolatilityClass(StrEnum):
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
+    EXTREME = "extreme"
     UNKNOWN = "unknown"
 
 
@@ -60,9 +61,17 @@ def _positive(value: float | None) -> float | None:
 
 
 def _volatility_context(signal: BacktestSignal) -> VolatilityContext:
-    """Resolve ATR percentage from direct or normalized geometry measurements."""
+    """Resolve ATR percentage from canonical or fallback measurements."""
 
     stop_distance = abs(signal.entry_price - signal.stop_price)
+    profile = signal.decision_volatility_profile
+    if profile is not None and profile.available and profile.atr_pct is not None:
+        derived_atr = signal.entry_price * profile.atr_pct / 100.0
+        return VolatilityContext(
+            atr_percent=profile.atr_pct,
+            stop_atr_ratio=stop_distance / derived_atr if derived_atr > 0.0 else None,
+            source=profile.source,
+        )
     target_distance = abs(signal.target_price - signal.entry_price)
 
     direct_atr = _positive(_diagnostic(signal, "decision_atr", "atr", "execution_atr"))
@@ -137,8 +146,11 @@ def _classify_atr_percent(atr_percent: float | None) -> VolatilityClass:
 
 
 def classify_volatility(signal: BacktestSignal) -> VolatilityClass:
-    """Classify the current decision using normalized decision-time volatility."""
+    """Classify using canonical symbol-relative volatility when available."""
 
+    profile = signal.decision_volatility_profile
+    if profile is not None and profile.available:
+        return VolatilityClass(profile.volatility_class.value)
     return _classify_atr_percent(_volatility_context(signal).atr_percent)
 
 
@@ -146,7 +158,12 @@ def assess_volatility_risk(signal: BacktestSignal) -> VolatilityRiskAssessment:
     """Evaluate volatility-specific failure risk without changing execution authority."""
 
     context = _volatility_context(signal)
-    volatility_class = _classify_atr_percent(context.atr_percent)
+    profile = signal.decision_volatility_profile
+    volatility_class = (
+        VolatilityClass(profile.volatility_class.value)
+        if profile is not None and profile.available
+        else _classify_atr_percent(context.atr_percent)
+    )
     gross_r = _diagnostic(signal, "gross_tp1_r")
     expected_bars = _diagnostic(signal, "expected_bars_to_target")
     final_score = _diagnostic(signal, "final_score", "final_rank_score")
@@ -156,7 +173,7 @@ def assess_volatility_risk(signal: BacktestSignal) -> VolatilityRiskAssessment:
     score = 0.0
     reasons: list[str] = []
 
-    if volatility_class is VolatilityClass.HIGH:
+    if volatility_class in {VolatilityClass.HIGH, VolatilityClass.EXTREME}:
         if gross_r is not None and gross_r >= 1.75:
             score += 30.0
             reasons.append("high_volatility_inflated_gross_r")
@@ -222,7 +239,7 @@ def volatility_risk_shadow_metadata(signal: BacktestSignal) -> dict[str, str | i
     """Expose the assessment for analysis while preserving production behavior."""
 
     assessment = assess_volatility_risk(signal)
-    return {
+    metadata: dict[str, str | int | float | bool] = {
         "volatility_risk_authority": assessment.authority,
         "volatility_class": assessment.volatility_class.value,
         "volatility_source": assessment.source,
@@ -233,3 +250,9 @@ def volatility_risk_shadow_metadata(signal: BacktestSignal) -> dict[str, str | i
         "volatility_risk_elevated": assessment.elevated,
         "volatility_risk_would_block": False,
     }
+    profile = signal.decision_volatility_profile
+    if profile is not None:
+        metadata.update(
+            {key: value for key, value in profile.as_metadata().items() if value is not None}
+        )
+    return metadata

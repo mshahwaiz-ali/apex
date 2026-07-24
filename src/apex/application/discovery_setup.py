@@ -39,6 +39,7 @@ from apex.application.portfolio_ranking import (
     PortfolioRankingPolicy,
 )
 from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
+from apex.domain.decision_volatility import DecisionVolatilityProfile
 from apex.domain.methodology_contracts import (
     ContinuationState,
     HoldingHorizon,
@@ -417,6 +418,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         runner_qualified=runner_qualified,
         runner_qualification_reason=runner_reason,
         conditional_plan=conditional_plan,
+        decision_volatility_profile=DecisionVolatilityProfile.from_metadata(candidate.metadata),
     )
 
 

@@ -63,6 +63,7 @@ def signal_from_discovery_setup(
         setup_methodology_version=setup.methodology_version,
         setup_validity=setup.setup_validity.value,
         execution_authority=setup.execution_authority.value,
+        decision_volatility_profile=setup.decision_volatility_profile,
     )
 
 

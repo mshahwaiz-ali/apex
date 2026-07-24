@@ -19,6 +19,7 @@ from apex.application.candlestick_evidence import (
     candlestick_evidence_payload,
     detect_contextual_candlesticks,
 )
+from apex.application.decision_volatility import attach_decision_volatility_profile
 from apex.application.discovery_context import (
     build_strategy_context,
     frame_data_quality_payload,
@@ -124,6 +125,7 @@ from apex.application.strategy_routing import (
 from apex.config.methodology import MethodologySettings
 from apex.config.settings import TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
+from apex.domain.decision_volatility import build_decision_volatility_profile
 from apex.scoring.contracts import CandidateSelectionResult
 from apex.strategies import (
     StrategyContext,
@@ -218,10 +220,17 @@ def analyze_symbol(
     execution_quality_cap_policy = ExecutionQualityCapPolicy(
         **resolved_methodology_settings.execution_quality_caps.model_dump()
     )
-    strategy_analysis = analyze_strategies(
-        context,
+    decision_volatility_profile = build_decision_volatility_profile(
+        context.decision_frame.recent_candles,
         decision_time=decision_time,
-        execution_quality_cap_policy=execution_quality_cap_policy,
+    )
+    strategy_analysis = attach_decision_volatility_profile(
+        analyze_strategies(
+            context,
+            decision_time=decision_time,
+            execution_quality_cap_policy=execution_quality_cap_policy,
+        ),
+        profile=decision_volatility_profile,
     )
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
     hierarchical_routing = apply_hierarchical_timeframe_routing(

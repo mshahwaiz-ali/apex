@@ -10,6 +10,7 @@ from enum import StrEnum
 from types import MappingProxyType
 
 from apex.application.methodology_identity import METHODOLOGY_VERSION
+from apex.domain.decision_volatility import DecisionVolatilityProfile
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
@@ -84,6 +85,7 @@ class BacktestSignal:
     setup_validity: str = "valid"
     execution_authority: str = "execute_now"
     diagnostics: Mapping[str, object] = field(default_factory=dict)
+    decision_volatility_profile: DecisionVolatilityProfile | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
@@ -192,7 +194,10 @@ class BacktestSignal:
         object.__setattr__(self, "partial_close_percentages", partials)
         object.__setattr__(self, "entry_zone_low", zone_low)
         object.__setattr__(self, "entry_zone_high", zone_high)
-        object.__setattr__(self, "diagnostics", MappingProxyType(dict(self.diagnostics)))
+        diagnostics = dict(self.diagnostics)
+        if self.decision_volatility_profile is not None:
+            diagnostics.update(self.decision_volatility_profile.as_metadata())
+        object.__setattr__(self, "diagnostics", MappingProxyType(diagnostics))
 
 
 @dataclass(frozen=True, slots=True)

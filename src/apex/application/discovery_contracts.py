@@ -16,6 +16,7 @@ from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_identity import METHODOLOGY_VERSION
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.domain.decision_volatility import DecisionVolatilityProfile
 from apex.domain.methodology_contracts import (
     LayeredStateSnapshot,
     ScoreDimensions,
@@ -320,6 +321,7 @@ class DiscoverySetup:
     methodology_scores: ScoreDimensions = field(default_factory=ScoreDimensions)
     runner_qualified: bool = False
     runner_qualification_reason: str = "runner not evaluated"
+    decision_volatility_profile: DecisionVolatilityProfile | None = None
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.candidate_id.strip():
