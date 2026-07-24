@@ -120,11 +120,7 @@ def main() -> None:
 
     results: list[tuple[float, str, str, float, dict[str, float | int]]] = []
     for key in keys:
-        values = [
-            value
-            for row in rows
-            if (value := number(row.metadata.get(key))) is not None
-        ]
+        values = [value for row in rows if (value := number(row.metadata.get(key))) is not None]
         for threshold in thresholds(values):
             for op in (">=", "<="):
                 metrics = evaluate(rows, key, op, threshold)

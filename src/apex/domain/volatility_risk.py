@@ -67,9 +67,7 @@ def _volatility_context(signal: BacktestSignal) -> VolatilityContext:
 
     direct_atr = _positive(_diagnostic(signal, "decision_atr", "atr", "execution_atr"))
     if direct_atr is not None and signal.entry_price > 0:
-        stop_ratio = _positive(
-            _diagnostic(signal, "stop_distance_atr", "gross_stop_distance_atr")
-        )
+        stop_ratio = _positive(_diagnostic(signal, "stop_distance_atr", "gross_stop_distance_atr"))
         if stop_ratio is None and stop_distance > 0:
             stop_ratio = stop_distance / direct_atr
         return VolatilityContext(
@@ -78,9 +76,7 @@ def _volatility_context(signal: BacktestSignal) -> VolatilityContext:
             source="direct_atr",
         )
 
-    stop_atr_ratio = _positive(
-        _diagnostic(signal, "stop_distance_atr", "gross_stop_distance_atr")
-    )
+    stop_atr_ratio = _positive(_diagnostic(signal, "stop_distance_atr", "gross_stop_distance_atr"))
     stop_distance_pct = _positive(
         _diagnostic(signal, "stop_distance_pct", "gross_stop_distance_pct")
     )

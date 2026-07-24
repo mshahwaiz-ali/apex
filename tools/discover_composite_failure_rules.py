@@ -52,8 +52,7 @@ def load(path: Path) -> list[Row]:
             Row(
                 source=path.stem,
                 outcome=outcome,
-                severe=outcome == "stop"
-                and metadata.get("deep_directional_failure") is True,
+                severe=outcome == "stop" and metadata.get("deep_directional_failure") is True,
                 metadata=metadata,
             )
         )
@@ -88,14 +87,10 @@ def metrics(rows: list[Row], predicate) -> dict[str, float | int | dict[str, flo
     for source in sorted({row.source for row in rows}):
         source_severe = [row for row in severe if row.source == source]
         source_blocked = [row for row in source_severe if predicate(row)]
-        per_source[source] = (
-            len(source_blocked) / len(source_severe) if source_severe else 0.0
-        )
+        per_source[source] = len(source_blocked) / len(source_severe) if source_severe else 0.0
     baseline = len(wins) / (len(wins) + len(stops)) if wins or stops else 0.0
     filtered = (
-        retained_wins / (retained_wins + retained_stops)
-        if retained_wins + retained_stops
-        else 0.0
+        retained_wins / (retained_wins + retained_stops) if retained_wins + retained_stops else 0.0
     )
     return {
         "winner_retention": retained_wins / len(wins) if wins else 0.0,
@@ -122,19 +117,13 @@ def main() -> None:
             key
             for row in rows
             for key, value in row.metadata.items()
-            if key.startswith("decision_")
-            and key not in EXCLUDED_KEYS
-            and num(value) is not None
+            if key.startswith("decision_") and key not in EXCLUDED_KEYS and num(value) is not None
         }
     )
 
     candidates: list[tuple[str, str, float]] = []
     for key in keys:
-        values = [
-            value
-            for row in rows
-            if (value := num(row.metadata.get(key))) is not None
-        ]
+        values = [value for row in rows if (value := num(row.metadata.get(key))) is not None]
         for cut in cuts(values):
             candidates.append((key, ">=", cut))
             candidates.append((key, "<=", cut))
