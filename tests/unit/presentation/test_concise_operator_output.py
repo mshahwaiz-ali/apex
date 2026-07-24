@@ -69,7 +69,8 @@ def test_final_renderer_uses_compact_trade_card_without_internal_appendices() ->
 
     assert "APEX ANALYSIS • SOL/USDT" in output
     assert "┌─ TRADE 1 • SOL/USDT • SHORT • Breakout retest" in output
-    assert "Entry  74.742" in output
+    assert "Entry zone" not in output
+    assert "74.742" in output
     assert "Stop loss" in output
     assert "TP1" in output
     assert "Selection Limitations" not in output
