@@ -24,6 +24,9 @@ from apex.strategies.failed_breakout_reversal import (
 from apex.strategies.first_pullback_continuation import (
     generate_first_pullback_continuation_candidates,
 )
+from apex.strategies.htf_retest_fallback import (
+    generate_htf_aware_trend_pullback_candidates,
+)
 from apex.strategies.liquidity_rejection_reversal import (
     generate_liquidity_rejection_reversal_candidates,
 )
@@ -31,7 +34,6 @@ from apex.strategies.momentum_breakout import generate_momentum_breakout_candida
 from apex.strategies.momentum_scalp import generate_momentum_scalp_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.strategy_types import StrategyType
-from apex.strategies.trend_pullback import generate_trend_pullback_candidates
 from apex.strategies.vwap_reclaim_rejection import (
     generate_vwap_reclaim_rejection_candidates,
 )
@@ -56,7 +58,10 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
         StrategyType.FIRST_PULLBACK_CONTINUATION,
         generate_first_pullback_continuation_candidates,
     ),
-    (StrategyType.TREND_PULLBACK, generate_trend_pullback_candidates),
+    (
+        StrategyType.TREND_PULLBACK,
+        generate_htf_aware_trend_pullback_candidates,
+    ),
     (
         StrategyType.COMPRESSION_EXPANSION,
         generate_compression_expansion_candidates,
