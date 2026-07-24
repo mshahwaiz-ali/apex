@@ -25,7 +25,7 @@ def test_volatility_invalidation_does_not_receive_second_atr_buffer() -> None:
     assert "execution buffer" in geometry.buffer_reason
 
 
-def test_structural_invalidation_uses_larger_noise_buffer_once() -> None:
+def test_structural_invalidation_uses_symbol_relative_noise_buffer_once() -> None:
     geometry = build_stop_geometry(
         direction=TradeDirection.SHORT,
         preferred_entry=100.0,
@@ -34,9 +34,38 @@ def test_structural_invalidation_uses_larger_noise_buffer_once() -> None:
         atr=2.0,
     )
 
-    assert geometry.buffer == pytest.approx(0.5)
-    assert geometry.price == pytest.approx(102.5)
-    assert "ATR" in geometry.buffer_reason
+    assert geometry.buffer == pytest.approx(1.25)
+    assert geometry.price == pytest.approx(103.25)
+    assert "symbol-relative" in geometry.buffer_reason
+    assert "extreme-volatility" in geometry.buffer_reason
+
+
+def test_normal_volatility_structural_stop_uses_adaptive_atr_floor() -> None:
+    geometry = build_stop_geometry(
+        direction=TradeDirection.LONG,
+        preferred_entry=100.0,
+        invalidation_price=99.0,
+        invalidation_type=InvalidationType.STRUCTURAL,
+        atr=0.5,
+    )
+
+    assert geometry.buffer == pytest.approx(0.3)
+    assert geometry.price == pytest.approx(98.7)
+    assert "0.6 ATR" in geometry.buffer_reason
+    assert "normal-volatility" in geometry.buffer_reason
+
+
+def test_extreme_volatility_buffer_is_capped_relative_to_entry() -> None:
+    geometry = build_stop_geometry(
+        direction=TradeDirection.LONG,
+        preferred_entry=100.0,
+        invalidation_price=95.0,
+        invalidation_type=InvalidationType.STRUCTURAL,
+        atr=10.0,
+    )
+
+    assert geometry.buffer == pytest.approx(1.25)
+    assert geometry.price == pytest.approx(93.75)
 
 
 def test_strategy_buffered_invalidation_does_not_receive_another_buffer() -> None:
