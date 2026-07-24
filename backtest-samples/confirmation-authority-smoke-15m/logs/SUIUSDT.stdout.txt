@@ -1,0 +1,184 @@
+╭───────────────────────── APEX BACKTEST • SUI/USDT ─────────────────────────╮
+╰────────────────────────────────────────────────────────────────────────────╯
+
+┌─ Verdict ───────────────────────────────────────────────────────────────────
+▶  INSUFFICIENT EXECUTED TRADES — NO PERFORMANCE CONCLUSION
+  Replay timeframe    15m
+  Decision points     50
+  Signals generated   0
+  Trades executed     0
+  No-trade decisions  50
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Test configuration ────────────────────────────────────────────────────────
+  Replay timeframe  15m
+  Replay candles    8
+  Decision points   50
+  Methodology gate  enforce
+  Fee               0.0400%
+  Slippage          0.0200%
+  Funding           0.0000%
+  Holding window    8
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Decision funnel ───────────────────────────────────────────────────────────
+  Decision points          50
+  Immediate setups         0
+  Future setups            0
+  True no-setup decisions  47
+  Setup coverage           0.0%
+  Immediate fills          0
+  Future fills             0
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Executed-trade performance ────────────────────────────────────────────────
+  Filled trades     0
+  Fill rate         Unavailable
+  Win rate          Unavailable
+  Expectancy        Unavailable
+  Net P&L           +0.0000
+  Profit factor     Unavailable
+  Maximum drawdown  Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Performance after modeled costs — all production signal outcomes ──────────
+  Win rate          Unavailable
+  Expectancy        Unavailable
+  Net P&L           +0.0000
+  Profit factor     Unavailable
+  Average win       Unavailable
+  Average loss      Unavailable
+  Maximum drawdown  Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Outcome distribution ──────────────────────────────────────────────────────
+  Target exits    0
+  Stop exits      0
+  Expired setups  0
+  Missed entries  0
+  TP1 hit rate    Unavailable
+  TP2 hit rate    Unavailable
+  TP3 hit rate    Unavailable
+  Stop rate       Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Risk and excursion ────────────────────────────────────────────────────────
+  Average MFE  Unavailable
+  Average MAE  Unavailable
+  Best MFE     Unavailable
+  Worst MAE    Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Partition performance ─────────────────────────────────────────────────────
+Training
+  Trades         0
+  Win rate       Unavailable
+  Expectancy     Unavailable
+  Profit factor  Unavailable
+  Drawdown       Unavailable
+
+Validation
+  Trades         0
+  Win rate       Unavailable
+  Expectancy     Unavailable
+  Profit factor  Unavailable
+  Drawdown       Unavailable
+
+Final test
+  Trades         0
+  Win rate       Unavailable
+  Expectancy     Unavailable
+  Profit factor  Unavailable
+  Drawdown       Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Trade record ──────────────────────────────────────────────────────────────
+No executed trades.
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ No-trade decisions ────────────────────────────────────────────────────────
+2026-07-20T10:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-20T12:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-20T14:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-20T16:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-20T18:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-20T20:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-20T22:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-21T00:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-21T02:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-21T04:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-21T06:44:59.999000+00:00 — canonical_opportunity_pending_activation; all candidates were rejected by deterministic candidate-selection rules
+2026-07-21T08:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-21T10:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-21T12:44:59.999000+00:00 — canonical_no_executable_opportunity; all 9 generated candidates were rejected by geometry safety
+2026-07-21T14:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-21T16:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-21T18:44:59.999000+00:00 — canonical_no_executable_opportunity; all 9 generated candidates were rejected by geometry safety
+2026-07-21T20:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-21T22:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-22T00:44:59.999000+00:00 — canonical_no_executable_opportunity; all 10 generated candidates were rejected by geometry safety
+2026-07-22T02:44:59.999000+00:00 — canonical_no_executable_opportunity; all 9 generated candidates were rejected by geometry safety
+2026-07-22T04:44:59.999000+00:00 — canonical_no_executable_opportunity; all 9 generated candidates were rejected by geometry safety
+2026-07-22T06:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-22T08:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-22T10:44:59.999000+00:00 — canonical_no_executable_opportunity; all 1 generated candidates were rejected by geometry safety
+2026-07-22T12:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-22T14:44:59.999000+00:00 — canonical_no_executable_opportunity; all 8 generated candidates were rejected by geometry safety
+2026-07-22T16:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-22T18:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-22T20:44:59.999000+00:00 — canonical_no_executable_opportunity; all 9 generated candidates were rejected by geometry safety
+2026-07-22T22:44:59.999000+00:00 — canonical_no_executable_opportunity; all 8 generated candidates were rejected by geometry safety
+2026-07-23T00:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-23T02:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-23T04:44:59.999000+00:00 — canonical_no_executable_opportunity; all 8 generated candidates were rejected by geometry safety
+2026-07-23T06:44:59.999000+00:00 — canonical_no_executable_opportunity; all 1 generated candidates were rejected by geometry safety
+2026-07-23T08:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-23T10:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-23T12:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-23T14:44:59.999000+00:00 — canonical_no_executable_opportunity; all 8 generated candidates were rejected by geometry safety
+2026-07-23T16:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-23T18:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-23T20:44:59.999000+00:00 — canonical_no_executable_opportunity; all 6 generated candidates were rejected by geometry safety
+2026-07-23T22:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-24T00:44:59.999000+00:00 — canonical_no_executable_opportunity; no strategy candidates were generated
+2026-07-24T02:44:59.999000+00:00 — canonical_opportunity_pending_activation
+2026-07-24T04:44:59.999000+00:00 — canonical_no_executable_opportunity; all 8 generated candidates were rejected by geometry safety
+2026-07-24T06:44:59.999000+00:00 — canonical_no_executable_opportunity; all 12 generated candidates were rejected by geometry safety
+2026-07-24T08:44:59.999000+00:00 — canonical_no_executable_opportunity; all 16 generated candidates were rejected by geometry safety
+2026-07-24T10:44:59.999000+00:00 — canonical_no_executable_opportunity; all 3 generated candidates were rejected by geometry safety
+2026-07-24T12:44:59.999000+00:00 — canonical_opportunity_pending_activation; all candidates were rejected by deterministic candidate-selection rules
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Conditional replay (diagnostic only) ──────────────────────────────────────
+  Future setups            0
+  Activated                0
+  Activation rate          Unavailable
+  Filled                   0
+  Fill rate                Unavailable
+  Average activation wait  Unavailable
+  Targets                  0
+  Stops                    0
+  Pre-entry invalidations  0
+  Activation expiries      0
+  Missed entries           0
+  Executed win rate        Unavailable
+  Executed expectancy      Unavailable
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Candidate shadow replay (diagnostic only) ─────────────────────────────────
+  Candidate signals   99
+  Resolved outcomes   99
+  Direction accuracy  49.5%
+  Forward-path MFE    +4.635R
+  Forward-path MAE    +3.160R
+  Source mix          geometry_rejected: 95, retained_primary: 1,
+                      score_or_collision_rejected: 3
+└─────────────────────────────────────────────────────────────────────────────
+
+┌─ Robustness checks ─────────────────────────────────────────────────────────
+  Calibration authority        Not promoted
+  Deflated Sharpe probability  Unavailable
+  Backtest overfitting risk    Unavailable
+  Skipped signals              0
+  Dataset fingerprint          a3ce68edd9d5…
+└─────────────────────────────────────────────────────────────────────────────

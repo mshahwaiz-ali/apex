@@ -1,0 +1,35 @@
+{
+  "total": 3,
+  "filled": 0,
+  "activation_required": 3,
+  "activation_not_required": 0,
+  "outcomes": [
+    {
+      "outcome": "missed_entry",
+      "count": 3
+    }
+  ],
+  "activation_types": [
+    {
+      "type": "retest_hold",
+      "count": 3
+    }
+  ],
+  "activation_outcomes": [
+    {
+      "outcome": "maximum_chase_breached",
+      "count": 3
+    }
+  ],
+  "fill_models": [
+    {
+      "model": "unknown",
+      "count": 3
+    }
+  ],
+  "pnl": {
+    "positive": 0,
+    "negative": 0,
+    "flat": 3
+  }
+}

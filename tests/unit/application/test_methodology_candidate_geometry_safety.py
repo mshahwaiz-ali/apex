@@ -82,7 +82,8 @@ def test_shadow_audit_is_unavailable_without_explicit_stop_and_costs() -> None:
     assert audit.missing_measurements == ("executable_stop", "expected_cost_pct")
     payload = candidate_geometry_safety_audit_payload(audit)
     assert payload["available"] is False
-    assert payload["shadow_only"] is True
+    assert payload["shadow_only"] is False
+    assert payload["effective_geometry_authority"] == "legacy"
 
 
 def test_shadow_audit_uses_explicit_execution_buffer_and_cost_components() -> None:
@@ -114,7 +115,8 @@ def test_shadow_audit_uses_explicit_execution_buffer_and_cost_components() -> No
     assert diagnostics["target_to_cost_ratio"] == 30.0
     assert diagnostics["gross_reward_distance"] == 3.0
     assert diagnostics["net_reward_distance"] == 2.9
-    assert payload["measured_lane_basis"] == "ceil_tp1_distance_atr_bucket"
+    assert payload["measured_lane_basis"] == "tp1_distance_atr_policy_bucket"
+    assert payload["effective_geometry_authority"] == "measured"
 
 
 def test_shadow_audit_never_treats_missing_cost_components_as_zero() -> None:

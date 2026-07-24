@@ -450,7 +450,8 @@ def test_geometry_safety_audit_is_shadow_only_and_preserved_in_payload() -> None
     payload = methodology_candidate_routing_payload(result)
     audits = cast(list[dict[str, object]], payload["geometry_safety_audits"])
     assert len(audits) == 2
-    assert all(item["shadow_only"] is True for item in audits)
+    assert all(item["shadow_only"] is False for item in audits)
+    assert all(item["effective_geometry_authority"] == "legacy" for item in audits)
     assert all(item["available"] is False for item in audits)
 
 

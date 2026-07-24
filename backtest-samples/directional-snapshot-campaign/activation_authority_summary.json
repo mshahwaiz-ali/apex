@@ -1,0 +1,30 @@
+{
+  "total": 1764,
+  "activation_required": 0,
+  "activation_not_required": 1764,
+  "conditional_required": 16,
+  "conditional_but_unconfirmed": 16,
+  "conditional_but_filled": 14,
+  "activation_types": [
+    {
+      "activation_type": "none",
+      "total": 1764,
+      "targets": 763,
+      "stops": 815
+    }
+  ],
+  "fill_models": [
+    {
+      "fill_model": "conservative_zone_boundary",
+      "total": 1605,
+      "targets": 763,
+      "stops": 815
+    },
+    {
+      "fill_model": "unknown",
+      "total": 159,
+      "targets": 0,
+      "stops": 0
+    }
+  ]
+}
