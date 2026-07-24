@@ -14,7 +14,6 @@ from apex.domain.sweep_reclaim import (
 )
 from apex.strategies import TradeDirection
 
-
 _BASE_TIME = datetime(2026, 7, 24, 12, 0, tzinfo=UTC)
 
 

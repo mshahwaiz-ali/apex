@@ -7,9 +7,9 @@ the same qualification rules without future-label leakage.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Sequence
 
 from apex.domain.models import Candle
 from apex.strategies import TradeDirection
@@ -165,9 +165,7 @@ def evaluate_sweep_reclaim(
         else:
             consecutive = 0
 
-    bars_to_invalidation_reclaim: int | None = (
-        0 if invalidation_reclaimed(sweep_candle) else None
-    )
+    bars_to_invalidation_reclaim: int | None = 0 if invalidation_reclaimed(sweep_candle) else None
     bars_to_entry_reclaim: int | None = 0 if entry_reclaimed(sweep_candle) else None
     reclaim_candle: Candle | None = sweep_candle if entry_reclaimed(sweep_candle) else None
     reclaim_index: int | None = 0 if reclaim_candle is not None else None
