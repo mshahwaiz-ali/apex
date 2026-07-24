@@ -22,6 +22,7 @@ from apex.backtesting.sweep_reclaim_adapter import (
     assess_post_stop_sweep_reclaim,
     sweep_reclaim_metadata,
 )
+from apex.domain.decision_features import decision_feature_snapshot
 from apex.domain.deep_failure_risk import deep_failure_shadow_metadata
 from apex.domain.models import Candle
 from apex.strategies import TradeDirection
@@ -80,6 +81,7 @@ def simulate_trade(
         **({} if metadata is None else dict(metadata)),
         **deep_failure_shadow_metadata(signal),
         **_thesis_outcome_metadata(signal, candles[:max_candles]),
+        **decision_feature_snapshot(signal),
         "counterfactual_path_mfe_r": path_mfe_r,
         "counterfactual_path_mae_r": path_mae_r,
         "direction_correct_at_horizon": direction_correct,
