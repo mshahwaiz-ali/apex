@@ -9,7 +9,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from apex.presentation import OutputMode
-from apex.presentation.operator_output import render_analysis, render_scan
+from apex.presentation.compact_analysis_output import render_compact_analysis
+from apex.presentation.operator_output import render_scan
 
 
 def render_discovery_analysis(
@@ -18,10 +19,10 @@ def render_discovery_analysis(
     mode: str | OutputMode = "text",
     explain: bool = False,
 ) -> str:
-    """Render the concise operator view; structured diagnostics stay in JSON."""
+    """Render selected-symbol analysis as compact sequential trade blocks."""
 
     del mode
-    return render_analysis(payload, explain=explain)
+    return render_compact_analysis(payload, explain=explain)
 
 
 def render_discovery_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
