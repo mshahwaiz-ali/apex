@@ -1,6 +1,6 @@
 """Shared deterministic sweep/reclaim qualification.
 
-This module contains no backtest or presentation authority.  It evaluates only
+This module contains no backtest or presentation authority. It evaluates only
 closed-candle path facts so backtesting and production reconstruction can share
 the same qualification rules without future-label leakage.
 """
@@ -78,8 +78,12 @@ class SweepReclaimAssessment:
     shallow_sweep: bool
     wick_only_sweep: bool
     deep_failure: bool
+    sweep_candidate: bool
     reclaim_confirmed: bool
-    retest_confirmed: bool
+    entry_level_held_next_candle: bool
+    retest_available: bool
+    retest_held: bool
+    structure_confirmed: bool
     maximum_breach_r: float
     maximum_close_breach_r: float
     bars_closed_beyond_invalidation: int
@@ -94,8 +98,14 @@ class SweepReclaimAssessment:
     rejected_reason: str
 
     @property
+    def retest_confirmed(self) -> bool:
+        """Backward-compatible alias for the held-retest fact."""
+
+        return self.retest_held
+
+    @property
     def recovery_entry_authorized(self) -> bool:
-        return self.state is SweepReclaimState.RETEST_CONFIRMED
+        return self.reclaim_confirmed and self.structure_confirmed and not self.deep_failure
 
 
 def evaluate_sweep_reclaim(
@@ -108,11 +118,12 @@ def evaluate_sweep_reclaim(
     confirmation_candles: Sequence[Candle],
     policy: SweepReclaimPolicy = DEFAULT_SWEEP_RECLAIM_POLICY,
 ) -> SweepReclaimAssessment:
-    """Evaluate a possible sweep using only candles available through confirmation.
+    """Evaluate a possible sweep using only currently available closed candles.
 
-    ``sweep_candle`` is the candle that first traded through invalidation.
-    ``confirmation_candles`` must contain only subsequent closed candles known at
-    the evaluation time.  The function does not inspect later trade outcomes.
+    The computation order intentionally mirrors the legacy backtest diagnostic:
+    all reclaim, hold, retest, and remaining-room facts are calculated before the
+    final classification is selected. This keeps the shared evaluator suitable
+    for parity validation while avoiding any future trade-outcome labels.
     """
 
     risk = abs(entry_price - invalidation_price)
@@ -122,7 +133,7 @@ def evaluate_sweep_reclaim(
             rejected_reason="invalid_risk_geometry",
         )
 
-    candles = (sweep_candle, *confirmation_candles)
+    all_breach_candles = (sweep_candle, *confirmation_candles)
 
     def breach_r(candle: Candle) -> float:
         if direction is TradeDirection.LONG:
@@ -133,6 +144,11 @@ def evaluate_sweep_reclaim(
         if direction is TradeDirection.LONG:
             return max(0.0, invalidation_price - candle.close) / risk
         return max(0.0, candle.close - invalidation_price) / risk
+
+    def traded_beyond(candle: Candle) -> bool:
+        if direction is TradeDirection.LONG:
+            return candle.low < invalidation_price
+        return candle.high > invalidation_price
 
     def closed_beyond(candle: Candle) -> bool:
         if direction is TradeDirection.LONG:
@@ -152,36 +168,48 @@ def evaluate_sweep_reclaim(
     def entry_touched(candle: Candle) -> bool:
         return candle.low <= entry_price <= candle.high
 
-    maximum_breach_r = max(breach_r(candle) for candle in candles)
-    maximum_close_breach_r = max(close_breach_r(candle) for candle in candles)
-    bars_closed_beyond = sum(closed_beyond(candle) for candle in candles)
+    def favorable_close(candle: Candle, level: float) -> bool:
+        if direction is TradeDirection.LONG:
+            return candle.close >= level
+        return candle.close <= level
+
+    maximum_breach_r = max(breach_r(candle) for candle in all_breach_candles)
+    maximum_close_breach_r = max(close_breach_r(candle) for candle in all_breach_candles)
+    bars_traded_beyond = sum(traded_beyond(candle) for candle in all_breach_candles)
+    bars_closed_beyond = sum(closed_beyond(candle) for candle in all_breach_candles)
 
     consecutive = 0
     maximum_consecutive = 0
-    for candle in candles:
+    for candle in all_breach_candles:
         if closed_beyond(candle):
             consecutive += 1
             maximum_consecutive = max(maximum_consecutive, consecutive)
         else:
             consecutive = 0
 
-    bars_to_invalidation_reclaim: int | None = 0 if invalidation_reclaimed(sweep_candle) else None
-    bars_to_entry_reclaim: int | None = 0 if entry_reclaimed(sweep_candle) else None
-    reclaim_candle: Candle | None = sweep_candle if entry_reclaimed(sweep_candle) else None
-    reclaim_index: int | None = 0 if reclaim_candle is not None else None
+    bars_to_invalidation_reclaim = 0
+    bars_to_entry_reclaim = 0
+    invalidation_was_reclaimed = invalidation_reclaimed(sweep_candle)
+    entry_was_reclaimed = entry_reclaimed(sweep_candle)
+    reclaim_candle: Candle | None = None
+    reclaim_index = 0
 
     for index, candle in enumerate(confirmation_candles, start=1):
-        if bars_to_invalidation_reclaim is None and invalidation_reclaimed(candle):
+        if not invalidation_was_reclaimed and invalidation_reclaimed(candle):
+            invalidation_was_reclaimed = True
             bars_to_invalidation_reclaim = index
-        if bars_to_entry_reclaim is None and entry_reclaimed(candle):
+        if not entry_was_reclaimed and entry_reclaimed(candle):
+            entry_was_reclaimed = True
             bars_to_entry_reclaim = index
+        if reclaim_candle is None and entry_reclaimed(candle):
             reclaim_candle = candle
             reclaim_index = index
 
+    stop_candle_reclaimed = invalidation_reclaimed(sweep_candle)
     wick_only_sweep = (
         maximum_breach_r > policy.shallow_breach_max_r
         and close_breach_r(sweep_candle) == 0.0
-        and invalidation_reclaimed(sweep_candle)
+        and stop_candle_reclaimed
         and bars_closed_beyond == 0
     )
     close_failure = (
@@ -189,7 +217,7 @@ def evaluate_sweep_reclaim(
         or maximum_consecutive >= policy.deep_consecutive_closes
     )
     slow_or_failed_reclaim = (
-        bars_to_invalidation_reclaim is None
+        not invalidation_was_reclaimed
         or bars_to_invalidation_reclaim > policy.deep_reclaim_bars
     )
     deep_failure = close_failure or (
@@ -201,128 +229,120 @@ def evaluate_sweep_reclaim(
         not deep_failure
         and maximum_breach_r <= policy.shallow_breach_max_r
         and bars_closed_beyond <= 1
-        and bars_to_invalidation_reclaim is not None
-        and bars_to_invalidation_reclaim <= policy.shallow_reclaim_max_bars
+        and invalidation_was_reclaimed
+        and (
+            stop_candle_reclaimed
+            or 0 < bars_to_invalidation_reclaim <= policy.shallow_reclaim_max_bars
+        )
     )
     sweep_candidate = not deep_failure and (shallow_sweep or wick_only_sweep)
 
+    reclaim_body_ratio = 0.0
+    reclaim_close_location = 0.0
+    remaining_target_room_r = 0.0
+    reclaim_entry_price: float | None = None
+    entry_level_held_next_candle = False
+    retest_available = False
+    retest_held = False
+
+    if reclaim_candle is not None:
+        candle_range = reclaim_candle.high - reclaim_candle.low
+        if candle_range > 0.0:
+            reclaim_body_ratio = abs(reclaim_candle.close - reclaim_candle.open) / candle_range
+            if direction is TradeDirection.LONG:
+                reclaim_close_location = (
+                    reclaim_candle.close - reclaim_candle.low
+                ) / candle_range
+            else:
+                reclaim_close_location = (
+                    reclaim_candle.high - reclaim_candle.close
+                ) / candle_range
+
+        reclaim_entry_price = reclaim_candle.close
+        remaining_target_room_r = (
+            (target_price - reclaim_entry_price) / risk
+            if direction is TradeDirection.LONG
+            else (reclaim_entry_price - target_price) / risk
+        )
+
+        next_index = reclaim_index
+        if next_index < len(confirmation_candles):
+            next_candle = confirmation_candles[next_index]
+            entry_level_held_next_candle = favorable_close(next_candle, entry_price)
+
+        for later in confirmation_candles[reclaim_index:]:
+            if closed_beyond(later):
+                break
+            if entry_touched(later):
+                retest_available = True
+                if favorable_close(later, entry_price):
+                    retest_held = True
+
+    strong_reclaim = (
+        reclaim_candle is not None
+        and reclaim_body_ratio >= policy.reclaim_body_ratio_min
+        and reclaim_close_location >= policy.reclaim_close_location_min
+    )
+    timely_reclaim = 0 < reclaim_index <= policy.reclaim_max_confirm_bars
+    structure_confirmed = entry_level_held_next_candle or retest_held
+    reclaim_confirmed = (
+        sweep_candidate
+        and timely_reclaim
+        and strong_reclaim
+        and remaining_target_room_r >= policy.minimum_remaining_target_r
+    )
+
     if deep_failure:
-        return _assessment(
-            state=SweepReclaimState.DEEP_FAILURE,
-            deep_failure=True,
-            wick_only_sweep=wick_only_sweep,
-            maximum_breach_r=maximum_breach_r,
-            maximum_close_breach_r=maximum_close_breach_r,
-            bars_closed_beyond_invalidation=bars_closed_beyond,
-            maximum_consecutive_closes_beyond_invalidation=maximum_consecutive,
-            bars_to_invalidation_reclaim=bars_to_invalidation_reclaim,
-            bars_to_entry_reclaim=bars_to_entry_reclaim,
-            rejected_reason="deep_directional_failure",
-        )
-    if not sweep_candidate:
-        return _assessment(
-            state=SweepReclaimState.NOT_A_SWEEP,
-            maximum_breach_r=maximum_breach_r,
-            maximum_close_breach_r=maximum_close_breach_r,
-            bars_closed_beyond_invalidation=bars_closed_beyond,
-            maximum_consecutive_closes_beyond_invalidation=maximum_consecutive,
-            bars_to_invalidation_reclaim=bars_to_invalidation_reclaim,
-            bars_to_entry_reclaim=bars_to_entry_reclaim,
-            rejected_reason="not_a_sweep_candidate",
-        )
-    if reclaim_candle is None or reclaim_index is None:
-        return _assessment(
-            state=SweepReclaimState.SHALLOW_SWEEP_PENDING,
-            shallow_sweep=shallow_sweep,
-            wick_only_sweep=wick_only_sweep,
-            maximum_breach_r=maximum_breach_r,
-            maximum_close_breach_r=maximum_close_breach_r,
-            bars_closed_beyond_invalidation=bars_closed_beyond,
-            maximum_consecutive_closes_beyond_invalidation=maximum_consecutive,
-            bars_to_invalidation_reclaim=bars_to_invalidation_reclaim,
-            rejected_reason="entry_level_not_reclaimed",
-        )
-
-    candle_range = reclaim_candle.high - reclaim_candle.low
-    body_ratio = 0.0
-    close_location = 0.0
-    if candle_range > 0.0:
-        body_ratio = abs(reclaim_candle.close - reclaim_candle.open) / candle_range
-        if direction is TradeDirection.LONG:
-            close_location = (reclaim_candle.close - reclaim_candle.low) / candle_range
-        else:
-            close_location = (reclaim_candle.high - reclaim_candle.close) / candle_range
-
-    remaining_target_room_r = (
-        (target_price - reclaim_candle.close) / risk
-        if direction is TradeDirection.LONG
-        else (reclaim_candle.close - target_price) / risk
-    )
-    timely = reclaim_index <= policy.reclaim_max_confirm_bars
-    strong = (
-        body_ratio >= policy.reclaim_body_ratio_min
-        and close_location >= policy.reclaim_close_location_min
-    )
-    confirmed = timely and strong and remaining_target_room_r >= policy.minimum_remaining_target_r
-
-    if not confirmed:
-        if not timely:
-            reason = "reclaim_too_slow"
-            state = SweepReclaimState.EXPIRED
-        elif not strong:
-            reason = "weak_reclaim_candle"
-            state = SweepReclaimState.SHALLOW_SWEEP_PENDING
-        else:
-            reason = "insufficient_remaining_target_room"
-            state = SweepReclaimState.NOT_A_SWEEP
-        return _assessment(
-            state=state,
-            shallow_sweep=shallow_sweep,
-            wick_only_sweep=wick_only_sweep,
-            maximum_breach_r=maximum_breach_r,
-            maximum_close_breach_r=maximum_close_breach_r,
-            bars_closed_beyond_invalidation=bars_closed_beyond,
-            maximum_consecutive_closes_beyond_invalidation=maximum_consecutive,
-            bars_to_invalidation_reclaim=bars_to_invalidation_reclaim,
-            bars_to_entry_reclaim=bars_to_entry_reclaim,
-            reclaim_body_ratio=body_ratio,
-            reclaim_close_location=close_location,
-            remaining_target_room_r=remaining_target_room_r,
-            reclaim_entry_price=reclaim_candle.close,
-            reclaim_candle_index=reclaim_index,
-            rejected_reason=reason,
-        )
-
-    retest_confirmed = False
-    for candle in confirmation_candles[reclaim_index:]:
-        if closed_beyond(candle):
-            break
-        if entry_touched(candle) and entry_reclaimed(candle):
-            retest_confirmed = True
-            break
+        rejected_reason = "deep_directional_failure"
+        state = SweepReclaimState.DEEP_FAILURE
+    elif not sweep_candidate:
+        rejected_reason = "not_a_sweep_candidate"
+        state = SweepReclaimState.NOT_A_SWEEP
+    elif reclaim_candle is None:
+        rejected_reason = "entry_level_not_reclaimed"
+        state = SweepReclaimState.SHALLOW_SWEEP_PENDING
+    elif not timely_reclaim:
+        rejected_reason = "reclaim_too_slow"
+        state = SweepReclaimState.EXPIRED
+    elif not strong_reclaim:
+        rejected_reason = "weak_reclaim_candle"
+        state = SweepReclaimState.SHALLOW_SWEEP_PENDING
+    elif remaining_target_room_r < policy.minimum_remaining_target_r:
+        rejected_reason = "insufficient_remaining_target_room"
+        state = SweepReclaimState.NOT_A_SWEEP
+    elif not structure_confirmed:
+        rejected_reason = "reclaim_not_held_or_retested"
+        state = SweepReclaimState.RECLAIM_CONFIRMED
+    else:
+        rejected_reason = "none"
+        state = SweepReclaimState.RETEST_CONFIRMED
 
     return _assessment(
-        state=(
-            SweepReclaimState.RETEST_CONFIRMED
-            if retest_confirmed
-            else SweepReclaimState.RECLAIM_CONFIRMED
-        ),
+        state=state,
         shallow_sweep=shallow_sweep,
         wick_only_sweep=wick_only_sweep,
-        reclaim_confirmed=True,
-        retest_confirmed=retest_confirmed,
+        deep_failure=deep_failure,
+        sweep_candidate=sweep_candidate,
+        reclaim_confirmed=reclaim_confirmed,
+        entry_level_held_next_candle=entry_level_held_next_candle,
+        retest_available=retest_available,
+        retest_held=retest_held,
+        structure_confirmed=structure_confirmed,
         maximum_breach_r=maximum_breach_r,
         maximum_close_breach_r=maximum_close_breach_r,
+        bars_traded_beyond_invalidation=bars_traded_beyond,
         bars_closed_beyond_invalidation=bars_closed_beyond,
         maximum_consecutive_closes_beyond_invalidation=maximum_consecutive,
-        bars_to_invalidation_reclaim=bars_to_invalidation_reclaim,
-        bars_to_entry_reclaim=bars_to_entry_reclaim,
-        reclaim_body_ratio=body_ratio,
-        reclaim_close_location=close_location,
+        bars_to_invalidation_reclaim=(
+            bars_to_invalidation_reclaim if invalidation_was_reclaimed else None
+        ),
+        bars_to_entry_reclaim=(bars_to_entry_reclaim if entry_was_reclaimed else None),
+        reclaim_body_ratio=reclaim_body_ratio,
+        reclaim_close_location=reclaim_close_location,
         remaining_target_room_r=remaining_target_room_r,
-        reclaim_entry_price=reclaim_candle.close,
-        reclaim_candle_index=reclaim_index,
-        rejected_reason="none" if retest_confirmed else "reclaim_not_retested",
+        reclaim_entry_price=reclaim_entry_price,
+        reclaim_candle_index=(reclaim_index if reclaim_candle is not None else None),
+        rejected_reason=rejected_reason,
     )
 
 
@@ -332,10 +352,15 @@ def _assessment(
     shallow_sweep: bool = False,
     wick_only_sweep: bool = False,
     deep_failure: bool = False,
+    sweep_candidate: bool = False,
     reclaim_confirmed: bool = False,
-    retest_confirmed: bool = False,
+    entry_level_held_next_candle: bool = False,
+    retest_available: bool = False,
+    retest_held: bool = False,
+    structure_confirmed: bool = False,
     maximum_breach_r: float = 0.0,
     maximum_close_breach_r: float = 0.0,
+    bars_traded_beyond_invalidation: int = 0,
     bars_closed_beyond_invalidation: int = 0,
     maximum_consecutive_closes_beyond_invalidation: int = 0,
     bars_to_invalidation_reclaim: int | None = None,
@@ -347,13 +372,18 @@ def _assessment(
     reclaim_candle_index: int | None = None,
     rejected_reason: str,
 ) -> SweepReclaimAssessment:
+    del bars_traded_beyond_invalidation
     return SweepReclaimAssessment(
         state=state,
         shallow_sweep=shallow_sweep,
         wick_only_sweep=wick_only_sweep,
         deep_failure=deep_failure,
+        sweep_candidate=sweep_candidate,
         reclaim_confirmed=reclaim_confirmed,
-        retest_confirmed=retest_confirmed,
+        entry_level_held_next_candle=entry_level_held_next_candle,
+        retest_available=retest_available,
+        retest_held=retest_held,
+        structure_confirmed=structure_confirmed,
         maximum_breach_r=maximum_breach_r,
         maximum_close_breach_r=maximum_close_breach_r,
         bars_closed_beyond_invalidation=bars_closed_beyond_invalidation,
