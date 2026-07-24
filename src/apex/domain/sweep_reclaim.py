@@ -105,7 +105,7 @@ class SweepReclaimAssessment:
 
     @property
     def recovery_entry_authorized(self) -> bool:
-        return self.reclaim_confirmed and self.structure_confirmed and not self.deep_failure
+        return self.reclaim_confirmed and self.retest_held and not self.deep_failure
 
 
 def evaluate_sweep_reclaim(
@@ -217,8 +217,7 @@ def evaluate_sweep_reclaim(
         or maximum_consecutive >= policy.deep_consecutive_closes
     )
     slow_or_failed_reclaim = (
-        not invalidation_was_reclaimed
-        or bars_to_invalidation_reclaim > policy.deep_reclaim_bars
+        not invalidation_was_reclaimed or bars_to_invalidation_reclaim > policy.deep_reclaim_bars
     )
     deep_failure = close_failure or (
         maximum_breach_r >= policy.deep_breach_min_r
@@ -250,13 +249,9 @@ def evaluate_sweep_reclaim(
         if candle_range > 0.0:
             reclaim_body_ratio = abs(reclaim_candle.close - reclaim_candle.open) / candle_range
             if direction is TradeDirection.LONG:
-                reclaim_close_location = (
-                    reclaim_candle.close - reclaim_candle.low
-                ) / candle_range
+                reclaim_close_location = (reclaim_candle.close - reclaim_candle.low) / candle_range
             else:
-                reclaim_close_location = (
-                    reclaim_candle.high - reclaim_candle.close
-                ) / candle_range
+                reclaim_close_location = (reclaim_candle.high - reclaim_candle.close) / candle_range
 
         reclaim_entry_price = reclaim_candle.close
         remaining_target_room_r = (
@@ -310,12 +305,15 @@ def evaluate_sweep_reclaim(
     elif remaining_target_room_r < policy.minimum_remaining_target_r:
         rejected_reason = "insufficient_remaining_target_room"
         state = SweepReclaimState.NOT_A_SWEEP
-    elif not structure_confirmed:
-        rejected_reason = "reclaim_not_held_or_retested"
-        state = SweepReclaimState.RECLAIM_CONFIRMED
-    else:
+    elif retest_held:
         rejected_reason = "none"
         state = SweepReclaimState.RETEST_CONFIRMED
+    elif structure_confirmed:
+        rejected_reason = "reclaim_not_retested"
+        state = SweepReclaimState.RECLAIM_CONFIRMED
+    else:
+        rejected_reason = "reclaim_not_held_or_retested"
+        state = SweepReclaimState.RECLAIM_CONFIRMED
 
     return _assessment(
         state=state,

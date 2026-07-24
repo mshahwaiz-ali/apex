@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PATH = Path("src/apex/domain/sweep_reclaim.py")
 
 OLD_STATE = """    elif not structure_confirmed:
