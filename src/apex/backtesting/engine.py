@@ -25,6 +25,7 @@ from apex.backtesting.sweep_reclaim_adapter import (
 from apex.domain.decision_features import decision_feature_snapshot
 from apex.domain.deep_failure_risk import deep_failure_shadow_metadata
 from apex.domain.models import Candle
+from apex.domain.volatility_risk import volatility_risk_shadow_metadata
 from apex.strategies import TradeDirection
 
 THESIS_PARTIAL_MOVE_R = 0.5
@@ -82,6 +83,7 @@ def simulate_trade(
         **deep_failure_shadow_metadata(signal),
         **_thesis_outcome_metadata(signal, candles[:max_candles]),
         **decision_feature_snapshot(signal),
+        **volatility_risk_shadow_metadata(signal),
         "counterfactual_path_mfe_r": path_mfe_r,
         "counterfactual_path_mae_r": path_mae_r,
         "direction_correct_at_horizon": direction_correct,
