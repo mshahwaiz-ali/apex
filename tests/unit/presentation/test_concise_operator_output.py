@@ -64,9 +64,14 @@ def test_cost_warning_is_visible() -> None:
     assert "fees and slippage are not included" in output
 
 
-def test_final_renderer_does_not_append_internal_diagnostic_sections() -> None:
+def test_final_renderer_uses_compact_trade_card_without_internal_appendices() -> None:
     output = render_final_analysis(_payload())
-    assert output == render_discovery_analysis(_payload())
+
+    assert "APEX ANALYSIS • SOL/USDT" in output
+    assert "┌─ TRADE 1 • SOL/USDT • SHORT • Breakout retest" in output
+    assert "Entry  74.742" in output
+    assert "Stop loss" in output
+    assert "TP1" in output
     assert "Selection Limitations" not in output
     assert "Evidence Independence" not in output
     assert "Ranking Integrity" not in output
