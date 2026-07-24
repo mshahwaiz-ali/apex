@@ -138,6 +138,21 @@ def _candidate_layered_state(
     return None if layered_state == _DEFAULT_LAYERED_STATE else layered_state
 
 
+def _opposite_continuation_risk_requires_no_trade(
+    relationship: TimeframeRelationship,
+    severity: RelationshipSeverity,
+) -> bool:
+    """Reject only strong pre-trade HTF opposition, without using future outcomes."""
+
+    return relationship in {
+        TimeframeRelationship.COUNTERTREND_SCALP,
+        TimeframeRelationship.REVERSAL_ATTEMPT,
+    } and severity in {
+        RelationshipSeverity.STRONG,
+        RelationshipSeverity.CRITICAL,
+    }
+
+
 def _htf_assessment_from_layered_state(
     layered_state: LayeredStateSnapshot | None,
 ) -> HtfRelationshipAssessment | None:
@@ -176,27 +191,49 @@ def _htf_assessment_from_layered_state(
             ),
         )
     if relationship is TimeframeRelationship.COUNTERTREND_SCALP:
+        hard_reject = _opposite_continuation_risk_requires_no_trade(
+            relationship,
+            severity,
+        )
         return HtfRelationshipAssessment(
             relationship=relationship,
             severity=severity,
             runner_allowed=False,
             confirmation_required=True,
             target_ceiling_required=True,
-            hard_reject=False,
+            hard_reject=hard_reject,
             reasons=(
-                "trade opposes confirmed higher-timeframe continuation; "
-                "scalp-only treatment required",
+                (
+                    "strong higher-timeframe opposition creates unacceptable "
+                    "opposite-continuation risk; no trade"
+                )
+                if hard_reject
+                else (
+                    "trade opposes confirmed higher-timeframe continuation; "
+                    "scalp-only treatment required"
+                ),
             ),
         )
     if relationship is TimeframeRelationship.REVERSAL_ATTEMPT:
+        hard_reject = _opposite_continuation_risk_requires_no_trade(
+            relationship,
+            severity,
+        )
         return HtfRelationshipAssessment(
             relationship=relationship,
             severity=severity,
             runner_allowed=False,
             confirmation_required=True,
             target_ceiling_required=True,
-            hard_reject=False,
-            reasons=("trade depends on an unconfirmed higher-timeframe reversal attempt",),
+            hard_reject=hard_reject,
+            reasons=(
+                (
+                    "strong unconfirmed reversal attempt creates unacceptable "
+                    "opposite-continuation risk; no trade"
+                )
+                if hard_reject
+                else "trade depends on an unconfirmed higher-timeframe reversal attempt",
+            ),
         )
     if relationship is TimeframeRelationship.STRUCTURAL_REVERSAL_CONFIRMED:
         return HtfRelationshipAssessment(
