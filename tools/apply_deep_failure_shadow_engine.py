@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PATH = Path("src/apex/backtesting/engine.py")
 
 IMPORT_ANCHOR = "from apex.domain.models import Candle\n"

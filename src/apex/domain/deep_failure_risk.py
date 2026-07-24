@@ -226,8 +226,6 @@ def deep_failure_shadow_metadata(
         "deep_failure_shadow_level": assessment.level.value,
         "deep_failure_shadow_reasons": ",".join(assessment.reasons),
         "deep_failure_shadow_would_block": assessment.would_block,
-        "deep_failure_shadow_opposite_review_required": (
-            assessment.opposite_review_required
-        ),
+        "deep_failure_shadow_opposite_review_required": (assessment.opposite_review_required),
         "deep_failure_shadow_authority": "observe_only",
     }
