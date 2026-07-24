@@ -86,12 +86,10 @@ class CliProgress(AbstractContextManager["CliProgress"]):
 
     def _draw(self, frame: str, stage: str) -> None:
         plain_text = f"{frame} {stage}"
-        colored_frame = typer.style(frame, fg=typer.colors.BRIGHT_GREEN)
+        colored_frame = typer.style(frame, fg=typer.colors.BRIGHT_CYAN)
         padding = " " * max(self._last_width - len(plain_text), 0)
         self._stream.write(f"\r{colored_frame} {stage}{padding}")
         self._stream.flush()
-        # Track the visible width, excluding ANSI color sequences, so stage
-        # changes and the final clear always erase the complete progress line.
         self._last_width = len(plain_text)
 
     def _clear_line(self) -> None:
@@ -108,33 +106,32 @@ def cli_progress(*, stream: TextIO | None = None) -> CliProgress:
 
 
 def emit_terminal(text: str) -> None:
-    """Print a report with a semantic green terminal palette."""
+    """Print reports with a restrained semantic terminal palette."""
 
     for line in text.splitlines():
         stripped = line.lstrip()
+        upper = stripped.upper()
         if line.startswith(("╭", "╰")):
-            typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
+            typer.secho(line, fg=typer.colors.BRIGHT_CYAN, bold=True)
         elif line.startswith("┌─"):
-            typer.secho(line, fg=typer.colors.GREEN, bold=True)
+            typer.secho(line, fg=typer.colors.CYAN, bold=True)
         elif line.startswith("└"):
-            typer.secho(line, fg=typer.colors.GREEN)
-        elif line.startswith("▶") and line.rstrip().endswith("— LONG"):
+            typer.secho(line, fg=typer.colors.CYAN)
+        elif "• LONG •" in line or line.rstrip().endswith("— LONG"):
             typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
-        elif line.startswith("▶") and line.rstrip().endswith("— SHORT"):
+        elif "• SHORT •" in line or line.rstrip().endswith("— SHORT"):
             typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
         elif line.startswith("▶"):
             typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
-        elif stripped in {"ENTRY", "RISK", "TARGETS", "ACTIVATION", "QUALITY", "CAUTION"}:
-            typer.secho(line, fg=typer.colors.GREEN, bold=True)
-        elif stripped.startswith(("CMP ", "Ideal entry ", "Entry range ", "Maximum chase ")):
-            typer.secho(line, fg=typer.colors.BRIGHT_YELLOW)
+        elif stripped in {"ENTRY", "RISK", "TARGETS", "SETUP", "WHY THIS TRADE", "WARNINGS"}:
+            typer.secho(line, fg=typer.colors.BRIGHT_WHITE, bold=True)
         elif stripped.startswith(("Stop loss ", "Invalidation ", "Pre-entry invalidation ")):
-            typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
+            typer.secho(line, fg=typer.colors.BRIGHT_RED)
         elif stripped.startswith(("TP1 ", "TP2 ", "TP3 ")):
-            typer.secho(line, fg=typer.colors.BRIGHT_GREEN, bold=True)
-        elif stripped.startswith(("Activation trigger ", "Trigger condition ", "Order intent ")):
-            typer.secho(line, fg=typer.colors.YELLOW)
-        elif stripped.startswith(("Main risk ", "Data warning ")) or line.startswith("!"):
+            typer.secho(line, fg=typer.colors.BRIGHT_GREEN)
+        elif upper.startswith(("CRITICAL ", "ERROR ", "INVALIDATED ")):
+            typer.secho(line, fg=typer.colors.BRIGHT_RED, bold=True)
+        elif upper.startswith(("WARNING ", "MEDIUM ", "CAUTION ")) or line.startswith("!"):
             typer.secho(line, fg=typer.colors.YELLOW, bold=True)
         else:
             typer.echo(line)
