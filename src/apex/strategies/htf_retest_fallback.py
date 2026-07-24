@@ -162,6 +162,10 @@ def _fallback_for_direction(
         setup.structure.trend.strength,
         intraday.structure.trend.strength,
     )
+    warnings = (
+        "decision-frame momentum is fully opposed; execution requires a fresh retest hold or reclaim",
+        *(("active-candle evidence is provisional",) if context.provisional else ()),
+    )
 
     return TradeCandidate(
         symbol=context.symbol,
@@ -211,10 +215,7 @@ def _fallback_for_direction(
                 "local momentum mismatch is treated as pullback timing, not thesis failure",
                 "entry is deferred to a predefined retest or reclaim zone",
             ),
-            warnings=(
-                "decision-frame momentum is fully opposed; execution requires a fresh retest hold or reclaim",
-                *("active-candle evidence is provisional",) if context.provisional else (),
-            ),
+            warnings=warnings,
             feature_references=tuple(
                 name
                 for name, value in (
