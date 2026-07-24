@@ -31,7 +31,7 @@ def test_progress_renders_stage_to_interactive_stderr_and_clears() -> None:
 
     rendered = stream.getvalue()
     assert stage in rendered
-    assert typer.style("⠋", fg=typer.colors.BRIGHT_GREEN) in rendered
+    assert typer.style("⠋", fg=typer.colors.BRIGHT_CYAN) in rendered
     assert rendered.endswith("\r")
     assert "\n" not in rendered
     assert f"\r{' ' * (len(stage) + 2)}\r" in rendered
@@ -84,7 +84,7 @@ def test_opportunity_headers_color_long_green_and_short_red(
     ]
 
 
-def test_terminal_uses_semantic_trade_geometry_colors(
+def test_terminal_uses_professional_trade_geometry_colors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, str | None, bool]] = []
@@ -100,10 +100,9 @@ def test_terminal_uses_semantic_trade_geometry_colors(
     )
 
     assert calls == [
-        ("  ENTRY", typer.colors.GREEN, True),
-        ("    Ideal entry  100", typer.colors.BRIGHT_YELLOW, False),
-        ("  RISK", typer.colors.GREEN, True),
-        ("    Stop loss  97", typer.colors.BRIGHT_RED, True),
-        ("  TARGETS", typer.colors.GREEN, True),
-        ("    TP1  106", typer.colors.BRIGHT_GREEN, True),
+        ("  ENTRY", typer.colors.BRIGHT_WHITE, True),
+        ("  RISK", typer.colors.BRIGHT_WHITE, True),
+        ("    Stop loss  97", typer.colors.BRIGHT_RED, False),
+        ("  TARGETS", typer.colors.BRIGHT_WHITE, True),
+        ("    TP1  106", typer.colors.BRIGHT_GREEN, False),
     ]
