@@ -1,0 +1,2600 @@
+APEX HIERARCHICAL TIMEFRAME SOURCE MAP
+==============================================================================
+Repository: /home/muhammad-shahwaiz-ali/data_drive/apex
+Selected excerpts: 80
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/decision_analysis.py:63 ---
+   49:     """Integrated discovery analysis enriched with market strategy routing."""
+   50: 
+   51:     market_strategy_route: MarketStrategyRoute | None = None
+   52: 
+   53: 
+   54: load_symbols = _integrated.load_symbols
+   55: write_json_report = _integrated.write_json_report
+   56: 
+   57: 
+   58: def analyze_symbol(
+   59:     symbol: str,
+   60:     provider: MarketDataProvider,
+   61:     *,
+   62:     timeframes: Sequence[str],
+   63:     timeframe_roles: Mapping[str, str] | None = None,
+   64:     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+   65:     timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
+   66:     candle_limit: int = 200,
+   67:     generated_at: datetime | None = None,
+   68:     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+   69:     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+   70:     methodology_gate_mode: str = "shadow",
+   71:     methodology_settings: MethodologySettings | None = None,
+   72:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+   73:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+   74:     futures_evidence_enabled: bool = True,
+   75:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+   76: ) -> SymbolAnalysis:
+   77:     """Run integrated discovery analysis, routing, and the shared methodology gate."""
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/decision_analysis.py:83 ---
+   69:     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+   70:     methodology_gate_mode: str = "shadow",
+   71:     methodology_settings: MethodologySettings | None = None,
+   72:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+   73:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+   74:     futures_evidence_enabled: bool = True,
+   75:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+   76: ) -> SymbolAnalysis:
+   77:     """Run integrated discovery analysis, routing, and the shared methodology gate."""
+   78: 
+   79:     base = _integrated.analyze_symbol(
+   80:         symbol,
+   81:         provider,
+   82:         timeframes=timeframes,
+   83:         timeframe_roles=timeframe_roles,
+   84:         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+   85:         timeframe_indicator_profiles=timeframe_indicator_profiles,
+   86:         candle_limit=candle_limit + 1,
+   87:         generated_at=generated_at,
+   88:         strategy_routing=strategy_routing,
+   89:         market_environment_config=market_environment_config,
+   90:         methodology_gate_mode=methodology_gate_mode,
+   91:         methodology_settings=methodology_settings,
+   92:         geometry_safety_mode=geometry_safety_mode,
+   93:         geometry_execution_costs=geometry_execution_costs,
+   94:         futures_evidence_enabled=futures_evidence_enabled,
+   95:         analysis_mode=analysis_mode,
+   96:     )
+   97:     environment = base.market_environment
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/decision_analysis.py:131 ---
+  117:         market_state=base.market_state,
+  118:         market_strategy_route=route,
+  119:     )
+  120:     # Candidate-specific methodology routing is already enforced inside the
+  121:     # canonical discovery core. Reapplying the legacy strategy-level gate here
+  122:     # would collapse layered state back into one broad market-state verdict.
+  123:     return analysis
+  124: 
+  125: 
+  126: def scan_symbols(
+  127:     symbols: Iterable[str],
+  128:     provider: MarketDataProvider,
+  129:     *,
+  130:     timeframes: Sequence[str],
+  131:     timeframe_roles: Mapping[str, str] | None = None,
+  132:     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+  133:     timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
+  134:     candle_limit: int = 200,
+  135:     generated_at: datetime | None = None,
+  136:     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+  137:     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+  138:     methodology_gate_mode: str = "shadow",
+  139:     methodology_settings: MethodologySettings | None = None,
+  140:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  141:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  142:     futures_evidence_enabled: bool = True,
+  143: ) -> DiscoveryScanResult:
+  144:     """Analyze each symbol once with canonical routing, gating, and ranking."""
+  145: 
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/decision_analysis.py:153 ---
+  139:     methodology_settings: MethodologySettings | None = None,
+  140:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  141:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  142:     futures_evidence_enabled: bool = True,
+  143: ) -> DiscoveryScanResult:
+  144:     """Analyze each symbol once with canonical routing, gating, and ranking."""
+  145: 
+  146:     timestamp = generated_at or datetime.now(UTC)
+  147:     analyses: list[SymbolAnalysis] = []
+  148:     failures: dict[str, str] = {}
+  149:     for symbol in symbols:
+  150:         try:
+  151:             analysis_kwargs: dict[str, Any] = {
+  152:                 "timeframes": timeframes,
+  153:                 "timeframe_roles": timeframe_roles,
+  154:                 "timeframe_max_staleness_seconds": timeframe_max_staleness_seconds,
+  155:                 "candle_limit": candle_limit,
+  156:                 "generated_at": timestamp,
+  157:                 "strategy_routing": strategy_routing,
+  158:                 "market_environment_config": market_environment_config,
+  159:                 "methodology_gate_mode": methodology_gate_mode,
+  160:                 "methodology_settings": methodology_settings,
+  161:                 "geometry_safety_mode": geometry_safety_mode,
+  162:                 "geometry_execution_costs": geometry_execution_costs,
+  163:                 "analysis_mode": AnalysisMode.SCAN_CMP_FIRST,
+  164:             }
+  165:             if timeframe_indicator_profiles is not None:
+  166:                 analysis_kwargs["timeframe_indicator_profiles"] = timeframe_indicator_profiles
+  167:             if not futures_evidence_enabled:
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:62 ---
+   48:     high_value_evidence_runtime_payload,
+   49: )
+   50: from apex.application.high_value_evidence_status import (
+   51:     reconcile_high_value_evidence_audit,
+   52: )
+   53: from apex.application.historical_edge_runtime import (
+   54:     apply_runtime_edge_ranking,
+   55:     load_runtime_edge_artifact,
+   56: )
+   57: from apex.application.market_intelligence import build_market_intelligence
+   58: from apex.application.market_strategy_router import MarketStrategyRoute
+   59: from apex.application.methodology_candidate_geometry_safety import (
+   60:     geometry_safety_policy_from_settings,
+   61: )
+   62: from apex.application.methodology_candidate_routing import (
+   63:     MethodologyCandidateRoutingResult,
+   64:     apply_methodology_candidate_routing,
+   65:     evaluate_methodology_candidate_routing,
+   66:     evaluate_methodology_routing_parity,
+   67:     methodology_candidate_routing_payload,
+   68:     methodology_routing_parity_payload,
+   69: )
+   70: from apex.application.methodology_contracts import (
+   71:     ConfidenceAssessment,
+   72:     ConfidenceBasis,
+   73:     ConfidenceLabel,
+   74:     DurationExpectation,
+   75:     EntryOpportunity,
+   76:     EntryOpportunityType,
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:161 ---
+  147:     return replace(
+  148:         selection,
+  149:         no_trade_reason=(
+  150:             f"all {enforcement.rejected_candidate_count} generated candidates "
+  151:             "were rejected by geometry safety"
+  152:         ),
+  153:     )
+  154: 
+  155: 
+  156: def analyze_symbol(
+  157:     symbol: str,
+  158:     provider: MarketDataProvider,
+  159:     *,
+  160:     timeframes: Sequence[str],
+  161:     timeframe_roles: Mapping[str, str] | None = None,
+  162:     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+  163:     timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
+  164:     candle_limit: int = 200,
+  165:     generated_at: datetime | None = None,
+  166:     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+  167:     market_strategy_route: MarketStrategyRoute | None = None,
+  168:     methodology_market_state: PrimaryMarketState | None = None,
+  169:     methodology_gate_mode: str = "shadow",
+  170:     methodology_settings: MethodologySettings | None = None,
+  171:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  172:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  173:     futures_evidence_enabled: bool = True,
+  174:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+  175: ) -> SymbolAnalysis:
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:185 ---
+  171:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  172:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  173:     futures_evidence_enabled: bool = True,
+  174:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+  175: ) -> SymbolAnalysis:
+  176:     """Run candidate discovery from market evidence and trade geometry."""
+  177: 
+  178:     if candle_limit < 40:
+  179:         raise ValueError("analysis requires at least 40 candles per timeframe")
+  180:     decision_time = generated_at or datetime.now(UTC)
+  181:     context, regimes = build_strategy_context(
+  182:         symbol,
+  183:         provider,
+  184:         timeframes=timeframes,
+  185:         timeframe_roles=timeframe_roles,
+  186:         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+  187:         timeframe_indicator_profiles=timeframe_indicator_profiles,
+  188:         candle_limit=candle_limit,
+  189:         received_at=decision_time,
+  190:         futures_evidence_enabled=futures_evidence_enabled,
+  191:     )
+  192:     resolved_methodology_settings = methodology_settings or MethodologySettings()
+  193:     execution_quality_cap_policy = ExecutionQualityCapPolicy(
+  194:         **resolved_methodology_settings.execution_quality_caps.model_dump()
+  195:     )
+  196:     strategy_analysis = analyze_strategies(
+  197:         context,
+  198:         decision_time=decision_time,
+  199:         execution_quality_cap_policy=execution_quality_cap_policy,
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:206 ---
+  192:     resolved_methodology_settings = methodology_settings or MethodologySettings()
+  193:     execution_quality_cap_policy = ExecutionQualityCapPolicy(
+  194:         **resolved_methodology_settings.execution_quality_caps.model_dump()
+  195:     )
+  196:     strategy_analysis = analyze_strategies(
+  197:         context,
+  198:         decision_time=decision_time,
+  199:         execution_quality_cap_policy=execution_quality_cap_policy,
+  200:     )
+  201:     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
+  202:     geometry_runtime_context = build_geometry_runtime_context(
+  203:         context,
+  204:         execution_costs=geometry_execution_costs,
+  205:     )
+  206:     methodology_routing = evaluate_methodology_candidate_routing(
+  207:         routed,
+  208:         market_state=methodology_market_state,
+  209:         mode=methodology_gate_mode,
+  210:         geometry_runtime_context=geometry_runtime_context,
+  211:         geometry_safety_policy=geometry_safety_policy_from_settings(resolved_methodology_settings),
+  212:         htf_consequence_policy=HtfConsequencePolicy(
+  213:             **resolved_methodology_settings.htf_consequences.model_dump()
+  214:         ),
+  215:         execution_quality_cap_policy=execution_quality_cap_policy,
+  216:     )
+  217:     methodology_parity = _methodology_parity_diagnostics(
+  218:         routed,
+  219:         methodology_routing,
+  220:     )
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:242 ---
+  228:         eligible_routed,
+  229:         environment_route=market_strategy_route,
+  230:     )
+  231:     edge_artifact, edge_reason = load_runtime_edge_artifact(Path("data/models/runtime_edge.json"))
+  232:     intelligence_regime = market_intelligence["regime"]
+  233:     selection, historical_edge = apply_runtime_edge_ranking(
+  234:         selection,
+  235:         edge_artifact,
+  236:         regime=str(intelligence_regime["state"]),
+  237:         archetype=str(market_intelligence["archetype"]),
+  238:     )
+  239:     selection = _apply_geometry_no_trade_reason(selection, geometry_enforcement)
+  240:     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
+  241:     counterfactual_mode = "enforce" if methodology_routing.mode.value == "shadow" else "shadow"
+  242:     counterfactual_routing = apply_methodology_candidate_routing(
+  243:         routed,
+  244:         methodology_routing.decisions,
+  245:         mode=counterfactual_mode,
+  246:     )
+  247:     counterfactual_selection = analyze_futures_phase5(
+  248:         counterfactual_routing.analysis,
+  249:         environment_route=market_strategy_route,
+  250:     )
+  251:     counterfactual_selection, _ = apply_runtime_edge_ranking(
+  252:         counterfactual_selection,
+  253:         edge_artifact,
+  254:         regime=str(intelligence_regime["state"]),
+  255:         archetype=str(market_intelligence["archetype"]),
+  256:     )
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:312 ---
+  298:         "developing_setup_selected": assessment.developing_setup is not None,
+  299:         "selected_candidate_id": (
+  300:             selection.selected_candidate.scored.candidate_id
+  301:             if selection.selected_candidate is not None
+  302:             else None
+  303:         ),
+  304:         "no_trade_reason": selection.no_trade_reason,
+  305:         "zero_trade_diagnostics": _zero_trade_diagnostics(
+  306:             strategy_analysis=strategy_analysis,
+  307:             eligible_routed=eligible_routed,
+  308:             selection=selection,
+  309:             assessment=assessment,
+  310:             methodology_routing=methodology_routing,
+  311:         ),
+  312:         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
+  313:         "methodology_routing_parity": methodology_parity,
+  314:         "methodology_selection_parity": methodology_selection_parity,
+  315:         "high_value_evidence_audit": high_value_evidence_audit_payload(high_value_evidence_audit),
+  316:         "high_value_evidence_exit_gate": high_value_evidence_exit_gate_payload(
+  317:             evaluate_high_value_evidence_exit_gate(high_value_evidence_audit)
+  318:         ),
+  319:         "candlestick_evidence": candlestick_evidence_payload(candlestick_patterns),
+  320:         "high_value_evidence_runtime": high_value_evidence_runtime_payload(
+  321:             high_value_evidence_runtime
+  322:         ),
+  323:         "candidates": [
+  324:             {
+  325:                 "candidate_id": item.scored.candidate_id,
+  326:                 "strategy": item.candidate.strategy.value,
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:396 ---
+  382:             }
+  383:             for frame in context.frames
+  384:         },
+  385:         strategy_routing=dict(
+  386:             build_strategy_routing_payload(
+  387:                 assessment=assessment,
+  388:                 strategy_analysis=eligible_routed,
+  389:                 routing_config=strategy_routing,
+  390:             )
+  391:         ),
+  392:         candidate_ranking=ranking,
+  393:         phase5_diagnostics=phase5_diagnostics,
+  394:         methodology=methodology,
+  395:         methodology_gate={
+  396:             **methodology_candidate_routing_payload(methodology_routing),
+  397:             "status": methodology_routing.mode.value,
+  398:             "allowed": None,
+  399:         },
+  400:         market_intelligence=market_intelligence,
+  401:         historical_edge=historical_edge,
+  402:         outcome_candles=context.decision_frame.recent_candles,
+  403:         opportunity_portfolio=opportunity_portfolio,
+  404:     )
+  405: 
+  406: 
+  407: def _high_value_evidence_diagnostics(
+  408:     context: StrategyContext,
+  409:     *,
+  410:     runtime: HighValueEvidenceRuntimeSnapshot | None = None,
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1088 ---
+ 1074: 
+ 1075: 
+ 1076: def _timeframe_alignment_payload(
+ 1077:     data_quality_by_timeframe: Mapping[str, Mapping[str, Any]],
+ 1078:     direction: Any,
+ 1079: ) -> dict[str, Any]:
+ 1080:     role_by_timeframe = {
+ 1081:         timeframe: str(payload.get("role"))
+ 1082:         for timeframe, payload in data_quality_by_timeframe.items()
+ 1083:     }
+ 1084:     structure_by_timeframe = {
+ 1085:         timeframe: _mapping(payload.get("structure"))
+ 1086:         for timeframe, payload in data_quality_by_timeframe.items()
+ 1087:     }
+ 1088:     higher_timeframes = tuple(
+ 1089:         timeframe
+ 1090:         for timeframe, role in role_by_timeframe.items()
+ 1091:         if role in {"macro", "intermediate", "swing", "long_term_macro"}
+ 1092:     )
+ 1093:     state: str
+ 1094:     reasons: tuple[str, ...]
+ 1095:     if not higher_timeframes:
+ 1096:         state = "INSUFFICIENT_DATA"
+ 1097:         reasons = ("missing higher-timeframe structure lowers confidence",)
+ 1098:     elif direction is None:
+ 1099:         state = "INSUFFICIENT_DATA"
+ 1100:         reasons = ("no selected trade direction is available for alignment",)
+ 1101:     else:
+ 1102:         bullish = getattr(direction, "value", direction) == "long"
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1103 ---
+ 1089:         timeframe
+ 1090:         for timeframe, role in role_by_timeframe.items()
+ 1091:         if role in {"macro", "intermediate", "swing", "long_term_macro"}
+ 1092:     )
+ 1093:     state: str
+ 1094:     reasons: tuple[str, ...]
+ 1095:     if not higher_timeframes:
+ 1096:         state = "INSUFFICIENT_DATA"
+ 1097:         reasons = ("missing higher-timeframe structure lowers confidence",)
+ 1098:     elif direction is None:
+ 1099:         state = "INSUFFICIENT_DATA"
+ 1100:         reasons = ("no selected trade direction is available for alignment",)
+ 1101:     else:
+ 1102:         bullish = getattr(direction, "value", direction) == "long"
+ 1103:         opposed = _opposed_higher_timeframes(
+ 1104:             higher_timeframes,
+ 1105:             structure_by_timeframe,
+ 1106:             bullish=bullish,
+ 1107:         )
+ 1108:         supportive = _supportive_higher_timeframes(
+ 1109:             higher_timeframes,
+ 1110:             structure_by_timeframe,
+ 1111:             bullish=bullish,
+ 1112:         )
+ 1113:         if opposed:
+ 1114:             state = "DIRECT_OPPOSITION"
+ 1115:             reasons = tuple(
+ 1116:                 f"{timeframe} trend directly opposes selected direction" for timeframe in opposed
+ 1117:             )
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1130 ---
+ 1116:                 f"{timeframe} trend directly opposes selected direction" for timeframe in opposed
+ 1117:             )
+ 1118:         elif len(supportive) == len(higher_timeframes):
+ 1119:             state = "FULL_ALIGNMENT"
+ 1120:             reasons = ("all available higher timeframes support the selected direction",)
+ 1121:         elif supportive:
+ 1122:             state = "SUPPORTED"
+ 1123:             reasons = ("at least one higher timeframe supports the selected direction",)
+ 1124:         else:
+ 1125:             state = "MIXED"
+ 1126:             reasons = ("higher timeframes are available but do not clearly align",)
+ 1127:     return {
+ 1128:         "state": state,
+ 1129:         "roles": role_by_timeframe,
+ 1130:         "higher_timeframes": list(higher_timeframes),
+ 1131:         "rules": {
+ 1132:             "macro_context": ["4h", "1h"],
+ 1133:             "setup_formation": ["30m", "15m"],
+ 1134:             "activation": ["5m"],
+ 1135:             "entry_refinement": ["3m"],
+ 1136:             "immediate_timing_only": ["1m"],
+ 1137:             "timing_override_allowed": False,
+ 1138:         },
+ 1139:         "reasons": list(reasons),
+ 1140:     }
+ 1141: 
+ 1142: 
+ 1143: def _opposed_higher_timeframes(
+ 1144:     higher_timeframes: tuple[str, ...],
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1152 ---
+ 1138:         },
+ 1139:         "reasons": list(reasons),
+ 1140:     }
+ 1141: 
+ 1142: 
+ 1143: def _opposed_higher_timeframes(
+ 1144:     higher_timeframes: tuple[str, ...],
+ 1145:     structure_by_timeframe: Mapping[str, Mapping[str, Any]],
+ 1146:     *,
+ 1147:     bullish: bool,
+ 1148: ) -> tuple[str, ...]:
+ 1149:     opposed = {"strong_downtrend", "downtrend"} if bullish else {"strong_uptrend", "uptrend"}
+ 1150:     return tuple(
+ 1151:         timeframe
+ 1152:         for timeframe in higher_timeframes
+ 1153:         if structure_by_timeframe.get(timeframe, {}).get("trend_state") in opposed
+ 1154:     )
+ 1155: 
+ 1156: 
+ 1157: def _supportive_higher_timeframes(
+ 1158:     higher_timeframes: tuple[str, ...],
+ 1159:     structure_by_timeframe: Mapping[str, Mapping[str, Any]],
+ 1160:     *,
+ 1161:     bullish: bool,
+ 1162: ) -> tuple[str, ...]:
+ 1163:     supportive = (
+ 1164:         {"strong_uptrend", "uptrend", "transition_up"}
+ 1165:         if bullish
+ 1166:         else {"strong_downtrend", "downtrend", "transition_down"}
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_context.py:11 ---
+    1: """Discovery-neutral market context construction and data-quality reporting."""
+    2: 
+    3: from __future__ import annotations
+    4: 
+    5: import math
+    6: from collections.abc import Mapping, Sequence
+    7: from datetime import UTC, datetime
+    8: from typing import Any
+    9: 
+   10: from apex.application.market_evidence import build_market_evidence_bundle
+   11: from apex.config import DEFAULT_TIMEFRAME_ROLES
+   12: from apex.config.settings import (
+   13:     DEFAULT_TIMEFRAME_INDICATOR_PROFILES,
+   14:     DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS,
+   15:     TimeframeIndicatorSettings,
+   16: )
+   17: from apex.data.providers.base import MarketDataProvider
+   18: from apex.domain.models import (
+   19:     Candle,
+   20:     ExchangeFilterSnapshot,
+   21:     OrderBookSnapshot,
+   22:     TickerSnapshot,
+   23: )
+   24: from apex.features.registry import IndicatorPeriods, create_default_feature_registry
+   25: from apex.market_analysis import analyze_structure_and_liquidity
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_context.py:41 ---
+   27:     FeatureSnapshot,
+   28:     StrategyContext,
+   29:     TimeframeContext,
+   30:     TimeframeRole,
+   31:     timeframe_role_sort_key,
+   32: )
+   33: 
+   34: 
+   35: def build_strategy_context(
+   36:     symbol: str,
+   37:     provider: MarketDataProvider,
+   38:     *,
+   39:     timeframes: Sequence[str],
+   40:     candle_limit: int,
+   41:     timeframe_roles: Mapping[str, str] | None = None,
+   42:     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+   43:     timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
+   44:     received_at: datetime | None = None,
+   45:     futures_evidence_enabled: bool = True,
+   46: ) -> tuple[StrategyContext, Mapping[str, str]]:
+   47:     """Fetch market data and build deterministic strategy context."""
+   48: 
+   49:     role_config = timeframe_roles or DEFAULT_TIMEFRAME_ROLES
+   50:     staleness_config = timeframe_max_staleness_seconds or DEFAULT_TIMEFRAME_MAX_STALENESS_SECONDS
+   51:     indicator_profiles = timeframe_indicator_profiles or DEFAULT_TIMEFRAME_INDICATOR_PROFILES
+   52:     timestamp = received_at or datetime.now(UTC)
+   53:     ticker_snapshot = _fetch_ticker_snapshot(provider, symbol)
+   54:     ticker_price = ticker_snapshot.last_price if ticker_snapshot is not None else None
+   55:     spread_percentage = ticker_snapshot.spread_percentage if ticker_snapshot is not None else None
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_contracts.py:29 ---
+   15: from apex.application.candidate_ranking import CandidateRankingSnapshot
+   16: from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
+   17: from apex.application.methodology_identity import METHODOLOGY_VERSION
+   18: from apex.application.methodology_snapshot import MethodologySnapshot
+   19: from apex.domain.methodology_contracts import (
+   20:     LayeredStateSnapshot,
+   21:     ScoreDimensions,
+   22: )
+   23: from apex.domain.models import Candle
+   24: from apex.scoring.quality_dimensions import CandidateQualityDimensions
+   25: from apex.strategies.contracts import (
+   26:     EntryMode,
+   27:     InvalidationType,
+   28:     TargetType,
+   29:     TradeDirection,
+   30: )
+   31: from apex.strategies.entry_status import EntryStatus
+   32: from apex.strategies.strategy_types import StrategyType
+   33: 
+   34: 
+   35: class StopQualityBand(StrEnum):
+   36:     STRONG = "strong"
+   37:     ACCEPTABLE = "acceptable"
+   38:     WEAK = "weak"
+   39: 
+   40: 
+   41: class ManagementPolicyType(StrEnum):
+   42:     BREAKEVEN = "breakeven"
+   43:     TRAILING = "trailing"
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_contracts.py:290 ---
+  276:             self.recommended_order_intent is RecommendedOrderIntent.ALERT_ONLY
+  277:             and self.conditional_order_eligible
+  278:         ):
+  279:             raise ValueError("alert-only plans cannot authorize a resting conditional order")
+  280:         if (
+  281:             self.recommended_order_intent is RecommendedOrderIntent.LIMIT
+  282:             and self.trigger.kind is not ActivationTriggerType.PRICE_TOUCH
+  283:         ):
+  284:             raise ValueError("limit intent requires a predefined price-touch trigger")
+  285: 
+  286: 
+  287: @dataclass(frozen=True, slots=True)
+  288: class DiscoverySetup:
+  289:     symbol: str
+  290:     direction: TradeDirection
+  291:     strategy: StrategyType
+  292:     entry_status: EntryStatus
+  293:     decision_time: datetime
+  294:     candidate_id: str
+  295:     confidence_score: float
+  296:     entry: ActionableEntry
+  297:     stop_loss: StopLoss
+  298:     take_profits: tuple[TakeProfit, ...]
+  299:     management_policies: tuple[ManagementPolicy, ...]
+  300:     warnings: tuple[str, ...] = ()
+  301:     quality_dimensions: CandidateQualityDimensions | None = None
+  302:     execution_allowed_now: bool = False
+  303:     future_activation_allowed: bool = False
+  304:     setup_validity: SetupValidity = SetupValidity.VALID
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_contracts.py:381 ---
+  367:                 else (
+  368:                     ExecutionAuthority.CONDITIONAL_FUTURE
+  369:                     if self.future_activation_allowed
+  370:                     else ExecutionAuthority.MONITOR_ONLY
+  371:                 )
+  372:             )
+  373:         )
+  374:         # Canonical projections are derived from setup state. This keeps legacy
+  375:         # constructors and dataclasses.replace() from carrying stale authority.
+  376:         object.__setattr__(self, "setup_validity", derived_validity)
+  377:         object.__setattr__(self, "execution_authority", expected_authority)
+  378:         partial_total = sum(target.partial_close_pct for target in self.take_profits)
+  379:         if not math.isclose(partial_total, 100.0, rel_tol=0.0, abs_tol=1e-9):
+  380:             raise ValueError("take-profit partial percentages must sum to 100")
+  381:         if self.direction is TradeDirection.LONG:
+  382:             if self.entry.maximum_chase_price < self.entry.upper:
+  383:                 raise ValueError("long chase price must not be below the entry zone")
+  384:             if self.stop_loss.price >= self.entry.lower:
+  385:                 raise ValueError("long stop must be below the entry zone")
+  386:             if any(target.price <= self.entry.upper for target in self.take_profits):
+  387:                 raise ValueError("long targets must be above the entry zone")
+  388:         else:
+  389:             if self.entry.maximum_chase_price > self.entry.lower:
+  390:                 raise ValueError("short chase price must not be above the entry zone")
+  391:             if self.stop_loss.price <= self.entry.upper:
+  392:                 raise ValueError("short stop must be above the entry zone")
+  393:             if any(target.price >= self.entry.lower for target in self.take_profits):
+  394:                 raise ValueError("short targets must be below the entry zone")
+  395: 
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:65 ---
+   51:     CandidateQualityDimensions,
+   52:     derive_quality_dimensions,
+   53: )
+   54: from apex.scoring.quality_shadow_rollout import (
+   55:     build_quality_shadow_rollout_diagnostics,
+   56: )
+   57: from apex.scoring.selection import is_entry_status_executable
+   58: from apex.strategies import classify_candidate_actionability
+   59: from apex.strategies.actionability import select_actionable_entry_zone
+   60: from apex.strategies.contracts import (
+   61:     EntryMode,
+   62:     EntryZone,
+   63:     TargetType,
+   64:     TradeCandidate,
+   65:     TradeDirection,
+   66: )
+   67: from apex.strategies.entry_status import EntryStatus
+   68: 
+   69: DEFAULT_MAXIMUM_CHASE_PCT = 0.35
+   70: DEFAULT_MINIMUM_CHASE_NET_R = 1.25
+   71: DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
+   72: DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
+   73: 
+   74: _VALID_DEVELOPING_OUTCOMES = {
+   75:     CandidateOutcome.ACCEPTED,
+   76:     CandidateOutcome.ACCEPTED_WITH_WARNING,
+   77: }
+   78: _MONITOR_ONLY_OUTCOMES = {
+   79:     CandidateOutcome.DOWNGRADED,
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:217 ---
+  203:         "retest_zone_low",
+  204:         "retest_zone_high",
+  205:         "retest_confirmation_rule",
+  206:     }
+  207:     metadata = {
+  208:         key: value for key, value in candidate.metadata.items() if key not in entry_specific_keys
+  209:     }
+  210: 
+  211:     if selected_entry_zone.mode is EntryMode.MARKET_NEAR:
+  212:         return metadata
+  213: 
+  214:     if selected_entry_zone.mode is EntryMode.SWEEP_RECOVERY:
+  215:         trigger = (
+  216:             selected_entry_zone.upper
+  217:             if candidate.direction is TradeDirection.LONG
+  218:             else selected_entry_zone.lower
+  219:         )
+  220:         metadata.update(
+  221:             {
+  222:                 "retest_trigger_level": trigger,
+  223:                 "retest_zone_low": selected_entry_zone.lower,
+  224:                 "retest_zone_high": selected_entry_zone.upper,
+  225:                 "retest_confirmation_rule": (
+  226:                     "price must sweep into the projected zone and reclaim the trigger before entry"
+  227:                 ),
+  228:                 "entry_geometry_owner": "shared_sweep_recovery_projection",
+  229:             }
+  230:         )
+  231:         return metadata
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:435 ---
+  421:         trigger_kind = ActivationTriggerType.RETEST_HOLD
+  422:         condition = (
+  423:             "price tests the shallow continuation reference and momentum confirmation renews"
+  424:         )
+  425:         order_intent = RecommendedOrderIntent.ALERT_ONLY
+  426:         conditional_order_eligible = False
+  427:     else:
+  428:         trigger_kind = ActivationTriggerType.CANDLE_CLOSE
+  429:         condition = "the required confirmation closes through the preferred trigger level"
+  430:         order_intent = RecommendedOrderIntent.ALERT_ONLY
+  431:         conditional_order_eligible = False
+  432: 
+  433:     invalidation_condition = (
+  434:         "price reaches or closes below structural invalidation before activation"
+  435:         if candidate.direction is TradeDirection.LONG
+  436:         else "price reaches or closes above structural invalidation before activation"
+  437:     )
+  438:     return ConditionalExecutionPlan(
+  439:         trigger=ActivationTrigger(
+  440:             kind=trigger_kind,
+  441:             level=entry_authority.trigger_level,
+  442:             condition=condition,
+  443:             confirmation_timeframe=confirmation_timeframe,
+  444:         ),
+  445:         pre_entry_invalidation=PreEntryInvalidation(
+  446:             price=candidate.invalidation.price,
+  447:             condition=invalidation_condition,
+  448:             rationale=candidate.invalidation.rationale,
+  449:         ),
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:482 ---
+  468:             "trend_pullback": "strategy_generated_structural_level_retest",
+  469:         }.get(candidate.strategy.value, "strategy_generated_retest")
+  470:     if mode is EntryMode.SWEEP_RECOVERY:
+  471:         return "strategy_generated_liquidity_boundary_recovery"
+  472:     if mode is EntryMode.PULLBACK:
+  473:         return "strategy_generated_pullback_reference"
+  474:     if mode is EntryMode.SCALED_ENTRY:
+  475:         return "strategy_generated_scaled_entry_zone"
+  476:     if mode is EntryMode.MOMENTUM_CONTINUATION:
+  477:         return "strategy_generated_momentum_reference"
+  478:     return "strategy_generated_market_near_confirmation"
+  479: 
+  480: 
+  481: def _confirmation_timeframe(candidate: TradeCandidate) -> str | None:
+  482:     for key in ("confirmation_timeframe", "decision_timeframe", "setup_timeframe"):
+  483:         value = candidate.metadata.get(key)
+  484:         if isinstance(value, str) and value.strip():
+  485:             return value.strip()
+  486:     return None
+  487: 
+  488: 
+  489: def _reason_not_executable(entry_status: EntryStatus) -> str:
+  490:     reasons = {
+  491:         EntryStatus.PULLBACK_PREFERRED: ("price has not reached the preferred pullback zone"),
+  492:         EntryStatus.CONFIRMATION_AT_CMP: (
+  493:             "current price is inside the entry zone, but activation confirmation is incomplete"
+  494:         ),
+  495:         EntryStatus.WATCH_NEAR_ENTRY: (
+  496:             "price is approaching the entry zone but activation is incomplete"
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:507 ---
+  493:             "current price is inside the entry zone, but activation confirmation is incomplete"
+  494:         ),
+  495:         EntryStatus.WATCH_NEAR_ENTRY: (
+  496:             "price is approaching the entry zone but activation is incomplete"
+  497:         ),
+  498:         EntryStatus.LATE_OR_CHASING: ("current price is beyond acceptable entry geometry"),
+  499:         EntryStatus.INVALIDATED: "the setup is invalidated and cannot activate",
+  500:     }
+  501:     return reasons.get(
+  502:         entry_status,
+  503:         f"{entry_status.value.lower().replace('_', ' ')} is not currently executable",
+  504:     )
+  505: 
+  506: 
+  507: def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
+  508:     configured_chase = zone.max_chase_price
+  509:     if configured_chase is None:
+  510:         offset = zone.preferred * DEFAULT_MAXIMUM_CHASE_PCT / 100.0
+  511:         configured_chase = (
+  512:             zone.upper + offset if direction is TradeDirection.LONG else zone.lower - offset
+  513:         )
+  514:     # A malformed strategy chase hint must not crash the complete symbol scan.
+  515:     # Collapse it to the trade-side zone edge; the R-preserving clamp below can
+  516:     # then tighten it further using the final stop, target, and execution costs.
+  517:     configured_chase = (
+  518:         max(configured_chase, zone.upper)
+  519:         if direction is TradeDirection.LONG
+  520:         else min(configured_chase, zone.lower)
+  521:     )
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:535 ---
+  521:     )
+  522:     return ActionableEntry(
+  523:         lower=zone.lower,
+  524:         upper=zone.upper,
+  525:         preferred=zone.preferred,
+  526:         current_price=zone.current_price,
+  527:         maximum_chase_price=configured_chase,
+  528:         current_price_inside_zone=zone.lower <= zone.current_price <= zone.upper,
+  529:     )
+  530: 
+  531: 
+  532: def _clamp_entry_chase_to_net_r(
+  533:     entry: ActionableEntry,
+  534:     *,
+  535:     direction: TradeDirection,
+  536:     stop: StopLoss,
+  537:     tp1: TakeProfit,
+  538:     minimum_net_r: float,
+  539:     expected_cost_pct: float | None,
+  540: ) -> ActionableEntry:
+  541:     """Keep the public chase boundary above the candidate's minimum net R.
+  542: 
+  543:     The geometry gate evaluates the selected entry.  This second boundary
+  544:     calculation prevents the displayed chase limit from implying that the same
+  545:     reward-to-risk remains available after price has moved away from that entry.
+  546:     """
+  547: 
+  548:     cost_fraction = (expected_cost_pct or 0.0) / 100.0
+  549:     denominator_multiplier = 1.0 + minimum_net_r
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:550 ---
+  536:     stop: StopLoss,
+  537:     tp1: TakeProfit,
+  538:     minimum_net_r: float,
+  539:     expected_cost_pct: float | None,
+  540: ) -> ActionableEntry:
+  541:     """Keep the public chase boundary above the candidate's minimum net R.
+  542: 
+  543:     The geometry gate evaluates the selected entry.  This second boundary
+  544:     calculation prevents the displayed chase limit from implying that the same
+  545:     reward-to-risk remains available after price has moved away from that entry.
+  546:     """
+  547: 
+  548:     cost_fraction = (expected_cost_pct or 0.0) / 100.0
+  549:     denominator_multiplier = 1.0 + minimum_net_r
+  550:     if direction is TradeDirection.LONG:
+  551:         boundary = (tp1.price + minimum_net_r * stop.price) / (
+  552:             denominator_multiplier * (1.0 + cost_fraction)
+  553:         )
+  554:         chase = min(entry.maximum_chase_price, boundary)
+  555:         chase = max(entry.upper, chase)
+  556:     else:
+  557:         cost_multiplier = 1.0 - cost_fraction
+  558:         if cost_multiplier <= 0.0:
+  559:             return replace(entry, maximum_chase_price=entry.lower)
+  560:         boundary = (tp1.price + minimum_net_r * stop.price) / (
+  561:             denominator_multiplier * cost_multiplier
+  562:         )
+  563:         chase = max(entry.maximum_chase_price, boundary)
+  564:         chase = min(entry.lower, chase)
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:734 ---
+  720:     }[kind]
+  721: 
+  722: 
+  723: def _target_role(kind: TargetType, label: str) -> TargetRole:
+  724:     if kind is TargetType.EXPANSION:
+  725:         return TargetRole.EXTENSION_CANDIDATE
+  726:     if label.upper() == "TP1":
+  727:         return TargetRole.PRIMARY
+  728:     return TargetRole.CONTINUATION
+  729: 
+  730: 
+  731: def _target_timeframe(candidate: TradeCandidate) -> str | None:
+  732:     for key in (
+  733:         "target_timeframe",
+  734:         "setup_timeframe",
+  735:         "decision_timeframe",
+  736:         "confirmation_timeframe",
+  737:     ):
+  738:         value = candidate.metadata.get(key)
+  739:         if isinstance(value, str) and value.strip():
+  740:             return value.strip()
+  741:     return None
+  742: 
+  743: 
+  744: def _expiry_reason(candidate: TradeCandidate) -> str:
+  745:     explicit = candidate.entry.expires_after_seconds is not None
+  746:     source = (
+  747:         "explicit strategy entry expiry" if explicit else "strategy and entry-mode validity policy"
+  748:     )
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_strategy_routing.py:86 ---
+   72:     skipped = {
+   73:         strategy: f"{strategy.value} is disabled by explicit strategy configuration"
+   74:         for strategy in strategy_analysis.evaluated_strategies
+   75:         if strategy not in enabled
+   76:     }
+   77:     return StrategyAnalysisResult(
+   78:         symbol=strategy_analysis.symbol,
+   79:         decision_time=strategy_analysis.decision_time,
+   80:         candidates=candidates,
+   81:         evaluated_strategies=strategy_analysis.evaluated_strategies,
+   82:         eligible_strategies=enabled,
+   83:         skipped_strategies=skipped,
+   84:         strategy_diagnostics=strategy_analysis.strategy_diagnostics,
+   85:         decision_regime=strategy_analysis.decision_regime,
+   86:         higher_timeframe_breakout=strategy_analysis.higher_timeframe_breakout,
+   87:         strategy_applicability=strategy_analysis.strategy_applicability,
+   88:         candidate_actionability=candidate_actionability,
+   89:         suppressed_candidates=(strategy_analysis.suppressed_candidates + newly_suppressed),
+   90:     )
+   91: 
+   92: 
+   93: def build_strategy_routing_payload(
+   94:     *,
+   95:     assessment: DiscoveryAssessment,
+   96:     strategy_analysis: StrategyAnalysisResult | None = None,
+   97:     routing_config: Mapping[str, Sequence[str]] | None = None,
+   98: ) -> dict[str, object]:
+   99:     """Return Stage 3 strategy diagnostics without mode or regime gating."""
+  100: 
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_strategy_routing.py:119 ---
+  105:     )
+  106:     enabled = _enabled_strategies(evaluated, routing_config)
+  107:     disabled = tuple(strategy for strategy in evaluated if strategy not in enabled)
+  108:     setup = assessment.setup
+  109:     selected = setup.strategy if setup is not None else None
+  110:     diagnostics = _strategy_diagnostics(strategy_analysis)
+  111:     return {
+  112:         "enabled_strategies": [strategy.value for strategy in enabled],
+  113:         "disabled_strategies": [strategy.value for strategy in disabled],
+  114:         "selected_strategy": selected.value if selected is not None else None,
+  115:         "selected_strategy_enabled": selected in enabled if selected is not None else False,
+  116:         "decision_regime": (
+  117:             strategy_analysis.decision_regime.value if strategy_analysis is not None else None
+  118:         ),
+  119:         "higher_timeframe_breakout": (
+  120:             strategy_analysis.higher_timeframe_breakout if strategy_analysis is not None else False
+  121:         ),
+  122:         "routed_eligible_strategies": [strategy.value for strategy in enabled],
+  123:         "skipped_strategies": (
+  124:             {
+  125:                 strategy.value: reason
+  126:                 for strategy, reason in strategy_analysis.skipped_strategies.items()
+  127:             }
+  128:             if strategy_analysis is not None and strategy_analysis.skipped_strategies is not None
+  129:             else {}
+  130:         ),
+  131:         "strategy_diagnostics": diagnostics,
+  132:         "strategy_applicability": _applicability_payload(strategy_analysis),
+  133:         "breakout_routing": _breakout_routing_summary(strategy_analysis),
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_strategy_routing.py:168 ---
+  154:     return tuple(strategy for strategy in evaluated if strategy in requested)
+  155: 
+  156: 
+  157: def _strategy_diagnostics(
+  158:     analysis: StrategyAnalysisResult | None,
+  159: ) -> dict[str, object]:
+  160:     if analysis is None or analysis.strategy_diagnostics is None:
+  161:         return {}
+  162:     return {
+  163:         strategy.value: {
+  164:             "candidate_count": diagnostic.candidate_count,
+  165:             "rejection_codes": [code.value for code in diagnostic.rejection_codes],
+  166:             "reasons": list(diagnostic.reasons),
+  167:             "near_miss_state": diagnostic.near_miss_state.value,
+  168:             "higher_timeframe_breakout": diagnostic.higher_timeframe_breakout,
+  169:         }
+  170:         for strategy, diagnostic in analysis.strategy_diagnostics.items()
+  171:     }
+  172: 
+  173: 
+  174: def _breakout_routing_summary(
+  175:     analysis: StrategyAnalysisResult | None,
+  176: ) -> dict[str, object]:
+  177:     if analysis is None:
+  178:         return {
+  179:             "raw_breakout_candidate_count": 0,
+  180:             "routed_breakout_candidate_count": 0,
+  181:             "rejected_breakout_candidate_count": 0,
+  182:             "conditional_breakout_candidate_count": 0,
+
+MATCH: entry_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/focused_analysis.py:148 ---
+  134:     for timeframe, frame in frames.items():
+  135:         if isinstance(frame, Mapping):
+  136:             role = str(frame.get("role") or timeframe)
+  137:             by_role[role] = frame
+  138:     setup_frame = by_role.get("setup") or next(iter(frames.values()), {})
+  139:     entry_frame = by_role.get("entry") or setup_frame
+  140:     structure = _mapping(setup_frame.get("structure") if isinstance(setup_frame, Mapping) else None)
+  141:     features = _mapping(entry_frame.get("features") if isinstance(entry_frame, Mapping) else None)
+  142:     regime_text = _primary_regime(regimes)
+  143:     return {
+  144:         "regime": regime_text,
+  145:         "market_condition": _market_condition(regime_text, structure, features),
+  146:         "primary_structure": structure.get("trend_state") or "unavailable",
+  147:         "setup_structure": structure.get("break_state") or "unavailable",
+  148:         "entry_timeframe": (
+  149:             entry_frame.get("timeframe", "unavailable")
+  150:             if isinstance(entry_frame, Mapping)
+  151:             else "unavailable"
+  152:         ),
+  153:         "volatility": structure.get("volatility_state") or "unavailable",
+  154:         "participation": _participation(features),
+  155:         "current_location": _current_location(structure),
+  156:     }
+  157: 
+  158: 
+  159: def _directional_comparison(
+  160:     payload: Mapping[str, Any],
+  161:     theses: Mapping[str, Mapping[str, Any]],
+  162: ) -> dict[str, Any]:
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/integrated_analysis.py:157 ---
+  143:         return self._taker_flow[key]
+  144: 
+  145:     def fetch_premium_index(self, symbol: str) -> PremiumIndexSnapshot:
+  146:         if symbol not in self._premium_index:
+  147:             evidence = cast(FuturesEvidenceProvider, self._provider)
+  148:             self._premium_index[symbol] = evidence.fetch_premium_index(symbol)
+  149:         return self._premium_index[symbol]
+  150: 
+  151: 
+  152: def analyze_symbol(
+  153:     symbol: str,
+  154:     provider: MarketDataProvider,
+  155:     *,
+  156:     timeframes: Sequence[str],
+  157:     timeframe_roles: Mapping[str, str] | None = None,
+  158:     timeframe_max_staleness_seconds: Mapping[str, int] | None = None,
+  159:     timeframe_indicator_profiles: Mapping[str, TimeframeIndicatorSettings] | None = None,
+  160:     candle_limit: int = 200,
+  161:     generated_at: datetime | None = None,
+  162:     strategy_routing: Mapping[str, Sequence[str]] | None = None,
+  163:     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
+  164:     methodology_gate_mode: str = "shadow",
+  165:     methodology_settings: MethodologySettings | None = None,
+  166:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  167:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  168:     futures_evidence_enabled: bool = True,
+  169:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+  170: ) -> SymbolAnalysis:
+  171:     """Run discovery and attach fused market environment."""
+
+MATCH: timeframe_roles
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/integrated_analysis.py:179 ---
+  165:     methodology_settings: MethodologySettings | None = None,
+  166:     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
+  167:     geometry_execution_costs: GeometryExecutionCosts | None = None,
+  168:     futures_evidence_enabled: bool = True,
+  169:     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+  170: ) -> SymbolAnalysis:
+  171:     """Run discovery and attach fused market environment."""
+  172: 
+  173:     decision_time = generated_at or datetime.now(UTC)
+  174:     cached = _CachingMarketDataProvider(provider)
+  175:     context, _ = build_strategy_context(
+  176:         symbol,
+  177:         cached,
+  178:         timeframes=timeframes,
+  179:         timeframe_roles=timeframe_roles,
+  180:         timeframe_max_staleness_seconds=timeframe_max_staleness_seconds,
+  181:         timeframe_indicator_profiles=timeframe_indicator_profiles,
+  182:         candle_limit=candle_limit,
+  183:         received_at=decision_time,
+  184:         futures_evidence_enabled=futures_evidence_enabled,
+  185:     )
+  186:     environment = build_market_environment(context, config=market_environment_config)
+  187:     route = route_market_strategies(environment)
+  188:     decision_regime = classify_market_regime(context.decision_frame.structure)
+  189:     market_state = classify_market_state(
+  190:         decision_regime=decision_regime.value,
+  191:         environment=environment,
+  192:     )
+  193:     methodology_state = adapt_market_state(market_state)
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/integrated_analysis.py:298 ---
+  284:         "failures": dict(result.failures),
+  285:     }
+  286: 
+  287: 
+  288: def format_symbol_text(analysis: DiscoverySymbolAnalysis) -> str:
+  289:     base = format_discovery_symbol_text(analysis)
+  290:     environment = getattr(analysis, "market_environment", None)
+  291:     if not isinstance(environment, MarketEnvironment):
+  292:         return base
+  293:     warnings = ", ".join(environment.reason_codes) if environment.reason_codes else "none"
+  294:     return "\n".join(
+  295:         (
+  296:             base,
+  297:             f"Regime: {environment.primary_regime.value}",
+  298:             f"HTF bias: {environment.higher_timeframe_bias.value}",
+  299:             "Alignment / conflict: "
+  300:             f"{environment.alignment_score:.1f} / {environment.conflict_score:.1f}",
+  301:             "Long / short suitability: "
+  302:             f"{environment.long_suitability_score:.1f} / "
+  303:             f"{environment.short_suitability_score:.1f}",
+  304:             f"Tradeable: {'yes' if environment.tradeable else 'no'}",
+  305:             f"Warnings: {warnings}",
+  306:         )
+  307:     )
+  308: 
+  309: 
+  310: def format_scan_text(result: ScanResult) -> str:
+  311:     lines = [f"Scan generated at {result.generated_at.isoformat()}"]
+  312:     lines.extend(format_symbol_text(item) for item in result.analyses)
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/market_strategy_router.py:17 ---
+    3: from __future__ import annotations
+    4: 
+    5: from dataclasses import dataclass
+    6: from enum import StrEnum
+    7: 
+    8: from apex.market_environment import (
+    9:     ConflictState,
+   10:     ExtensionState,
+   11:     HigherTimeframeBias,
+   12:     InputCompleteness,
+   13:     MarketEnvironment,
+   14:     MarketRegime,
+   15:     VolatilityState,
+   16: )
+   17: from apex.strategies import StrategyType, TradeDirection
+   18: 
+   19: 
+   20: class PreferredDirection(StrEnum):
+   21:     LONG = "long"
+   22:     SHORT = "short"
+   23:     NEUTRAL = "neutral"
+   24:     NONE = "none"
+   25: 
+   26: 
+   27: @dataclass(frozen=True, slots=True)
+   28: class MarketStrategyRoute:
+   29:     """Explainable environment-level strategy route."""
+   30: 
+   31:     allowed_strategies: tuple[StrategyType, ...]
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/market_strategy_router.py:201 ---
+  187:     return MarketStrategyRoute(
+  188:         allowed_strategies=ordered,
+  189:         blocked_strategies=blocked,
+  190:         preferred_direction=direction,
+  191:         strategy_priority=ordered,
+  192:         routing_score=round(max(0.0, min(100.0, score)), 6),
+  193:         reason_codes=tuple(dict.fromkeys(codes)),
+  194:         reasons=tuple(dict.fromkeys(reasons)),
+  195:     )
+  196: 
+  197: 
+  198: def strategy_allowed_for_direction(
+  199:     route: MarketStrategyRoute,
+  200:     strategy: StrategyType,
+  201:     direction: TradeDirection,
+  202: ) -> bool:
+  203:     """Return whether a strategy and direction match the environment route."""
+  204: 
+  205:     if strategy not in route.allowed_strategies:
+  206:         return False
+  207:     if route.preferred_direction in {PreferredDirection.NEUTRAL, PreferredDirection.NONE}:
+  208:         return route.preferred_direction is PreferredDirection.NEUTRAL
+  209:     return direction.value == route.preferred_direction.value
+  210: 
+  211: 
+  212: def market_strategy_route_payload(route: MarketStrategyRoute) -> dict[str, object]:
+  213:     """Serialize an environment strategy route."""
+  214: 
+  215:     return {
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/market_strategy_router.py:235 ---
+  221:         "reason_codes": list(route.reason_codes),
+  222:         "reasons": list(route.reasons),
+  223:     }
+  224: 
+  225: 
+  226: def _preferred_direction(environment: MarketEnvironment) -> PreferredDirection:
+  227:     bullish_biases = {
+  228:         HigherTimeframeBias.BULLISH,
+  229:         HigherTimeframeBias.STRONGLY_BULLISH,
+  230:     }
+  231:     bearish_biases = {
+  232:         HigherTimeframeBias.BEARISH,
+  233:         HigherTimeframeBias.STRONGLY_BEARISH,
+  234:     }
+  235:     if environment.higher_timeframe_bias in bullish_biases:
+  236:         return PreferredDirection.LONG
+  237:     if environment.higher_timeframe_bias in bearish_biases:
+  238:         return PreferredDirection.SHORT
+  239:     if environment.long_suitability_score >= environment.short_suitability_score + 10.0:
+  240:         return PreferredDirection.LONG
+  241:     if environment.short_suitability_score >= environment.long_suitability_score + 10.0:
+  242:         return PreferredDirection.SHORT
+  243:     return PreferredDirection.NEUTRAL
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:21 ---
+    7: 
+    8: from __future__ import annotations
+    9: 
+   10: from dataclasses import dataclass
+   11: from typing import Final
+   12: 
+   13: from apex.application.methodology_lane_horizon import (
+   14:     LaneHorizonAssessment,
+   15:     LaneHorizonInput,
+   16:     LifecycleModel,
+   17:     PriceEntryRelation,
+   18:     TriggerState,
+   19:     classify_lane_and_horizon,
+   20: )
+   21: from apex.strategies.contracts import TradeCandidate, TradeDirection
+   22: from apex.strategies.entry_status import EntryStatus
+   23: 
+   24: _TIMEFRAME_SUFFIX_MINUTES: Final[dict[str, float]] = {
+   25:     "m": 1.0,
+   26:     "h": 60.0,
+   27:     "d": 1_440.0,
+   28: }
+   29: 
+   30: 
+   31: @dataclass(frozen=True, slots=True)
+   32: class CandidateLaneHorizonMeasurement:
+   33:     """Result of candidate measurement without synthetic defaults."""
+   34: 
+   35:     assessment: LaneHorizonAssessment | None
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:102 ---
+   88:             return parsed
+   89:     return None
+   90: 
+   91: 
+   92: def _price_entry_relation(candidate: TradeCandidate) -> PriceEntryRelation:
+   93:     entry = candidate.entry
+   94:     current = entry.current_price
+   95:     if entry.lower <= current <= entry.upper:
+   96:         return PriceEntryRelation.INSIDE_ZONE
+   97: 
+   98:     maximum_chase = entry.max_chase_price
+   99:     if maximum_chase is not None:
+  100:         beyond = (
+  101:             current > maximum_chase
+  102:             if candidate.direction is TradeDirection.LONG
+  103:             else current < maximum_chase
+  104:         )
+  105:         if beyond:
+  106:             return PriceEntryRelation.BEYOND_MAX_CHASE
+  107: 
+  108:     return (
+  109:         PriceEntryRelation.NEAR_ZONE
+  110:         if entry.atr_distance <= 1.0
+  111:         else PriceEntryRelation.AWAY_FROM_ZONE
+  112:     )
+  113: 
+  114: 
+  115: def _trigger_state(entry_status: EntryStatus) -> TriggerState:
+  116:     if entry_status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}:
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:157 ---
+  143:     """Measure a candidate for the opt-in lane/horizon classifier.
+  144: 
+  145:     Missing required inputs produce an unavailable result so callers can use
+  146:     the existing legacy inference path.  Candidate expiry bars are deliberately
+  147:     not reused as expected bars to target because those values have different
+  148:     meanings.
+  149:     """
+  150: 
+  151:     execution_timeframe = _metadata_timeframe(
+  152:         candidate,
+  153:         "execution_timeframe",
+  154:         "decision_timeframe",
+  155:         "confirmation_timeframe",
+  156:     )
+  157:     setup_timeframe = _metadata_timeframe(
+  158:         candidate,
+  159:         "setup_timeframe",
+  160:         "decision_timeframe",
+  161:     )
+  162:     invalidation_timeframe = _metadata_timeframe(
+  163:         candidate,
+  164:         "invalidation_timeframe",
+  165:         "setup_timeframe",
+  166:     )
+  167:     target_timeframe = _metadata_timeframe(
+  168:         candidate,
+  169:         "target_timeframe",
+  170:         "setup_timeframe",
+  171:     )
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:179 ---
+  165:         "setup_timeframe",
+  166:     )
+  167:     target_timeframe = _metadata_timeframe(
+  168:         candidate,
+  169:         "target_timeframe",
+  170:         "setup_timeframe",
+  171:     )
+  172:     expected_bars = _positive_int(candidate.metadata.get("expected_bars_to_target"))
+  173:     atr = _positive_number(candidate.metadata.get("decision_atr"))
+  174:     lifecycle_model = _lifecycle_model(candidate)
+  175: 
+  176:     missing: list[str] = []
+  177:     for name, value in (
+  178:         ("execution_timeframe", execution_timeframe),
+  179:         ("setup_timeframe", setup_timeframe),
+  180:         ("invalidation_timeframe", invalidation_timeframe),
+  181:         ("target_timeframe", target_timeframe),
+  182:         ("expected_bars_to_target", expected_bars),
+  183:         ("decision_atr", atr),
+  184:         ("lifecycle_model", lifecycle_model),
+  185:     ):
+  186:         if value is None:
+  187:             missing.append(name)
+  188: 
+  189:     effective_runner_authority = False
+  190:     if lifecycle_model is LifecycleModel.RUNNER:
+  191:         if runner_authority is None:
+  192:             missing.append("runner_authority")
+  193:         else:
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:208 ---
+  194:             effective_runner_authority = runner_authority
+  195: 
+  196:     if missing:
+  197:         unique_missing = tuple(dict.fromkeys(missing))
+  198:         return CandidateLaneHorizonMeasurement(
+  199:             assessment=None,
+  200:             missing_measurements=unique_missing,
+  201:             reasons=(
+  202:                 "measurable lane/horizon assessment unavailable; "
+  203:                 "preserve legacy methodology-context inference",
+  204:             ),
+  205:         )
+  206: 
+  207:     assert execution_timeframe is not None
+  208:     assert setup_timeframe is not None
+  209:     assert invalidation_timeframe is not None
+  210:     assert target_timeframe is not None
+  211:     assert expected_bars is not None
+  212:     assert atr is not None
+  213:     assert lifecycle_model is not None
+  214: 
+  215:     nearest_target = candidate.targets.levels[0].price
+  216:     target_distance = abs(nearest_target - candidate.entry.preferred)
+  217:     atr_normalized_target_distance = target_distance / atr
+  218:     if atr_normalized_target_distance <= 0.0:
+  219:         return CandidateLaneHorizonMeasurement(
+  220:             assessment=None,
+  221:             missing_measurements=("positive_atr_normalized_target_distance",),
+  222:             reasons=(
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:232 ---
+  218:     if atr_normalized_target_distance <= 0.0:
+  219:         return CandidateLaneHorizonMeasurement(
+  220:             assessment=None,
+  221:             missing_measurements=("positive_atr_normalized_target_distance",),
+  222:             reasons=(
+  223:                 "nearest target does not provide a positive ATR-normalized distance; "
+  224:                 "preserve legacy methodology-context inference",
+  225:             ),
+  226:         )
+  227: 
+  228:     assessment = classify_lane_and_horizon(
+  229:         LaneHorizonInput(
+  230:             strategy=candidate.strategy,
+  231:             execution_timeframe_minutes=execution_timeframe,
+  232:             setup_timeframe_minutes=setup_timeframe,
+  233:             invalidation_timeframe_minutes=invalidation_timeframe,
+  234:             target_timeframe_minutes=target_timeframe,
+  235:             atr_normalized_target_distance=atr_normalized_target_distance,
+  236:             expected_bars_to_target=expected_bars,
+  237:             price_entry_relation=_price_entry_relation(candidate),
+  238:             trigger_state=_trigger_state(entry_status),
+  239:             lifecycle_model=lifecycle_model,
+  240:             runner_authority=effective_runner_authority,
+  241:         )
+  242:     )
+  243:     return CandidateLaneHorizonMeasurement(
+  244:         assessment=assessment,
+  245:         missing_measurements=(),
+  246:         reasons=(
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:320 ---
+  306:             raise ValueError(
+  307:                 "methodology routing must balance input candidates into retained and suppressed"
+  308:             )
+  309:         if len(set(self.suppressed_strategies)) != len(self.suppressed_strategies):
+  310:             raise ValueError("suppressed strategies must be unique")
+  311:         decision_keys = tuple((item.strategy, item.candidate_id) for item in self.decisions)
+  312:         if len(set(decision_keys)) != len(decision_keys):
+  313:             raise ValueError(
+  314:                 "methodology candidate decisions must be unique by strategy and candidate"
+  315:             )
+  316:         if not self.reason_codes:
+  317:             raise ValueError("methodology candidate routing requires reason codes")
+  318: 
+  319: 
+  320: def evaluate_methodology_candidate_routing(
+  321:     analysis: StrategyAnalysisResult,
+  322:     *,
+  323:     market_state: PrimaryMarketState | None,
+  324:     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
+  325:     geometry_runtime_context: GeometryRuntimeContext | None = None,
+  326:     geometry_safety_policy: GeometrySafetyPolicy = DEFAULT_GEOMETRY_SAFETY_POLICY,
+  327:     htf_consequence_policy: HtfConsequencePolicy = DEFAULT_HTF_CONSEQUENCE_POLICY,
+  328:     execution_quality_cap_policy: ExecutionQualityCapPolicy = (
+  329:         DEFAULT_EXECUTION_QUALITY_CAP_POLICY
+  330:     ),
+  331: ) -> MethodologyCandidateRoutingResult:
+  332:     """Evaluate each generated strategy from its own candidate evidence."""
+  333: 
+  334:     analysis = _attach_runtime_geometry_metadata(analysis, geometry_runtime_context)
+
+MATCH: strategy_candidates
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:346 ---
+  332:     """Evaluate each generated strategy from its own candidate evidence."""
+  333: 
+  334:     analysis = _attach_runtime_geometry_metadata(analysis, geometry_runtime_context)
+  335: 
+  336:     decisions: list[StrategyEnforcementDecision] = []
+  337:     geometry_safety_audits: list[CandidateGeometrySafetyAudit] = []
+  338:     lane_horizon_audits: list[CandidateLaneHorizonRoutingAudit] = []
+  339:     identities = candidate_identities(analysis.candidates)
+  340:     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+  341:     status_by_object = {
+  342:         id(item.candidate): item.status for item in analysis.candidate_actionability
+  343:     }
+  344:     constrained_candidates: dict[int, TradeCandidate] = {}
+  345:     for strategy in analysis.evaluated_strategies:
+  346:         strategy_candidates = tuple(
+  347:             candidate
+  348:             for candidate in analysis.candidates
+  349:             if StrategyType(candidate.strategy.value) is strategy
+  350:         )
+  351:         if not strategy_candidates:
+  352:             decisions.append(
+  353:                 derive_strategy_enforcement(
+  354:                     evaluate_strategy_eligibility(
+  355:                         strategy,
+  356:                         market_state=market_state,
+  357:                     )
+  358:                 )
+  359:             )
+  360:             continue
+
+MATCH: strategy_candidates
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:351 ---
+  337:     geometry_safety_audits: list[CandidateGeometrySafetyAudit] = []
+  338:     lane_horizon_audits: list[CandidateLaneHorizonRoutingAudit] = []
+  339:     identities = candidate_identities(analysis.candidates)
+  340:     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+  341:     status_by_object = {
+  342:         id(item.candidate): item.status for item in analysis.candidate_actionability
+  343:     }
+  344:     constrained_candidates: dict[int, TradeCandidate] = {}
+  345:     for strategy in analysis.evaluated_strategies:
+  346:         strategy_candidates = tuple(
+  347:             candidate
+  348:             for candidate in analysis.candidates
+  349:             if StrategyType(candidate.strategy.value) is strategy
+  350:         )
+  351:         if not strategy_candidates:
+  352:             decisions.append(
+  353:                 derive_strategy_enforcement(
+  354:                     evaluate_strategy_eligibility(
+  355:                         strategy,
+  356:                         market_state=market_state,
+  357:                     )
+  358:                 )
+  359:             )
+  360:             continue
+  361:         for candidate in strategy_candidates:
+  362:             entry_status = status_by_object[id(candidate)]
+  363:             initial_lane_horizon_measurement = _candidate_lane_horizon_measurement(
+  364:                 candidate,
+  365:                 entry_status=entry_status,
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:515 ---
+  501:                 for candidate in analysis.candidates
+  502:             ),
+  503:             candidate_actionability=tuple(
+  504:                 replace(
+  505:                     item,
+  506:                     candidate=constrained_candidates.get(id(item.candidate), item.candidate),
+  507:                     status=classify_candidate_actionability(
+  508:                         constrained_candidates.get(id(item.candidate), item.candidate)
+  509:                     ),
+  510:                 )
+  511:                 for item in analysis.candidate_actionability
+  512:             ),
+  513:         )
+  514: 
+  515:     return apply_methodology_candidate_routing(
+  516:         analysis,
+  517:         tuple(decisions),
+  518:         mode=mode,
+  519:         geometry_safety_audits=tuple(geometry_safety_audits),
+  520:         lane_horizon_audits=tuple(lane_horizon_audits),
+  521:     )
+  522: 
+  523: 
+  524: def _apply_post_routing_quality_caps(
+  525:     candidate: TradeCandidate,
+  526:     *,
+  527:     lane: OpportunityLane,
+  528:     policy: ExecutionQualityCapPolicy,
+  529: ) -> TradeCandidate:
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:763 ---
+  749:         consequence,
+  750:         runner_allowed=False,
+  751:         confirmation_required=True,
+  752:         reasons=(
+  753:             *consequence.reasons,
+  754:             (
+  755:                 f"nearest verified TP1 is {risk_multiple:.2f}R, above the "
+  756:                 f"{ceiling:.2f}R HTF/lane ceiling; retain as conditional/developing "
+  757:                 "instead of fabricating a closer target"
+  758:             ),
+  759:         ),
+  760:     )
+  761: 
+  762: 
+  763: def apply_methodology_candidate_routing(
+  764:     analysis: StrategyAnalysisResult,
+  765:     decisions: tuple[StrategyEnforcementDecision, ...],
+  766:     *,
+  767:     mode: MethodologyGateMode | str = MethodologyGateMode.SHADOW,
+  768:     geometry_safety_audits: tuple[CandidateGeometrySafetyAudit, ...] = (),
+  769:     lane_horizon_audits: tuple[CandidateLaneHorizonRoutingAudit, ...] = (),
+  770: ) -> MethodologyCandidateRoutingResult:
+  771:     """Suppress explicit strategy conflicts before ranking when enforcement is enabled.
+  772: 
+  773:     Shadow mode preserves every generated candidate. Enforcement mode removes only
+  774:     candidates whose strategy has an explicit SUPPRESS decision. Missing decisions,
+  775:     deferred metadata, and allowed decisions remain eligible.
+  776:     """
+  777: 
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:787 ---
+  773:     Shadow mode preserves every generated candidate. Enforcement mode removes only
+  774:     candidates whose strategy has an explicit SUPPRESS decision. Missing decisions,
+  775:     deferred metadata, and allowed decisions remain eligible.
+  776:     """
+  777: 
+  778:     normalized_mode = MethodologyGateMode(mode)
+  779:     if normalized_mode is MethodologyGateMode.SHADOW:
+  780:         return MethodologyCandidateRoutingResult(
+  781:             analysis=analysis,
+  782:             mode=normalized_mode,
+  783:             decisions=decisions,
+  784:             input_candidate_count=len(analysis.candidates),
+  785:             suppressed_candidate_count=0,
+  786:             suppressed_strategies=(),
+  787:             reason_codes=("METHODOLOGY_CANDIDATE_ROUTING_SHADOW",),
+  788:             geometry_safety_audits=geometry_safety_audits,
+  789:             lane_horizon_audits=lane_horizon_audits,
+  790:         )
+  791: 
+  792:     identities = candidate_identities(analysis.candidates)
+  793:     identity_by_object = dict(zip(map(id, analysis.candidates), identities, strict=True))
+  794:     decision_by_candidate = {
+  795:         item.candidate_id: item for item in decisions if item.candidate_id is not None
+  796:     }
+  797:     decision_by_strategy = {item.strategy: item for item in decisions if item.candidate_id is None}
+  798:     status_by_object = {
+  799:         id(item.candidate): item.status for item in analysis.candidate_actionability
+  800:     }
+  801:     retained: list[TradeCandidate] = []
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:848 ---
+  834:             if id(item.candidate) in retained_identity
+  835:         ),
+  836:         suppressed_candidates=analysis.suppressed_candidates + tuple(newly_suppressed),
+  837:     )
+  838:     return MethodologyCandidateRoutingResult(
+  839:         analysis=routed,
+  840:         mode=normalized_mode,
+  841:         decisions=decisions,
+  842:         input_candidate_count=len(analysis.candidates),
+  843:         suppressed_candidate_count=len(newly_suppressed),
+  844:         suppressed_strategies=tuple(suppressed_strategies),
+  845:         reason_codes=(
+  846:             "METHODOLOGY_CANDIDATES_SUPPRESSED"
+  847:             if newly_suppressed
+  848:             else "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE",
+  849:         ),
+  850:         geometry_safety_audits=geometry_safety_audits,
+  851:         lane_horizon_audits=lane_horizon_audits,
+  852:     )
+  853: 
+  854: 
+  855: def evaluate_methodology_routing_parity(
+  856:     analysis: StrategyAnalysisResult,
+  857:     decisions: tuple[StrategyEnforcementDecision, ...],
+  858: ) -> MethodologyRoutingParityAudit:
+  859:     """Compare shadow and enforce outcomes without mutating live routing mode."""
+  860: 
+  861:     shadow = apply_methodology_candidate_routing(
+  862:         analysis,
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:861 ---
+  847:             if newly_suppressed
+  848:             else "METHODOLOGY_CANDIDATE_ROUTING_NO_CHANGE",
+  849:         ),
+  850:         geometry_safety_audits=geometry_safety_audits,
+  851:         lane_horizon_audits=lane_horizon_audits,
+  852:     )
+  853: 
+  854: 
+  855: def evaluate_methodology_routing_parity(
+  856:     analysis: StrategyAnalysisResult,
+  857:     decisions: tuple[StrategyEnforcementDecision, ...],
+  858: ) -> MethodologyRoutingParityAudit:
+  859:     """Compare shadow and enforce outcomes without mutating live routing mode."""
+  860: 
+  861:     shadow = apply_methodology_candidate_routing(
+  862:         analysis,
+  863:         decisions,
+  864:         mode=MethodologyGateMode.SHADOW,
+  865:     )
+  866:     enforced = apply_methodology_candidate_routing(
+  867:         analysis,
+  868:         decisions,
+  869:         mode=MethodologyGateMode.ENFORCE,
+  870:     )
+  871:     shadow_count = len(shadow.analysis.candidates)
+  872:     enforced_count = len(enforced.analysis.candidates)
+  873:     suppressed_count = shadow_count - enforced_count
+  874:     would_change = suppressed_count > 0
+  875:     all_suppressed = shadow_count > 0 and enforced_count == 0
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:988 ---
+  974:         "candidate_id": audit.candidate_id,
+  975:         "strategy": audit.strategy,
+  976:         "direction": audit.direction,
+  977:         "entry_status": audit.entry_status,
+  978:         "initial_measurement": _lane_horizon_measurement_payload(audit.initial_measurement),
+  979:         "final_measurement": _lane_horizon_measurement_payload(audit.final_measurement),
+  980:         "htf_reclassification_applied": audit.htf_reclassification_applied,
+  981:         "final_context_lane": audit.final_context_lane.value,
+  982:         "final_context_holding_horizon": audit.final_context_holding_horizon.value,
+  983:         "context_source": audit.context_source,
+  984:         "shadow_only": True,
+  985:     }
+  986: 
+  987: 
+  988: def methodology_candidate_routing_payload(
+  989:     result: MethodologyCandidateRoutingResult,
+  990: ) -> dict[str, object]:
+  991:     """Serialize routing decisions and suppressed candidates for audit."""
+  992: 
+  993:     coverage = geometry_safety_coverage(result.geometry_safety_audits)
+  994:     newly_suppressed = (
+  995:         result.analysis.suppressed_candidates[-result.suppressed_candidate_count :]
+  996:         if result.suppressed_candidate_count
+  997:         else ()
+  998:     )
+  999:     return {
+ 1000:         "mode": result.mode.value,
+ 1001:         "input_candidate_count": result.input_candidate_count,
+ 1002:         "retained_candidate_count": len(result.analysis.candidates),
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_routing.py:1057 ---
+ 1043:                 "terminal_outcome": "suppressed",
+ 1044:                 "reason_codes": list(item.reason_codes),
+ 1045:                 "reasons": list(item.reasons),
+ 1046:             }
+ 1047:             for item in newly_suppressed
+ 1048:         ],
+ 1049:     }
+ 1050: 
+ 1051: 
+ 1052: __all__ = [
+ 1053:     "CandidateLaneHorizonRoutingAudit",
+ 1054:     "GeometrySafetyCoverage",
+ 1055:     "MethodologyCandidateRoutingResult",
+ 1056:     "MethodologyRoutingParityAudit",
+ 1057:     "apply_methodology_candidate_routing",
+ 1058:     "evaluate_methodology_candidate_routing",
+ 1059:     "evaluate_methodology_routing_parity",
+ 1060:     "geometry_safety_coverage",
+ 1061:     "methodology_candidate_routing_payload",
+ 1062:     "methodology_routing_parity_payload",
+ 1063: ]
+
+MATCH: candidate_routing
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_enforcement.py:11 ---
+    1: """Guarded geometry enforcement before candidate scoring and selection."""
+    2: 
+    3: from __future__ import annotations
+    4: 
+    5: from dataclasses import dataclass, replace
+    6: from enum import StrEnum
+    7: 
+    8: from apex.application.methodology_candidate_geometry_safety import (
+    9:     CandidateGeometrySafetyAudit,
+   10: )
+   11: from apex.application.methodology_candidate_routing import (
+   12:     MethodologyCandidateRoutingResult,
+   13: )
+   14: from apex.application.methodology_geometry_safety import GeometrySafetyState
+   15: from apex.strategies.analysis import (
+   16:     CandidateActionability,
+   17:     StrategyAnalysisResult,
+   18:     SuppressedStrategyCandidate,
+   19: )
+   20: from apex.strategies.candidate_identity import candidate_identities
+   21: 
+   22: 
+   23: class GeometrySafetyGateMode(StrEnum):
+   24:     """Rollout mode for candidate geometry enforcement."""
+   25: 
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:16 ---
+    2: 
+    3: This module centralizes the mathematics required by the Batch 6 geometry gate.
+    4: It does not mutate candidates or portfolio selection. Callers must provide an
+    5: explicit policy and explicit expected execution costs; unavailable costs remain
+    6: an incomplete assessment rather than being treated as zero.
+    7: """
+    8: 
+    9: from __future__ import annotations
+   10: 
+   11: import math
+   12: from dataclasses import dataclass
+   13: from enum import StrEnum
+   14: 
+   15: from apex.application.opportunity_portfolio import OpportunityLane
+   16: from apex.strategies.contracts import TargetType, TradeCandidate, TradeDirection
+   17: 
+   18: 
+   19: class GeometrySafetyState(StrEnum):
+   20:     PASS = "pass"
+   21:     REJECT = "reject"
+   22:     INCOMPLETE = "incomplete"
+   23: 
+   24: 
+   25: class NoFeasibleTargetReason(StrEnum):
+   26:     NO_EXISTING_TARGET_FEASIBLE = "no_existing_target_feasible"
+   27:     MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON = "minimum_viable_tp1_beyond_lane_horizon"
+   28:     COST_ONLY_INFEASIBILITY = "cost_only_infeasibility"
+   29:     TARGET_TYPE_ONLY_INFEASIBILITY = "target_type_only_infeasibility"
+   30: 
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:292 ---
+  278:             state=GeometrySafetyState.INCOMPLETE,
+  279:             diagnostics=diagnostics,
+  280:             rejection_codes=(GeometryRejectionCode.COSTS_UNAVAILABLE,),
+  281:             reasons=(
+  282:                 "expected fees and slippage are unavailable; geometry safety cannot "
+  283:                 "claim a cost-adjusted pass",
+  284:             ),
+  285:         )
+  286: 
+  287:     codes: list[GeometryRejectionCode] = []
+  288:     reasons: list[str] = []
+  289: 
+  290:     stop_wrong_side = (
+  291:         executable_stop >= candidate.entry.lower
+  292:         if candidate.direction is TradeDirection.LONG
+  293:         else executable_stop <= candidate.entry.upper
+  294:     )
+  295:     if stop_wrong_side:
+  296:         codes.append(GeometryRejectionCode.WRONG_SIDE_STOP)
+  297:         reasons.append("executable stop is not outside the entry zone on the risk side")
+  298:     elif candidate.entry.lower <= executable_stop <= candidate.entry.upper:
+  299:         codes.append(GeometryRejectionCode.STOP_INSIDE_ENTRY_ZONE)
+  300:         reasons.append("executable stop lies inside the entry zone")
+  301: 
+  302:     target_prices = tuple(level.price for level in candidate.targets.levels)
+  303:     if candidate.direction is TradeDirection.LONG:
+  304:         wrong_side_target = any(price <= selected_entry for price in target_prices)
+  305:         invalid_order = target_prices != tuple(sorted(target_prices))
+  306:     else:
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:303 ---
+  289: 
+  290:     stop_wrong_side = (
+  291:         executable_stop >= candidate.entry.lower
+  292:         if candidate.direction is TradeDirection.LONG
+  293:         else executable_stop <= candidate.entry.upper
+  294:     )
+  295:     if stop_wrong_side:
+  296:         codes.append(GeometryRejectionCode.WRONG_SIDE_STOP)
+  297:         reasons.append("executable stop is not outside the entry zone on the risk side")
+  298:     elif candidate.entry.lower <= executable_stop <= candidate.entry.upper:
+  299:         codes.append(GeometryRejectionCode.STOP_INSIDE_ENTRY_ZONE)
+  300:         reasons.append("executable stop lies inside the entry zone")
+  301: 
+  302:     target_prices = tuple(level.price for level in candidate.targets.levels)
+  303:     if candidate.direction is TradeDirection.LONG:
+  304:         wrong_side_target = any(price <= selected_entry for price in target_prices)
+  305:         invalid_order = target_prices != tuple(sorted(target_prices))
+  306:     else:
+  307:         wrong_side_target = any(price >= selected_entry for price in target_prices)
+  308:         invalid_order = target_prices != tuple(sorted(target_prices, reverse=True))
+  309: 
+  310:     if wrong_side_target:
+  311:         codes.append(GeometryRejectionCode.WRONG_SIDE_TARGET)
+  312:         reasons.append("one or more targets are on the wrong side of selected entry")
+  313:     if invalid_order:
+  314:         codes.append(GeometryRejectionCode.TARGET_ORDER_INVALID)
+  315:         reasons.append("targets are not ordered away from selected entry")
+  316: 
+  317:     if net_rr is not None and net_rr <= 0.0:
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:441 ---
+  427:             minimum_viable_tp1_distance_atr=None,
+  428:             tp1_feasibility_gap=None,
+  429:             tp1_feasibility_gap_atr=None,
+  430:             geometry_feasible_before_quality=None,
+  431:             feasible_existing_target_count=None,
+  432:             nearest_feasible_existing_target_price=None,
+  433:             nearest_feasible_existing_target_index=None,
+  434:             no_feasible_target_reason=None,
+  435:         )
+  436: 
+  437:     net_risk = stop_distance + cost_distance
+  438:     minimum_distance = policy.minimum_tp1_reward_to_risk * net_risk + cost_distance
+  439:     minimum_price = (
+  440:         selected_entry + minimum_distance
+  441:         if candidate.direction is TradeDirection.LONG
+  442:         else selected_entry - minimum_distance
+  443:     )
+  444:     minimum_distance_atr = None if decision_atr is None else minimum_distance / decision_atr
+  445:     available_distance = abs(candidate.targets.levels[0].price - selected_entry)
+  446:     gap = max(0.0, minimum_distance - available_distance)
+  447:     gap_atr = None if decision_atr is None else gap / decision_atr
+  448: 
+  449:     feasible: list[tuple[int, float, float]] = []
+  450:     cost_only = False
+  451:     target_type_only = False
+  452:     maximum_target_atr = policy.maximum_tp1_distance_atr
+  453: 
+  454:     for index, level in enumerate(candidate.targets.levels, start=1):
+  455:         price = level.price
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:458 ---
+  444:     minimum_distance_atr = None if decision_atr is None else minimum_distance / decision_atr
+  445:     available_distance = abs(candidate.targets.levels[0].price - selected_entry)
+  446:     gap = max(0.0, minimum_distance - available_distance)
+  447:     gap_atr = None if decision_atr is None else gap / decision_atr
+  448: 
+  449:     feasible: list[tuple[int, float, float]] = []
+  450:     cost_only = False
+  451:     target_type_only = False
+  452:     maximum_target_atr = policy.maximum_tp1_distance_atr
+  453: 
+  454:     for index, level in enumerate(candidate.targets.levels, start=1):
+  455:         price = level.price
+  456:         correct_side = (
+  457:             price > selected_entry
+  458:             if candidate.direction is TradeDirection.LONG
+  459:             else price < selected_entry
+  460:         )
+  461:         if not correct_side:
+  462:             continue
+  463:         distance = abs(price - selected_entry)
+  464:         gross_rr = distance / stop_distance if stop_distance > 0.0 else 0.0
+  465:         net_reward = distance - cost_distance
+  466:         net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
+  467:         distance_atr = None if decision_atr is None else distance / decision_atr
+  468:         horizon_ok = (
+  469:             maximum_target_atr is None
+  470:             or distance_atr is None
+  471:             or distance_atr <= maximum_target_atr + 1e-9
+  472:         )
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_htf_relationship.py:6 ---
+    1: """Compatibility exports for HTF relationship classification."""
+    2: 
+    3: from apex.domain.methodology_htf_relationship import (
+    4:     HtfRelationshipAssessment,
+    5:     HtfRelationshipInput,
+    6:     TradeDirectionLike,
+    7:     classify_htf_relationship,
+    8:     htf_relationship_payload,
+    9: )
+   10: 
+   11: __all__ = [
+   12:     "HtfRelationshipAssessment",
+   13:     "HtfRelationshipInput",
+   14:     "TradeDirectionLike",
+   15:     "classify_htf_relationship",
+   16:     "htf_relationship_payload",
+   17: ]
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_lane_horizon.py:40 ---
+   26: 
+   27: 
+   28: class LifecycleModel(StrEnum):
+   29:     MICRO_SCALP = "micro_scalp"
+   30:     SCALP = "scalp"
+   31:     STRUCTURED = "structured"
+   32:     RUNNER = "runner"
+   33:     DEVELOPING = "developing"
+   34: 
+   35: 
+   36: @dataclass(frozen=True, slots=True)
+   37: class LaneHorizonInput:
+   38:     strategy: StrategyType
+   39:     execution_timeframe_minutes: int
+   40:     setup_timeframe_minutes: int
+   41:     invalidation_timeframe_minutes: int
+   42:     target_timeframe_minutes: int
+   43:     atr_normalized_target_distance: float
+   44:     expected_bars_to_target: int
+   45:     price_entry_relation: PriceEntryRelation
+   46:     trigger_state: TriggerState
+   47:     lifecycle_model: LifecycleModel
+   48:     runner_authority: bool = False
+   49: 
+   50:     def __post_init__(self) -> None:
+   51:         for name in (
+   52:             "execution_timeframe_minutes",
+   53:             "setup_timeframe_minutes",
+   54:             "invalidation_timeframe_minutes",
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_lane_horizon.py:53 ---
+   39:     execution_timeframe_minutes: int
+   40:     setup_timeframe_minutes: int
+   41:     invalidation_timeframe_minutes: int
+   42:     target_timeframe_minutes: int
+   43:     atr_normalized_target_distance: float
+   44:     expected_bars_to_target: int
+   45:     price_entry_relation: PriceEntryRelation
+   46:     trigger_state: TriggerState
+   47:     lifecycle_model: LifecycleModel
+   48:     runner_authority: bool = False
+   49: 
+   50:     def __post_init__(self) -> None:
+   51:         for name in (
+   52:             "execution_timeframe_minutes",
+   53:             "setup_timeframe_minutes",
+   54:             "invalidation_timeframe_minutes",
+   55:             "target_timeframe_minutes",
+   56:             "expected_bars_to_target",
+   57:         ):
+   58:             if getattr(self, name) <= 0:
+   59:                 raise ValueError(f"{name} must be positive")
+   60:         if self.atr_normalized_target_distance <= 0.0:
+   61:             raise ValueError("atr_normalized_target_distance must be positive")
+   62: 
+   63: 
+   64: @dataclass(frozen=True, slots=True)
+   65: class LaneHorizonAssessment:
+   66:     lane: OpportunityLane
+   67:     holding_horizon: HoldingHorizon
+
+MATCH: setup_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_lane_horizon.py:86 ---
+   72:     def __post_init__(self) -> None:
+   73:         if not self.reasons:
+   74:             raise ValueError("lane and horizon assessment requires reasons")
+   75:         if self.expected_bars_to_target <= 0:
+   76:             raise ValueError("expected bars to target must be positive")
+   77: 
+   78: 
+   79: def _derive_horizon(value: LaneHorizonInput) -> HoldingHorizon:
+   80:     if value.lifecycle_model is LifecycleModel.RUNNER:
+   81:         return HoldingHorizon.RUNNER
+   82:     if value.lifecycle_model is LifecycleModel.DEVELOPING:
+   83:         return HoldingHorizon.STRUCTURED
+   84: 
+   85:     broad_target = value.target_timeframe_minutes >= 30
+   86:     broad_setup = value.setup_timeframe_minutes >= 15
+   87:     long_path = value.expected_bars_to_target > 12
+   88:     wide_target = value.atr_normalized_target_distance >= 2.0
+   89: 
+   90:     if broad_target or (broad_setup and long_path) or wide_target:
+   91:         return HoldingHorizon.STRUCTURED
+   92:     if value.expected_bars_to_target > 6:
+   93:         return HoldingHorizon.SHORT
+   94:     return HoldingHorizon.SCALP
+   95: 
+   96: 
+   97: def classify_lane_and_horizon(
+   98:     value: LaneHorizonInput,
+   99: ) -> LaneHorizonAssessment:
+  100:     horizon = _derive_horizon(value)
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:30 ---
+   16:     OpportunityLane,
+   17:     SequenceRole,
+   18:     TradeOpportunity,
+   19:     build_actionability_state_assessment,
+   20: )
+   21: from apex.strategies.contracts import EntryMode, TradeCandidate
+   22: from apex.strategies.entry_status import EntryStatus
+   23: from apex.strategies.strategy_types import StrategyType
+   24: 
+   25: 
+   26: @dataclass(frozen=True, slots=True)
+   27: class OpportunityMethodologyContext:
+   28:     lane: OpportunityLane
+   29:     holding_horizon: HoldingHorizon
+   30:     higher_timeframe_authority: HigherTimeframeAuthority
+   31: 
+   32: 
+   33: _SCALP_STRATEGIES = {
+   34:     StrategyType.MOMENTUM_SCALP,
+   35:     StrategyType.VWAP_RECLAIM_REJECTION,
+   36:     StrategyType.RANGE_REVERSAL,
+   37:     StrategyType.FAILED_BREAKOUT_REVERSAL,
+   38:     StrategyType.LIQUIDITY_REJECTION_REVERSAL,
+   39:     StrategyType.EXHAUSTION_REVERSAL,
+   40: }
+   41: 
+   42: 
+   43: def methodology_context_from_lane_horizon(
+   44:     assessment: LaneHorizonAssessment,
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:62 ---
+   48:         if assessment.lane is OpportunityLane.RUNNER
+   49:         else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+   50:         if assessment.lane
+   51:         in {
+   52:             OpportunityLane.NEARBY_STRUCTURED,
+   53:             OpportunityLane.DEVELOPING,
+   54:         }
+   55:         else HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+   56:         if assessment.lane.is_scalp
+   57:         else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+   58:     )
+   59:     return OpportunityMethodologyContext(
+   60:         lane=assessment.lane,
+   61:         holding_horizon=assessment.holding_horizon,
+   62:         higher_timeframe_authority=authority,
+   63:     )
+   64: 
+   65: 
+   66: def infer_candidate_methodology_context(
+   67:     candidate: TradeCandidate,
+   68:     *,
+   69:     entry_status: EntryStatus,
+   70:     lane_horizon: LaneHorizonAssessment | None = None,
+   71: ) -> OpportunityMethodologyContext:
+   72:     """Infer context, preferring an explicit measurable lane/horizon assessment."""
+   73: 
+   74:     if lane_horizon is not None:
+   75:         return methodology_context_from_lane_horizon(lane_horizon)
+   76: 
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:92 ---
+   78:     if executable:
+   79:         confirmation_pending = candidate.provisional or candidate.entry.mode in {
+   80:             EntryMode.RETEST,
+   81:             EntryMode.SWEEP_RECOVERY,
+   82:             EntryMode.MOMENTUM_CONTINUATION,
+   83:         }
+   84:         lane = (
+   85:             OpportunityLane.CONFIRMATION_SCALP
+   86:             if confirmation_pending
+   87:             else OpportunityLane.CMP_SCALP
+   88:         )
+   89:         return OpportunityMethodologyContext(
+   90:             lane=lane,
+   91:             holding_horizon=HoldingHorizon.SCALP,
+   92:             higher_timeframe_authority=HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING,
+   93:         )
+   94: 
+   95:     pullback = candidate.entry.mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}
+   96:     lane = (
+   97:         OpportunityLane.PULLBACK_SCALP
+   98:         if pullback or candidate.strategy in _SCALP_STRATEGIES
+   99:         else OpportunityLane.NEARBY_STRUCTURED
+  100:     )
+  101:     return OpportunityMethodologyContext(
+  102:         lane=lane,
+  103:         holding_horizon=HoldingHorizon.SHORT if lane.is_scalp else HoldingHorizon.STRUCTURED,
+  104:         higher_timeframe_authority=(
+  105:             HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+  106:             if lane.is_scalp
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:104 ---
+   90:             lane=lane,
+   91:             holding_horizon=HoldingHorizon.SCALP,
+   92:             higher_timeframe_authority=HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING,
+   93:         )
+   94: 
+   95:     pullback = candidate.entry.mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}
+   96:     lane = (
+   97:         OpportunityLane.PULLBACK_SCALP
+   98:         if pullback or candidate.strategy in _SCALP_STRATEGIES
+   99:         else OpportunityLane.NEARBY_STRUCTURED
+  100:     )
+  101:     return OpportunityMethodologyContext(
+  102:         lane=lane,
+  103:         holding_horizon=HoldingHorizon.SHORT if lane.is_scalp else HoldingHorizon.STRUCTURED,
+  104:         higher_timeframe_authority=(
+  105:             HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+  106:             if lane.is_scalp
+  107:             else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+  108:         ),
+  109:     )
+  110: 
+  111: 
+  112: def infer_opportunity_methodology_context(
+  113:     opportunity: TradeOpportunity,
+  114: ) -> OpportunityMethodologyContext:
+  115:     if opportunity.sequence_role is SequenceRole.RUNNER:
+  116:         return OpportunityMethodologyContext(
+  117:             lane=OpportunityLane.RUNNER,
+  118:             holding_horizon=HoldingHorizon.RUNNER,
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:129 ---
+  115:     if opportunity.sequence_role is SequenceRole.RUNNER:
+  116:         return OpportunityMethodologyContext(
+  117:             lane=OpportunityLane.RUNNER,
+  118:             holding_horizon=HoldingHorizon.RUNNER,
+  119:             higher_timeframe_authority=HigherTimeframeAuthority.STRICT,
+  120:         )
+  121: 
+  122:     setup = opportunity.setup
+  123:     if opportunity.lane is not None:
+  124:         lane = opportunity.effective_lane
+  125:         if lane is OpportunityLane.RUNNER:
+  126:             return OpportunityMethodologyContext(
+  127:                 lane=lane,
+  128:                 holding_horizon=HoldingHorizon.RUNNER,
+  129:                 higher_timeframe_authority=HigherTimeframeAuthority.STRICT,
+  130:             )
+  131:         if lane is OpportunityLane.DEVELOPING:
+  132:             return OpportunityMethodologyContext(
+  133:                 lane=lane,
+  134:                 holding_horizon=HoldingHorizon.STRUCTURED,
+  135:                 higher_timeframe_authority=HigherTimeframeAuthority.CONTEXTUAL_PENALTY,
+  136:             )
+  137:         return OpportunityMethodologyContext(
+  138:             lane=lane,
+  139:             holding_horizon=(
+  140:                 HoldingHorizon.SHORT
+  141:                 if lane
+  142:                 in {
+  143:                     OpportunityLane.PULLBACK_SCALP,
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:150 ---
+  136:             )
+  137:         return OpportunityMethodologyContext(
+  138:             lane=lane,
+  139:             holding_horizon=(
+  140:                 HoldingHorizon.SHORT
+  141:                 if lane
+  142:                 in {
+  143:                     OpportunityLane.PULLBACK_SCALP,
+  144:                     OpportunityLane.NEARBY_STRUCTURED,
+  145:                 }
+  146:                 else HoldingHorizon.SCALP
+  147:                 if lane.is_scalp
+  148:                 else HoldingHorizon.STRUCTURED
+  149:             ),
+  150:             higher_timeframe_authority=(
+  151:                 HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING
+  152:                 if lane.is_scalp
+  153:                 else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+  154:             ),
+  155:         )
+  156:     assessment = build_actionability_state_assessment(
+  157:         setup,
+  158:         sequence_role=opportunity.sequence_role,
+  159:     )
+  160: 
+  161:     if opportunity.sequence_role is SequenceRole.FOLLOW_UP:
+  162:         return OpportunityMethodologyContext(
+  163:             lane=OpportunityLane.DEVELOPING,
+  164:             holding_horizon=HoldingHorizon.STRUCTURED,
+
+MATCH: higher_timeframe
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_opportunity_context.py:190 ---
+  176:                 else HigherTimeframeAuthority.CONTEXTUAL_PENALTY
+  177:             ),
+  178:         )
+  179: 
+  180:     confirmation_pending = assessment.state in {
+  181:         ActionabilityState.EXECUTE_ON_MICRO_CONFIRMATION,
+  182:         ActionabilityState.PLACE_LIMIT_WITH_ACTIVATION,
+  183:         ActionabilityState.RETEST_PREFERRED,
+  184:         ActionabilityState.RECLAIM_REQUIRED,
+  185:     }
+  186:     lane = OpportunityLane.CONFIRMATION_SCALP if confirmation_pending else OpportunityLane.CMP_SCALP
+  187:     return OpportunityMethodologyContext(
+  188:         lane=lane,
+  189:         holding_horizon=HoldingHorizon.SCALP,
+  190:         higher_timeframe_authority=HigherTimeframeAuthority.WARNING_AND_TARGET_CEILING,
+  191:     )
+  192: 
+  193: 
+  194: __all__ = [
+  195:     "HigherTimeframeAuthority",
+  196:     "HoldingHorizon",
+  197:     "OpportunityLane",
+  198:     "OpportunityMethodologyContext",
+  199:     "infer_candidate_methodology_context",
+  200:     "infer_opportunity_methodology_context",
+  201:     "methodology_context_from_lane_horizon",
+  202: ]
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_snapshot.py:43 ---
+   29: from apex.application.methodology_management_contracts import (
+   30:     ManagementActionType,
+   31:     ManagementStep,
+   32: )
+   33: from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
+   34: from apex.application.methodology_strategy_contracts import (
+   35:     ConfirmationPolicy,
+   36:     MarketStateClassification,
+   37:     SetupMaturity,
+   38: )
+   39: from apex.application.methodology_target_context_contracts import (
+   40:     ExecutionCostEstimate,
+   41:     TargetObstacleEvidence,
+   42: )
+   43: from apex.strategies.contracts import TradeDirection
+   44: 
+   45: 
+   46: @dataclass(frozen=True, slots=True)
+   47: class MethodologySnapshot:
+   48:     """Normalized methodology result that later phases can populate incrementally."""
+   49: 
+   50:     direction: TradeDirection | None = None
+   51:     market_usability: MarketUsabilityAssessment | None = None
+   52:     market_state: MarketStateClassification | None = None
+   53:     setup_maturity: SetupMaturity | None = None
+   54:     confirmation_policy: ConfirmationPolicy | None = None
+   55:     evidence: tuple[EvidenceObservation, ...] = ()
+   56:     contradictions: tuple[Contradiction, ...] = ()
+   57:     entry_opportunities: tuple[EntryOpportunity, ...] = ()
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_snapshot.py:50 ---
+   36:     MarketStateClassification,
+   37:     SetupMaturity,
+   38: )
+   39: from apex.application.methodology_target_context_contracts import (
+   40:     ExecutionCostEstimate,
+   41:     TargetObstacleEvidence,
+   42: )
+   43: from apex.strategies.contracts import TradeDirection
+   44: 
+   45: 
+   46: @dataclass(frozen=True, slots=True)
+   47: class MethodologySnapshot:
+   48:     """Normalized methodology result that later phases can populate incrementally."""
+   49: 
+   50:     direction: TradeDirection | None = None
+   51:     market_usability: MarketUsabilityAssessment | None = None
+   52:     market_state: MarketStateClassification | None = None
+   53:     setup_maturity: SetupMaturity | None = None
+   54:     confirmation_policy: ConfirmationPolicy | None = None
+   55:     evidence: tuple[EvidenceObservation, ...] = ()
+   56:     contradictions: tuple[Contradiction, ...] = ()
+   57:     entry_opportunities: tuple[EntryOpportunity, ...] = ()
+   58:     selected_entry: SelectedEntryDecision | None = None
+   59:     invalidation: StructuralInvalidation | None = None
+   60:     targets: tuple[TargetCandidate, ...] = ()
+   61:     target_obstacles: tuple[TargetObstacleEvidence, ...] = ()
+   62:     execution_costs: ExecutionCostEstimate | None = None
+   63:     management_steps: tuple[ManagementStep, ...] = ()
+   64:     duration: DurationExpectation | None = None
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_snapshot.py:118 ---
+  104:         for step in self.management_steps:
+  105:             if step.kind is not ManagementActionType.PARTIAL_EXIT:
+  106:                 continue
+  107:             if step.target_role not in target_roles:
+  108:                 raise ValueError("partial-exit management must reference a canonical target role")
+  109:             partial_total += step.close_percentage or 0.0
+  110:         if partial_total > 100.0:
+  111:             raise ValueError("partial-exit close percentages cannot exceed 100")
+  112: 
+  113:     def _validate_directional_geometry(self) -> None:
+  114:         if self.direction is None or self.selected_entry is None:
+  115:             return
+  116:         entry = self.selected_entry.opportunity
+  117:         if self.invalidation is not None:
+  118:             if self.direction is TradeDirection.LONG and self.invalidation.price >= entry.zone_low:
+  119:                 raise ValueError("long invalidation must be below the selected entry zone")
+  120:             if (
+  121:                 self.direction is TradeDirection.SHORT
+  122:                 and self.invalidation.price <= entry.zone_high
+  123:             ):
+  124:                 raise ValueError("short invalidation must be above the selected entry zone")
+  125:         if self.direction is TradeDirection.LONG:
+  126:             if any(target.price <= entry.zone_high for target in self.targets):
+  127:                 raise ValueError("long targets must be above the selected entry zone")
+  128:         elif any(target.price >= entry.zone_low for target in self.targets):
+  129:             raise ValueError("short targets must be below the selected entry zone")
+  130: 
+  131:     @property
+  132:     def hard_blockers(self) -> tuple[RejectionReason, ...]:
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_snapshot.py:125 ---
+  111:             raise ValueError("partial-exit close percentages cannot exceed 100")
+  112: 
+  113:     def _validate_directional_geometry(self) -> None:
+  114:         if self.direction is None or self.selected_entry is None:
+  115:             return
+  116:         entry = self.selected_entry.opportunity
+  117:         if self.invalidation is not None:
+  118:             if self.direction is TradeDirection.LONG and self.invalidation.price >= entry.zone_low:
+  119:                 raise ValueError("long invalidation must be below the selected entry zone")
+  120:             if (
+  121:                 self.direction is TradeDirection.SHORT
+  122:                 and self.invalidation.price <= entry.zone_high
+  123:             ):
+  124:                 raise ValueError("short invalidation must be above the selected entry zone")
+  125:         if self.direction is TradeDirection.LONG:
+  126:             if any(target.price <= entry.zone_high for target in self.targets):
+  127:                 raise ValueError("long targets must be above the selected entry zone")
+  128:         elif any(target.price >= entry.zone_low for target in self.targets):
+  129:             raise ValueError("short targets must be below the selected entry zone")
+  130: 
+  131:     @property
+  132:     def hard_blockers(self) -> tuple[RejectionReason, ...]:
+  133:         return tuple(
+  134:             reason
+  135:             for reason in self.rejections
+  136:             if reason.severity is RejectionSeverity.HARD_BLOCKER
+  137:         )
+  138: 
+  139:     @property
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_stop_quality_semantics.py:12 ---
+    1: """Interpret stop placement quality without inventing arbitrary thresholds."""
+    2: 
+    3: from __future__ import annotations
+    4: 
+    5: from dataclasses import dataclass
+    6: from typing import Any
+    7: 
+    8: from apex.application.discovery_contracts import DiscoverySetup
+    9: from apex.application.methodology_contracts import EntryOpportunity
+   10: from apex.application.methodology_snapshot import MethodologySnapshot
+   11: from apex.application.methodology_stop_noise_contracts import StopNoiseEvidence
+   12: from apex.strategies.contracts import TradeDirection
+   13: 
+   14: 
+   15: @dataclass(frozen=True, slots=True)
+   16: class StopQualitySemantics:
+   17:     """Truthful structural-stop geometry and quality provenance."""
+   18: 
+   19:     canonical_available: bool
+   20:     selected_entry_available: bool
+   21:     direction_available: bool
+   22:     geometry_available: bool
+   23:     geometry_authoritative: bool
+   24:     entry_reference_price: float | None
+   25:     invalidation_price: float | None
+   26:     invalidation_distance: float | None
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_stop_quality_semantics.py:227 ---
+  213: 
+  214: def _selected_opportunity(
+  215:     methodology: MethodologySnapshot,
+  216: ) -> EntryOpportunity | None:
+  217:     decision = methodology.selected_entry
+  218:     return None if decision is None else decision.opportunity
+  219: 
+  220: 
+  221: def _stop_on_correct_side(
+  222:     methodology: MethodologySnapshot,
+  223:     entry: EntryOpportunity,
+  224: ) -> bool | None:
+  225:     if methodology.direction is None or methodology.invalidation is None:
+  226:         return None
+  227:     if methodology.direction is TradeDirection.LONG:
+  228:         return methodology.invalidation.price < entry.zone_low
+  229:     return methodology.invalidation.price > entry.zone_high
+  230: 
+  231: 
+  232: __all__ = [
+  233:     "StopQualitySemantics",
+  234:     "derive_stop_quality_semantics",
+  235:     "stop_quality_semantics_payload",
+  236: ]
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_strategy_evaluation.py:25 ---
+   11:     HtfConsequence,
+   12:     htf_consequence_payload,
+   13: )
+   14: from apex.application.methodology_opportunity_context import HoldingHorizon, OpportunityLane
+   15: from apex.application.methodology_strategy_contracts import PrimaryMarketState
+   16: from apex.application.methodology_strategy_layer_requirements import (
+   17:     strategy_layer_requirements,
+   18: )
+   19: from apex.application.methodology_strategy_registry import strategy_eligibility
+   20: from apex.domain.methodology_contracts import (
+   21:     ExecutionState,
+   22:     LayeredStateSnapshot,
+   23:     SetupState,
+   24: )
+   25: from apex.strategies.contracts import TradeDirection
+   26: from apex.strategies.strategy_types import StrategyType
+   27: 
+   28: 
+   29: class EligibilityStage(StrEnum):
+   30:     DATA = "data"
+   31:     TRADABILITY = "tradability"
+   32:     MANDATORY_EVIDENCE = "mandatory_evidence"
+   33:     GEOMETRY = "geometry"
+   34:     EXECUTION_STATE = "execution_state"
+   35:     SETUP_STATE = "setup_state"
+   36:     MARKET_STATE = "market_state"
+   37:     LANE_EXCEPTION = "lane_exception"
+   38:     COMPLETE = "complete"
+   39: 
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_strategy_evaluation.py:58 ---
+   44:     PROHIBITED_STATE = "prohibited_state"
+   45:     COMPATIBLE_WITH_CONSTRAINTS = "compatible_with_constraints"
+   46:     INSUFFICIENT_EVIDENCE_METADATA = "insufficient_evidence_metadata"
+   47: 
+   48: 
+   49: @dataclass(frozen=True, slots=True)
+   50: class StrategyEligibilityEvaluation:
+   51:     strategy: StrategyType
+   52:     state: StrategyEligibilityState
+   53:     market_state: PrimaryMarketState | None
+   54:     present_evidence: tuple[EvidenceFamily, ...]
+   55:     missing_mandatory_evidence: tuple[EvidenceFamily, ...]
+   56:     reasons: tuple[str, ...]
+   57:     lane: OpportunityLane | None = None
+   58:     direction: TradeDirection | None = None
+   59:     holding_horizon: HoldingHorizon | None = None
+   60:     runner_allowed: bool = True
+   61:     stage: EligibilityStage = EligibilityStage.COMPLETE
+   62:     htf_directional_conflict: bool = False
+   63:     layered_state: LayeredStateSnapshot | None = None
+   64:     htf_consequence: HtfConsequence | None = None
+   65: 
+   66:     def __post_init__(self) -> None:
+   67:         if not self.reasons:
+   68:             raise ValueError("strategy eligibility evaluation requires reasons")
+   69:         if len(set(self.present_evidence)) != len(self.present_evidence):
+   70:             raise ValueError("present evidence families must be unique")
+   71:         if len(set(self.missing_mandatory_evidence)) != len(self.missing_mandatory_evidence):
+   72:             raise ValueError("missing evidence families must be unique")
+
+MATCH: TradeDirection
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_strategy_evaluation.py:81 ---
+   67:         if not self.reasons:
+   68:             raise ValueError("strategy eligibility evaluation requires reasons")
+   69:         if len(set(self.present_evidence)) != len(self.present_evidence):
+   70:             raise ValueError("present evidence families must be unique")
+   71:         if len(set(self.missing_mandatory_evidence)) != len(self.missing_mandatory_evidence):
+   72:             raise ValueError("missing evidence families must be unique")
+   73: 
+   74: 
+   75: def evaluate_strategy_eligibility(
+   76:     strategy: StrategyType,
+   77:     *,
+   78:     market_state: PrimaryMarketState | None,
+   79:     evidence: tuple[EvidenceObservation, ...] = (),
+   80:     lane: OpportunityLane | None = None,
+   81:     direction: TradeDirection | None = None,
+   82:     holding_horizon: HoldingHorizon | None = None,
+   83:     data_fresh: bool = True,
+   84:     tradable: bool = True,
+   85:     geometry_valid: bool = True,
+   86:     stop_valid: bool = True,
+   87:     has_target: bool = True,
+   88:     execution_chaos: bool = False,
+   89:     htf_directional_conflict: bool = False,
+   90:     layered_state: LayeredStateSnapshot | None = None,
+   91:     htf_consequence: HtfConsequence | None = None,
+   92: ) -> StrategyEligibilityEvaluation:
+   93:     """Evaluate one strategy without changing live routing or candidate approval."""
+   94: 
+   95:     declaration = strategy_eligibility(strategy)

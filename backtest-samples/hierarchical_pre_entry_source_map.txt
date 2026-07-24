@@ -1,0 +1,1113 @@
+APEX HIERARCHICAL PRE-ENTRY INTEGRATION MAP
+==============================================================================
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/contracts.py:19 ---
+    5: import math
+    6: from collections.abc import Mapping
+    7: from dataclasses import dataclass
+    8: from datetime import datetime
+    9: from enum import StrEnum
+   10: from types import MappingProxyType
+   11: 
+   12: from apex.strategies.contracts import TradeCandidate, TradeDirection
+   13: from apex.strategies.strategy_types import StrategyType
+   14: 
+   15: 
+   16: class CandidateOutcome(StrEnum):
+   17:     ACCEPTED = "accepted"
+   18:     ACCEPTED_WITH_WARNING = "accepted_with_conflict_warning"
+   19:     DOWNGRADED = "downgraded"
+   20:     REJECTED_CONTRADICTION = "rejected_due_to_contradiction"
+   21:     REJECTED_DUPLICATE = "rejected_as_duplicate_thesis"
+   22:     REJECTED_BELOW_THRESHOLD = "rejected_below_score_threshold"
+   23: 
+   24: 
+   25: class DirectionalConsensus(StrEnum):
+   26:     LONG = "long"
+   27:     SHORT = "short"
+   28:     MIXED = "mixed"
+   29:     NONE = "none"
+   30: 
+   31: 
+   32: class EnvironmentRouteAlignmentState(StrEnum):
+   33:     ALIGNED = "aligned"
+   34:     LOWER_PRIORITY = "lower_priority"
+   35:     DIRECTION_CONFLICT = "direction_conflict"
+   36:     BLOCKED = "blocked"
+   37: 
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/contracts.py:163 ---
+  149: 
+  150:     def __post_init__(self) -> None:
+  151:         if self.long_count < 0 or self.short_count < 0:
+  152:             raise ValueError("direction counts cannot be negative")
+  153:         for group in self.duplicate_groups:
+  154:             if len(group) < 2 or len(set(group)) != len(group):
+  155:                 raise ValueError("duplicate groups must contain at least two unique identities")
+  156: 
+  157: 
+  158: @dataclass(frozen=True, slots=True)
+  159: class CandidateSelectionResult:
+  160:     symbol: str
+  161:     decision_time: datetime
+  162:     all_scored_candidates: tuple[ScoredCandidate, ...]
+  163:     ranked_candidates: tuple[RankedCandidate, ...]
+  164:     rejected_candidates: tuple[RankedCandidate, ...]
+  165:     conflict_summary: ConflictSummary
+  166:     directional_consensus: DirectionalConsensus
+  167:     selected_candidate: RankedCandidate | None
+  168:     no_trade_reason: str | None
+  169:     evaluated_strategy_order: tuple[StrategyType, ...]
+  170:     configuration_id: str
+  171:     metadata: Mapping[str, str | int | float | bool]
+  172:     selected_future_candidate: RankedCandidate | None = None
+  173: 
+  174:     def __post_init__(self) -> None:
+  175:         if not self.symbol.strip():
+  176:             raise ValueError("result symbol cannot be empty")
+  177:         _aware("result decision time", self.decision_time)
+  178:         if not self.configuration_id.strip():
+  179:             raise ValueError("configuration identifier cannot be empty")
+  180:         if len(set(self.evaluated_strategy_order)) != len(self.evaluated_strategy_order):
+  181:             raise ValueError("evaluated strategy order must contain unique strategies")
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/contracts.py:186 ---
+  172:     selected_future_candidate: RankedCandidate | None = None
+  173: 
+  174:     def __post_init__(self) -> None:
+  175:         if not self.symbol.strip():
+  176:             raise ValueError("result symbol cannot be empty")
+  177:         _aware("result decision time", self.decision_time)
+  178:         if not self.configuration_id.strip():
+  179:             raise ValueError("configuration identifier cannot be empty")
+  180:         if len(set(self.evaluated_strategy_order)) != len(self.evaluated_strategy_order):
+  181:             raise ValueError("evaluated strategy order must contain unique strategies")
+  182: 
+  183:         identities = tuple(item.candidate_id for item in self.all_scored_candidates)
+  184:         if len(set(identities)) != len(identities):
+  185:             raise ValueError("candidate identities must be unique")
+  186:         ranks = tuple(item.rank for item in self.ranked_candidates)
+  187:         if ranks != tuple(range(1, len(ranks) + 1)):
+  188:             raise ValueError("ranked candidates must have contiguous ranks")
+  189:         ranked_identity_sequence = tuple(
+  190:             item.scored.candidate_id for item in self.ranked_candidates
+  191:         )
+  192:         if len(set(ranked_identity_sequence)) != len(ranked_identity_sequence):
+  193:             raise ValueError("ranked candidate identities must be unique")
+  194:         ranked_ids = set(ranked_identity_sequence)
+  195:         rejected_ids = {item.scored.candidate_id for item in self.rejected_candidates}
+  196:         if not rejected_ids.issubset(ranked_ids):
+  197:             raise ValueError("rejected candidates must belong to ranked candidates")
+  198:         if self.selected_candidate is not None:
+  199:             selected_id = self.selected_candidate.scored.candidate_id
+  200:             if selected_id not in ranked_ids:
+  201:                 raise ValueError("selected candidate must belong to ranked candidates")
+  202:         if self.selected_future_candidate is not None:
+  203:             future_id = self.selected_future_candidate.scored.candidate_id
+  204:             if future_id not in ranked_ids:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/contracts.py:206 ---
+  192:         if len(set(ranked_identity_sequence)) != len(ranked_identity_sequence):
+  193:             raise ValueError("ranked candidate identities must be unique")
+  194:         ranked_ids = set(ranked_identity_sequence)
+  195:         rejected_ids = {item.scored.candidate_id for item in self.rejected_candidates}
+  196:         if not rejected_ids.issubset(ranked_ids):
+  197:             raise ValueError("rejected candidates must belong to ranked candidates")
+  198:         if self.selected_candidate is not None:
+  199:             selected_id = self.selected_candidate.scored.candidate_id
+  200:             if selected_id not in ranked_ids:
+  201:                 raise ValueError("selected candidate must belong to ranked candidates")
+  202:         if self.selected_future_candidate is not None:
+  203:             future_id = self.selected_future_candidate.scored.candidate_id
+  204:             if future_id not in ranked_ids:
+  205:                 raise ValueError("future candidate must belong to ranked candidates")
+  206:             if self.selected_candidate is not None and future_id == selected_id:
+  207:                 raise ValueError("current and future authorities must be distinct")
+  208:         if self.selected_candidate is not None or self.selected_future_candidate is not None:
+  209:             if self.no_trade_reason is not None:
+  210:                 raise ValueError("valid setup cannot also have a no-trade reason")
+  211:         elif not self.no_trade_reason or not self.no_trade_reason.strip():
+  212:             raise ValueError("no-trade result requires a reason")
+  213:         if set(identities) != ranked_ids:
+  214:             raise ValueError("every scored candidate must have exactly one ranked terminal outcome")
+  215:         if self.directional_consensus is not self.conflict_summary.directional_consensus:
+  216:             raise ValueError("directional consensus must match conflict summary")
+  217:         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+  218: 
+  219:     @property
+  220:     def selected_direction(self) -> TradeDirection | None:
+  221:         if self.selected_candidate is None:
+  222:             return None
+  223:         return self.selected_candidate.candidate.direction
+  224: 
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/contracts.py:229 ---
+  215:         if self.directional_consensus is not self.conflict_summary.directional_consensus:
+  216:             raise ValueError("directional consensus must match conflict summary")
+  217:         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+  218: 
+  219:     @property
+  220:     def selected_direction(self) -> TradeDirection | None:
+  221:         if self.selected_candidate is None:
+  222:             return None
+  223:         return self.selected_candidate.candidate.direction
+  224: 
+  225:     @property
+  226:     def selected_executable_candidate(self) -> RankedCandidate | None:
+  227:         """Return the canonical setup only when it authorizes execution now."""
+  228: 
+  229:         if self.selected_candidate is None:
+  230:             return None
+  231:         from apex.scoring.selection import is_entry_status_executable
+  232:         from apex.strategies import classify_candidate_actionability
+  233: 
+  234:         status = classify_candidate_actionability(self.selected_candidate.candidate)
+  235:         return self.selected_candidate if is_entry_status_executable(status) else None
+  236: 
+  237:     @property
+  238:     def setup_exists(self) -> bool:
+  239:         """Return whether the analysis retained any canonical valid setup."""
+  240: 
+  241:         return self.selected_candidate is not None or self.selected_future_candidate is not None
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/scoring/selection.py:112 ---
+   98:     )
+   99:     if not selectable:
+  100:         return None
+  101:     return min(
+  102:         selectable,
+  103:         key=lambda item: (
+  104:             _selection_precedence(item),
+  105:             -_selection_score(item, config),
+  106:             item.rank,
+  107:             item.scored.candidate_id,
+  108:         ),
+  109:     )
+  110: 
+  111: 
+  112: def no_trade_reason(ranked: tuple[RankedCandidate, ...]) -> str:
+  113:     """Return an explicit deterministic reason when nothing is selectable."""
+  114: 
+  115:     if not ranked:
+  116:         return "no strategy candidates were generated"
+  117:     outcomes = {item.outcome for item in ranked}
+  118:     accepted = tuple(item for item in ranked if item.outcome in _SELECTABLE)
+  119:     if accepted and not any(_selection_precedence(item) < 3 for item in accepted):
+  120:         return "no accepted candidate retains valid current or future entry geometry"
+  121:     if outcomes == {CandidateOutcome.REJECTED_BELOW_THRESHOLD}:
+  122:         return "all candidates scored below their configured approval thresholds"
+  123:     if CandidateOutcome.DOWNGRADED in outcomes:
+  124:         return "opposing candidates remain unresolved inside the conflict margin"
+  125:     if CandidateOutcome.REJECTED_CONTRADICTION in outcomes:
+  126:         return "all leading candidates were invalidated by major contradiction"
+  127:     return "all candidates were rejected by deterministic candidate-selection rules"
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:79 ---
+   65:     TradeDirection,
+   66: )
+   67: from apex.strategies.entry_status import EntryStatus
+   68: 
+   69: DEFAULT_MAXIMUM_CHASE_PCT = 0.35
+   70: DEFAULT_MINIMUM_CHASE_NET_R = 1.25
+   71: DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
+   72: DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
+   73: 
+   74: _VALID_DEVELOPING_OUTCOMES = {
+   75:     CandidateOutcome.ACCEPTED,
+   76:     CandidateOutcome.ACCEPTED_WITH_WARNING,
+   77: }
+   78: _MONITOR_ONLY_OUTCOMES = {
+   79:     CandidateOutcome.DOWNGRADED,
+   80:     CandidateOutcome.REJECTED_BELOW_THRESHOLD,
+   81: }
+   82: _CONFIRMATION_REQUIRED_MODES = {
+   83:     EntryMode.MARKET_NEAR,
+   84:     EntryMode.RETEST,
+   85:     EntryMode.SWEEP_RECOVERY,
+   86:     EntryMode.MOMENTUM_CONTINUATION,
+   87: }
+   88: 
+   89: 
+   90: def build_discovery_assessment(
+   91:     candidate_selection: CandidateSelectionResult,
+   92: ) -> DiscoveryAssessment:
+   93:     """Convert candidate selection into executable and developing setup views."""
+   94: 
+   95:     selected = (
+   96:         candidate_selection.selected_candidate or candidate_selection.selected_future_candidate
+   97:     )
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:106 ---
+   92: ) -> DiscoveryAssessment:
+   93:     """Convert candidate selection into executable and developing setup views."""
+   94: 
+   95:     selected = (
+   96:         candidate_selection.selected_candidate or candidate_selection.selected_future_candidate
+   97:     )
+   98:     developing = _best_developing_candidate(candidate_selection, selected=selected)
+   99:     quality_shadow = build_quality_shadow_rollout_diagnostics(candidate_selection).to_dict()
+  100:     if selected is None:
+  101:         return DiscoveryAssessment(
+  102:             symbol=candidate_selection.symbol,
+  103:             decision_time=candidate_selection.decision_time,
+  104:             setup=None,
+  105:             reasons=(
+  106:                 candidate_selection.no_trade_reason or "candidate selection produced no setup",
+  107:             ),
+  108:             developing_setup=(None if developing is None else _build_setup(developing)),
+  109:             quality_shadow_diagnostics=quality_shadow,
+  110:         )
+  111: 
+  112:     return DiscoveryAssessment(
+  113:         symbol=candidate_selection.symbol,
+  114:         decision_time=candidate_selection.decision_time,
+  115:         setup=_build_setup(selected),
+  116:         developing_setup=None if developing is None else _build_setup(developing),
+  117:         quality_shadow_diagnostics=quality_shadow,
+  118:     )
+  119: 
+  120: 
+  121: def build_opportunity_portfolio(
+  122:     candidate_selection: CandidateSelectionResult,
+  123:     *,
+  124:     cmp: float,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:137 ---
+  123:     *,
+  124:     cmp: float,
+  125:     analysis_mode: AnalysisMode,
+  126:     ranking_policy: PortfolioRankingPolicy = DEFAULT_PORTFOLIO_RANKING_POLICY,
+  127: ) -> SymbolOpportunityPortfolio:
+  128:     """Build a diagnostic portfolio from accepted ranked candidates.
+  129: 
+  130:     The legacy selected/developing assessment remains authoritative during the
+  131:     compatibility phase. Every accepted ranked candidate that can be represented
+  132:     by DiscoverySetup is retained in deterministic portfolio order.
+  133:     """
+  134: 
+  135:     setups = tuple(
+  136:         _build_setup(item)
+  137:         for item in candidate_selection.ranked_candidates
+  138:         if _is_public_setup_candidate(item)
+  139:     )
+  140:     return portfolio_from_setups(
+  141:         setups,
+  142:         symbol=candidate_selection.symbol,
+  143:         cmp=cmp,
+  144:         analysis_timestamp=candidate_selection.decision_time,
+  145:         analysis_mode=analysis_mode,
+  146:         ranking_policy=ranking_policy,
+  147:     )
+  148: 
+  149: 
+  150: def _best_developing_candidate(
+  151:     candidate_selection: CandidateSelectionResult,
+  152:     *,
+  153:     selected: RankedCandidate | None,
+  154: ) -> RankedCandidate | None:
+  155:     selected_id = None if selected is None else selected.scored.candidate_id
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:159 ---
+  145:         analysis_mode=analysis_mode,
+  146:         ranking_policy=ranking_policy,
+  147:     )
+  148: 
+  149: 
+  150: def _best_developing_candidate(
+  151:     candidate_selection: CandidateSelectionResult,
+  152:     *,
+  153:     selected: RankedCandidate | None,
+  154: ) -> RankedCandidate | None:
+  155:     selected_id = None if selected is None else selected.scored.candidate_id
+  156:     return next(
+  157:         (
+  158:             item
+  159:             for item in candidate_selection.ranked_candidates
+  160:             if item.scored.candidate_id != selected_id
+  161:             and _is_public_setup_candidate(item)
+  162:             and not is_entry_status_executable(classify_candidate_actionability(item.candidate))
+  163:         ),
+  164:         None,
+  165:     )
+  166: 
+  167: 
+  168: def _is_public_setup_candidate(item: RankedCandidate) -> bool:
+  169:     """Keep valid alert-only plans visible without promoting rejected execution."""
+  170: 
+  171:     candidate = getattr(item, "candidate", None)
+  172:     if candidate is None:
+  173:         return item.outcome in _VALID_DEVELOPING_OUTCOMES
+  174:     status = classify_candidate_actionability(candidate)
+  175:     if status is EntryStatus.MISSED_ENTRY and not _missed_setup_htf_valid(candidate):
+  176:         return False
+  177:     if item.outcome in _VALID_DEVELOPING_OUTCOMES:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:491 ---
+  477:         return "strategy_generated_momentum_reference"
+  478:     return "strategy_generated_market_near_confirmation"
+  479: 
+  480: 
+  481: def _confirmation_timeframe(candidate: TradeCandidate) -> str | None:
+  482:     for key in ("confirmation_timeframe", "decision_timeframe", "setup_timeframe"):
+  483:         value = candidate.metadata.get(key)
+  484:         if isinstance(value, str) and value.strip():
+  485:             return value.strip()
+  486:     return None
+  487: 
+  488: 
+  489: def _reason_not_executable(entry_status: EntryStatus) -> str:
+  490:     reasons = {
+  491:         EntryStatus.PULLBACK_PREFERRED: ("price has not reached the preferred pullback zone"),
+  492:         EntryStatus.CONFIRMATION_AT_CMP: (
+  493:             "current price is inside the entry zone, but activation confirmation is incomplete"
+  494:         ),
+  495:         EntryStatus.WATCH_NEAR_ENTRY: (
+  496:             "price is approaching the entry zone but activation is incomplete"
+  497:         ),
+  498:         EntryStatus.LATE_OR_CHASING: ("current price is beyond acceptable entry geometry"),
+  499:         EntryStatus.INVALIDATED: "the setup is invalidated and cannot activate",
+  500:     }
+  501:     return reasons.get(
+  502:         entry_status,
+  503:         f"{entry_status.value.lower().replace('_', ' ')} is not currently executable",
+  504:     )
+  505: 
+  506: 
+  507: def _entry_zone(zone: EntryZone, direction: TradeDirection) -> ActionableEntry:
+  508:     configured_chase = zone.max_chase_price
+  509:     if configured_chase is None:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:757 ---
+  743: 
+  744: def _expiry_reason(candidate: TradeCandidate) -> str:
+  745:     explicit = candidate.entry.expires_after_seconds is not None
+  746:     source = (
+  747:         "explicit strategy entry expiry" if explicit else "strategy and entry-mode validity policy"
+  748:     )
+  749:     return f"{source}: {candidate.strategy.value} / {candidate.entry.mode.value}"
+  750: 
+  751: 
+  752: def _trader_headline(status: EntryStatus) -> str:
+  753:     if status is EntryStatus.READY_NOW:
+  754:         return "Strong setup — executable now"
+  755:     if status is EntryStatus.AGGRESSIVE_NOW:
+  756:         return "Strong setup — aggressive execution possible"
+  757:     if status is EntryStatus.PULLBACK_PREFERRED:
+  758:         return "Strong setup — pullback/retest/reclaim pending"
+  759:     if status is EntryStatus.CONFIRMATION_AT_CMP:
+  760:         return "Current-price setup — confirmation required"
+  761:     if status is EntryStatus.WATCH_NEAR_ENTRY:
+  762:         return "Developing setup — watch only"
+  763:     if status is EntryStatus.MISSED_ENTRY:
+  764:         return "Missed entry — valid re-entry zone, confirmation required"
+  765:     if status is EntryStatus.INVALIDATED:
+  766:         return "Structurally invalidated setup"
+  767:     return "No defensible setup found"
+  768: 
+  769: 
+  770: def _partial_close_percentages(count: int) -> tuple[float, ...]:
+  771:     if count <= 0:
+  772:         raise ValueError("target count must be positive")
+  773:     if count > 3:
+  774:         raise ValueError("target allocation supports at most three targets")
+  775:     if count == 1:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/opportunity_portfolio.py:67 ---
+   53: 
+   54:     @property
+   55:     def is_scalp(self) -> bool:
+   56:         return self in {
+   57:             OpportunityLane.CMP_SCALP,
+   58:             OpportunityLane.CONFIRMATION_SCALP,
+   59:             OpportunityLane.PULLBACK_SCALP,
+   60:         }
+   61: 
+   62: 
+   63: class PortfolioDecisionState(StrEnum):
+   64:     """Highest-priority public state represented by a symbol portfolio."""
+   65: 
+   66:     ACTIONABLE_AT_CMP = "actionable_at_cmp"
+   67:     CONFIRMATION_AT_CMP = "confirmation_at_cmp"
+   68:     NEARBY_SETUP_AVAILABLE = "nearby_setup_available"
+   69:     FOLLOW_UP_AVAILABLE = "follow_up_available"
+   70:     RUNNER_MANAGEMENT = "runner_management"
+   71:     NO_VALID_SETUP = "no_valid_setup"
+   72: 
+   73: 
+   74: def classify_setup_sequence_role(setup: DiscoverySetup) -> SequenceRole:
+   75:     if not setup.canonical_actionability:
+   76:         return SequenceRole.CURRENT if setup.execution_allowed_now else SequenceRole.NEARBY
+   77: 
+   78:     assessment = build_actionability_state_assessment(
+   79:         setup,
+   80:         sequence_role=SequenceRole.CURRENT,
+   81:     )
+   82:     current_state = assessment.state in {
+   83:         ActionabilityState.EXECUTE_NOW,
+   84:         ActionabilityState.AGGRESSIVE_NOW,
+   85:         ActionabilityState.EXECUTE_ON_MICRO_CONFIRMATION,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/opportunity_portfolio.py:559 ---
+  545:         state = ActionabilityState.MISSED_OR_CHASING
+  546:         basis = ActionabilityClassificationBasis.MAXIMUM_CHASE
+  547:     elif (
+  548:         setup.execution_allowed_now
+  549:         and distance.location_state is not CmpLocationState.INSIDE_ENTRY_ZONE
+  550:     ):
+  551:         state = ActionabilityState.CMP_AVAILABLE_BUT_POOR_LOCATION
+  552:         basis = ActionabilityClassificationBasis.EXECUTABLE_POOR_LOCATION
+  553:     elif setup.entry_status is EntryStatus.READY_NOW:
+  554:         state = ActionabilityState.EXECUTE_NOW
+  555:         basis = ActionabilityClassificationBasis.EXECUTABLE_INSIDE_ZONE
+  556:     elif setup.entry_status is EntryStatus.AGGRESSIVE_NOW:
+  557:         state = ActionabilityState.AGGRESSIVE_NOW
+  558:         basis = ActionabilityClassificationBasis.EXECUTABLE_INSIDE_ZONE
+  559:     elif setup.entry_status is EntryStatus.PULLBACK_PREFERRED:
+  560:         state = ActionabilityState.RETEST_PREFERRED
+  561:         basis = ActionabilityClassificationBasis.RETEST_PATH
+  562:     elif setup.entry_status is EntryStatus.LATE_OR_CHASING:
+  563:         state = ActionabilityState.MISSED_OR_CHASING
+  564:         basis = ActionabilityClassificationBasis.MAXIMUM_CHASE
+  565:     else:
+  566:         state = ActionabilityState.DEVELOPING
+  567:         basis = ActionabilityClassificationBasis.DEFINED_BUT_IMMATURE
+  568: 
+  569:     return ActionabilityStateAssessment(
+  570:         state=state,
+  571:         basis=basis,
+  572:         source_entry_status=setup.entry_status,
+  573:         execution_allowed_now=setup.execution_allowed_now,
+  574:         location_state=distance.location_state,
+  575:         sequence_role=sequence_role,
+  576:         issues=tuple(issues),
+  577:         has_blocking_issue=blocking,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/opportunity_portfolio.py:727 ---
+  713:         setup.entry_status is EntryStatus.READY_NOW
+  714:         and distance.location_state is not CmpLocationState.INSIDE_ENTRY_ZONE
+  715:     ):
+  716:         codes.append(ActionabilityConsistencyCode.READY_NOW_OUTSIDE_ENTRY_ZONE)
+  717: 
+  718:     if (
+  719:         setup.entry_status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}
+  720:         and not setup.execution_allowed_now
+  721:     ):
+  722:         codes.append(ActionabilityConsistencyCode.IMMEDIATE_STATUS_EXECUTION_DISABLED)
+  723: 
+  724:     if (
+  725:         setup.entry_status
+  726:         in {
+  727:             EntryStatus.PULLBACK_PREFERRED,
+  728:             EntryStatus.WATCH_NEAR_ENTRY,
+  729:             EntryStatus.LATE_OR_CHASING,
+  730:             EntryStatus.INVALIDATED,
+  731:         }
+  732:         and setup.execution_allowed_now
+  733:     ):
+  734:         codes.append(ActionabilityConsistencyCode.NON_IMMEDIATE_STATUS_EXECUTION_AUTHORIZED)
+  735: 
+  736:     canonical_role = classify_setup_sequence_role(setup)
+  737:     if sequence_role is SequenceRole.NEARBY and canonical_role is SequenceRole.CURRENT:
+  738:         codes.append(ActionabilityConsistencyCode.NEARBY_ROLE_EXECUTION_AUTHORIZED)
+  739: 
+  740:     if sequence_role is SequenceRole.CURRENT and canonical_role is SequenceRole.NEARBY:
+  741:         codes.append(ActionabilityConsistencyCode.CURRENT_ROLE_EXECUTION_DISABLED)
+  742: 
+  743:     return ActionabilityConsistencyAudit(
+  744:         codes=tuple(codes),
+  745:         source_entry_status=setup.entry_status,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/opportunity_portfolio.py:972 ---
+  958: 
+  959:     @property
+  960:     def nearby_opportunities(self) -> tuple[TradeOpportunity, ...]:
+  961:         """Return planned nearby opportunities in deterministic side order."""
+  962: 
+  963:         return tuple(item for item in (self.nearby_long, self.nearby_short) if item is not None)
+  964: 
+  965:     @property
+  966:     def public_decision(self) -> PortfolioDecisionState:
+  967:         """Return the canonical public decision represented by populated slots."""
+  968: 
+  969:         if self.execution_ready_opportunities:
+  970:             return PortfolioDecisionState.ACTIONABLE_AT_CMP
+  971:         if self.current_opportunities:
+  972:             return PortfolioDecisionState.CONFIRMATION_AT_CMP
+  973:         if self.nearby_opportunities:
+  974:             return PortfolioDecisionState.NEARBY_SETUP_AVAILABLE
+  975:         if self.follow_up_opportunities:
+  976:             return PortfolioDecisionState.FOLLOW_UP_AVAILABLE
+  977:         if self.runner_plan is not None:
+  978:             return PortfolioDecisionState.RUNNER_MANAGEMENT
+  979:         return PortfolioDecisionState.NO_VALID_SETUP
+  980: 
+  981:     @property
+  982:     def primary_opportunity(self) -> TradeOpportunity | None:
+  983:         """Return the top-ranked retained opportunity."""
+  984: 
+  985:         return next(iter(self.opportunities), None)
+  986: 
+  987:     def has_direction(self, direction: TradeDirection) -> bool:
+  988:         """Return whether any retained opportunity uses the requested direction."""
+  989: 
+  990:         return any(item.direction is direction for item in self.opportunities)
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/opportunity_portfolio.py:1216 ---
+ 1202:     *,
+ 1203:     cmp: float,
+ 1204:     analysis_mode: AnalysisMode,
+ 1205: ) -> SymbolOpportunityPortfolio:
+ 1206:     """Adapt legacy setup fields through the canonical portfolio selector.
+ 1207: 
+ 1208:     Legacy selected and developing fields are inputs only. They cannot bypass
+ 1209:     eligibility, duplicate, lane-retention, or collision handling.
+ 1210:     """
+ 1211: 
+ 1212:     setups = tuple(
+ 1213:         sorted(
+ 1214:             (
+ 1215:                 setup
+ 1216:                 for setup in (assessment.setup, assessment.developing_setup)
+ 1217:                 if setup is not None
+ 1218:             ),
+ 1219:             key=lambda setup: (-setup.confidence_score, setup.candidate_id),
+ 1220:         )
+ 1221:     )
+ 1222:     return portfolio_from_setups(
+ 1223:         setups,
+ 1224:         symbol=assessment.symbol,
+ 1225:         cmp=cmp,
+ 1226:         analysis_timestamp=assessment.decision_time,
+ 1227:         analysis_mode=analysis_mode,
+ 1228:         legacy_geometry_identity=True,
+ 1229:     )
+ 1230: 
+ 1231: 
+ 1232: def opportunity_portfolio_payload(portfolio: SymbolOpportunityPortfolio) -> dict[str, Any]:
+ 1233:     """Serialize the additive compatibility portfolio without changing legacy fields."""
+ 1234: 
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:103 ---
+   89: )
+   90: from apex.application.methodology_geometry_enforcement import (
+   91:     GeometrySafetyEnforcementResult,
+   92:     GeometrySafetyGateMode,
+   93:     apply_geometry_safety_enforcement,
+   94:     geometry_safety_enforcement_payload,
+   95: )
+   96: from apex.application.methodology_geometry_runtime import (
+   97:     GeometryExecutionCosts,
+   98:     build_geometry_runtime_context,
+   99: )
+  100: from apex.application.methodology_htf_consequences import HtfConsequencePolicy
+  101: from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
+  102: from apex.application.methodology_phase5_evidence import (
+  103:     selected_candidate_methodology_evidence,
+  104: )
+  105: from apex.application.methodology_selected_entry_contracts import SelectedEntryDecision
+  106: from apex.application.methodology_selection_parity import (
+  107:     evaluate_methodology_selection_parity,
+  108:     methodology_selection_parity_payload,
+  109: )
+  110: from apex.application.methodology_setup_maturity import derive_setup_maturity
+  111: from apex.application.methodology_snapshot import MethodologySnapshot
+  112: from apex.application.methodology_strategy_contracts import PrimaryMarketState
+  113: from apex.application.opportunity_portfolio import (
+  114:     AnalysisMode,
+  115:     build_actionability_state_assessment,
+  116:     classify_setup_sequence_role,
+  117:     opportunity_portfolio_payload,
+  118: )
+  119: from apex.application.portfolio_ranking import portfolio_ranking_policy_from_settings
+  120: from apex.application.strategy_routing import (
+  121:     apply_strategy_routing,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:139 ---
+  125: from apex.config.settings import TimeframeIndicatorSettings
+  126: from apex.data.providers.base import MarketDataProvider
+  127: from apex.scoring.contracts import CandidateSelectionResult
+  128: from apex.strategies import (
+  129:     StrategyContext,
+  130:     analyze_strategies,
+  131:     strategy_evidence_payload,
+  132:     strategy_evidence_summary,
+  133: )
+  134: from apex.strategies.analysis import StrategyAnalysisResult
+  135: from apex.strategies.entry_status import EntryStatus
+  136: from apex.strategies.execution_quality import ExecutionQualityCapPolicy
+  137: 
+  138: 
+  139: def _apply_geometry_no_trade_reason(
+  140:     selection: CandidateSelectionResult,
+  141:     enforcement: GeometrySafetyEnforcementResult,
+  142: ) -> CandidateSelectionResult:
+  143:     """Preserve the real terminal cause when geometry removed every candidate."""
+  144: 
+  145:     if (
+  146:         selection.selected_candidate is not None
+  147:         or selection.ranked_candidates
+  148:         or enforcement.rejected_candidate_count == 0
+  149:     ):
+  150:         return selection
+  151:     return replace(
+  152:         selection,
+  153:         no_trade_reason=(
+  154:             f"all {enforcement.rejected_candidate_count} generated candidates "
+  155:             "were rejected by geometry safety"
+  156:         ),
+  157:     )
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:248 ---
+  234:     eligible_routed = geometry_enforcement.analysis
+  235:     market_intelligence = build_market_intelligence(context, dict(regimes))
+  236:     selection = analyze_futures_phase5(
+  237:         eligible_routed,
+  238:         environment_route=market_strategy_route,
+  239:     )
+  240:     edge_artifact, edge_reason = load_runtime_edge_artifact(Path("data/models/runtime_edge.json"))
+  241:     intelligence_regime = market_intelligence["regime"]
+  242:     selection, historical_edge = apply_runtime_edge_ranking(
+  243:         selection,
+  244:         edge_artifact,
+  245:         regime=str(intelligence_regime["state"]),
+  246:         archetype=str(market_intelligence["archetype"]),
+  247:     )
+  248:     selection = _apply_geometry_no_trade_reason(selection, geometry_enforcement)
+  249:     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
+  250:     counterfactual_mode = "enforce" if methodology_routing.mode.value == "shadow" else "shadow"
+  251:     counterfactual_routing = apply_methodology_candidate_routing(
+  252:         routed,
+  253:         methodology_routing.decisions,
+  254:         mode=counterfactual_mode,
+  255:     )
+  256:     counterfactual_selection = analyze_futures_phase5(
+  257:         counterfactual_routing.analysis,
+  258:         environment_route=market_strategy_route,
+  259:     )
+  260:     counterfactual_selection, _ = apply_runtime_edge_ranking(
+  261:         counterfactual_selection,
+  262:         edge_artifact,
+  263:         regime=str(intelligence_regime["state"]),
+  264:         archetype=str(market_intelligence["archetype"]),
+  265:     )
+  266:     methodology_selection_parity = _methodology_selection_parity_diagnostics(
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:275 ---
+  261:         counterfactual_selection,
+  262:         edge_artifact,
+  263:         regime=str(intelligence_regime["state"]),
+  264:         archetype=str(market_intelligence["archetype"]),
+  265:     )
+  266:     methodology_selection_parity = _methodology_selection_parity_diagnostics(
+  267:         live_mode=methodology_routing.mode.value,
+  268:         live_selection=selection,
+  269:         counterfactual_selection=counterfactual_selection,
+  270:     )
+  271:     assessment = build_discovery_assessment(selection)
+  272:     portfolio_cmp = (
+  273:         assessment.setup.entry.current_price
+  274:         if assessment.setup is not None
+  275:         else assessment.developing_setup.entry.current_price
+  276:         if assessment.developing_setup is not None
+  277:         else context.decision_frame.recent_candles[-1].close
+  278:     )
+  279:     opportunity_portfolio = build_opportunity_portfolio(
+  280:         selection,
+  281:         cmp=portfolio_cmp,
+  282:         analysis_mode=analysis_mode,
+  283:         ranking_policy=portfolio_ranking_policy_from_settings(
+  284:             resolved_methodology_settings.ranking_weights
+  285:         ),
+  286:     )
+  287:     ranking = build_candidate_ranking_snapshot(selection)
+  288:     candlestick_patterns = detect_contextual_candlesticks(context)
+  289:     candlestick_observations = candlestick_evidence_observations(candlestick_patterns)
+  290:     high_value_evidence_runtime = build_high_value_evidence_runtime_snapshot(
+  291:         context,
+  292:         as_of=decision_time,
+  293:     )
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:305 ---
+  291:         context,
+  292:         as_of=decision_time,
+  293:     )
+  294:     high_value_evidence_audit = reconcile_high_value_evidence_audit(
+  295:         context,
+  296:         high_value_evidence_runtime,
+  297:     )
+  298:     phase5_diagnostics = {
+  299:         "methodology_version": METHODOLOGY_VERSION,
+  300:         "candidate_count": len(selection.all_scored_candidates),
+  301:         "raw_candidate_count": len(strategy_analysis.candidates),
+  302:         "retained_candidate_count": len(eligible_routed.candidates),
+  303:         "hierarchical_timeframe_routing": hierarchical_routing_payload(hierarchical_routing),
+  304:         "geometry_safety_enforcement": geometry_safety_enforcement_payload(geometry_enforcement),
+  305:         "ranked_count": len(selection.ranked_candidates),
+  306:         "rejected_count": len(selection.rejected_candidates),
+  307:         "selected": selection.selected_candidate is not None,
+  308:         "developing_setup_selected": assessment.developing_setup is not None,
+  309:         "selected_candidate_id": (
+  310:             selection.selected_candidate.scored.candidate_id
+  311:             if selection.selected_candidate is not None
+  312:             else None
+  313:         ),
+  314:         "no_trade_reason": selection.no_trade_reason,
+  315:         "zero_trade_diagnostics": _zero_trade_diagnostics(
+  316:             strategy_analysis=strategy_analysis,
+  317:             eligible_routed=eligible_routed,
+  318:             selection=selection,
+  319:             assessment=assessment,
+  320:             methodology_routing=methodology_routing,
+  321:         ),
+  322:         "methodology_candidate_routing": methodology_candidate_routing_payload(methodology_routing),
+  323:         "methodology_routing_parity": methodology_parity,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:345 ---
+  331:             high_value_evidence_runtime
+  332:         ),
+  333:         "candidates": [
+  334:             {
+  335:                 "candidate_id": item.scored.candidate_id,
+  336:                 "strategy": item.candidate.strategy.value,
+  337:                 "direction": item.candidate.direction.value,
+  338:                 "outcome": item.outcome.value,
+  339:                 "final_score": item.final_score,
+  340:                 "evidence": strategy_evidence_payload(item.candidate.evidence),
+  341:                 "evidence_summary": strategy_evidence_summary(item.candidate.evidence),
+  342:                 "metadata": dict(item.candidate.metadata),
+  343:                 "reasons": list(item.reasons),
+  344:             }
+  345:             for item in selection.ranked_candidates
+  346:         ],
+  347:     }
+  348:     selected_candidate_id = None if assessment.setup is None else assessment.setup.candidate_id
+  349:     phase5_observations, contradictions = (
+  350:         ((), ())
+  351:         if selected_candidate_id is None
+  352:         else selected_candidate_methodology_evidence(
+  353:             phase5_diagnostics,
+  354:             candidate_id=selected_candidate_id,
+  355:         )
+  356:     )
+  357:     methodology = _build_native_methodology_snapshot(
+  358:         assessment.setup,
+  359:         context=context,
+  360:         evidence=tuple((*phase5_observations, *candlestick_observations)),
+  361:         contradictions=contradictions,
+  362:         no_trade_reason=selection.no_trade_reason,
+  363:     )
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:562 ---
+  548:         for diagnostic in strategy_diagnostics.values()
+  549:         for code in diagnostic.rejection_codes
+  550:     )
+  551:     strategy_summary = {
+  552:         strategy.value: {
+  553:             "candidate_count": diagnostic.candidate_count,
+  554:             "canonical_family": strategy.canonical_family.value,
+  555:             "canonical_subtype": strategy.canonical_subtype,
+  556:             "near_miss_state": diagnostic.near_miss_state.value,
+  557:             "rejection_codes": [code.value for code in diagnostic.rejection_codes],
+  558:             "reasons": list(diagnostic.reasons),
+  559:         }
+  560:         for strategy, diagnostic in strategy_diagnostics.items()
+  561:     }
+  562:     ranked_outcomes = Counter(item.outcome.value for item in selection.ranked_candidates)
+  563:     rejected_reasons: list[dict[str, Any]] = []
+  564:     seen_rejected_reasons: set[str] = set()
+  565:     for suppressed in getattr(eligible_routed, "suppressed_candidates", ()):
+  566:         for reason in getattr(suppressed, "reasons", ()):
+  567:             if not reason or reason in seen_rejected_reasons:
+  568:                 continue
+  569:             seen_rejected_reasons.add(reason)
+  570:             rejected_reasons.append({"reason": reason, "count": 1})
+  571:     for item in selection.rejected_candidates:
+  572:         alignment = item.scored.environment_route_alignment
+  573:         item_reasons = (() if alignment is None else tuple(alignment.reasons)) + tuple(item.reasons)
+  574:         for reason in item_reasons:
+  575:             if not reason or reason in seen_rejected_reasons:
+  576:                 continue
+  577:             seen_rejected_reasons.add(reason)
+  578:             rejected_reasons.append({"reason": reason, "count": 1})
+  579:     selected = selection.selected_candidate
+  580:     developing = assessment.developing_setup
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:600 ---
+  586:         )
+  587:     )
+  588:     methodology_suppressed_count = int(
+  589:         getattr(methodology_routing, "suppressed_candidate_count", 0)
+  590:     )
+  591:     scored_candidates = getattr(selection, "all_scored_candidates", ())
+  592:     selection_metadata = getattr(selection, "metadata", {}) or {}
+  593:     return {
+  594:         "diagnostic_version": 1,
+  595:         "breakout_routing": _breakout_routing_diagnostics(strategy_analysis),
+  596:         "execution_filter_policy": (
+  597:             "strict: diagnostics may explain zero trades, but do not loosen entry filters"
+  598:         ),
+  599:         "decision": "TRADE" if selected is not None else "NO_TRADE",
+  600:         "no_trade_reason": selection.no_trade_reason,
+  601:         "selection_summary": {
+  602:             "raw_candidate_count": len(strategy_analysis.candidates),
+  603:             "methodology_input_candidate_count": methodology_input_count,
+  604:             "retained_candidate_count": len(eligible_routed.candidates),
+  605:             "methodology_suppressed_candidate_count": methodology_suppressed_count,
+  606:             "scored_candidate_count": len(scored_candidates),
+  607:             "ranked_count": len(selection.ranked_candidates),
+  608:             "terminal_outcome_count": int(selection_metadata.get("terminal_outcome_count", 0)),
+  609:             "rejected_count": len(selection.rejected_candidates),
+  610:             "selected_candidate_id": None if selected is None else selected.scored.candidate_id,
+  611:             "developing_candidate_id": None if developing is None else developing.candidate_id,
+  612:             "methodology_lineage_balanced": (
+  613:                 methodology_input_count
+  614:                 == len(eligible_routed.candidates) + methodology_suppressed_count
+  615:             ),
+  616:             "selection_lineage_balanced": bool(
+  617:                 selection_metadata.get(
+  618:                     "lineage_balanced",
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:619 ---
+  605:             "methodology_suppressed_candidate_count": methodology_suppressed_count,
+  606:             "scored_candidate_count": len(scored_candidates),
+  607:             "ranked_count": len(selection.ranked_candidates),
+  608:             "terminal_outcome_count": int(selection_metadata.get("terminal_outcome_count", 0)),
+  609:             "rejected_count": len(selection.rejected_candidates),
+  610:             "selected_candidate_id": None if selected is None else selected.scored.candidate_id,
+  611:             "developing_candidate_id": None if developing is None else developing.candidate_id,
+  612:             "methodology_lineage_balanced": (
+  613:                 methodology_input_count
+  614:                 == len(eligible_routed.candidates) + methodology_suppressed_count
+  615:             ),
+  616:             "selection_lineage_balanced": bool(
+  617:                 selection_metadata.get(
+  618:                     "lineage_balanced",
+  619:                     len(scored_candidates) == len(selection.ranked_candidates),
+  620:                 )
+  621:             ),
+  622:         },
+  623:         "entry_status_distribution": {
+  624:             "raw": dict(sorted(raw_status_counts.items())),
+  625:             "retained": dict(sorted(retained_status_counts.items())),
+  626:         },
+  627:         "canonical_family_distribution": dict(sorted(family_counts.items())),
+  628:         "ranked_outcome_distribution": dict(sorted(ranked_outcomes.items())),
+  629:         "strategy_rejection_code_distribution": dict(sorted(rejection_codes.items())),
+  630:         "top_rejected_reasons": rejected_reasons[:8],
+  631:         "strategy_diagnostics": strategy_summary,
+  632:         "methodology_shadow_vs_enforce": {
+  633:             "mode": methodology_routing.mode.value,
+  634:             "suppressed_candidate_count": methodology_routing.suppressed_candidate_count,
+  635:             "suppressed_strategies": [
+  636:                 strategy.value for strategy in methodology_routing.suppressed_strategies
+  637:             ],
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:676 ---
+  662:             )
+  663:         except Exception as exc:  # Scanner intentionally isolates per-symbol failures.
+  664:             failures[symbol] = str(exc)
+  665:     return ScanResult(
+  666:         timestamp,
+  667:         tuple(sorted(analyses, key=_scan_sort_key)),
+  668:         failures,
+  669:     )
+  670: 
+  671: 
+  672: def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
+  673:     """Serialize the canonical portfolio view while retaining legacy diagnostics."""
+  674: 
+  675:     legacy_setup = analysis.assessment.setup
+  676:     legacy_developing_setup = analysis.assessment.developing_setup
+  677:     portfolio = analysis.opportunity_portfolio
+  678:     primary_opportunity = None if portfolio is None else portfolio.primary_opportunity
+  679:     setup = legacy_setup if primary_opportunity is None else primary_opportunity.setup
+  680:     portfolio_decision = None if portfolio is None else portfolio.public_decision.value
+  681:     payload: dict[str, Any] = {
+  682:         "symbol": analysis.symbol,
+  683:         "generated_at": analysis.generated_at.isoformat(),
+  684:         "methodology_version": METHODOLOGY_VERSION,
+  685:         "methodology_path": METHODOLOGY_PATH,
+  686:         "decision": setup.direction.value.upper() if setup is not None else "NO_TRADE",
+  687:         "portfolio_decision": portfolio_decision,
+  688:         "legacy_decision": (
+  689:             legacy_setup.direction.value.upper() if legacy_setup is not None else "NO_TRADE"
+  690:         ),
+  691:         "entry_status": setup.entry_status.value if setup is not None else None,
+  692:         "strategy": setup.strategy.value if setup is not None else None,
+  693:         "strategy_family": setup.strategy.canonical_family.value if setup is not None else None,
+  694:         "strategy_subtype": setup.strategy.canonical_subtype if setup is not None else None,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:721 ---
+  707:             analysis.data_quality_by_timeframe,
+  708:             None if setup is None else setup.direction,
+  709:         ),
+  710:         "shared_structure_map": _shared_structure_map_payload(analysis.data_quality_by_timeframe),
+  711:         "strategy_routing": analysis.strategy_routing,
+  712:         "phase5_diagnostics": analysis.phase5_diagnostics,
+  713:         "market_intelligence": analysis.market_intelligence,
+  714:         "historical_edge": analysis.historical_edge,
+  715:         "candidate_ranking": (
+  716:             candidate_ranking_payload(analysis.candidate_ranking)
+  717:             if analysis.candidate_ranking is not None
+  718:             else None
+  719:         ),
+  720:         "setup": None,
+  721:         "developing_setup": None,
+  722:         "legacy_assessment": {
+  723:             "setup": None if legacy_setup is None else _setup_payload(legacy_setup),
+  724:             "developing_setup": (
+  725:                 None if legacy_developing_setup is None else _setup_payload(legacy_developing_setup)
+  726:             ),
+  727:             "reasons": list(analysis.assessment.reasons),
+  728:         },
+  729:     }
+  730:     if primary_opportunity is not None:
+  731:         primary_setup = primary_opportunity.setup
+  732:         if primary_setup.execution_allowed_now:
+  733:             payload["setup"] = _setup_payload(primary_setup)
+  734:         else:
+  735:             payload["developing_setup"] = _setup_payload(primary_setup)
+  736:     else:
+  737:         if legacy_setup is not None:
+  738:             payload["setup"] = _setup_payload(legacy_setup)
+  739:         if legacy_developing_setup is not None:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:740 ---
+  726:             ),
+  727:             "reasons": list(analysis.assessment.reasons),
+  728:         },
+  729:     }
+  730:     if primary_opportunity is not None:
+  731:         primary_setup = primary_opportunity.setup
+  732:         if primary_setup.execution_allowed_now:
+  733:             payload["setup"] = _setup_payload(primary_setup)
+  734:         else:
+  735:             payload["developing_setup"] = _setup_payload(primary_setup)
+  736:     else:
+  737:         if legacy_setup is not None:
+  738:             payload["setup"] = _setup_payload(legacy_setup)
+  739:         if legacy_developing_setup is not None:
+  740:             payload["developing_setup"] = _setup_payload(legacy_developing_setup)
+  741:     return payload
+  742: 
+  743: 
+  744: def _setup_payload(setup: DiscoverySetup) -> dict[str, Any]:
+  745:     sequence_role = classify_setup_sequence_role(setup)
+  746:     actionability = build_actionability_state_assessment(
+  747:         setup,
+  748:         sequence_role=sequence_role,
+  749:     )
+  750:     return {
+  751:         "candidate_id": setup.candidate_id,
+  752:         "direction": setup.direction.value,
+  753:         "strategy": setup.strategy.value,
+  754:         "strategy_family": setup.strategy.canonical_family.value,
+  755:         "strategy_subtype": setup.strategy.canonical_subtype,
+  756:         "actionability_state": actionability.state.value,
+  757:         "actionability_basis": actionability.basis.value,
+  758:         "actionability_blocked": actionability.has_blocking_issue,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1268 ---
+ 1254: ) -> tuple[int, float, float, str]:
+ 1255:     setup = analysis.assessment.setup
+ 1256:     if setup is None:
+ 1257:         return (1, 0.0, 0.0, analysis.symbol)
+ 1258:     best_rr = max(target.risk_reward for target in setup.take_profits)
+ 1259:     return (0, -setup.confidence_score, -best_rr, analysis.symbol)
+ 1260: 
+ 1261: 
+ 1262: def _build_native_methodology_snapshot(
+ 1263:     setup: DiscoverySetup | None,
+ 1264:     *,
+ 1265:     context: StrategyContext,
+ 1266:     evidence: tuple[Any, ...],
+ 1267:     contradictions: tuple[Any, ...],
+ 1268:     no_trade_reason: str | None,
+ 1269: ) -> MethodologySnapshot:
+ 1270:     evidence = tuple(dict.fromkeys(evidence))
+ 1271:     contradictions = tuple(dict.fromkeys(contradictions))
+ 1272:     if setup is None:
+ 1273:         return MethodologySnapshot(
+ 1274:             evidence=evidence,
+ 1275:             contradictions=contradictions,
+ 1276:             rejections=(_no_trade_rejection(no_trade_reason),),
+ 1277:         )
+ 1278: 
+ 1279:     maturity = derive_setup_maturity(setup.strategy, setup.entry_status)
+ 1280:     entry_opportunity = _entry_opportunity(setup, context)
+ 1281:     selected_entry = SelectedEntryDecision(
+ 1282:         opportunity=entry_opportunity,
+ 1283:         reason="selected setup entry geometry passed Phase 5 candidate selection",
+ 1284:     )
+ 1285:     invalidation = StructuralInvalidation(
+ 1286:         price=setup.stop_loss.price,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1376 ---
+ 1362:         current_distance_atr=distance / context.atr,
+ 1363:         quality=_entry_quality(setup.entry_status),
+ 1364:         reason=(
+ 1365:             f"{setup.entry_status.value} entry derived from selected {setup.strategy.value} setup"
+ 1366:         ),
+ 1367:         expiry_bars=_expiry_bars(setup.entry_status),
+ 1368:     )
+ 1369: 
+ 1370: 
+ 1371: def _entry_kind(status: EntryStatus) -> EntryOpportunityType:
+ 1372:     if status is EntryStatus.READY_NOW:
+ 1373:         return EntryOpportunityType.IMMEDIATE
+ 1374:     if status is EntryStatus.AGGRESSIVE_NOW:
+ 1375:         return EntryOpportunityType.AGGRESSIVE
+ 1376:     if status is EntryStatus.PULLBACK_PREFERRED:
+ 1377:         return EntryOpportunityType.PULLBACK
+ 1378:     if status is EntryStatus.WATCH_NEAR_ENTRY:
+ 1379:         return EntryOpportunityType.DEVELOPING_FUTURE
+ 1380:     if status is EntryStatus.LATE_OR_CHASING:
+ 1381:         return EntryOpportunityType.RETEST
+ 1382:     return EntryOpportunityType.DEVELOPING_FUTURE
+ 1383: 
+ 1384: 
+ 1385: def _entry_quality(status: EntryStatus) -> float:
+ 1386:     return {
+ 1387:         EntryStatus.READY_NOW: 0.9,
+ 1388:         EntryStatus.AGGRESSIVE_NOW: 0.75,
+ 1389:         EntryStatus.PULLBACK_PREFERRED: 0.7,
+ 1390:         EntryStatus.CONFIRMATION_AT_CMP: 0.65,
+ 1391:         EntryStatus.WATCH_NEAR_ENTRY: 0.55,
+ 1392:         EntryStatus.MISSED_ENTRY: 0.25,
+ 1393:         EntryStatus.INVALIDATED: 0.05,
+ 1394:     }[status]
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_analysis.py:1406 ---
+ 1392:         EntryStatus.MISSED_ENTRY: 0.25,
+ 1393:         EntryStatus.INVALIDATED: 0.05,
+ 1394:     }[status]
+ 1395: 
+ 1396: 
+ 1397: def _confirmation_level(setup: DiscoverySetup) -> float | None:
+ 1398:     if setup.entry_status is EntryStatus.READY_NOW:
+ 1399:         return None
+ 1400:     return setup.entry.upper if setup.direction.value == "long" else setup.entry.lower
+ 1401: 
+ 1402: 
+ 1403: def _expiry_bars(status: EntryStatus) -> int:
+ 1404:     if status in {EntryStatus.READY_NOW, EntryStatus.AGGRESSIVE_NOW}:
+ 1405:         return 3
+ 1406:     if status is EntryStatus.PULLBACK_PREFERRED:
+ 1407:         return 8
+ 1408:     if status is EntryStatus.WATCH_NEAR_ENTRY:
+ 1409:         return 12
+ 1410:     return 2
+ 1411: 
+ 1412: 
+ 1413: def _duration_expectation(context: StrategyContext) -> DurationExpectation:
+ 1414:     seconds = _timeframe_seconds(context.decision_frame.timeframe)
+ 1415:     expected_bars = 12
+ 1416:     expiry_bars = 8
+ 1417:     return DurationExpectation(
+ 1418:         category=_hold_category(seconds),
+ 1419:         expected_hold_min_seconds=max(seconds, seconds * 3),
+ 1420:         expected_hold_max_seconds=seconds * expected_bars,
+ 1421:         expected_bars=expected_bars,
+ 1422:         setup_expiry_bars=expiry_bars,
+ 1423:         expiry_reason="derived from selected setup timeframe and methodology expiry policy",
+ 1424:     )

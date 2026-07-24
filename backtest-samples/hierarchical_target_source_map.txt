@@ -1,0 +1,1247 @@
+APEX HIERARCHICAL TARGET OWNERSHIP SOURCE MAP
+==============================================================================
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/trade_geometry.py:12 ---
+    1: "Shared structural stop and target geometry."
+    2: 
+    3: from __future__ import annotations
+    4: 
+    5: import math
+    6: from dataclasses import dataclass
+    7: from enum import IntEnum
+    8: 
+    9: from apex.strategies.contracts import (
+   10:     InvalidationType,
+   11:     TargetLevel,
+   12:     TargetType,
+   13:     TradeDirection,
+   14: )
+   15: 
+   16: 
+   17: class TargetSourcePriority(IntEnum):
+   18:     STRUCTURAL = 0
+   19:     LIQUIDITY = 1
+   20:     RANGE = 2
+   21:     EXPANSION = 3
+   22:     PARTIAL = 4
+   23: 
+   24: 
+   25: _TARGET_SOURCE_PRIORITY = {
+   26:     TargetType.STRUCTURAL: TargetSourcePriority.STRUCTURAL,
+   27:     TargetType.LIQUIDITY: TargetSourcePriority.LIQUIDITY,
+   28:     TargetType.RANGE: TargetSourcePriority.RANGE,
+   29:     TargetType.EXPANSION: TargetSourcePriority.EXPANSION,
+   30:     TargetType.PARTIAL: TargetSourcePriority.PARTIAL,
+   31: }
+   32: 
+   33: 
+   34: @dataclass(frozen=True, slots=True)
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/trade_geometry.py:128 ---
+  112:         invalidation_price - buffer
+  113:         if direction is TradeDirection.LONG
+  114:         else invalidation_price + buffer
+  115:     )
+  116:     if price <= 0.0:
+  117:         raise ValueError("buffered stop price must remain positive")
+  118:     distance = abs(preferred_entry - price)
+  119:     return StopGeometry(
+  120:         price=price,
+  121:         distance=distance,
+  122:         distance_pct=distance / preferred_entry * 100.0,
+  123:         buffer=buffer,
+  124:         buffer_reason=reason,
+  125:     )
+  126: 
+  127: 
+  128: def build_layered_targets(
+  129:     *,
+  130:     direction: TradeDirection,
+  131:     preferred_entry: float,
+  132:     stop_price: float,
+  133:     strategy_targets: tuple[TargetLevel, ...],
+  134:     tick_size: float | None = None,
+  135: ) -> tuple[TargetLevel, ...]:
+  136:     """Normalize defensible strategy targets using canonical hierarchy."""
+  137: 
+  138:     if not strategy_targets:
+  139:         raise ValueError("at least one strategy target is required")
+  140:     if not math.isfinite(preferred_entry) or preferred_entry <= 0.0:
+  141:         raise ValueError("preferred entry must be positive and finite")
+  142:     if not math.isfinite(stop_price) or stop_price <= 0.0:
+  143:         raise ValueError("stop price must be positive and finite")
+  144:     if math.isclose(preferred_entry, stop_price, rel_tol=0.0, abs_tol=0.0):
+  145:         raise ValueError("stop must differ from preferred entry")
+  146:     if tick_size is not None and (not math.isfinite(tick_size) or tick_size <= 0.0):
+  147:         raise ValueError("tick size must be positive and finite when provided")
+  148: 
+  149:     directionally_valid = tuple(
+  150:         level
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/trade_geometry.py:234 ---
+  218:     return tuple(retained)
+  219: 
+  220: 
+  221: def _same_target_price(
+  222:     left: float,
+  223:     right: float,
+  224:     *,
+  225:     tick_size: float | None,
+  226: ) -> bool:
+  227:     tolerance = max(abs(left), abs(right), 1.0) * 1e-12 if tick_size is None else tick_size
+  228:     return math.isclose(left, right, rel_tol=0.0, abs_tol=tolerance)
+  229: 
+  230: 
+  231: __all__ = [
+  232:     "StopGeometry",
+  233:     "TargetSourcePriority",
+  234:     "build_layered_targets",
+  235:     "build_stop_geometry",
+  236: ]
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:41 ---
+   25: from apex.application.hierarchical_timeframe_routing import (
+   26:     is_hierarchical_pre_entry_candidate,
+   27: )
+   28: from apex.application.methodology_candidate_entry_authority import (
+   29:     CandidateEntryAuthority,
+   30:     resolve_candidate_entry_authority,
+   31: )
+   32: from apex.application.opportunity_portfolio import (
+   33:     AnalysisMode,
+   34:     SymbolOpportunityPortfolio,
+   35:     portfolio_from_setups,
+   36: )
+   37: from apex.application.portfolio_ranking import (
+   38:     DEFAULT_PORTFOLIO_RANKING_POLICY,
+   39:     PortfolioRankingPolicy,
+   40: )
+   41: from apex.application.trade_geometry import build_layered_targets, build_stop_geometry
+   42: from apex.domain.methodology_contracts import (
+   43:     ContinuationState,
+   44:     HoldingHorizon,
+   45:     RelationshipSeverity,
+   46:     TimeframeRelationship,
+   47: )
+   48: from apex.scoring.contracts import (
+   49:     CandidateOutcome,
+   50:     CandidateSelectionResult,
+   51:     RankedCandidate,
+   52: )
+   53: from apex.scoring.quality_dimensions import (
+   54:     CandidateQualityDimensions,
+   55:     derive_quality_dimensions,
+   56: )
+   57: from apex.scoring.quality_shadow_rollout import (
+   58:     build_quality_shadow_rollout_diagnostics,
+   59: )
+   60: from apex.scoring.selection import is_entry_status_executable
+   61: from apex.strategies import classify_candidate_actionability
+   62: from apex.strategies.actionability import select_actionable_entry_zone
+   63: from apex.strategies.contracts import (
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:66 ---
+   50:     CandidateSelectionResult,
+   51:     RankedCandidate,
+   52: )
+   53: from apex.scoring.quality_dimensions import (
+   54:     CandidateQualityDimensions,
+   55:     derive_quality_dimensions,
+   56: )
+   57: from apex.scoring.quality_shadow_rollout import (
+   58:     build_quality_shadow_rollout_diagnostics,
+   59: )
+   60: from apex.scoring.selection import is_entry_status_executable
+   61: from apex.strategies import classify_candidate_actionability
+   62: from apex.strategies.actionability import select_actionable_entry_zone
+   63: from apex.strategies.contracts import (
+   64:     EntryMode,
+   65:     EntryZone,
+   66:     TargetType,
+   67:     TradeCandidate,
+   68:     TradeDirection,
+   69: )
+   70: from apex.strategies.entry_status import EntryStatus
+   71: 
+   72: DEFAULT_MAXIMUM_CHASE_PCT = 0.35
+   73: DEFAULT_MINIMUM_CHASE_NET_R = 1.25
+   74: DEFAULT_STRUCTURAL_STOP_BUFFER_PCT = 0.10
+   75: DEFAULT_STRUCTURAL_STOP_BUFFER_ATR = 0.25
+   76: 
+   77: _VALID_DEVELOPING_OUTCOMES = {
+   78:     CandidateOutcome.ACCEPTED,
+   79:     CandidateOutcome.ACCEPTED_WITH_WARNING,
+   80: }
+   81: _MONITOR_ONLY_OUTCOMES = {
+   82:     CandidateOutcome.DOWNGRADED,
+   83:     CandidateOutcome.REJECTED_BELOW_THRESHOLD,
+   84: }
+   85: _CONFIRMATION_REQUIRED_MODES = {
+   86:     EntryMode.MARKET_NEAR,
+   87:     EntryMode.RETEST,
+   88:     EntryMode.SWEEP_RECOVERY,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:417 ---
+  401:             else scores.overall_trade_quality
+  402:         ),
+  403:     )
+  404: 
+  405: 
+  406: def _conditional_plan(
+  407:     candidate: TradeCandidate,
+  408:     *,
+  409:     entry_status: EntryStatus,
+  410:     entry: ActionableEntry,
+  411:     stop: StopLoss,
+  412:     entry_authority: CandidateEntryAuthority,
+  413: ) -> ConditionalExecutionPlan | None:
+  414:     if is_entry_status_executable(entry_status):
+  415:         return None
+  416: 
+  417:     confirmation_timeframe = _confirmation_timeframe(candidate)
+  418:     mode = candidate.entry.mode
+  419:     if mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}:
+  420:         trigger_kind = ActivationTriggerType.PRICE_TOUCH
+  421:         condition = (
+  422:             "price enters the predefined entry zone and the setup is revalidated "
+  423:             "before order placement"
+  424:         )
+  425:         order_intent = RecommendedOrderIntent.LIMIT
+  426:         conditional_order_eligible = False
+  427:     elif mode is EntryMode.RETEST:
+  428:         trigger_kind = ActivationTriggerType.RETEST_HOLD
+  429:         condition = "price retests the entry zone and demonstrates acceptance before entry"
+  430:         order_intent = RecommendedOrderIntent.ALERT_ONLY
+  431:         conditional_order_eligible = False
+  432:     elif mode is EntryMode.SWEEP_RECOVERY:
+  433:         trigger_kind = ActivationTriggerType.RECLAIM_CLOSE
+  434:         condition = "price reclaims the preferred level after the liquidity sweep"
+  435:         order_intent = RecommendedOrderIntent.ALERT_ONLY
+  436:         conditional_order_eligible = False
+  437:     elif mode is EntryMode.MOMENTUM_CONTINUATION:
+  438:         trigger_kind = ActivationTriggerType.RETEST_HOLD
+  439:         condition = (
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:460 ---
+  444:     else:
+  445:         trigger_kind = ActivationTriggerType.CANDLE_CLOSE
+  446:         condition = "the required confirmation closes through the preferred trigger level"
+  447:         order_intent = RecommendedOrderIntent.ALERT_ONLY
+  448:         conditional_order_eligible = False
+  449: 
+  450:     invalidation_condition = (
+  451:         "price reaches or closes below structural invalidation before activation"
+  452:         if candidate.direction is TradeDirection.LONG
+  453:         else "price reaches or closes above structural invalidation before activation"
+  454:     )
+  455:     return ConditionalExecutionPlan(
+  456:         trigger=ActivationTrigger(
+  457:             kind=trigger_kind,
+  458:             level=entry_authority.trigger_level,
+  459:             condition=condition,
+  460:             confirmation_timeframe=confirmation_timeframe,
+  461:         ),
+  462:         pre_entry_invalidation=PreEntryInvalidation(
+  463:             price=candidate.invalidation.price,
+  464:             condition=invalidation_condition,
+  465:             rationale=candidate.invalidation.rationale,
+  466:         ),
+  467:         conditional_order_eligible=conditional_order_eligible,
+  468:         recommended_order_intent=order_intent,
+  469:         reason_not_executable_now=_reason_not_executable(entry_status),
+  470:         geometry_basis=entry_authority.geometry_owner,
+  471:         entry_source=_entry_source(candidate),
+  472:         trigger_matches_preferred_entry=(entry_authority.trigger_matches_selected_entry),
+  473:         stop_basis="structural_invalidation_buffered_from_candidate_entry",
+  474:         targets_basis="strategy_supplied_targets_with_explicit_provenance",
+  475:         geometry_is_trigger_relative=(entry_authority.trigger_matches_selected_entry),
+  476:     )
+  477: 
+  478: 
+  479: def _entry_source(candidate: TradeCandidate) -> str:
+  480:     mode = candidate.entry.mode
+  481:     if mode is EntryMode.RETEST:
+  482:         return {
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:498 ---
+  482:         return {
+  483:             "breakout_continuation": "strategy_generated_broken_level_retest",
+  484:             "range_reversal": "strategy_generated_range_boundary_retest",
+  485:             "trend_pullback": "strategy_generated_structural_level_retest",
+  486:         }.get(candidate.strategy.value, "strategy_generated_retest")
+  487:     if mode is EntryMode.SWEEP_RECOVERY:
+  488:         return "strategy_generated_liquidity_boundary_recovery"
+  489:     if mode is EntryMode.PULLBACK:
+  490:         return "strategy_generated_pullback_reference"
+  491:     if mode is EntryMode.SCALED_ENTRY:
+  492:         return "strategy_generated_scaled_entry_zone"
+  493:     if mode is EntryMode.MOMENTUM_CONTINUATION:
+  494:         return "strategy_generated_momentum_reference"
+  495:     return "strategy_generated_market_near_confirmation"
+  496: 
+  497: 
+  498: def _confirmation_timeframe(candidate: TradeCandidate) -> str | None:
+  499:     for key in ("confirmation_timeframe", "decision_timeframe", "setup_timeframe"):
+  500:         value = candidate.metadata.get(key)
+  501:         if isinstance(value, str) and value.strip():
+  502:             return value.strip()
+  503:     return None
+  504: 
+  505: 
+  506: def _reason_not_executable(entry_status: EntryStatus) -> str:
+  507:     reasons = {
+  508:         EntryStatus.PULLBACK_PREFERRED: ("price has not reached the preferred pullback zone"),
+  509:         EntryStatus.CONFIRMATION_AT_CMP: (
+  510:             "current price is inside the entry zone, but activation confirmation is incomplete"
+  511:         ),
+  512:         EntryStatus.WATCH_NEAR_ENTRY: (
+  513:             "price is approaching the entry zone but activation is incomplete"
+  514:         ),
+  515:         EntryStatus.LATE_OR_CHASING: ("current price is beyond acceptable entry geometry"),
+  516:         EntryStatus.INVALIDATED: "the setup is invalidated and cannot activate",
+  517:     }
+  518:     return reasons.get(
+  519:         entry_status,
+  520:         f"{entry_status.value.lower().replace('_', ' ')} is not currently executable",
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:658 ---
+  642:         quality_band=quality_band,
+  643:         invalidation_type=candidate.invalidation.kind,
+  644:         buffer_rationale=geometry.buffer_reason,
+  645:         thesis_invalidation_price=candidate.invalidation.price,
+  646:         applied_buffer_distance=geometry.buffer,
+  647:     )
+  648: 
+  649: 
+  650: def _targets(
+  651:     candidate: TradeCandidate,
+  652:     stop: StopLoss,
+  653:     *,
+  654:     preferred_entry: float,
+  655:     runner_qualified: bool,
+  656: ) -> tuple[TakeProfit, ...]:
+  657:     preferred = preferred_entry
+  658:     levels = build_layered_targets(
+  659:         direction=candidate.direction,
+  660:         preferred_entry=preferred,
+  661:         stop_price=stop.price,
+  662:         strategy_targets=candidate.targets.levels,
+  663:     )
+  664:     partials = _partial_close_percentages(len(levels))
+  665:     target_timeframe = _target_timeframe(candidate)
+  666:     expected_cost_pct = _positive_or_zero_number(candidate.metadata.get("expected_cost_pct"))
+  667:     runner_allowed = runner_qualified
+  668:     return tuple(
+  669:         TakeProfit(
+  670:             label=level.label,
+  671:             price=level.price,
+  672:             reward=abs(level.price - preferred),
+  673:             risk_reward=abs(level.price - preferred) / stop.distance,
+  674:             rationale=level.rationale,
+  675:             partial_close_pct=partial,
+  676:             target_type=level.kind,
+  677:             purpose=_target_purpose(level.kind, level.label),
+  678:             target_basis=_target_basis(level.kind),
+  679:             target_timeframe=target_timeframe,
+  680:             target_role=_target_role(level.kind, level.label),
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:679 ---
+  663:     )
+  664:     partials = _partial_close_percentages(len(levels))
+  665:     target_timeframe = _target_timeframe(candidate)
+  666:     expected_cost_pct = _positive_or_zero_number(candidate.metadata.get("expected_cost_pct"))
+  667:     runner_allowed = runner_qualified
+  668:     return tuple(
+  669:         TakeProfit(
+  670:             label=level.label,
+  671:             price=level.price,
+  672:             reward=abs(level.price - preferred),
+  673:             risk_reward=abs(level.price - preferred) / stop.distance,
+  674:             rationale=level.rationale,
+  675:             partial_close_pct=partial,
+  676:             target_type=level.kind,
+  677:             purpose=_target_purpose(level.kind, level.label),
+  678:             target_basis=_target_basis(level.kind),
+  679:             target_timeframe=target_timeframe,
+  680:             target_role=_target_role(level.kind, level.label),
+  681:             synthetic=False,
+  682:             runner_qualified=(
+  683:                 runner_allowed
+  684:                 and _target_role(level.kind, level.label) is TargetRole.EXTENSION_CANDIDATE
+  685:             ),
+  686:             net_risk_reward=_net_risk_reward(
+  687:                 preferred_entry=preferred,
+  688:                 target_price=level.price,
+  689:                 stop_distance=stop.distance,
+  690:                 expected_cost_pct=expected_cost_pct,
+  691:             ),
+  692:             expected_cost_pct=expected_cost_pct,
+  693:         )
+  694:         for level, partial in zip(levels, partials, strict=True)
+  695:     )
+  696: 
+  697: 
+  698: def _positive_or_zero_number(value: object) -> float | None:
+  699:     if isinstance(value, bool) or not isinstance(value, int | float):
+  700:         return None
+  701:     numeric = float(value)
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:720 ---
+  704: 
+  705: def _net_risk_reward(
+  706:     *,
+  707:     preferred_entry: float,
+  708:     target_price: float,
+  709:     stop_distance: float,
+  710:     expected_cost_pct: float | None,
+  711: ) -> float | None:
+  712:     if expected_cost_pct is None:
+  713:         return None
+  714:     gross_reward = abs(target_price - preferred_entry)
+  715:     cost_distance = preferred_entry * expected_cost_pct / 100.0
+  716:     net_risk = stop_distance + cost_distance
+  717:     return max(0.0, gross_reward - cost_distance) / net_risk
+  718: 
+  719: 
+  720: def _target_purpose(kind: TargetType, label: str) -> str:
+  721:     if kind is TargetType.PARTIAL:
+  722:         return "risk-reduction partial"
+  723:     if kind is TargetType.EXPANSION:
+  724:         return "conditional extension target"
+  725:     if label.upper() == "TP1":
+  726:         return "first structural objective"
+  727:     return "primary structural objective"
+  728: 
+  729: 
+  730: def _target_basis(kind: TargetType) -> str:
+  731:     return {
+  732:         TargetType.STRUCTURAL: "strategy_supplied_structural_level",
+  733:         TargetType.LIQUIDITY: "strategy_supplied_liquidity_level",
+  734:         TargetType.RANGE: "strategy_supplied_range_boundary",
+  735:         TargetType.EXPANSION: "strategy_supplied_expansion_projection",
+  736:         TargetType.PARTIAL: "strategy_supplied_partial_objective",
+  737:     }[kind]
+  738: 
+  739: 
+  740: def _target_role(kind: TargetType, label: str) -> TargetRole:
+  741:     if kind is TargetType.EXPANSION:
+  742:         return TargetRole.EXTENSION_CANDIDATE
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/discovery_setup.py:741 ---
+  725:     if label.upper() == "TP1":
+  726:         return "first structural objective"
+  727:     return "primary structural objective"
+  728: 
+  729: 
+  730: def _target_basis(kind: TargetType) -> str:
+  731:     return {
+  732:         TargetType.STRUCTURAL: "strategy_supplied_structural_level",
+  733:         TargetType.LIQUIDITY: "strategy_supplied_liquidity_level",
+  734:         TargetType.RANGE: "strategy_supplied_range_boundary",
+  735:         TargetType.EXPANSION: "strategy_supplied_expansion_projection",
+  736:         TargetType.PARTIAL: "strategy_supplied_partial_objective",
+  737:     }[kind]
+  738: 
+  739: 
+  740: def _target_role(kind: TargetType, label: str) -> TargetRole:
+  741:     if kind is TargetType.EXPANSION:
+  742:         return TargetRole.EXTENSION_CANDIDATE
+  743:     if label.upper() == "TP1":
+  744:         return TargetRole.PRIMARY
+  745:     return TargetRole.CONTINUATION
+  746: 
+  747: 
+  748: def _target_timeframe(candidate: TradeCandidate) -> str | None:
+  749:     for key in (
+  750:         "target_timeframe",
+  751:         "setup_timeframe",
+  752:         "decision_timeframe",
+  753:         "confirmation_timeframe",
+  754:     ):
+  755:         value = candidate.metadata.get(key)
+  756:         if isinstance(value, str) and value.strip():
+  757:             return value.strip()
+  758:     return None
+  759: 
+  760: 
+  761: def _expiry_reason(candidate: TradeCandidate) -> str:
+  762:     explicit = candidate.entry.expires_after_seconds is not None
+  763:     source = (
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:154 ---
+  138:     candidate: TradeCandidate,
+  139:     *,
+  140:     entry_status: EntryStatus,
+  141:     runner_authority: bool | None = None,
+  142: ) -> CandidateLaneHorizonMeasurement:
+  143:     """Measure a candidate for the opt-in lane/horizon classifier.
+  144: 
+  145:     Missing required inputs produce an unavailable result so callers can use
+  146:     the existing legacy inference path.  Candidate expiry bars are deliberately
+  147:     not reused as expected bars to target because those values have different
+  148:     meanings.
+  149:     """
+  150: 
+  151:     execution_timeframe = _metadata_timeframe(
+  152:         candidate,
+  153:         "execution_timeframe",
+  154:         "decision_timeframe",
+  155:         "confirmation_timeframe",
+  156:     )
+  157:     setup_timeframe = _metadata_timeframe(
+  158:         candidate,
+  159:         "setup_timeframe",
+  160:         "decision_timeframe",
+  161:     )
+  162:     invalidation_timeframe = _metadata_timeframe(
+  163:         candidate,
+  164:         "invalidation_timeframe",
+  165:         "setup_timeframe",
+  166:     )
+  167:     target_timeframe = _metadata_timeframe(
+  168:         candidate,
+  169:         "target_timeframe",
+  170:         "setup_timeframe",
+  171:     )
+  172:     expected_bars = _positive_int(candidate.metadata.get("expected_bars_to_target"))
+  173:     atr = _positive_number(candidate.metadata.get("decision_atr"))
+  174:     lifecycle_model = _lifecycle_model(candidate)
+  175: 
+  176:     missing: list[str] = []
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:179 ---
+  163:         candidate,
+  164:         "invalidation_timeframe",
+  165:         "setup_timeframe",
+  166:     )
+  167:     target_timeframe = _metadata_timeframe(
+  168:         candidate,
+  169:         "target_timeframe",
+  170:         "setup_timeframe",
+  171:     )
+  172:     expected_bars = _positive_int(candidate.metadata.get("expected_bars_to_target"))
+  173:     atr = _positive_number(candidate.metadata.get("decision_atr"))
+  174:     lifecycle_model = _lifecycle_model(candidate)
+  175: 
+  176:     missing: list[str] = []
+  177:     for name, value in (
+  178:         ("execution_timeframe", execution_timeframe),
+  179:         ("setup_timeframe", setup_timeframe),
+  180:         ("invalidation_timeframe", invalidation_timeframe),
+  181:         ("target_timeframe", target_timeframe),
+  182:         ("expected_bars_to_target", expected_bars),
+  183:         ("decision_atr", atr),
+  184:         ("lifecycle_model", lifecycle_model),
+  185:     ):
+  186:         if value is None:
+  187:             missing.append(name)
+  188: 
+  189:     effective_runner_authority = False
+  190:     if lifecycle_model is LifecycleModel.RUNNER:
+  191:         if runner_authority is None:
+  192:             missing.append("runner_authority")
+  193:         else:
+  194:             effective_runner_authority = runner_authority
+  195: 
+  196:     if missing:
+  197:         unique_missing = tuple(dict.fromkeys(missing))
+  198:         return CandidateLaneHorizonMeasurement(
+  199:             assessment=None,
+  200:             missing_measurements=unique_missing,
+  201:             reasons=(
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:208 ---
+  192:             missing.append("runner_authority")
+  193:         else:
+  194:             effective_runner_authority = runner_authority
+  195: 
+  196:     if missing:
+  197:         unique_missing = tuple(dict.fromkeys(missing))
+  198:         return CandidateLaneHorizonMeasurement(
+  199:             assessment=None,
+  200:             missing_measurements=unique_missing,
+  201:             reasons=(
+  202:                 "measurable lane/horizon assessment unavailable; "
+  203:                 "preserve legacy methodology-context inference",
+  204:             ),
+  205:         )
+  206: 
+  207:     assert execution_timeframe is not None
+  208:     assert setup_timeframe is not None
+  209:     assert invalidation_timeframe is not None
+  210:     assert target_timeframe is not None
+  211:     assert expected_bars is not None
+  212:     assert atr is not None
+  213:     assert lifecycle_model is not None
+  214: 
+  215:     nearest_target = candidate.targets.levels[0].price
+  216:     target_distance = abs(nearest_target - candidate.entry.preferred)
+  217:     atr_normalized_target_distance = target_distance / atr
+  218:     if atr_normalized_target_distance <= 0.0:
+  219:         return CandidateLaneHorizonMeasurement(
+  220:             assessment=None,
+  221:             missing_measurements=("positive_atr_normalized_target_distance",),
+  222:             reasons=(
+  223:                 "nearest target does not provide a positive ATR-normalized distance; "
+  224:                 "preserve legacy methodology-context inference",
+  225:             ),
+  226:         )
+  227: 
+  228:     assessment = classify_lane_and_horizon(
+  229:         LaneHorizonInput(
+  230:             strategy=candidate.strategy,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_candidate_lane_horizon.py:232 ---
+  216:     target_distance = abs(nearest_target - candidate.entry.preferred)
+  217:     atr_normalized_target_distance = target_distance / atr
+  218:     if atr_normalized_target_distance <= 0.0:
+  219:         return CandidateLaneHorizonMeasurement(
+  220:             assessment=None,
+  221:             missing_measurements=("positive_atr_normalized_target_distance",),
+  222:             reasons=(
+  223:                 "nearest target does not provide a positive ATR-normalized distance; "
+  224:                 "preserve legacy methodology-context inference",
+  225:             ),
+  226:         )
+  227: 
+  228:     assessment = classify_lane_and_horizon(
+  229:         LaneHorizonInput(
+  230:             strategy=candidate.strategy,
+  231:             execution_timeframe_minutes=execution_timeframe,
+  232:             setup_timeframe_minutes=setup_timeframe,
+  233:             invalidation_timeframe_minutes=invalidation_timeframe,
+  234:             target_timeframe_minutes=target_timeframe,
+  235:             atr_normalized_target_distance=atr_normalized_target_distance,
+  236:             expected_bars_to_target=expected_bars,
+  237:             price_entry_relation=_price_entry_relation(candidate),
+  238:             trigger_state=_trigger_state(entry_status),
+  239:             lifecycle_model=lifecycle_model,
+  240:             runner_authority=effective_runner_authority,
+  241:         )
+  242:     )
+  243:     return CandidateLaneHorizonMeasurement(
+  244:         assessment=assessment,
+  245:         missing_measurements=(),
+  246:         reasons=(
+  247:             "lane and holding horizon derived from candidate geometry, "
+  248:             "timeframes, ATR target distance, trigger state, and lifecycle",
+  249:         ),
+  250:     )
+  251: 
+  252: 
+  253: __all__ = [
+  254:     "CandidateLaneHorizonMeasurement",
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:16 ---
+    1: """Lane-aware hard geometry safety assessment.
+    2: 
+    3: This module centralizes the mathematics required by the Batch 6 geometry gate.
+    4: It does not mutate candidates or portfolio selection. Callers must provide an
+    5: explicit policy and explicit expected execution costs; unavailable costs remain
+    6: an incomplete assessment rather than being treated as zero.
+    7: """
+    8: 
+    9: from __future__ import annotations
+   10: 
+   11: import math
+   12: from dataclasses import dataclass
+   13: from enum import StrEnum
+   14: 
+   15: from apex.application.opportunity_portfolio import OpportunityLane
+   16: from apex.strategies.contracts import TargetType, TradeCandidate, TradeDirection
+   17: 
+   18: 
+   19: class GeometrySafetyState(StrEnum):
+   20:     PASS = "pass"
+   21:     REJECT = "reject"
+   22:     INCOMPLETE = "incomplete"
+   23: 
+   24: 
+   25: class NoFeasibleTargetReason(StrEnum):
+   26:     NO_EXISTING_TARGET_FEASIBLE = "no_existing_target_feasible"
+   27:     MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON = "minimum_viable_tp1_beyond_lane_horizon"
+   28:     COST_ONLY_INFEASIBILITY = "cost_only_infeasibility"
+   29:     TARGET_TYPE_ONLY_INFEASIBILITY = "target_type_only_infeasibility"
+   30: 
+   31: 
+   32: class GeometryRejectionCode(StrEnum):
+   33:     COSTS_UNAVAILABLE = "costs_unavailable"
+   34:     WRONG_SIDE_STOP = "wrong_side_stop"
+   35:     STOP_INSIDE_ENTRY_ZONE = "stop_inside_entry_zone"
+   36:     WRONG_SIDE_TARGET = "wrong_side_target"
+   37:     TARGET_ORDER_INVALID = "target_order_invalid"
+   38:     TP1_BELOW_LANE_FLOOR = "tp1_below_lane_floor"
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:38 ---
+   22:     INCOMPLETE = "incomplete"
+   23: 
+   24: 
+   25: class NoFeasibleTargetReason(StrEnum):
+   26:     NO_EXISTING_TARGET_FEASIBLE = "no_existing_target_feasible"
+   27:     MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON = "minimum_viable_tp1_beyond_lane_horizon"
+   28:     COST_ONLY_INFEASIBILITY = "cost_only_infeasibility"
+   29:     TARGET_TYPE_ONLY_INFEASIBILITY = "target_type_only_infeasibility"
+   30: 
+   31: 
+   32: class GeometryRejectionCode(StrEnum):
+   33:     COSTS_UNAVAILABLE = "costs_unavailable"
+   34:     WRONG_SIDE_STOP = "wrong_side_stop"
+   35:     STOP_INSIDE_ENTRY_ZONE = "stop_inside_entry_zone"
+   36:     WRONG_SIDE_TARGET = "wrong_side_target"
+   37:     TARGET_ORDER_INVALID = "target_order_invalid"
+   38:     TP1_BELOW_LANE_FLOOR = "tp1_below_lane_floor"
+   39:     STOP_DISTANCE_EXCEEDS_LANE_LIMIT = "stop_distance_exceeds_lane_limit"
+   40:     STOP_DISTANCE_BELOW_NOISE_FLOOR = "stop_distance_below_noise_floor"
+   41:     STOP_DISTANCE_BELOW_COST_FLOOR = "stop_distance_below_cost_floor"
+   42:     TP1_EXCEEDS_LANE_HORIZON = "tp1_exceeds_lane_horizon"
+   43:     SCALP_TP1_REQUIRES_VERIFIED_STRUCTURE = "scalp_tp1_requires_verified_structure"
+   44:     TARGET_QUALITY_BELOW_FLOOR = "target_quality_below_floor"
+   45:     COSTS_ELIMINATE_REWARD = "costs_eliminate_reward"
+   46: 
+   47: 
+   48: @dataclass(frozen=True, slots=True)
+   49: class LaneGeometryPolicy:
+   50:     minimum_tp1_reward_to_risk: float
+   51:     maximum_stop_distance_pct: float
+   52:     minimum_target_quality: float
+   53:     minimum_stop_distance_atr: float = 0.25
+   54:     minimum_stop_to_cost_ratio: float = 1.25
+   55:     maximum_tp1_distance_atr: float | None = None
+   56: 
+   57:     def __post_init__(self) -> None:
+   58:         values = (
+   59:             self.minimum_tp1_reward_to_risk,
+   60:             self.maximum_stop_distance_pct,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:68 ---
+   52:     minimum_target_quality: float
+   53:     minimum_stop_distance_atr: float = 0.25
+   54:     minimum_stop_to_cost_ratio: float = 1.25
+   55:     maximum_tp1_distance_atr: float | None = None
+   56: 
+   57:     def __post_init__(self) -> None:
+   58:         values = (
+   59:             self.minimum_tp1_reward_to_risk,
+   60:             self.maximum_stop_distance_pct,
+   61:             self.minimum_target_quality,
+   62:             self.minimum_stop_distance_atr,
+   63:             self.minimum_stop_to_cost_ratio,
+   64:         )
+   65:         if not all(math.isfinite(value) for value in values):
+   66:             raise ValueError("lane geometry policy values must be finite")
+   67:         if self.minimum_tp1_reward_to_risk <= 0.0:
+   68:             raise ValueError("minimum TP1 reward-to-risk must be positive")
+   69:         if self.maximum_stop_distance_pct <= 0.0:
+   70:             raise ValueError("maximum stop distance percentage must be positive")
+   71:         if not 0.0 <= self.minimum_target_quality <= 100.0:
+   72:             raise ValueError("minimum target quality must be between zero and 100")
+   73:         if self.minimum_stop_distance_atr < 0.0:
+   74:             raise ValueError("minimum stop ATR distance cannot be negative")
+   75:         if self.minimum_stop_to_cost_ratio < 0.0:
+   76:             raise ValueError("minimum stop-to-cost ratio cannot be negative")
+   77:         if self.maximum_tp1_distance_atr is not None:
+   78:             if not math.isfinite(self.maximum_tp1_distance_atr):
+   79:                 raise ValueError("maximum TP1 ATR distance must be finite")
+   80:             if self.maximum_tp1_distance_atr <= 0.0:
+   81:                 raise ValueError("maximum TP1 ATR distance must be positive")
+   82: 
+   83: 
+   84: @dataclass(frozen=True, slots=True)
+   85: class GeometrySafetyPolicy:
+   86:     lanes: dict[OpportunityLane, LaneGeometryPolicy]
+   87: 
+   88:     def __post_init__(self) -> None:
+   89:         copied = dict(self.lanes)
+   90:         missing = tuple(lane for lane in OpportunityLane if lane not in copied)
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:130 ---
+  114:     net_risk_distance: float | None
+  115:     cost_distance: float | None
+  116:     stop_to_cost_ratio: float | None
+  117:     target_to_cost_ratio: float | None
+  118:     cost_drag_on_reward_pct: float | None
+  119:     cost_drag_on_gross_rr_pct: float | None
+  120:     target_distance_pct: float
+  121:     expected_cost_pct: float | None
+  122:     target_quality: float
+  123:     required_tp1_reward_to_risk: float
+  124:     maximum_stop_distance_pct: float
+  125:     minimum_target_quality: float
+  126:     stop_distance_atr: float | None
+  127:     minimum_stop_distance_atr: float
+  128:     minimum_stop_to_cost_ratio: float
+  129:     tp1_distance_atr: float | None
+  130:     maximum_tp1_distance_atr: float | None
+  131:     minimum_viable_tp1_price: float | None
+  132:     minimum_viable_tp1_distance: float | None
+  133:     minimum_viable_tp1_distance_atr: float | None
+  134:     available_tp1_price: float
+  135:     available_tp1_distance: float
+  136:     available_tp1_distance_atr: float | None
+  137:     tp1_feasibility_gap: float | None
+  138:     tp1_feasibility_gap_atr: float | None
+  139:     geometry_feasible_before_quality: bool | None
+  140:     feasible_existing_target_count: int | None
+  141:     nearest_feasible_existing_target_price: float | None
+  142:     nearest_feasible_existing_target_index: int | None
+  143:     no_feasible_target_reason: NoFeasibleTargetReason | None
+  144: 
+  145: 
+  146: @dataclass(frozen=True, slots=True)
+  147: class GeometrySafetyAssessment:
+  148:     state: GeometrySafetyState
+  149:     diagnostics: GeometrySafetyDiagnostics
+  150:     rejection_codes: tuple[GeometryRejectionCode, ...]
+  151:     reasons: tuple[str, ...]
+  152: 
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:260 ---
+  244:         net_risk_distance=net_risk,
+  245:         cost_distance=cost_distance,
+  246:         stop_to_cost_ratio=stop_to_cost_ratio,
+  247:         target_to_cost_ratio=target_to_cost_ratio,
+  248:         cost_drag_on_reward_pct=cost_drag_on_reward_pct,
+  249:         cost_drag_on_gross_rr_pct=cost_drag_on_gross_rr_pct,
+  250:         target_distance_pct=target_distance_pct,
+  251:         expected_cost_pct=expected_cost_pct,
+  252:         target_quality=target_quality,
+  253:         required_tp1_reward_to_risk=lane_policy.minimum_tp1_reward_to_risk,
+  254:         maximum_stop_distance_pct=lane_policy.maximum_stop_distance_pct,
+  255:         minimum_target_quality=lane_policy.minimum_target_quality,
+  256:         stop_distance_atr=stop_distance_atr,
+  257:         minimum_stop_distance_atr=lane_policy.minimum_stop_distance_atr,
+  258:         minimum_stop_to_cost_ratio=lane_policy.minimum_stop_to_cost_ratio,
+  259:         tp1_distance_atr=tp1_distance_atr,
+  260:         maximum_tp1_distance_atr=lane_policy.maximum_tp1_distance_atr,
+  261:         minimum_viable_tp1_price=feasibility.minimum_viable_tp1_price,
+  262:         minimum_viable_tp1_distance=feasibility.minimum_viable_tp1_distance,
+  263:         minimum_viable_tp1_distance_atr=feasibility.minimum_viable_tp1_distance_atr,
+  264:         available_tp1_price=tp1.price,
+  265:         available_tp1_distance=target_distance,
+  266:         available_tp1_distance_atr=tp1_distance_atr,
+  267:         tp1_feasibility_gap=feasibility.tp1_feasibility_gap,
+  268:         tp1_feasibility_gap_atr=feasibility.tp1_feasibility_gap_atr,
+  269:         geometry_feasible_before_quality=feasibility.geometry_feasible_before_quality,
+  270:         feasible_existing_target_count=feasibility.feasible_existing_target_count,
+  271:         nearest_feasible_existing_target_price=(feasibility.nearest_feasible_existing_target_price),
+  272:         nearest_feasible_existing_target_index=(feasibility.nearest_feasible_existing_target_index),
+  273:         no_feasible_target_reason=feasibility.no_feasible_target_reason,
+  274:     )
+  275: 
+  276:     if expected_cost_pct is None:
+  277:         return GeometrySafetyAssessment(
+  278:             state=GeometrySafetyState.INCOMPLETE,
+  279:             diagnostics=diagnostics,
+  280:             rejection_codes=(GeometryRejectionCode.COSTS_UNAVAILABLE,),
+  281:             reasons=(
+  282:                 "expected fees and slippage are unavailable; geometry safety cannot "
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:319 ---
+  303:     if candidate.direction is TradeDirection.LONG:
+  304:         wrong_side_target = any(price <= selected_entry for price in target_prices)
+  305:         invalid_order = target_prices != tuple(sorted(target_prices))
+  306:     else:
+  307:         wrong_side_target = any(price >= selected_entry for price in target_prices)
+  308:         invalid_order = target_prices != tuple(sorted(target_prices, reverse=True))
+  309: 
+  310:     if wrong_side_target:
+  311:         codes.append(GeometryRejectionCode.WRONG_SIDE_TARGET)
+  312:         reasons.append("one or more targets are on the wrong side of selected entry")
+  313:     if invalid_order:
+  314:         codes.append(GeometryRejectionCode.TARGET_ORDER_INVALID)
+  315:         reasons.append("targets are not ordered away from selected entry")
+  316: 
+  317:     if net_rr is not None and net_rr <= 0.0:
+  318:         codes.append(GeometryRejectionCode.COSTS_ELIMINATE_REWARD)
+  319:         reasons.append("expected fees and slippage eliminate TP1 reward")
+  320:     elif net_rr is not None and net_rr < lane_policy.minimum_tp1_reward_to_risk:
+  321:         codes.append(GeometryRejectionCode.TP1_BELOW_LANE_FLOOR)
+  322:         reasons.append(
+  323:             f"net TP1 reward-to-risk {net_rr:.4f} is below "
+  324:             f"{lane_policy.minimum_tp1_reward_to_risk:.4f} required for {lane.value}"
+  325:         )
+  326: 
+  327:     if stop_distance_pct > lane_policy.maximum_stop_distance_pct:
+  328:         codes.append(GeometryRejectionCode.STOP_DISTANCE_EXCEEDS_LANE_LIMIT)
+  329:         reasons.append(
+  330:             f"stop distance {stop_distance_pct:.4f}% exceeds "
+  331:             f"{lane_policy.maximum_stop_distance_pct:.4f}% allowed for {lane.value}"
+  332:         )
+  333: 
+  334:     if (
+  335:         stop_distance_atr is not None
+  336:         and stop_distance_atr + 1e-9 < lane_policy.minimum_stop_distance_atr
+  337:     ):
+  338:         codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_NOISE_FLOOR)
+  339:         reasons.append(
+  340:             f"stop distance {stop_distance_atr:.4f} ATR is below the "
+  341:             f"{lane_policy.minimum_stop_distance_atr:.4f} ATR noise floor for {lane.value}"
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:354 ---
+  338:         codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_NOISE_FLOOR)
+  339:         reasons.append(
+  340:             f"stop distance {stop_distance_atr:.4f} ATR is below the "
+  341:             f"{lane_policy.minimum_stop_distance_atr:.4f} ATR noise floor for {lane.value}"
+  342:         )
+  343: 
+  344:     if (
+  345:         stop_to_cost_ratio is not None
+  346:         and stop_to_cost_ratio + 1e-9 < lane_policy.minimum_stop_to_cost_ratio
+  347:     ):
+  348:         codes.append(GeometryRejectionCode.STOP_DISTANCE_BELOW_COST_FLOOR)
+  349:         reasons.append(
+  350:             f"stop distance is {stop_to_cost_ratio:.4f}x expected round-trip costs, below "
+  351:             f"the {lane_policy.minimum_stop_to_cost_ratio:.4f}x floor for {lane.value}"
+  352:         )
+  353: 
+  354:     maximum_target_atr = lane_policy.maximum_tp1_distance_atr
+  355:     if (
+  356:         maximum_target_atr is not None
+  357:         and tp1_distance_atr is not None
+  358:         and tp1_distance_atr > maximum_target_atr + 1e-9
+  359:     ):
+  360:         codes.append(GeometryRejectionCode.TP1_EXCEEDS_LANE_HORIZON)
+  361:         reasons.append(
+  362:             f"TP1 distance {tp1_distance_atr:.4f} ATR exceeds the "
+  363:             f"{maximum_target_atr:.4f} ATR horizon for {lane.value}"
+  364:         )
+  365: 
+  366:     if lane.is_scalp and getattr(tp1, "kind", None) is TargetType.EXPANSION:
+  367:         codes.append(GeometryRejectionCode.SCALP_TP1_REQUIRES_VERIFIED_STRUCTURE)
+  368:         reasons.append(
+  369:             "scalp TP1 must use nearby structural, liquidity, range, or partial evidence; "
+  370:             "an expansion projection alone is not executable"
+  371:         )
+  372: 
+  373:     if target_quality < lane_policy.minimum_target_quality:
+  374:         codes.append(GeometryRejectionCode.TARGET_QUALITY_BELOW_FLOOR)
+  375:         reasons.append(
+  376:             f"target quality {target_quality:.4f} is below "
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:393 ---
+  377:             f"{lane_policy.minimum_target_quality:.4f} required for {lane.value}"
+  378:         )
+  379: 
+  380:     if codes:
+  381:         return GeometrySafetyAssessment(
+  382:             state=GeometrySafetyState.REJECT,
+  383:             diagnostics=diagnostics,
+  384:             rejection_codes=tuple(codes),
+  385:             reasons=tuple(reasons),
+  386:         )
+  387: 
+  388:     return GeometrySafetyAssessment(
+  389:         state=GeometrySafetyState.PASS,
+  390:         diagnostics=diagnostics,
+  391:         rejection_codes=(),
+  392:         reasons=(
+  393:             "entry, executable stop, ordered targets, cost-adjusted TP1 reward, "
+  394:             "stop distance, and target quality satisfy the lane policy",
+  395:         ),
+  396:     )
+  397: 
+  398: 
+  399: @dataclass(frozen=True, slots=True)
+  400: class _ExistingTargetFeasibility:
+  401:     minimum_viable_tp1_price: float | None
+  402:     minimum_viable_tp1_distance: float | None
+  403:     minimum_viable_tp1_distance_atr: float | None
+  404:     tp1_feasibility_gap: float | None
+  405:     tp1_feasibility_gap_atr: float | None
+  406:     geometry_feasible_before_quality: bool | None
+  407:     feasible_existing_target_count: int | None
+  408:     nearest_feasible_existing_target_price: float | None
+  409:     nearest_feasible_existing_target_index: int | None
+  410:     no_feasible_target_reason: NoFeasibleTargetReason | None
+  411: 
+  412: 
+  413: def _existing_target_feasibility(
+  414:     candidate: TradeCandidate,
+  415:     *,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:452 ---
+  436: 
+  437:     net_risk = stop_distance + cost_distance
+  438:     minimum_distance = policy.minimum_tp1_reward_to_risk * net_risk + cost_distance
+  439:     minimum_price = (
+  440:         selected_entry + minimum_distance
+  441:         if candidate.direction is TradeDirection.LONG
+  442:         else selected_entry - minimum_distance
+  443:     )
+  444:     minimum_distance_atr = None if decision_atr is None else minimum_distance / decision_atr
+  445:     available_distance = abs(candidate.targets.levels[0].price - selected_entry)
+  446:     gap = max(0.0, minimum_distance - available_distance)
+  447:     gap_atr = None if decision_atr is None else gap / decision_atr
+  448: 
+  449:     feasible: list[tuple[int, float, float]] = []
+  450:     cost_only = False
+  451:     target_type_only = False
+  452:     maximum_target_atr = policy.maximum_tp1_distance_atr
+  453: 
+  454:     for index, level in enumerate(candidate.targets.levels, start=1):
+  455:         price = level.price
+  456:         correct_side = (
+  457:             price > selected_entry
+  458:             if candidate.direction is TradeDirection.LONG
+  459:             else price < selected_entry
+  460:         )
+  461:         if not correct_side:
+  462:             continue
+  463:         distance = abs(price - selected_entry)
+  464:         gross_rr = distance / stop_distance if stop_distance > 0.0 else 0.0
+  465:         net_reward = distance - cost_distance
+  466:         net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
+  467:         distance_atr = None if decision_atr is None else distance / decision_atr
+  468:         horizon_ok = (
+  469:             maximum_target_atr is None
+  470:             or distance_atr is None
+  471:             or distance_atr <= maximum_target_atr + 1e-9
+  472:         )
+  473:         type_ok = not (lane.is_scalp and level.kind is TargetType.EXPANSION)
+  474:         reward_ok = net_rr + 1e-9 >= policy.minimum_tp1_reward_to_risk
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:473 ---
+  457:             price > selected_entry
+  458:             if candidate.direction is TradeDirection.LONG
+  459:             else price < selected_entry
+  460:         )
+  461:         if not correct_side:
+  462:             continue
+  463:         distance = abs(price - selected_entry)
+  464:         gross_rr = distance / stop_distance if stop_distance > 0.0 else 0.0
+  465:         net_reward = distance - cost_distance
+  466:         net_rr = net_reward / net_risk if net_risk > 0.0 else 0.0
+  467:         distance_atr = None if decision_atr is None else distance / decision_atr
+  468:         horizon_ok = (
+  469:             maximum_target_atr is None
+  470:             or distance_atr is None
+  471:             or distance_atr <= maximum_target_atr + 1e-9
+  472:         )
+  473:         type_ok = not (lane.is_scalp and level.kind is TargetType.EXPANSION)
+  474:         reward_ok = net_rr + 1e-9 >= policy.minimum_tp1_reward_to_risk
+  475: 
+  476:         if reward_ok and horizon_ok and not type_ok:
+  477:             target_type_only = True
+  478:         if (
+  479:             cost_distance > 0.0
+  480:             and gross_rr + 1e-9 >= policy.minimum_tp1_reward_to_risk
+  481:             and not reward_ok
+  482:             and horizon_ok
+  483:             and type_ok
+  484:         ):
+  485:             cost_only = True
+  486:         if reward_ok and horizon_ok and type_ok:
+  487:             feasible.append((index, price, distance))
+  488: 
+  489:     feasible.sort(key=lambda item: (item[2], item[0]))
+  490:     no_reason: NoFeasibleTargetReason | None = None
+  491:     if not feasible:
+  492:         if (
+  493:             maximum_target_atr is not None
+  494:             and minimum_distance_atr is not None
+  495:             and minimum_distance_atr > maximum_target_atr + 1e-9
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/application/methodology_geometry_safety.py:497 ---
+  481:             and not reward_ok
+  482:             and horizon_ok
+  483:             and type_ok
+  484:         ):
+  485:             cost_only = True
+  486:         if reward_ok and horizon_ok and type_ok:
+  487:             feasible.append((index, price, distance))
+  488: 
+  489:     feasible.sort(key=lambda item: (item[2], item[0]))
+  490:     no_reason: NoFeasibleTargetReason | None = None
+  491:     if not feasible:
+  492:         if (
+  493:             maximum_target_atr is not None
+  494:             and minimum_distance_atr is not None
+  495:             and minimum_distance_atr > maximum_target_atr + 1e-9
+  496:         ):
+  497:             no_reason = NoFeasibleTargetReason.MINIMUM_VIABLE_TP1_BEYOND_LANE_HORIZON
+  498:         elif target_type_only:
+  499:             no_reason = NoFeasibleTargetReason.TARGET_TYPE_ONLY_INFEASIBILITY
+  500:         elif cost_only:
+  501:             no_reason = NoFeasibleTargetReason.COST_ONLY_INFEASIBILITY
+  502:         else:
+  503:             no_reason = NoFeasibleTargetReason.NO_EXISTING_TARGET_FEASIBLE
+  504: 
+  505:     nearest = feasible[0] if feasible else None
+  506:     return _ExistingTargetFeasibility(
+  507:         minimum_viable_tp1_price=minimum_price,
+  508:         minimum_viable_tp1_distance=minimum_distance,
+  509:         minimum_viable_tp1_distance_atr=minimum_distance_atr,
+  510:         tp1_feasibility_gap=gap,
+  511:         tp1_feasibility_gap_atr=gap_atr,
+  512:         geometry_feasible_before_quality=bool(feasible),
+  513:         feasible_existing_target_count=len(feasible),
+  514:         nearest_feasible_existing_target_price=None if nearest is None else nearest[1],
+  515:         nearest_feasible_existing_target_index=None if nearest is None else nearest[0],
+  516:         no_feasible_target_reason=no_reason,
+  517:     )
+  518: 
+  519: 
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/strategies/contracts.py:46 ---
+   30:     SCALED_ENTRY = "scaled_entry"
+   31: 
+   32: 
+   33: class EntryOpportunityHorizon(StrEnum):
+   34:     """How soon a structurally valid entry opportunity may become actionable."""
+   35: 
+   36:     IMMEDIATE = "immediate"
+   37:     NEARBY = "nearby"
+   38:     FUTURE_TRIGGER = "future_trigger"
+   39:     OUTSIDE_HORIZON = "outside_horizon"
+   40: 
+   41: 
+   42: _STRATEGY_BASE_EXPIRY_SECONDS: dict[StrategyType, int] = {
+   43:     StrategyType.MOMENTUM_SCALP: 300,
+   44:     StrategyType.MOMENTUM_BREAKOUT: 900,
+   45:     StrategyType.BREAKOUT_CONTINUATION: 1_200,
+   46:     StrategyType.COMPRESSION_EXPANSION: 1_200,
+   47:     StrategyType.BREAKOUT_RETEST: 2_700,
+   48:     StrategyType.FIRST_PULLBACK_CONTINUATION: 2_700,
+   49:     StrategyType.TREND_PULLBACK: 3_600,
+   50:     StrategyType.VWAP_RECLAIM_REJECTION: 1_800,
+   51:     StrategyType.RANGE_REVERSAL: 2_700,
+   52:     StrategyType.FAILED_BREAKOUT_REVERSAL: 1_800,
+   53:     StrategyType.LIQUIDITY_REJECTION_REVERSAL: 1_800,
+   54:     StrategyType.EXHAUSTION_REVERSAL: 900,
+   55: }
+   56: 
+   57: _ENTRY_MODE_EXPIRY_MULTIPLIER: dict[EntryMode, float] = {
+   58:     EntryMode.MARKET_NEAR: 0.50,
+   59:     EntryMode.MOMENTUM_CONTINUATION: 0.75,
+   60:     EntryMode.SCALED_ENTRY: 1.00,
+   61:     EntryMode.PULLBACK: 1.25,
+   62:     EntryMode.RETEST: 1.50,
+   63:     EntryMode.SWEEP_RECOVERY: 1.00,
+   64: }
+   65: 
+   66: _STRATEGY_EXPIRY_BARS: dict[StrategyType, int] = {
+   67:     StrategyType.MOMENTUM_BREAKOUT: 3,
+   68:     StrategyType.BREAKOUT_CONTINUATION: 3,
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/strategies/contracts.py:72 ---
+   56: 
+   57: _ENTRY_MODE_EXPIRY_MULTIPLIER: dict[EntryMode, float] = {
+   58:     EntryMode.MARKET_NEAR: 0.50,
+   59:     EntryMode.MOMENTUM_CONTINUATION: 0.75,
+   60:     EntryMode.SCALED_ENTRY: 1.00,
+   61:     EntryMode.PULLBACK: 1.25,
+   62:     EntryMode.RETEST: 1.50,
+   63:     EntryMode.SWEEP_RECOVERY: 1.00,
+   64: }
+   65: 
+   66: _STRATEGY_EXPIRY_BARS: dict[StrategyType, int] = {
+   67:     StrategyType.MOMENTUM_BREAKOUT: 3,
+   68:     StrategyType.BREAKOUT_CONTINUATION: 3,
+   69:     StrategyType.BREAKOUT_RETEST: 6,
+   70:     StrategyType.FIRST_PULLBACK_CONTINUATION: 8,
+   71:     StrategyType.TREND_PULLBACK: 8,
+   72:     StrategyType.COMPRESSION_EXPANSION: 6,
+   73:     StrategyType.RANGE_REVERSAL: 6,
+   74:     StrategyType.FAILED_BREAKOUT_REVERSAL: 6,
+   75:     StrategyType.LIQUIDITY_REJECTION_REVERSAL: 6,
+   76:     StrategyType.VWAP_RECLAIM_REJECTION: 6,
+   77:     StrategyType.MOMENTUM_SCALP: 3,
+   78:     StrategyType.EXHAUSTION_REVERSAL: 6,
+   79: }
+   80: 
+   81: 
+   82: def candidate_expiry_seconds(
+   83:     *,
+   84:     strategy: StrategyType,
+   85:     entry_mode: EntryMode,
+   86: ) -> int:
+   87:     "Return deterministic setup validity from strategy and entry type."
+   88: 
+   89:     base = _STRATEGY_BASE_EXPIRY_SECONDS.get(strategy, 900)
+   90:     multiplier = _ENTRY_MODE_EXPIRY_MULTIPLIER.get(entry_mode, 1.0)
+   91:     return max(180, round(base * multiplier))
+   92: 
+   93: 
+   94: def candidate_expiry_bars(strategy: StrategyType) -> int:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/strategies/contracts.py:107 ---
+   91:     return max(180, round(base * multiplier))
+   92: 
+   93: 
+   94: def candidate_expiry_bars(strategy: StrategyType) -> int:
+   95:     """Return the canonical setup-frame expiry budget."""
+   96: 
+   97:     return _STRATEGY_EXPIRY_BARS[strategy]
+   98: 
+   99: 
+  100: class InvalidationType(StrEnum):
+  101:     STRUCTURAL = "structural"
+  102:     LIQUIDITY = "liquidity"
+  103:     VOLATILITY = "volatility"
+  104:     MOMENTUM_FAILURE = "momentum_failure"
+  105: 
+  106: 
+  107: class TargetType(StrEnum):
+  108:     STRUCTURAL = "structural"
+  109:     LIQUIDITY = "liquidity"
+  110:     RANGE = "range"
+  111:     EXPANSION = "expansion"
+  112:     PARTIAL = "partial"
+  113: 
+  114: 
+  115: class CandidateLifecycleStatus(StrEnum):
+  116:     ACTIVE = "active"
+  117:     EXPIRED = "expired"
+  118:     INVALIDATED = "invalidated"
+  119:     COOLDOWN = "cooldown"
+  120: 
+  121: 
+  122: def _finite(name: str, value: float) -> None:
+  123:     if not math.isfinite(value):
+  124:         raise ValueError(f"{name} must be finite")
+  125: 
+  126: 
+  127: def _positive(name: str, value: float) -> None:
+  128:     _finite(name, value)
+  129:     if value <= 0:
+
+--- /home/muhammad-shahwaiz-ali/data_drive/apex/src/apex/strategies/contracts.py:204 ---
+  188: 
+  189: 
+  190: @dataclass(frozen=True, slots=True)
+  191: class InvalidationConcept:
+  192:     kind: InvalidationType
+  193:     price: float
+  194:     rationale: tuple[str, ...]
+  195: 
+  196:     def __post_init__(self) -> None:
+  197:         _positive("invalidation price", self.price)
+  198:         if not self.rationale:
+  199:             raise ValueError("invalidation rationale cannot be empty")
+  200: 
+  201: 
+  202: @dataclass(frozen=True, slots=True)
+  203: class TargetLevel:
+  204:     kind: TargetType
+  205:     price: float
+  206:     label: str
+  207:     rationale: tuple[str, ...]
+  208: 
+  209:     def __post_init__(self) -> None:
+  210:         _positive("target price", self.price)
+  211:         if not self.label.strip():
+  212:             raise ValueError("target label cannot be empty")
+  213:         if not self.rationale:
+  214:             raise ValueError("target rationale cannot be empty")
+  215: 
+  216: 
+  217: @dataclass(frozen=True, slots=True)
+  218: class TargetConcept:
+  219:     levels: tuple[TargetLevel, ...]
+  220: 
+  221:     def __post_init__(self) -> None:
+  222:         if not self.levels:
+  223:             raise ValueError("at least one target level is required")
+  224:         labels = tuple(level.label for level in self.levels)
+  225:         if len(set(labels)) != len(labels):
+  226:             raise ValueError("target labels must be unique")

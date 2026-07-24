@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 MIN_SAMPLE = 5
 
@@ -27,8 +28,8 @@ def parse_time(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -90,15 +91,25 @@ def load_candidates(report_dir: Path) -> tuple[list[Candidate], dict[str, int]]:
                     file=path.name,
                     symbol=symbol,
                     timeframe=timeframe,
-                    decision_time=parse_time(trade.get("decision_time") or signal.get("generated_at")),
+                    decision_time=parse_time(
+                        trade.get("decision_time") or signal.get("generated_at")
+                    ),
                     strategy=str(signal.get("strategy") or "unknown"),
                     direction=str(signal.get("direction") or "unknown"),
-                    source=str(metadata.get("replay_source") or trade.get("replay_reason_code") or "unknown"),
+                    source=str(
+                        metadata.get("replay_source")
+                        or trade.get("replay_reason_code")
+                        or "unknown"
+                    ),
                     actionability=str(trade.get("actionability_state") or "unknown"),
                     setup_validity=str(metadata.get("setup_validity") or "unknown"),
-                    candidate_id=str(metadata.get("candidate_id") or signal.get("candidate_id") or ""),
+                    candidate_id=str(
+                        metadata.get("candidate_id") or signal.get("candidate_id") or ""
+                    ),
                     opportunity_id=str(trade.get("opportunity_id") or ""),
-                    outcome=str(trade.get("outcome") or metadata.get("terminal_state") or "unknown"),
+                    outcome=str(
+                        trade.get("outcome") or metadata.get("terminal_state") or "unknown"
+                    ),
                     net_r=as_float(trade.get("realized_r_multiple") or metadata.get("realized_r")),
                     expected_r=as_float(metadata.get("expected_r")),
                     target_touched=trade.get("target_touched") is True,
@@ -106,7 +117,9 @@ def load_candidates(report_dir: Path) -> tuple[list[Candidate], dict[str, int]]:
                     entry_filled=metadata.get("entry_filled") is True,
                     selector_outcome=selector_outcome,
                     selector_net_r=selector_net_r,
-                    event_id=str(trade.get("recovery_event_id") or metadata.get("recovery_event_id") or ""),
+                    event_id=str(
+                        trade.get("recovery_event_id") or metadata.get("recovery_event_id") or ""
+                    ),
                 )
             )
 
@@ -145,7 +158,7 @@ def representative_key(row: Candidate) -> tuple[Any, ...]:
     return (
         0 if row.entry_filled else 1,
         0 if row.net_r is not None else 1,
-        row.decision_time or datetime.max.replace(tzinfo=timezone.utc),
+        row.decision_time or datetime.max.replace(tzinfo=UTC),
         row.file,
         row.candidate_id,
     )
@@ -166,7 +179,7 @@ def dedupe_exact(rows: list[Candidate]) -> list[Candidate]:
 
 
 def episode_key(row: Candidate) -> tuple[str, str, str, int]:
-    timestamp = int((row.decision_time or datetime.min.replace(tzinfo=timezone.utc)).timestamp())
+    timestamp = int((row.decision_time or datetime.min.replace(tzinfo=UTC)).timestamp())
     return (row.symbol, row.strategy, row.direction, timestamp // (15 * 60))
 
 

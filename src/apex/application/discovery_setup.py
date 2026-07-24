@@ -22,6 +22,9 @@ from apex.application.discovery_contracts import (
     TakeProfit,
     TargetRole,
 )
+from apex.application.hierarchical_timeframe_routing import (
+    is_hierarchical_pre_entry_candidate,
+)
 from apex.application.methodology_candidate_entry_authority import (
     CandidateEntryAuthority,
     resolve_candidate_entry_authority,
@@ -153,15 +156,27 @@ def _best_developing_candidate(
     selected: RankedCandidate | None,
 ) -> RankedCandidate | None:
     selected_id = None if selected is None else selected.scored.candidate_id
-    return next(
-        (
-            item
-            for item in candidate_selection.ranked_candidates
-            if item.scored.candidate_id != selected_id
-            and _is_public_setup_candidate(item)
-            and not is_entry_status_executable(classify_candidate_actionability(item.candidate))
+    eligible = tuple(
+        item
+        for item in candidate_selection.ranked_candidates
+        if item.scored.candidate_id != selected_id
+        and _is_public_setup_candidate(item)
+        and not is_entry_status_executable(classify_candidate_actionability(item.candidate))
+    )
+    if not eligible:
+        return None
+    return min(
+        eligible,
+        key=lambda item: (
+            0
+            if is_hierarchical_pre_entry_candidate(
+                item.candidate,
+                entry_status=classify_candidate_actionability(item.candidate),
+            )
+            else 1,
+            item.rank,
+            item.scored.candidate_id,
         ),
-        None,
     )
 
 
@@ -174,6 +189,8 @@ def _is_public_setup_candidate(item: RankedCandidate) -> bool:
     status = classify_candidate_actionability(candidate)
     if status is EntryStatus.MISSED_ENTRY and not _missed_setup_htf_valid(candidate):
         return False
+    if is_hierarchical_pre_entry_candidate(candidate, entry_status=status):
+        return item.outcome in _VALID_DEVELOPING_OUTCOMES | _MONITOR_ONLY_OUTCOMES
     if item.outcome in _VALID_DEVELOPING_OUTCOMES:
         return True
     if item.outcome not in _MONITOR_ONLY_OUTCOMES:
@@ -645,7 +662,6 @@ def _targets(
         strategy_targets=candidate.targets.levels,
     )
     partials = _partial_close_percentages(len(levels))
-    target_timeframe = _target_timeframe(candidate)
     expected_cost_pct = _positive_or_zero_number(candidate.metadata.get("expected_cost_pct"))
     runner_allowed = runner_qualified
     return tuple(
@@ -659,7 +675,11 @@ def _targets(
             target_type=level.kind,
             purpose=_target_purpose(level.kind, level.label),
             target_basis=_target_basis(level.kind),
-            target_timeframe=target_timeframe,
+            target_timeframe=_target_timeframe_for_level(
+                candidate,
+                kind=level.kind,
+                label=level.label,
+            ),
             target_role=_target_role(level.kind, level.label),
             synthetic=False,
             runner_qualified=(
@@ -729,12 +749,55 @@ def _target_role(kind: TargetType, label: str) -> TargetRole:
 
 
 def _target_timeframe(candidate: TradeCandidate) -> str | None:
-    for key in (
+    """Preserve the legacy candidate-level target timeframe diagnostic helper."""
+
+    return _metadata_timeframe(
+        candidate,
         "target_timeframe",
         "setup_timeframe",
         "decision_timeframe",
         "confirmation_timeframe",
-    ):
+    )
+
+
+def _target_timeframe_for_level(
+    candidate: TradeCandidate,
+    *,
+    kind: TargetType,
+    label: str,
+) -> str | None:
+    # Assign target authority without changing or fabricating target prices.
+    hierarchical_lineage = candidate.metadata.get("hierarchical_child_entry_search") == 1 or (
+        _metadata_timeframe(candidate, "setup_timeframe") is not None
+        and _metadata_timeframe(candidate, "execution_timeframe") is not None
+        and _metadata_timeframe(candidate, "target_timeframe") is not None
+        and candidate.metadata.get("parent_thesis_state") is not None
+    )
+    if hierarchical_lineage:
+        if kind is TargetType.EXPANSION or label.upper() not in {"TP1", "TP 1"}:
+            broader = _metadata_timeframe(candidate, "target_timeframe")
+            if broader is not None:
+                return broader
+        setup = _metadata_timeframe(
+            candidate,
+            "setup_timeframe",
+            "decision_timeframe",
+            "confirmation_timeframe",
+        )
+        if setup is not None:
+            return setup
+
+    return _metadata_timeframe(
+        candidate,
+        "target_timeframe",
+        "setup_timeframe",
+        "decision_timeframe",
+        "confirmation_timeframe",
+    )
+
+
+def _metadata_timeframe(candidate: TradeCandidate, *keys: str) -> str | None:
+    for key in keys:
         value = candidate.metadata.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()

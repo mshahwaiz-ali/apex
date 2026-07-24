@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
@@ -99,10 +98,7 @@ def parse_anchor(value: str) -> datetime:
 
 def default_output_dir(anchor: datetime) -> Path:
     anchor_label = anchor.strftime("%Y%m%dT%H%M%SZ")
-    return (
-        Path("backtest-samples")
-        / f"11d6d-part2e-robustness-{anchor_label}"
-    )
+    return Path("backtest-samples") / f"11d6d-part2e-robustness-{anchor_label}"
 
 
 def build_jobs(
@@ -171,17 +167,9 @@ def run_job(
 
     if completed.returncode == 0:
         try:
-            payload = json.loads(
-                job.report_path.read_text(encoding="utf-8")
-            )
-            actual_schema = (
-                payload.get("schema_version")
-                if isinstance(payload, dict)
-                else None
-            )
-            report_valid = (
-                actual_schema == EXPECTED_BACKTEST_SCHEMA_VERSION
-            )
+            payload = json.loads(job.report_path.read_text(encoding="utf-8"))
+            actual_schema = payload.get("schema_version") if isinstance(payload, dict) else None
+            report_valid = actual_schema == EXPECTED_BACKTEST_SCHEMA_VERSION
             if not report_valid:
                 error = (
                     "unexpected report schema: "
@@ -260,10 +248,7 @@ def run_campaign(args: argparse.Namespace) -> int:
         "anchor": anchor.isoformat(),
         "profiles": [asdict(profile) for profile in PROFILES],
         "symbols": list(SYMBOLS),
-        "results": [
-            asdict(item) | {"succeeded": item.succeeded}
-            for item in ordered
-        ],
+        "results": [asdict(item) | {"succeeded": item.succeeded} for item in ordered],
     }
 
     summary_path = output_dir / "campaign_summary.json"
@@ -279,11 +264,7 @@ def run_campaign(args: argparse.Namespace) -> int:
     )
 
     json_reports = len(
-        [
-            path
-            for path in output_dir.glob("*.json")
-            if path.name != "campaign_summary.json"
-        ]
+        [path for path in output_dir.glob("*.json") if path.name != "campaign_summary.json"]
     )
     logs = len(tuple((output_dir / "logs").glob("*.log")))
 
@@ -311,10 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--anchor",
         type=parse_anchor,
-        help=(
-            "Optional shared ISO-8601 UTC anchor. "
-            "Default: latest completed 15-minute boundary."
-        ),
+        help=("Optional shared ISO-8601 UTC anchor. Default: latest completed 15-minute boundary."),
     )
     parser.add_argument(
         "--output-dir",

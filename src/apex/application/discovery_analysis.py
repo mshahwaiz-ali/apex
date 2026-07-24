@@ -34,6 +34,10 @@ from apex.application.discovery_setup import (
     build_opportunity_portfolio,
 )
 from apex.application.futures_quality import analyze_futures_phase5
+from apex.application.hierarchical_timeframe_routing import (
+    apply_hierarchical_timeframe_routing,
+    hierarchical_routing_payload,
+)
 from apex.application.high_value_evidence_audit import (
     build_current_high_value_evidence_audit,
     high_value_evidence_audit_payload,
@@ -132,6 +136,27 @@ from apex.strategies.entry_status import EntryStatus
 from apex.strategies.execution_quality import ExecutionQualityCapPolicy
 
 
+def _candidate_pipeline_lineage(
+    *,
+    methodology_input_count: int,
+    methodology_retained_count: int,
+    methodology_suppressed_count: int,
+    geometry_retained_count: int,
+) -> dict[str, int | bool]:
+    geometry_rejected_count = max(0, methodology_retained_count - geometry_retained_count)
+    return {
+        "methodology_retained_candidate_count": methodology_retained_count,
+        "geometry_rejected_candidate_count": geometry_rejected_count,
+        "methodology_lineage_balanced": (
+            methodology_input_count == methodology_retained_count + methodology_suppressed_count
+        ),
+        "pipeline_lineage_balanced": (
+            methodology_input_count
+            == geometry_retained_count + methodology_suppressed_count + geometry_rejected_count
+        ),
+    }
+
+
 def _apply_geometry_no_trade_reason(
     selection: CandidateSelectionResult,
     enforcement: GeometrySafetyEnforcementResult,
@@ -199,6 +224,11 @@ def analyze_symbol(
         execution_quality_cap_policy=execution_quality_cap_policy,
     )
     routed = apply_strategy_routing(strategy_analysis, routing_config=strategy_routing)
+    hierarchical_routing = apply_hierarchical_timeframe_routing(
+        routed,
+        context=context,
+    )
+    routed = hierarchical_routing.analysis
     geometry_runtime_context = build_geometry_runtime_context(
         context,
         execution_costs=geometry_execution_costs,
@@ -291,6 +321,7 @@ def analyze_symbol(
         "candidate_count": len(selection.all_scored_candidates),
         "raw_candidate_count": len(strategy_analysis.candidates),
         "retained_candidate_count": len(eligible_routed.candidates),
+        "hierarchical_timeframe_routing": hierarchical_routing_payload(hierarchical_routing),
         "geometry_safety_enforcement": geometry_safety_enforcement_payload(geometry_enforcement),
         "ranked_count": len(selection.ranked_candidates),
         "rejected_count": len(selection.rejected_candidates),
@@ -578,6 +609,16 @@ def _zero_trade_diagnostics(
     methodology_suppressed_count = int(
         getattr(methodology_routing, "suppressed_candidate_count", 0)
     )
+    methodology_retained_count = len(
+        getattr(getattr(methodology_routing, "analysis", None), "candidates", ())
+    )
+    retained_candidate_count = len(getattr(eligible_routed, "candidates", ()))
+    lineage = _candidate_pipeline_lineage(
+        methodology_input_count=methodology_input_count,
+        methodology_retained_count=methodology_retained_count,
+        methodology_suppressed_count=methodology_suppressed_count,
+        geometry_retained_count=retained_candidate_count,
+    )
     scored_candidates = getattr(selection, "all_scored_candidates", ())
     selection_metadata = getattr(selection, "metadata", {}) or {}
     return {
@@ -591,18 +632,18 @@ def _zero_trade_diagnostics(
         "selection_summary": {
             "raw_candidate_count": len(strategy_analysis.candidates),
             "methodology_input_candidate_count": methodology_input_count,
-            "retained_candidate_count": len(eligible_routed.candidates),
+            "methodology_retained_candidate_count": lineage["methodology_retained_candidate_count"],
+            "retained_candidate_count": retained_candidate_count,
             "methodology_suppressed_candidate_count": methodology_suppressed_count,
+            "geometry_rejected_candidate_count": lineage["geometry_rejected_candidate_count"],
             "scored_candidate_count": len(scored_candidates),
             "ranked_count": len(selection.ranked_candidates),
             "terminal_outcome_count": int(selection_metadata.get("terminal_outcome_count", 0)),
             "rejected_count": len(selection.rejected_candidates),
             "selected_candidate_id": None if selected is None else selected.scored.candidate_id,
             "developing_candidate_id": None if developing is None else developing.candidate_id,
-            "methodology_lineage_balanced": (
-                methodology_input_count
-                == len(eligible_routed.candidates) + methodology_suppressed_count
-            ),
+            "methodology_lineage_balanced": lineage["methodology_lineage_balanced"],
+            "pipeline_lineage_balanced": lineage["pipeline_lineage_balanced"],
             "selection_lineage_balanced": bool(
                 selection_metadata.get(
                     "lineage_balanced",
