@@ -102,3 +102,36 @@ def test_incomplete_high_confidence_summary_ranks_below_actionable_plan() -> Non
 
     assert plan_lane(incomplete) == 1
     assert plan_lane(actionable) == 4
+
+
+def test_suppressed_activation_is_not_rehydrated_as_future_plan() -> None:
+    setup = hydrate_actionable_setup(
+        {
+            "cmp": 0.003286,
+            "setup": {
+                "entry_status": "PULLBACK_PREFERRED",
+                "execution_allowed_now": False,
+                "entry": {
+                    "current_price": 0.003286,
+                    "lower": 0.003278,
+                    "upper": 0.003295,
+                    "preferred": 0.003286,
+                },
+                "stop_loss": {"price": 0.003249},
+                "take_profits": [
+                    {
+                        "price": 0.003333,
+                        "net_risk_reward": 1.01,
+                    }
+                ],
+                "warnings": [
+                    "Confirmation-required setup has no post-confirmation execution room "
+                    "while preserving minimum net reward-to-risk."
+                ],
+            },
+        }
+    )
+
+    assert "conditional_plan" not in setup
+    assert plan_completeness(setup) == 5
+    assert plan_lane(setup) == 2
