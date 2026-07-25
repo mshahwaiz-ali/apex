@@ -200,6 +200,27 @@ class BacktestSignal:
         object.__setattr__(self, "diagnostics", MappingProxyType(diagnostics))
 
 
+def _replay_signal_identity(signal: BacktestSignal) -> tuple[object, ...]:
+    base: tuple[object, ...] = (
+        signal.generated_at,
+        signal.symbol,
+        signal.replay_source,
+    )
+    if signal.candidate_id is not None:
+        return (*base, "candidate", signal.candidate_id)
+    return (
+        *base,
+        "geometry",
+        signal.strategy.value,
+        signal.direction.value,
+        signal.entry_zone_low,
+        signal.entry_price,
+        signal.entry_zone_high,
+        signal.stop_price,
+        signal.target_prices,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class SimulatedTrade:
     """One completed deterministic simulated trade."""
@@ -282,28 +303,10 @@ class BacktestRequest:
             or not self.methodology_version.strip()
         ):
             raise ValueError("dataset, code, and methodology identifiers cannot be empty")
-        expected = tuple(
-            sorted(
-                self.signals,
-                key=lambda item: (
-                    item.generated_at,
-                    item.symbol,
-                    item.replay_source,
-                    item.candidate_id or "",
-                ),
-            )
-        )
+        expected = tuple(sorted(self.signals, key=_replay_signal_identity))
         if expected != self.signals:
             raise ValueError("backtest signals must use deterministic chronological order")
-        replay_identities = tuple(
-            (
-                signal.generated_at,
-                signal.symbol,
-                signal.replay_source,
-                signal.candidate_id or "",
-            )
-            for signal in self.signals
-        )
+        replay_identities = tuple(_replay_signal_identity(signal) for signal in self.signals)
         if len(set(replay_identities)) != len(replay_identities):
             raise ValueError("replay signal identities must be unique")
         normalized = {symbol: tuple(candles) for symbol, candles in self.candles_by_symbol.items()}
