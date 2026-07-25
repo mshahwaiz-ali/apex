@@ -162,7 +162,28 @@ def select_replay_opportunity_decisions(
     portfolio = getattr(analysis, "opportunity_portfolio", None)
     if portfolio is None:
         decision = select_canonical_opportunity_decision(analysis)
-        return () if decision.setup is None else (decision,)
+        setup = decision.setup
+        if setup is None:
+            return ()
+        actionability = build_actionability_state_assessment(
+            setup,
+            sequence_role=SequenceRole.CURRENT,
+        )
+        executable = (
+            decision.execution_authorized
+            and actionability.state in _EXECUTABLE_STATES
+            and not actionability.has_blocking_issue
+        )
+        conditional = (
+            setup.conditional_plan is not None
+            and not actionability.has_blocking_issue
+            and actionability.state
+            not in {
+                ActionabilityState.MISSED_OR_CHASING,
+                ActionabilityState.INVALIDATED,
+            }
+        )
+        return (decision,) if executable or conditional else ()
 
     decisions: list[CanonicalOpportunityDecision] = []
     seen_opportunity_ids: set[str] = set()
