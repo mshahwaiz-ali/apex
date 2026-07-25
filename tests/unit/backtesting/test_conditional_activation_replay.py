@@ -165,3 +165,35 @@ def test_trigger_on_expiry_candle_cannot_activate() -> None:
     assert trade.metadata["entry_filled"] is False
     assert trade.metadata["activation_outcome"] == "activation_expired"
     assert trade.metadata["terminal_state"] == "never_activated"
+
+
+def test_pre_entry_invalidation_remains_active_after_close_activation() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(0, open_price=100.0, high=101.4, low=99.5, close=101.2),
+            _candle(1, open_price=101.2, high=101.4, low=97.5, close=99.5),
+            _candle(2, open_price=99.5, high=106.2, low=99.0, close=105.5),
+        ),
+    )
+
+    assert trade.outcome is BacktestOutcome.PRE_ENTRY_INVALIDATED
+    assert trade.metadata["entry_filled"] is False
+    assert trade.metadata["activation_outcome"] == "pre_entry_invalidated_after_activation"
+    assert trade.metadata["terminal_state"] == "pre_entry_invalidated"
+
+
+def test_maximum_chase_remains_active_after_close_activation() -> None:
+    trade = simulate_trade(
+        _signal(maximum_chase=102.0),
+        (
+            _candle(0, open_price=100.0, high=101.4, low=99.5, close=101.2),
+            _candle(1, open_price=101.2, high=102.4, low=101.1, close=102.2),
+            _candle(2, open_price=102.2, high=102.4, low=99.8, close=100.2),
+        ),
+    )
+
+    assert trade.outcome is BacktestOutcome.MISSED_ENTRY
+    assert trade.metadata["entry_filled"] is False
+    assert trade.metadata["activation_outcome"] == "maximum_chase_breached_after_activation"
+    assert trade.metadata["terminal_state"] == "missed_trigger"

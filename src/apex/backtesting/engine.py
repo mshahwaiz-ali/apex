@@ -171,8 +171,29 @@ def simulate_trade(
             if signal.activation_type is not BacktestActivationType.PRICE_TOUCH:
                 continue
         if not entered:
+            if signal.activation_type is not None and _pre_entry_invalidated(
+                signal,
+                candle,
+            ):
+                return _unfilled_trade(
+                    signal,
+                    BacktestOutcome.PRE_ENTRY_INVALIDATED,
+                    candle,
+                    index,
+                    metadata=metadata,
+                    activation_outcome="pre_entry_invalidated_after_activation",
+                )
             raw_entry = _entry_zone_fill_price(signal, candle)
             if raw_entry is None:
+                if signal.activation_type is not None and _maximum_chase_breached(signal, candle):
+                    return _unfilled_trade(
+                        signal,
+                        BacktestOutcome.MISSED_ENTRY,
+                        candle,
+                        index,
+                        metadata=metadata,
+                        activation_outcome="maximum_chase_breached_after_activation",
+                    )
                 continue
             signal = replace(
                 signal,
