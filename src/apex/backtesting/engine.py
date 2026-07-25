@@ -134,6 +134,18 @@ def simulate_trade(
                     metadata=metadata,
                     activation_outcome="pre_entry_invalidated",
                 )
+            if (
+                signal.activation_expiry_candles is not None
+                and index >= signal.activation_expiry_candles
+            ):
+                return _unfilled_trade(
+                    signal,
+                    BacktestOutcome.ACTIVATION_EXPIRED,
+                    candle,
+                    index,
+                    metadata=metadata,
+                    activation_outcome="activation_expired",
+                )
             if _maximum_chase_breached(signal, candle):
                 return _unfilled_trade(
                     signal,
@@ -144,18 +156,6 @@ def simulate_trade(
                     activation_outcome="maximum_chase_breached",
                 )
             if not _activation_triggered(signal, candle):
-                if (
-                    signal.activation_expiry_candles is not None
-                    and index >= signal.activation_expiry_candles
-                ):
-                    return _unfilled_trade(
-                        signal,
-                        BacktestOutcome.ACTIVATION_EXPIRED,
-                        candle,
-                        index,
-                        metadata=metadata,
-                        activation_outcome="activation_expired",
-                    )
                 continue
             activated = True
             metadata = {

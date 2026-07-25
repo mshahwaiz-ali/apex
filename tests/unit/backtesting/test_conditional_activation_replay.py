@@ -150,3 +150,18 @@ def test_frozen_setup_identity_is_preserved_in_replay_metadata() -> None:
     assert trade.metadata["setup_methodology_version"] == "methodology-v2"
     assert trade.metadata["setup_validity"] == "valid"
     assert trade.metadata["execution_authority"] == "conditional_future"
+
+
+def test_trigger_on_expiry_candle_cannot_activate() -> None:
+    trade = simulate_trade(
+        _signal(expiry=2),
+        (
+            _candle(0, open_price=100.0, high=100.8, low=99.4, close=100.3),
+            _candle(1, open_price=100.3, high=101.5, low=99.7, close=101.2),
+        ),
+    )
+
+    assert trade.outcome is BacktestOutcome.ACTIVATION_EXPIRED
+    assert trade.metadata["entry_filled"] is False
+    assert trade.metadata["activation_outcome"] == "activation_expired"
+    assert trade.metadata["terminal_state"] == "never_activated"
