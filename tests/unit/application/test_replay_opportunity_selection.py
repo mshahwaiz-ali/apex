@@ -150,3 +150,34 @@ def test_canonical_selector_does_not_invent_pending_setup_without_conditional_pl
     assert decision.opportunity_id is None
     assert decision.reason_code == "canonical_no_executable_opportunity"
     assert decision.execution_authorized is False
+
+
+def test_blocking_issue_excludes_conditional_setup_from_all_replay_authority(
+    monkeypatch,
+) -> None:
+    setup = _setup("blocked-conditional", conditional=True, executable=False)
+    opportunity = SimpleNamespace(
+        setup=setup,
+        sequence_role=SequenceRole.NEARBY,
+        opportunity_id="blocked-conditional",
+        effective_lane=None,
+    )
+    analysis = SimpleNamespace(
+        opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,))
+    )
+    monkeypatch.setattr(
+        module,
+        "build_actionability_state_assessment",
+        lambda setup, *, sequence_role: SimpleNamespace(
+            state=ActionabilityState.RETEST_PREFERRED,
+            has_blocking_issue=True,
+        ),
+    )
+
+    canonical = module.select_canonical_opportunity_decision(analysis)
+    diagnostic = module.select_replay_opportunity_decisions(analysis)
+
+    assert canonical.setup is None
+    assert canonical.reason_code == "canonical_no_executable_opportunity"
+    assert canonical.execution_authorized is False
+    assert diagnostic == ()
