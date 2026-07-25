@@ -282,9 +282,19 @@ class BacktestRequest:
             or not self.methodology_version.strip()
         ):
             raise ValueError("dataset, code, and methodology identifiers cannot be empty")
-        expected = tuple(sorted(self.signals, key=lambda item: (item.generated_at, item.symbol)))
+        expected = tuple(
+            sorted(
+                self.signals,
+                key=lambda item: (
+                    item.generated_at,
+                    item.symbol,
+                    item.replay_source,
+                    item.candidate_id or "",
+                ),
+            )
+        )
         if expected != self.signals:
-            raise ValueError("backtest signals must be chronological")
+            raise ValueError("backtest signals must use deterministic chronological order")
         normalized = {symbol: tuple(candles) for symbol, candles in self.candles_by_symbol.items()}
         if any(not symbol.strip() for symbol in normalized):
             raise ValueError("candle symbol keys cannot be empty")
