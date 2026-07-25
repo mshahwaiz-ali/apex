@@ -53,9 +53,7 @@ def test_setup_header_colours_plan_cyan_symbol_yellow_and_long_green(monkeypatch
 def test_setup_header_colours_short_red(monkeypatch) -> None:
     calls, _ = _capture_terminal_calls(monkeypatch)
 
-    rendered = _emit_setup_header(
-        "┌─ SETUP PLAN 1 • O/USDT • SHORT • Trend pullback ─────────────"
-    )
+    rendered = _emit_setup_header("┌─ SETUP PLAN 1 • O/USDT • SHORT • Trend pullback ─────────────")
 
     assert rendered is True
     assert ("O/USDT", typer.colors.BRIGHT_YELLOW, True, False) in calls
@@ -65,9 +63,7 @@ def test_setup_header_colours_short_red(monkeypatch) -> None:
 def test_target_line_colours_only_price_and_percentage(monkeypatch) -> None:
     secho_calls, echo_calls = _capture_terminal_calls(monkeypatch)
 
-    rendered = _emit_target_line(
-        "  TP1  0.1237  -1.40%  • front-run of 1h opposing support zone"
-    )
+    rendered = _emit_target_line("  TP1  0.1237  -1.40%  • front-run of 1h opposing support zone")
 
     assert rendered is True
     assert ("  TP1  ", False) in echo_calls
