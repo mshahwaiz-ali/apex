@@ -194,7 +194,7 @@ def test_final_renderer_uses_compact_setup_plan_without_internal_appendices() ->
     output = render_final_analysis(_payload())
 
     assert "APEX ANALYSIS • SOL/USDT" in output
-    assert "┌─ SETUP PLAN 1 • CONDITIONAL • SOL/USDT • SHORT • Breakout retest" in output
+    assert "┌─ SETUP PLAN 1 • FUTURE RETEST • SOL/USDT • SHORT • Breakout retest" in output
     assert "Entry zone" not in output
     assert "74.742" in output
     assert "Post-entry stop" in output
@@ -213,25 +213,25 @@ def test_conditional_retest_is_labeled_and_explained_as_future_setup() -> None:
     assert "Pre-entry invalidation" in output
     assert "Post-entry stop" in output
     assert "Maximum chase" in output
+    assert "price has not reached the preferred pullback zone" in output
+    assert "Execution authority" in output
+    assert "Entry mode" in output
+    assert "Timeframe context" in output
     assert "Gross / net R" in output
-    assert "3.13R gross" in output
-    assert "Additional targets" in output
-    assert "Not published - no verified structure" in output
+    assert "Trigger condition" in output
+    assert "Confirmation TF" in output
+    assert "Order intent" in output
+    assert "Setup expiry" in output
+    assert "WARNINGS" in output
 
 
-def test_suppressed_activation_plan_replaces_misleading_unavailable_fields() -> None:
+def test_suppressed_activation_is_labeled_without_fake_trigger() -> None:
     output = render_compact_analysis(_suppressed_payload(), explain=True)
 
     assert "SETUP PLAN 1 • ACTIVATION BLOCKED" in output
     assert "Setup valid - activation blocked" in output
     assert "Monitor only - activation blocked" in output
-    assert "Activation plan" in output
-    assert "Suppressed" in output
-    assert "Only 0.41R net remains after confirmation and costs" in output
+    assert "Suppressed - no valid post-confirmation entry remains" in output
     assert "Not applicable - activation plan suppressed" in output
-    assert "Not applicable - no authorised trigger" in output
-    assert "None - monitor only" in output
-    assert "Bullish • With trend • Moderate • Scalp" in output
-    assert "Trigger condition    Unavailable" not in output
-    assert "Order intent         Unavailable" not in output
-    assert "Setup expiry         Not configured" not in output
+    assert "Only 0.41R net remains after confirmation and costs" in output
+    assert "No additional trigger required" not in output
