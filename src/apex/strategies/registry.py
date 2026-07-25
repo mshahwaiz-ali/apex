@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 
@@ -85,30 +86,20 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
 )
 
 
-def _generate_with_target_ladder(
-    generator: StrategyGenerator,
-    context: StrategyContext,
-    *,
-    decision_time: datetime,
-) -> tuple[TradeCandidate, ...]:
-    generated = generator(context, decision_time=decision_time)
-    return apply_target_ladder_to_candidates(context, generated)
-
-
 def run_strategy_generator_with_diagnostics(
     generator: StrategyGenerator,
     context: StrategyContext,
     *,
     decision_time: datetime,
 ) -> BreakoutRoutingResult:
-    """Invoke one generator and preserve shared breakout routing diagnostics."""
+    """Route first, then enrich retained candidates with target ladders."""
 
-    generated = _generate_with_target_ladder(
-        generator,
-        context,
-        decision_time=decision_time,
-    )
-    return route_breakout_candidates_with_diagnostics(context, generated)
+    generated = generator(context, decision_time=decision_time)
+    routed = route_breakout_candidates_with_diagnostics(context, generated)
+    if not routed.candidates:
+        return routed
+    enriched = apply_target_ladder_to_candidates(context, routed.candidates)
+    return replace(routed, candidates=enriched)
 
 
 def run_strategy_generator(
@@ -117,11 +108,10 @@ def run_strategy_generator(
     *,
     decision_time: datetime,
 ) -> tuple[TradeCandidate, ...]:
-    """Invoke one registered generator and apply shared production routing."""
+    """Apply authority routing before target-ladder enrichment."""
 
-    generated = _generate_with_target_ladder(
-        generator,
-        context,
-        decision_time=decision_time,
-    )
-    return route_breakout_candidates(context, generated)
+    generated = generator(context, decision_time=decision_time)
+    routed = route_breakout_candidates(context, generated)
+    if not routed:
+        return ()
+    return apply_target_ladder_to_candidates(context, routed)
