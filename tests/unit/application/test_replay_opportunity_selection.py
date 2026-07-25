@@ -120,3 +120,33 @@ def test_replay_selector_does_not_let_unreplayable_duplicate_hide_valid_setup(
     assert decisions[0].setup is conditional
     assert decisions[0].opportunity_id == "same"
     assert decisions[0].reason_code == "diagnostic_conditional_opportunity"
+
+
+def test_canonical_selector_does_not_invent_pending_setup_without_conditional_plan(
+    monkeypatch,
+) -> None:
+    setup = _setup("watch-only", conditional=False, executable=False)
+    opportunity = SimpleNamespace(
+        setup=setup,
+        sequence_role=SequenceRole.NEARBY,
+        opportunity_id="watch-only",
+        effective_lane=None,
+    )
+    analysis = SimpleNamespace(
+        opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,))
+    )
+    monkeypatch.setattr(
+        module,
+        "build_actionability_state_assessment",
+        lambda setup, *, sequence_role: SimpleNamespace(
+            state=ActionabilityState.RETEST_PREFERRED,
+            has_blocking_issue=False,
+        ),
+    )
+
+    decision = module.select_canonical_opportunity_decision(analysis)
+
+    assert decision.setup is None
+    assert decision.opportunity_id is None
+    assert decision.reason_code == "canonical_no_executable_opportunity"
+    assert decision.execution_authorized is False
