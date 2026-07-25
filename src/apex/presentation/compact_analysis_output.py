@@ -104,13 +104,15 @@ def _status(setup: Mapping[str, object]) -> str:
         return "Setup valid - activation blocked"
     trigger_kind = _trigger_kind(setup)
     if trigger_kind == "retest_hold":
-        state = str(setup.get("entry_status") or "").upper()
-        return "Missed entry - re-entry retest" if state == "MISSED_ENTRY" else "Future retest - hold required"
+        entry_state = str(setup.get("entry_status") or "").upper()
+        if entry_state == "MISSED_ENTRY":
+            return "Missed entry - re-entry retest"
+        return "Future retest - hold required"
     if trigger_kind == "reclaim_close":
         return "Future reclaim - close required"
-    state = setup.get("entry_status") or setup.get("actionability_state")
-    if state is not None:
-        human = humanize_code(state)
+    raw_state = setup.get("entry_status") or setup.get("actionability_state")
+    if raw_state is not None:
+        human = humanize_code(raw_state)
         if human.lower() not in {"unavailable", "none"}:
             return human
     if _conditional_plan(setup):
@@ -214,7 +216,9 @@ def _execution_label(setup: Mapping[str, object]) -> str:
     if _activation_plan_suppressed(setup):
         return "Monitor only - activation blocked"
     authority = humanize_code(setup.get("execution_authority"))
-    return "Conditional future" if _conditional_plan(setup) and authority == "Unavailable" else authority
+    if _conditional_plan(setup) and authority == "Unavailable":
+        return "Conditional future"
+    return authority
 
 
 def _plan_title(setup: Mapping[str, object], index: int) -> str:
@@ -382,10 +386,18 @@ def _trade_card(
                 )
             )
         if len(targets) == 1:
-            explanation_fields.append(("Additional targets", "Not published - no verified structure"))
+            explanation_fields.append(
+                ("Additional targets", "Not published - no verified structure")
+            )
         body.extend(("", "  WHY THIS TRADE", render_fields(tuple(explanation_fields))))
         if warning_values:
-            body.extend(("", "  WARNINGS", "\n".join(f"    - {value}" for value in warning_values)))
+            body.extend(
+                (
+                    "",
+                    "  WARNINGS",
+                    "\n".join(f"    - {value}" for value in warning_values),
+                )
+            )
 
     title = f"{_plan_title(setup, index)} • {symbol} • {direction} • {strategy}"
     return render_section(title, "\n".join(body))
@@ -473,7 +485,10 @@ def render_compact_analysis(payload: Mapping[str, object], *, explain: bool = Fa
                         ("Current state", plan.get("current_state")),
                         ("Long trigger", plan.get("long_trigger")),
                         ("Short trigger", plan.get("short_trigger")),
-                        ("Next action", "Re-run after a material structure or entry-condition change"),
+                        (
+                            "Next action",
+                            "Re-run after a material structure or entry-condition change",
+                        ),
                     )
                 ),
             )
