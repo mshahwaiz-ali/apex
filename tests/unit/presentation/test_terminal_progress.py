@@ -87,24 +87,35 @@ def test_opportunity_headers_color_long_green_and_short_red(
 def test_terminal_uses_professional_trade_geometry_colors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, str | None, bool]] = []
+    calls: list[tuple[str, str | None, bool, bool]] = []
 
-    def capture(line: str, *, fg: str | None = None, bold: bool = False) -> None:
-        calls.append((line, fg, bold))
+    def capture(
+        line: str,
+        *,
+        fg: str | None = None,
+        bold: bool = False,
+        nl: bool = True,
+    ) -> None:
+        calls.append((line, fg, bold, nl))
 
     monkeypatch.setattr(typer, "secho", capture)
     monkeypatch.setattr(typer, "echo", lambda line, **kwargs: None)
 
     emit_terminal(
-        "  ENTRY\n    Ideal entry  100\n  RISK\n    Stop loss  97\n  TARGETS\n    TP1  106"
+        "  ENTRY\n"
+        "    Ideal entry  100\n"
+        "  RISK\n"
+        "    Stop loss  97\n"
+        "  TARGETS\n"
+        "    TP1  106  +6.00%  • nearest verified resistance"
     )
 
     assert calls == [
-        ("  ENTRY", typer.colors.BRIGHT_CYAN, True),
-        ("  RISK", typer.colors.BRIGHT_CYAN, True),
-        ("    Stop loss  97", typer.colors.BRIGHT_RED, False),
-        ("  TARGETS", typer.colors.BRIGHT_CYAN, True),
-        ("    TP1  106", typer.colors.BRIGHT_GREEN, False),
+        ("  ENTRY", typer.colors.BRIGHT_CYAN, True, True),
+        ("  RISK", typer.colors.BRIGHT_CYAN, True, True),
+        ("    Stop loss  97", typer.colors.BRIGHT_RED, False, True),
+        ("  TARGETS", typer.colors.BRIGHT_CYAN, True, True),
+        ("106  +6.00%", typer.colors.BRIGHT_GREEN, False, False),
     ]
 
 
