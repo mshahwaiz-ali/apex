@@ -39,12 +39,7 @@ def build_structural_target_ladder(
     direction: TradeDirection,
     max_targets: int = _MAX_STRUCTURAL_TARGETS,
 ) -> tuple[TargetLevel, ...]:
-    """Return nearest-first targets across all relevant configured timeframes.
-
-    Targets are placed just before the opposing zone using a volatility- and
-    zone-width-aware buffer. Overlapping zones are deduplicated so a distant
-    higher-timeframe objective cannot silently replace a nearer obstacle.
-    """
+    """Return nearest-first targets across all relevant configured timeframes."""
 
     if max_targets < 1:
         raise ValueError("max targets must be at least one")
@@ -79,13 +74,7 @@ def apply_target_ladder_to_candidates(
     *,
     max_targets: int = _MAX_STRUCTURAL_TARGETS,
 ) -> tuple[TradeCandidate, ...]:
-    """Merge every strategy's objectives with the nearest structural obstacles.
-
-    Strategy-specific range, liquidity, reversal, and measured targets are
-    preserved. Multi-timeframe structural front-run targets are inserted ahead
-    of any farther objective. TP1 remains the first credible obstacle, while a
-    farther strategy objective may survive as TP3 for conditional runner use.
-    """
+    """Apply nearest-obstacle target ordering to every strategy family."""
 
     if max_targets < 1:
         raise ValueError("max targets must be at least one")
@@ -109,11 +98,15 @@ def _apply_target_ladder(
     originals = tuple(
         level
         for level in candidate.targets.levels
-        if _target_is_ahead(context, candidate.direction, level)
+        if _target_is_valid_for_candidate(candidate, level)
     )
     combined = (*structural, *originals)
     ordered = sorted(
-        (level for level in combined if _target_is_ahead(context, candidate.direction, level)),
+        (
+            level
+            for level in combined
+            if _target_is_valid_for_candidate(candidate, level)
+        ),
         key=lambda level: (
             abs(level.price - context.current_price),
             1 if level.kind is TargetType.EXPANSION else 0,
@@ -138,7 +131,13 @@ def _apply_target_ladder(
         max_targets=max_targets,
     )
     if not selected:
-        selected = [fallback_expansion_target(context, direction=candidate.direction)]
+        selected = list(originals[:max_targets])
+    if not selected:
+        fallback = fallback_expansion_target(context, direction=candidate.direction)
+        if _target_is_valid_for_candidate(candidate, fallback):
+            selected = [fallback]
+        else:
+            return candidate
 
     relabelled = tuple(
         replace(level, label=f"tp{index}") for index, level in enumerate(selected, start=1)
@@ -150,6 +149,7 @@ def _apply_target_ladder(
     metadata["target_ladder_runner_preserved"] = _runner_was_preserved(
         relabelled,
         originals=originals,
+        current=context.current_price,
         tolerance=tolerance,
     )
     metadata["target_1_management"] = "reduce at first obstacle or earlier confirmed rejection"
@@ -195,12 +195,28 @@ def _runner_was_preserved(
     levels: tuple[TargetLevel, ...],
     *,
     originals: tuple[TargetLevel, ...],
+    current: float,
     tolerance: float,
 ) -> bool:
     if not originals or len(levels) < 2:
         return False
-    farthest_original = max(originals, key=lambda level: abs(level.price))
+    farthest_original = max(
+        originals,
+        key=lambda level: abs(level.price - current),
+    )
     return any(abs(level.price - farthest_original.price) <= tolerance for level in levels[1:])
+
+
+def _target_is_valid_for_candidate(
+    candidate: TradeCandidate,
+    level: TargetLevel,
+) -> bool:
+    opportunities = candidate.entry_opportunities or (candidate.entry,)
+    if candidate.direction is TradeDirection.LONG:
+        required_boundary = max(opportunity.upper for opportunity in opportunities)
+        return level.price > required_boundary
+    required_boundary = min(opportunity.lower for opportunity in opportunities)
+    return level.price < required_boundary
 
 
 def fallback_expansion_target(
@@ -242,16 +258,6 @@ def target_ladder_metadata(levels: tuple[TargetLevel, ...]) -> dict[str, str | i
         if timeframe is not None:
             metadata[f"target_{index}_timeframe"] = timeframe
     return metadata
-
-
-def _target_is_ahead(
-    context: StrategyContext,
-    direction: TradeDirection,
-    level: TargetLevel,
-) -> bool:
-    if direction is TradeDirection.LONG:
-        return level.price > context.current_price
-    return level.price < context.current_price
 
 
 def _timeframe_from_rationale(rationale: tuple[str, ...]) -> str | None:
