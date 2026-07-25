@@ -107,15 +107,28 @@ def calibration_reporting_payload(
 def _filled_trades(report: BacktestReport) -> tuple[SimulatedTrade, ...]:
     """Return only canonical records that represent an actual entry fill.
 
-    Research-shadow and unknown replay sources fail closed so counterfactual
-    fills cannot enter production calibration or confidence authority.
+    Current reports use explicit ``entry_filled`` metadata. Legacy reports may
+    predate that field, so they fall back to terminal post-fill outcomes only
+    when no trade in the report carries explicit fill metadata. Research-shadow
+    and unknown replay sources remain excluded in both paths.
     """
 
-    return tuple(
+    canonical = tuple(
         trade
         for trade in report.trades
-        if trade.metadata.get("entry_filled") is True
-        and trade.signal.replay_source in _CALIBRATION_REPLAY_SOURCES
+        if trade.signal.replay_source in _CALIBRATION_REPLAY_SOURCES
+    )
+    if any("entry_filled" in trade.metadata for trade in canonical):
+        return tuple(trade for trade in canonical if trade.metadata.get("entry_filled") is True)
+    return tuple(
+        trade
+        for trade in canonical
+        if trade.outcome
+        in {
+            BacktestOutcome.TARGET,
+            BacktestOutcome.STOP,
+            BacktestOutcome.EXPIRED,
+        }
     )
 
 

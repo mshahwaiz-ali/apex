@@ -132,9 +132,7 @@ def test_canonical_selector_does_not_invent_pending_setup_without_conditional_pl
         opportunity_id="watch-only",
         effective_lane=None,
     )
-    analysis = SimpleNamespace(
-        opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,))
-    )
+    analysis = SimpleNamespace(opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,)))
     monkeypatch.setattr(
         module,
         "build_actionability_state_assessment",
@@ -162,9 +160,7 @@ def test_blocking_issue_excludes_conditional_setup_from_all_replay_authority(
         opportunity_id="blocked-conditional",
         effective_lane=None,
     )
-    analysis = SimpleNamespace(
-        opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,))
-    )
+    analysis = SimpleNamespace(opportunity_portfolio=SimpleNamespace(opportunities=(opportunity,)))
     monkeypatch.setattr(
         module,
         "build_actionability_state_assessment",

@@ -121,10 +121,7 @@ def build_discovery_assessment(
         analysis_timestamp=candidate_selection.decision_time,
         analysis_mode=AnalysisMode.ANALYZE_FULL,
     )
-    selected_opportunity = next(
-        iter(portfolio.execution_ready_opportunities),
-        portfolio.primary_opportunity,
-    )
+    selected_opportunity = next(iter(portfolio.execution_ready_opportunities), None)
     selected_setup = None if selected_opportunity is None else selected_opportunity.setup
     selected_id = None if selected_setup is None else selected_setup.candidate_id
     developing_setup = next(
@@ -137,10 +134,23 @@ def build_discovery_assessment(
         None,
     )
 
+    reasons: tuple[str, ...] = ()
+    if selected_setup is None:
+        reasons = (
+            candidate_selection.no_trade_reason
+            or (
+                "no setup is executable now; the best valid candidate is preserved "
+                "as a developing setup"
+                if developing_setup is not None
+                else "no executable discovery setup is currently available"
+            ),
+        )
+
     return DiscoveryAssessment(
         symbol=candidate_selection.symbol,
         decision_time=candidate_selection.decision_time,
         setup=selected_setup,
+        reasons=reasons,
         developing_setup=developing_setup,
         quality_shadow_diagnostics=quality_shadow,
     )
@@ -300,7 +310,7 @@ def _conditional_plan_has_execution_room(
     *,
     direction: TradeDirection,
     trigger_kind: ActivationTriggerType,
-    trigger_level: float,
+    trigger_level: float | None = None,
 ) -> bool:
     """Return whether activation can complete before the chase boundary is stale.
 
@@ -312,10 +322,17 @@ def _conditional_plan_has_execution_room(
 
     if trigger_kind is ActivationTriggerType.PRICE_TOUCH:
         return True
-    tolerance = max(abs(trigger_level) * 1e-9, 1e-12)
+    effective_trigger = (
+        trigger_level
+        if trigger_level is not None
+        else entry.upper
+        if direction is TradeDirection.LONG
+        else entry.lower
+    )
+    tolerance = max(abs(effective_trigger) * 1e-9, 1e-12)
     if direction is TradeDirection.LONG:
-        return entry.maximum_chase_price > trigger_level + tolerance
-    return entry.maximum_chase_price < trigger_level - tolerance
+        return entry.maximum_chase_price > effective_trigger + tolerance
+    return entry.maximum_chase_price < effective_trigger - tolerance
 
 
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:

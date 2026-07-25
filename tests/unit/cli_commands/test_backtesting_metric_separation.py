@@ -416,6 +416,7 @@ def test_trade_records_expose_replay_provenance_and_canonical_authority() -> Non
     assert records[0]["replay_class"] == "production"
     assert records[0]["canonical_portfolio"] is True
 
+
 def test_trade_record_calibration_join_prefers_candidate_identity() -> None:
     trade = _trade(
         "candidate-b",
@@ -466,4 +467,3 @@ def test_trade_record_calibration_join_prefers_candidate_identity() -> None:
         "alternative",
         100.0,
     ]
-

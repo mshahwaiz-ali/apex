@@ -27,10 +27,10 @@ from apex.application.canonical_opportunity_selection import (
     select_replay_opportunity_decisions,
 )
 from apex.application.discovery_contracts import DiscoverySetup
-from apex.application.portfolio_retention import setup_geometry_fingerprint
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
 )
+from apex.application.portfolio_retention import setup_geometry_fingerprint
 from apex.backtesting.contracts import (
     BacktestConfig,
     BacktestRequest,
@@ -831,9 +831,7 @@ def _calibration_record(
         "direction": None if setup is None else setup.direction.value,
         "candidate_id": None if setup is None else setup.candidate_id,
         "strategy_version": None if setup is None else setup.strategy_version,
-        "setup_methodology_version": (
-            None if setup is None else setup.methodology_version
-        ),
+        "setup_methodology_version": (None if setup is None else setup.methodology_version),
         "setup_geometry_fingerprint": (
             None if setup is None else list(setup_geometry_fingerprint(setup))
         ),
@@ -2088,8 +2086,7 @@ def _canonical_trade_records(
     calibration_by_candidate = {
         str(record.get("candidate_id")): record
         for record in calibration_records
-        if isinstance(record.get("candidate_id"), str)
-        and str(record.get("candidate_id")).strip()
+        if isinstance(record.get("candidate_id"), str) and str(record.get("candidate_id")).strip()
     }
     calibration_by_time = {
         str(record.get("decision_time")): record for record in calibration_records
@@ -2102,9 +2099,7 @@ def _canonical_trade_records(
         signal = serialized.get("signal")
         generated_at = signal.get("generated_at") if isinstance(signal, Mapping) else None
         decision_time = str(generated_at or "")
-        candidate_id = (
-            signal.get("candidate_id") if isinstance(signal, Mapping) else None
-        )
+        candidate_id = signal.get("candidate_id") if isinstance(signal, Mapping) else None
         calibration = (
             calibration_by_candidate.get(str(candidate_id), {})
             if isinstance(candidate_id, str) and candidate_id.strip()
@@ -2144,9 +2139,7 @@ def _canonical_trade_records(
                     if isinstance(signal, Mapping)
                     else calibration.get("setup_methodology_version")
                 ),
-                "setup_geometry_fingerprint": calibration.get(
-                    "setup_geometry_fingerprint"
-                ),
+                "setup_geometry_fingerprint": calibration.get("setup_geometry_fingerprint"),
                 "replay_source": (
                     signal.get("replay_source") if isinstance(signal, Mapping) else None
                 ),
@@ -2308,11 +2301,42 @@ def _canonical_trade_records(
     return records
 
 
+def _filled_or_legacy_execution_trades(trades: object) -> tuple[object, ...]:
+    # Return explicit fills, with a legacy fallback only when fill flags are absent.
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    explicit = _filled_execution_trades(values)
+    has_explicit_fill_metadata = any(
+        isinstance(getattr(trade, "metadata", None), Mapping)
+        and "entry_filled" in trade.metadata
+        for trade in values
+    )
+    if has_explicit_fill_metadata:
+        return explicit
+    return tuple(
+        trade
+        for trade in values
+        if getattr(getattr(trade, "outcome", None), "value", None) in {"target", "stop", "expired"}
+        and isinstance(getattr(trade, "metadata", None), Mapping)
+    )
+
+
 def _outcome_distribution(trades: object) -> dict[str, object]:
     """Report lifecycle and post-fill outcomes with their correct populations."""
 
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
-    filled_values = _filled_execution_trades(values)
+    filled_values: tuple[object, ...] = _filled_execution_trades(values)
+    explicit_fill_metadata = any(
+        isinstance(getattr(trade, "metadata", None), Mapping) and "entry_filled" in trade.metadata
+        for trade in values
+    )
+    if not explicit_fill_metadata:
+        filled_values = tuple(
+            trade
+            for trade in values
+            if getattr(getattr(trade, "outcome", None), "value", None)
+            in {"target", "stop", "expired"}
+            and isinstance(getattr(trade, "metadata", None), Mapping)
+        )
     outcome_counts = {
         "target": 0,
         "stop": 0,
@@ -2331,7 +2355,9 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
             outcome_counts[outcome] += 1
 
     for trade in filled_values:
-        metadata = trade.metadata
+        metadata = getattr(trade, "metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
         target_count = int(metadata.get("partial_target_count", 0) or 0)
         for threshold, key in (
             (1, "tp1_hit_count"),
@@ -2538,14 +2564,16 @@ def _risk_and_excursion(trades: object) -> dict[str, object]:
     """Separate realised fill excursion from counterfactual plan-path evidence."""
 
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
-    filled_values = _filled_execution_trades(values)
+    filled_values = _filled_or_legacy_execution_trades(values)
     mfe_values: list[float] = []
     mae_values: list[float] = []
     path_mfe_values: list[float] = []
     path_mae_values: list[float] = []
 
     for trade in filled_values:
-        metadata = trade.metadata
+        metadata = getattr(trade, "metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
         mfe = metadata.get("maximum_favorable_excursion_r")
         mae = metadata.get("maximum_adverse_excursion_r")
         if isinstance(mfe, int | float) and not isinstance(mfe, bool):

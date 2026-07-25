@@ -130,7 +130,7 @@ def test_assessment_uses_portfolio_primary_when_no_setup_is_executable(monkeypat
 
     assessment = discovery_setup.build_discovery_assessment(_selection(*items))
 
-    assert assessment.setup is not None
-    assert assessment.setup.candidate_id == "stronger-future"
+    assert assessment.setup is None
     assert assessment.developing_setup is not None
-    assert assessment.developing_setup.candidate_id == "weaker-future"
+    assert assessment.developing_setup.candidate_id == "stronger-future"
+    assert assessment.reasons

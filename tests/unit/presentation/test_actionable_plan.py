@@ -72,9 +72,10 @@ def test_missed_entry_becomes_lower_priority_complete_reentry_plan() -> None:
     assert setup["entry"]["current_price"] == 32.0
     assert setup["entry"]["preferred"] == 31.0
     assert setup["conditional_plan"]["trigger"]["type"] == "retest_hold"
-    assert "original entry was missed" in setup["conditional_plan"][
-        "reason_not_executable_now"
-    ].lower()
+    assert (
+        "original entry was missed"
+        in setup["conditional_plan"]["reason_not_executable_now"].lower()
+    )
     assert plan_completeness(setup) == 8
     assert plan_lane(setup) == 3
 

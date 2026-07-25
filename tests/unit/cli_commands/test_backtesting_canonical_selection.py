@@ -159,7 +159,7 @@ def test_pending_canonical_opportunity_is_not_fabricated_into_signal() -> None:
     decision = backtesting._select_replay_decision(_analysis(opportunity))
 
     assert decision.setup is None
-    assert decision.reason_code == "canonical_opportunity_pending_activation"
+    assert decision.reason_code == "canonical_no_executable_opportunity"
     assert decision.canonical_portfolio is True
 
 
