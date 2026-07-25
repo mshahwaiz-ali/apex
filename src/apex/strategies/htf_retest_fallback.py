@@ -163,7 +163,8 @@ def _fallback_for_direction(
         intraday.structure.trend.strength,
     )
     warnings = (
-        "decision-frame momentum is fully opposed; execution requires a fresh retest hold or reclaim",
+        "decision-frame momentum is fully opposed; execution requires a fresh "
+        "retest hold or reclaim",
         *(("active-candle evidence is provisional",) if context.provisional else ()),
     )
 
@@ -240,7 +241,8 @@ def _fallback_for_direction(
             "htf_retest_fallback": True,
             "entry_confirmation_complete": False,
             "entry_confirmation_reason": (
-                "parent trend is established but local momentum is opposed; wait for retest hold or reclaim"
+                "parent trend is established but local momentum is opposed; "
+                "wait for retest hold or reclaim"
             ),
             "momentum_mismatch_treatment": "conditional_retest",
             "invalidation_includes_noise_buffer": True,
