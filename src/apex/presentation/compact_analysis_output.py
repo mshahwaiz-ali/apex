@@ -64,15 +64,34 @@ def _entry_line(entry: Mapping[str, object]) -> tuple[str, object]:
     )
 
 
+def _conditional_plan(setup: Mapping[str, object]) -> Mapping[str, object]:
+    return _mapping(setup.get("conditional_plan"))
+
+
+def _trigger_payload(setup: Mapping[str, object]) -> Mapping[str, object]:
+    return _mapping(_conditional_plan(setup).get("trigger"))
+
+
+def _trigger_kind(setup: Mapping[str, object]) -> str:
+    trigger = _trigger_payload(setup)
+    value = trigger.get("type") or trigger.get("kind")
+    return "" if value is None else str(value).lower()
+
+
 def _status(setup: Mapping[str, object]) -> str:
     if setup.get("execution_allowed_now") is True:
         return "Ready now"
+    trigger_kind = _trigger_kind(setup)
+    if trigger_kind == "retest_hold":
+        return "Future retest - hold required"
+    if trigger_kind == "reclaim_close":
+        return "Future reclaim - close required"
     state = setup.get("entry_status") or setup.get("actionability_state")
     if state is not None:
         human = humanize_code(state)
         if human.lower() not in {"unavailable", "none"}:
             return human
-    if _mapping(setup.get("conditional_plan")):
+    if _conditional_plan(setup):
         return "Awaiting confirmation"
     return "Valid setup - monitor"
 
@@ -96,24 +115,22 @@ def _relationship(setup: Mapping[str, object]) -> str:
 
 
 def _trigger(setup: Mapping[str, object]) -> str:
-    plan = _mapping(setup.get("conditional_plan"))
-    trigger = _mapping(plan.get("trigger"))
+    trigger = _trigger_payload(setup)
     if not trigger:
         if setup.get("execution_allowed_now") is True:
             return "No additional trigger required"
         return "Monitor stated entry conditions"
     kind = humanize_code(trigger.get("type") or trigger.get("kind"))
     level = format_price(trigger.get("level"))
-    return f"{kind} at {level}"
+    timeframe = trigger.get("confirmation_timeframe")
+    suffix = "" if timeframe in {None, ""} else f" on {timeframe}"
+    return f"{kind} at {level}{suffix}"
 
 
-def _invalidation(setup: Mapping[str, object]) -> str:
-    plan = _mapping(setup.get("conditional_plan"))
+def _pre_entry_invalidation(setup: Mapping[str, object]) -> str:
+    plan = _conditional_plan(setup)
     invalidation = _mapping(plan.get("pre_entry_invalidation"))
-    if invalidation:
-        return format_price(invalidation.get("price"))
-    stop = _mapping(setup.get("stop_loss"))
-    return format_price(stop.get("price"))
+    return format_price(invalidation.get("price")) if invalidation else "Unavailable"
 
 
 def _quality(setup: Mapping[str, object], opportunity: Mapping[str, object]) -> str:
@@ -129,6 +146,46 @@ def _price_move(price: object, reference: object) -> str:
     return f"{format_price(price)}  {_percentage(price, reference)}"
 
 
+def _execution_label(setup: Mapping[str, object]) -> str:
+    if setup.get("execution_allowed_now") is True:
+        return "Executable now"
+    authority = humanize_code(setup.get("execution_authority"))
+    return "Do not enter now" if authority == "Unavailable" else authority
+
+
+def _plan_title(setup: Mapping[str, object], index: int) -> str:
+    if setup.get("execution_allowed_now") is True:
+        return f"TRADE {index}"
+    trigger_kind = _trigger_kind(setup)
+    if trigger_kind == "retest_hold":
+        return f"SETUP PLAN {index} • FUTURE RETEST"
+    if trigger_kind == "reclaim_close":
+        return f"SETUP PLAN {index} • FUTURE RECLAIM"
+    return f"SETUP PLAN {index} • CONDITIONAL"
+
+
+def _risk_reward(target: Mapping[str, object]) -> str:
+    net = _number(target.get("net_risk_reward"))
+    gross = _number(target.get("risk_reward"))
+    if net is not None:
+        return f"{net:.2f}R net"
+    if gross is not None:
+        return f"{gross:.2f}R gross"
+    return "Unavailable"
+
+
+def _expiry(plan: Mapping[str, object]) -> str:
+    expiry = _mapping(plan.get("expiry"))
+    bars = expiry.get("bars")
+    seconds = expiry.get("seconds")
+    reason = expiry.get("reason")
+    if bars is not None:
+        return f"{bars} bars" + (f" - {reason}" if reason else "")
+    if seconds is not None:
+        return f"{seconds} seconds" + (f" - {reason}" if reason else "")
+    return "Not configured"
+
+
 def _trade_card(
     opportunity: Mapping[str, object],
     *,
@@ -141,30 +198,41 @@ def _trade_card(
     entry = _mapping(setup.get("entry"))
     stop = _mapping(setup.get("stop_loss"))
     targets = _mappings(setup.get("take_profits"))
+    plan = _conditional_plan(setup)
+    trigger = _trigger_payload(setup)
     reference = entry.get("preferred") or entry.get("current_price")
     direction = _direction(setup, opportunity)
     strategy = _strategy(setup, opportunity)
+
+    entry_fields: list[tuple[str, object]] = [
+        ("CMP", format_price(entry.get("current_price"))),
+        _entry_line(entry),
+        ("Ideal entry", format_price(entry.get("preferred"))),
+    ]
+    maximum_chase = entry.get("maximum_chase_price")
+    if maximum_chase is not None:
+        entry_fields.append(("Maximum chase", format_price(maximum_chase)))
 
     body: list[str] = [
         render_fields(
             (
                 ("Status", _status(setup)),
+                ("Execution", _execution_label(setup)),
                 ("Confidence", f"{_quality(setup, opportunity)}/100"),
                 ("Generated", _timestamp(generated_at)),
             )
         ),
         "",
         "  ENTRY",
-        render_fields(
-            (
-                ("CMP", format_price(entry.get("current_price"))),
-                _entry_line(entry),
-                ("Ideal entry", format_price(entry.get("preferred"))),
-            )
-        ),
+        render_fields(tuple(entry_fields)),
         "",
         "  RISK",
-        render_fields((("Stop loss", _price_move(stop.get("price"), reference)),)),
+        render_fields(
+            (
+                ("Post-entry stop", _price_move(stop.get("price"), reference)),
+                ("Pre-entry invalidation", _pre_entry_invalidation(setup)),
+            )
+        ),
     ]
 
     if targets:
@@ -189,7 +257,11 @@ def _trade_card(
                 (
                     ("Trend", _relationship(setup)),
                     ("Trigger", _trigger(setup)),
-                    ("Invalidation", _invalidation(setup)),
+                    (
+                        "Next action",
+                        plan.get("reason_not_executable_now")
+                        or "Follow the published activation condition",
+                    ),
                 )
             ),
         )
@@ -197,31 +269,42 @@ def _trade_card(
 
     if explain:
         quality = _mapping(setup.get("quality_dimensions"))
+        geometry = _mapping(plan.get("geometry"))
         warnings = setup.get("warnings")
         warning_values = (
             tuple(str(item) for item in warnings)
             if isinstance(warnings, Sequence) and not isinstance(warnings, str | bytes)
             else ()
         )
+        explanation_fields: list[tuple[str, object]] = [
+            ("Setup quality", f"{format_score(quality.get('setup_quality'))}/100"),
+            (
+                "Execution quality",
+                f"{format_score(quality.get('execution_quality'))}/100",
+            ),
+            ("Target quality", f"{format_score(quality.get('target_quality'))}/100"),
+            ("Execution authority", humanize_code(setup.get("execution_authority"))),
+            ("Entry mode", humanize_code(setup.get("entry_mode"))),
+            ("Trigger condition", trigger.get("condition") or "Unavailable"),
+            (
+                "Confirmation TF",
+                trigger.get("confirmation_timeframe") or "Unavailable",
+            ),
+            ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+            ("Gross / net R", _risk_reward(targets[0]) if targets else "Unavailable"),
+            ("Stop basis", humanize_code(geometry.get("stop_basis"))),
+            ("Target basis", humanize_code(geometry.get("targets_basis"))),
+            ("Setup expiry", _expiry(plan)),
+        ]
+        if len(targets) == 1:
+            explanation_fields.append(
+                ("Additional targets", "Not published - no verified structure")
+            )
         body.extend(
             (
                 "",
                 "  WHY THIS TRADE",
-                render_fields(
-                    (
-                        ("Setup quality", f"{format_score(quality.get('setup_quality'))}/100"),
-                        (
-                            "Execution quality",
-                            f"{format_score(quality.get('execution_quality'))}/100",
-                        ),
-                        ("Target quality", f"{format_score(quality.get('target_quality'))}/100"),
-                        (
-                            "Execution authority",
-                            humanize_code(setup.get("execution_authority")),
-                        ),
-                        ("Entry mode", humanize_code(setup.get("entry_mode"))),
-                    )
-                ),
+                render_fields(tuple(explanation_fields)),
             )
         )
         if warning_values:
@@ -233,7 +316,9 @@ def _trade_card(
                 )
             )
 
-    title = f"TRADE {index} • {symbol} • {direction} • {strategy}"
+    title = (
+        f"{_plan_title(setup, index)} • {symbol} • {direction} • {strategy}"
+    )
     return render_section(title, "\n".join(body))
 
 
