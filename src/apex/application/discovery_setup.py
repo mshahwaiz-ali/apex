@@ -94,14 +94,15 @@ _CONFIRMATION_REQUIRED_MODES = {
 def build_discovery_assessment(
     candidate_selection: CandidateSelectionResult,
 ) -> DiscoveryAssessment:
-    """Convert candidate selection into executable and developing setup views."""
+    """Project legacy setup fields from the canonical opportunity portfolio.
 
-    selected = (
-        candidate_selection.selected_candidate or candidate_selection.selected_future_candidate
-    )
-    developing = _best_developing_candidate(candidate_selection, selected=selected)
+    Candidate selection remains an upstream scoring result. It no longer acts as
+    a second symbol-level setup authority beside the retained portfolio.
+    """
+
     quality_shadow = build_quality_shadow_rollout_diagnostics(candidate_selection).to_dict()
-    if selected is None:
+    setups = _build_public_setups(candidate_selection)
+    if not setups:
         return DiscoveryAssessment(
             symbol=candidate_selection.symbol,
             decision_time=candidate_selection.decision_time,
@@ -109,15 +110,38 @@ def build_discovery_assessment(
             reasons=(
                 candidate_selection.no_trade_reason or "candidate selection produced no setup",
             ),
-            developing_setup=(None if developing is None else _build_setup(developing)),
+            developing_setup=None,
             quality_shadow_diagnostics=quality_shadow,
         )
+
+    portfolio = portfolio_from_setups(
+        setups,
+        symbol=candidate_selection.symbol,
+        cmp=setups[0].entry.current_price,
+        analysis_timestamp=candidate_selection.decision_time,
+        analysis_mode=AnalysisMode.ANALYZE_FULL,
+    )
+    selected_opportunity = next(
+        iter(portfolio.execution_ready_opportunities),
+        portfolio.primary_opportunity,
+    )
+    selected_setup = None if selected_opportunity is None else selected_opportunity.setup
+    selected_id = None if selected_setup is None else selected_setup.candidate_id
+    developing_setup = next(
+        (
+            opportunity.setup
+            for opportunity in portfolio.opportunities
+            if opportunity.opportunity_id != selected_id
+            and not opportunity.setup.execution_allowed_now
+        ),
+        None,
+    )
 
     return DiscoveryAssessment(
         symbol=candidate_selection.symbol,
         decision_time=candidate_selection.decision_time,
-        setup=_build_setup(selected),
-        developing_setup=None if developing is None else _build_setup(developing),
+        setup=selected_setup,
+        developing_setup=developing_setup,
         quality_shadow_diagnostics=quality_shadow,
     )
 
@@ -136,11 +160,7 @@ def build_opportunity_portfolio(
     by DiscoverySetup is retained in deterministic portfolio order.
     """
 
-    setups = tuple(
-        _build_setup(item)
-        for item in candidate_selection.ranked_candidates
-        if _is_public_setup_candidate(item)
-    )
+    setups = _build_public_setups(candidate_selection)
     return portfolio_from_setups(
         setups,
         symbol=candidate_selection.symbol,
@@ -148,6 +168,18 @@ def build_opportunity_portfolio(
         analysis_timestamp=candidate_selection.decision_time,
         analysis_mode=analysis_mode,
         ranking_policy=ranking_policy,
+    )
+
+
+def _build_public_setups(
+    candidate_selection: CandidateSelectionResult,
+) -> tuple[DiscoverySetup, ...]:
+    """Construct every public setup once from the ranked candidate population."""
+
+    return tuple(
+        _build_setup(item)
+        for item in candidate_selection.ranked_candidates
+        if _is_public_setup_candidate(item)
     )
 
 
