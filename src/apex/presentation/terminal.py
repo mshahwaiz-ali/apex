@@ -187,9 +187,7 @@ def _emit_setup_header(line: str) -> bool:
         return False
 
     direction = match.group("direction")
-    direction_color = (
-        typer.colors.BRIGHT_GREEN if direction == "LONG" else typer.colors.BRIGHT_RED
-    )
+    direction_color = typer.colors.BRIGHT_GREEN if direction == "LONG" else typer.colors.BRIGHT_RED
     typer.secho(match.group("prefix"), fg=typer.colors.CYAN, bold=True, nl=False)
     typer.secho(match.group("plan"), fg=typer.colors.BRIGHT_CYAN, bold=True, nl=False)
     typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
