@@ -49,6 +49,12 @@ _WARNING_MEDIUM_TERMS = (
 _FIELD_PATTERN = re.compile(r"^(?P<indent>\s*)(?P<label>[^:]+?)(?P<gap>\s{2,})(?P<value>\S.*)$")
 _SCORE_PATTERN = re.compile(r"(?P<score>\d+(?:\.\d+)?)/100")
 _R_PATTERN = re.compile(r"(?P<value>-?\d+(?:\.\d+)?)R\s+(?P<kind>net|gross)", re.IGNORECASE)
+_SETUP_HEADER_PATTERN = re.compile(
+    r"^(?P<prefix>┌─\s+)(?P<plan>.+?)\s+•\s+"
+    r"(?P<symbol>[^•]+?)\s+•\s+"
+    r"(?P<direction>LONG|SHORT)\s+•\s+"
+    r"(?P<strategy>.+?)(?P<rule>\s+─+)$"
+)
 
 
 class CliProgress(AbstractContextManager["CliProgress"]):
@@ -167,6 +173,34 @@ def _warning_color(text: str) -> str:
     return typer.colors.BRIGHT_WHITE
 
 
+def _emit_setup_header(line: str) -> bool:
+    """Render setup-card identity with semantic symbol and direction colours."""
+
+    match = _SETUP_HEADER_PATTERN.match(line)
+    if match is None:
+        return False
+
+    direction = match.group("direction")
+    direction_color = (
+        typer.colors.BRIGHT_GREEN if direction == "LONG" else typer.colors.BRIGHT_RED
+    )
+    typer.secho(match.group("prefix"), fg=typer.colors.CYAN, bold=True, nl=False)
+    typer.secho(match.group("plan"), fg=typer.colors.BRIGHT_WHITE, bold=True, nl=False)
+    typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
+    typer.secho(
+        match.group("symbol").strip(),
+        fg=typer.colors.BRIGHT_YELLOW,
+        bold=True,
+        nl=False,
+    )
+    typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
+    typer.secho(direction, fg=direction_color, bold=True, nl=False)
+    typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
+    typer.secho(match.group("strategy"), fg=typer.colors.BRIGHT_WHITE, bold=True, nl=False)
+    typer.secho(match.group("rule"), fg=typer.colors.CYAN, bold=True)
+    return True
+
+
 def _emit_field_line(line: str) -> bool:
     match = _FIELD_PATTERN.match(line)
     if match is None:
@@ -217,6 +251,8 @@ def emit_terminal(text: str) -> None:
         upper = stripped.upper()
         if line.startswith(("╭", "╰")):
             typer.secho(line, fg=typer.colors.BRIGHT_CYAN, bold=True)
+        elif _emit_setup_header(line):
+            continue
         elif line.startswith("┌─"):
             typer.secho(line, fg=typer.colors.CYAN, bold=True)
         elif line.startswith("└"):
