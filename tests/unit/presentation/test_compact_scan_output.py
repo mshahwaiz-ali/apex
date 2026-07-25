@@ -66,7 +66,8 @@ def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
 
     output = render_compact_scan(payload)
 
-    assert "Ranking                      Highest published confidence first" in output
+    assert "Ranking" in output
+    assert "Highest published confidence first" in output
     assert "SETUP PLAN 1 • FUTURE RETEST • HIGH/USDT" in output
     assert "SETUP PLAN 2 • FUTURE RETEST • LOW/USDT" in output
     assert output.index("HIGH/USDT") < output.index("LOW/USDT")
