@@ -178,9 +178,6 @@ def select_replay_opportunity_decisions(
             sequence_role=role,
         )
         opportunity_id = str(getattr(opportunity, "opportunity_id", setup.candidate_id))
-        if opportunity_id in seen_opportunity_ids:
-            continue
-        seen_opportunity_ids.add(opportunity_id)
 
         lane = _enum_value(
             getattr(
@@ -201,6 +198,9 @@ def select_replay_opportunity_decisions(
         }
         if not executable and not conditional:
             continue
+        if opportunity_id in seen_opportunity_ids:
+            continue
+        seen_opportunity_ids.add(opportunity_id)
 
         decisions.append(
             CanonicalOpportunityDecision(
