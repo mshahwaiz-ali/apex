@@ -105,7 +105,10 @@ def _summary(
                 ("Trade plans", trade_count),
                 ("No valid setup", no_trade_count),
                 ("Symbols failed", len(failures)),
-                ("Ranking", "Actionability, plan completeness, then confidence"),
+                (
+                    "Ranking",
+                    "Highest published confidence first within each actionability lane",
+                ),
             )
         ),
     )
