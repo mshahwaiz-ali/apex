@@ -89,10 +89,7 @@ def _normalise_entry(
     lower = _number(raw.get("lower") or raw.get("low") or raw.get("entry_low"))
     upper = _number(raw.get("upper") or raw.get("high") or raw.get("entry_high"))
     preferred = _number(
-        raw.get("preferred")
-        or raw.get("ideal")
-        or raw.get("price")
-        or raw.get("entry_price")
+        raw.get("preferred") or raw.get("ideal") or raw.get("price") or raw.get("entry_price")
     )
     if lower is None and preferred is not None:
         lower = preferred
@@ -228,7 +225,9 @@ def hydrate_actionable_setup(
     status = _status(setup)
     plan = dict(_mapping(source.get("conditional_plan")))
     if not plan:
-        plan = dict(_first_mapping(mappings, ("conditional_plan", "activation_plan", "future_plan")))
+        plan = dict(
+            _first_mapping(mappings, ("conditional_plan", "activation_plan", "future_plan"))
+        )
 
     preferred = _number(entry.get("preferred"))
     suppressed = _activation_plan_suppressed(setup)
@@ -275,8 +274,7 @@ def plan_completeness(setup: Mapping[str, object]) -> int:
     score += 1 if _number(entry.get("current_price")) is not None else 0
     score += (
         2
-        if _number(entry.get("lower")) is not None
-        and _number(entry.get("upper")) is not None
+        if _number(entry.get("lower")) is not None and _number(entry.get("upper")) is not None
         else 0
     )
     score += 1 if _number(entry.get("preferred")) is not None else 0
@@ -295,13 +293,17 @@ def plan_lane(setup: Mapping[str, object]) -> int:
         return 6
     if status in {"READY_NOW", "AGGRESSIVE_NOW"} and completeness >= 5:
         return 5
-    if status in {
-        "PULLBACK_PREFERRED",
-        "RETEST_PREFERRED",
-        "RECLAIM_REQUIRED",
-        "WAIT_FOR_RETEST",
-        "WAIT_FOR_RECLAIM",
-    } and completeness >= 6:
+    if (
+        status
+        in {
+            "PULLBACK_PREFERRED",
+            "RETEST_PREFERRED",
+            "RECLAIM_REQUIRED",
+            "WAIT_FOR_RETEST",
+            "WAIT_FOR_RECLAIM",
+        }
+        and completeness >= 6
+    ):
         return 4
     if status in {"MISSED_ENTRY", "LATE_OR_CHASING"} and completeness >= 6:
         return 3
