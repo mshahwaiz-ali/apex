@@ -25,6 +25,7 @@ def _trade(
     partial_target_count: int,
     mfe_r: float,
     mae_r: float,
+    entry_filled: bool = True,
 ) -> SimulatedTrade:
     signal = BacktestSignal(
         symbol="BTCUSDT",
@@ -49,6 +50,7 @@ def _trade(
         realized_r_multiple=realized_r,
         holding_candles=2,
         metadata={
+            "entry_filled": entry_filled,
             "partial_target_count": partial_target_count,
             "maximum_favorable_excursion_r": mfe_r,
             "maximum_adverse_excursion_r": mae_r,
@@ -125,3 +127,68 @@ def test_external_gates_cannot_override_missing_backtest_metrics() -> None:
     assert acceptance.positive_expectancy is True
     assert acceptance.confidence_claims_allowed is False
     assert acceptance.blockers == ("required_metrics_incomplete",)
+
+
+def test_calibration_excludes_unfilled_lifecycle_records() -> None:
+    report = summarize_trades(
+        (
+            _trade(
+                outcome=BacktestOutcome.TARGET,
+                net_pnl=10.0,
+                realized_r=2.0,
+                partial_target_count=2,
+                mfe_r=2.4,
+                mae_r=0.3,
+            ),
+            _trade(
+                outcome=BacktestOutcome.PRE_ENTRY_INVALIDATED,
+                net_pnl=0.0,
+                realized_r=0.0,
+                partial_target_count=0,
+                mfe_r=8.0,
+                mae_r=6.0,
+                entry_filled=False,
+            ),
+            _trade(
+                outcome=BacktestOutcome.ACTIVATION_EXPIRED,
+                net_pnl=0.0,
+                realized_r=0.0,
+                partial_target_count=0,
+                mfe_r=7.0,
+                mae_r=5.0,
+                entry_filled=False,
+            ),
+        )
+    )
+
+    metrics = calibration_metrics_from_report(report)
+    acceptance = calibration_acceptance_from_report(report)
+
+    assert metrics[CalibrationMetric.WIN_RATE.value] == 1.0
+    assert metrics[CalibrationMetric.EXPECTANCY.value] == 10.0
+    assert metrics[CalibrationMetric.AVERAGE_R.value] == 2.0
+    assert metrics[CalibrationMetric.TP1_HIT_RATE.value] == 1.0
+    assert metrics[CalibrationMetric.TP2_HIT_RATE.value] == 1.0
+    assert metrics[CalibrationMetric.STOP_RATE.value] == 0.0
+    assert metrics[CalibrationMetric.MFE.value] == 2.4
+    assert metrics[CalibrationMetric.MAE.value] == 0.3
+    assert acceptance.sample_size == 1
+
+
+def test_calibration_has_no_performance_metrics_without_filled_trades() -> None:
+    report = summarize_trades(
+        (
+            _trade(
+                outcome=BacktestOutcome.MISSED_ENTRY,
+                net_pnl=0.0,
+                realized_r=0.0,
+                partial_target_count=0,
+                mfe_r=3.0,
+                mae_r=2.0,
+                entry_filled=False,
+            ),
+        )
+    )
+
+    assert calibration_metrics_from_report(report) == {}
+    assert calibration_acceptance_from_report(report).sample_size == 0
