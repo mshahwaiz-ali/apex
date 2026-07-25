@@ -56,6 +56,11 @@ _SETUP_HEADER_PATTERN = re.compile(
     r"(?P<direction>LONG|SHORT)\s+•\s+"
     r"(?P<strategy>.+?)(?P<rule>\s+─+)$"
 )
+_TARGET_PATTERN = re.compile(
+    r"^(?P<indent>\s*)(?P<label>TP[1-3])(?P<gap>\s{2,})"
+    r"(?P<value>\S+\s{2,}[+-]?\d+(?:\.\d+)?%)"
+    r"(?P<context>\s{2,}•\s+.*)?$"
+)
 
 
 class CliProgress(AbstractContextManager["CliProgress"]):
@@ -186,7 +191,7 @@ def _emit_setup_header(line: str) -> bool:
         typer.colors.BRIGHT_GREEN if direction == "LONG" else typer.colors.BRIGHT_RED
     )
     typer.secho(match.group("prefix"), fg=typer.colors.CYAN, bold=True, nl=False)
-    typer.secho(match.group("plan"), fg=typer.colors.BRIGHT_WHITE, bold=True, nl=False)
+    typer.secho(match.group("plan"), fg=typer.colors.BRIGHT_CYAN, bold=True, nl=False)
     typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
     typer.secho(
         match.group("symbol").strip(),
@@ -199,6 +204,27 @@ def _emit_setup_header(line: str) -> bool:
     typer.secho(" • ", fg=typer.colors.CYAN, bold=True, nl=False)
     typer.secho(match.group("strategy"), fg=typer.colors.BRIGHT_WHITE, bold=True, nl=False)
     typer.secho(match.group("rule"), fg=typer.colors.CYAN, bold=True)
+    return True
+
+
+def _emit_target_line(line: str) -> bool:
+    """Colour target price and move while leaving rationale as normal text."""
+
+    match = _TARGET_PATTERN.match(line)
+    if match is None:
+        return False
+
+    typer.echo(
+        f"{match.group('indent')}{match.group('label')}{match.group('gap')}",
+        nl=False,
+    )
+    typer.secho(
+        match.group("value"),
+        fg=typer.colors.BRIGHT_GREEN,
+        bold=False,
+        nl=False,
+    )
+    typer.echo(match.group("context") or "")
     return True
 
 
@@ -271,8 +297,8 @@ def emit_terminal(text: str) -> None:
         elif stripped.startswith(("Invalidation ", "Pre-entry invalidation ")):
             color = typer.colors.BRIGHT_BLACK if "Unavailable" in line else typer.colors.BRIGHT_RED
             typer.secho(line, fg=color)
-        elif stripped.startswith(("TP1 ", "TP2 ", "TP3 ")):
-            typer.secho(line, fg=typer.colors.BRIGHT_GREEN)
+        elif _emit_target_line(line):
+            continue
         elif stripped.startswith("- "):
             typer.secho(line, fg=_warning_color(stripped), bold=True)
         elif upper.startswith(("CRITICAL ", "ERROR ", "INVALIDATED ")):
