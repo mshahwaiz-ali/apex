@@ -177,13 +177,16 @@ def _pre_entry_invalidation(setup: Mapping[str, object]) -> str:
     return "Unavailable"
 
 
-def _quality(setup: Mapping[str, object], opportunity: Mapping[str, object]) -> str:
+def _selection_score(setup: Mapping[str, object], opportunity: Mapping[str, object]) -> str:
+    score = _number(opportunity.get("final_score"))
+    if score is None:
+        score = _number(setup.get("confidence_score"))
+    return format_score(score)
+
+
+def _overall_trade_quality(setup: Mapping[str, object]) -> str:
     quality = _mapping(setup.get("quality_dimensions"))
-    return format_score(
-        opportunity.get("final_score")
-        or setup.get("confidence_score")
-        or quality.get("overall_trade_quality")
-    )
+    return format_score(quality.get("overall_trade_quality"))
 
 
 def _price_move(price: object, reference: object) -> str:
@@ -300,7 +303,9 @@ def _trade_card(
             (
                 ("Status", _status(setup)),
                 ("Execution", _execution_label(setup)),
-                ("Confidence", f"{_quality(setup, opportunity)}/100"),
+                ("Selection score", f"{_selection_score(setup, opportunity)}/100"),
+                ("Overall trade quality", f"{_overall_trade_quality(setup)}/100"),
+                ("Historical confidence", "Not calibrated"),
                 ("Generated", _timestamp(generated_at)),
             )
         ),
@@ -359,6 +364,11 @@ def _trade_card(
             ("Setup quality", f"{format_score(quality.get('setup_quality'))}/100"),
             ("Execution quality", f"{format_score(quality.get('execution_quality'))}/100"),
             ("Target quality", f"{format_score(quality.get('target_quality'))}/100"),
+            ("Risk quality", f"{format_score(quality.get('risk_quality'))}/100"),
+            (
+                "Overall trade quality",
+                f"{format_score(quality.get('overall_trade_quality'))}/100",
+            ),
             ("Execution authority", humanize_code(setup.get("execution_authority"))),
             ("Entry mode", humanize_code(setup.get("entry_mode"))),
             ("Timeframe context", _timeframe_context(setup)),
