@@ -74,6 +74,10 @@ def _blocked_setup(
     return item
 
 
+def _single_spaced(value: str) -> str:
+    return " ".join(value.split())
+
+
 def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     payload = {
         "generated_at": "2026-07-25T00:21:31+00:00",
@@ -87,11 +91,12 @@ def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     }
 
     output = render_compact_scan(payload)
+    compact = _single_spaced(output)
 
     assert "Ranking" in output
-    assert "Actionability first; confidence within each actionable lane" in output
-    assert "Future / re-entry plans  2" in output
-    assert "Activation blocked       0" in output
+    assert "Actionability first; confidence within each actionable lane" in compact
+    assert "Future / re-entry plans 2" in compact
+    assert "Activation blocked 0" in compact
     assert "SETUP PLAN 1 • FUTURE RETEST • HIGH/USDT" in output
     assert "SETUP PLAN 2 • FUTURE RETEST • LOW/USDT" in output
     assert output.index("HIGH/USDT") < output.index("LOW/USDT")
@@ -115,9 +120,10 @@ def test_blocked_plans_are_counted_separately_and_ranked_by_remaining_net_r() ->
     }
 
     output = render_compact_scan(payload)
+    compact = _single_spaced(output)
 
-    assert "Future / re-entry plans  1" in output
-    assert "Activation blocked       2" in output
+    assert "Future / re-entry plans 1" in compact
+    assert "Activation blocked 2" in compact
     assert output.index("FUTURE/USDT") < output.index("HIGH-R/USDT")
     assert output.index("HIGH-R/USDT") < output.index("LOW-R/USDT")
 
