@@ -34,6 +34,7 @@ from apex.strategies.momentum_breakout import generate_momentum_breakout_candida
 from apex.strategies.momentum_scalp import generate_momentum_scalp_candidates
 from apex.strategies.range_reversal import generate_range_reversal_candidates
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_ladder import apply_target_ladder_to_candidates
 from apex.strategies.vwap_reclaim_rejection import (
     generate_vwap_reclaim_rejection_candidates,
 )
@@ -84,6 +85,16 @@ STRATEGY_REGISTRY: tuple[tuple[StrategyType, StrategyGenerator], ...] = (
 )
 
 
+def _generate_with_target_ladder(
+    generator: StrategyGenerator,
+    context: StrategyContext,
+    *,
+    decision_time: datetime,
+) -> tuple[TradeCandidate, ...]:
+    generated = generator(context, decision_time=decision_time)
+    return apply_target_ladder_to_candidates(context, generated)
+
+
 def run_strategy_generator_with_diagnostics(
     generator: StrategyGenerator,
     context: StrategyContext,
@@ -92,7 +103,11 @@ def run_strategy_generator_with_diagnostics(
 ) -> BreakoutRoutingResult:
     """Invoke one generator and preserve shared breakout routing diagnostics."""
 
-    generated = generator(context, decision_time=decision_time)
+    generated = _generate_with_target_ladder(
+        generator,
+        context,
+        decision_time=decision_time,
+    )
     return route_breakout_candidates_with_diagnostics(context, generated)
 
 
@@ -104,5 +119,9 @@ def run_strategy_generator(
 ) -> tuple[TradeCandidate, ...]:
     """Invoke one registered generator and apply shared production routing."""
 
-    generated = generator(context, decision_time=decision_time)
+    generated = _generate_with_target_ladder(
+        generator,
+        context,
+        decision_time=decision_time,
+    )
     return route_breakout_candidates(context, generated)
