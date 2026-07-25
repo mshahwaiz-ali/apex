@@ -10,7 +10,7 @@ from apex.strategies import StrategyType, TradeDirection
 NOW = datetime(2026, 7, 25, 12, 0, tzinfo=UTC)
 
 
-def _signal(candidate_id: str, *, entry_price: float = 100.0) -> BacktestSignal:
+def _signal(candidate_id: str | None, *, entry_price: float = 100.0) -> BacktestSignal:
     return BacktestSignal(
         symbol="BTCUSDT",
         strategy=StrategyType.BREAKOUT_CONTINUATION,
@@ -46,5 +46,28 @@ def test_request_rejects_duplicate_replay_identity_with_different_geometry() -> 
     with pytest.raises(ValueError, match="replay signal identities must be unique"):
         BacktestRequest(
             signals=(first, duplicate_identity),
+            candles_by_symbol={},
+        )
+
+
+def test_request_accepts_distinct_candidate_less_geometry() -> None:
+    first = _signal(None, entry_price=100.0)
+    second = _signal(None, entry_price=101.0)
+
+    request = BacktestRequest(
+        signals=(first, second),
+        candles_by_symbol={},
+    )
+
+    assert request.signals == (first, second)
+
+
+def test_request_rejects_exact_candidate_less_geometry_duplicate() -> None:
+    first = _signal(None, entry_price=100.0)
+    duplicate = _signal(None, entry_price=100.0)
+
+    with pytest.raises(ValueError, match="replay signal identities must be unique"):
+        BacktestRequest(
+            signals=(first, duplicate),
             candles_by_symbol={},
         )
