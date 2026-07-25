@@ -163,10 +163,13 @@ def _suppressed_payload() -> dict[str, object]:
                         },
                         "warnings": [
                             "active-candle evidence is provisional",
-                            "3m refinement strongly opposes immediate continuation; wait for renewal",
                             (
-                                "Confirmation-required setup has no post-confirmation execution room "
-                                "while preserving minimum net reward-to-risk."
+                                "3m refinement strongly opposes immediate continuation; "
+                                "wait for renewal"
+                            ),
+                            (
+                                "Confirmation-required setup has no post-confirmation "
+                                "execution room while preserving minimum net reward-to-risk."
                             ),
                         ],
                     }
