@@ -365,7 +365,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     )
     entry = entry_opportunities[0]
     lifecycle = candidate.lifecycle
-    expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
+    expiry_seconds = _setup_expiry_seconds(candidate)
     confirmation_required = candidate.entry.mode in _CONFIRMATION_REQUIRED_MODES
     confirmation_complete = (
         candidate.metadata.get("entry_confirmation_complete") is True and not candidate.provisional
@@ -929,6 +929,16 @@ def _metadata_timeframe(candidate: TradeCandidate, *keys: str) -> str | None:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _setup_expiry_seconds(candidate: TradeCandidate) -> int | None:
+    """Resolve explicit entry expiry before the broader lifecycle fallback."""
+
+    explicit_expiry = candidate.entry.expires_after_seconds
+    if explicit_expiry is not None:
+        return explicit_expiry
+    lifecycle = candidate.lifecycle
+    return None if lifecycle is None else lifecycle.expires_after_seconds
 
 
 def _expiry_reason(candidate: TradeCandidate) -> str:
