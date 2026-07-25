@@ -15,6 +15,11 @@ from apex.presentation.actionable_plan import hydrate_actionable_setup, plan_com
 from apex.presentation.compact_analysis_output import _trade_card
 from apex.presentation.scan_groups import flatten_existing_scan_groups
 
+_SUPPRESSED_PLAN_WARNING = (
+    "confirmation-required setup has no post-confirmation execution room "
+    "while preserving minimum net reward-to-risk"
+)
+
 
 def _mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
@@ -26,18 +31,51 @@ def _number(value: object) -> float | None:
     return float(value)
 
 
+def _mappings(value: object) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
 def _setup(item: Mapping[str, object]) -> Mapping[str, object]:
     return _mapping(item.get("setup")) or _mapping(item.get("developing_setup"))
 
 
-def _ranking_score(item: Mapping[str, object]) -> tuple[int, int, float, float, float]:
-    """Rank actionability and completeness before displayed confidence."""
+def _warnings(setup: Mapping[str, object]) -> tuple[str, ...]:
+    values = setup.get("warnings")
+    if not isinstance(values, Sequence) or isinstance(values, str | bytes):
+        return ()
+    return tuple(str(value) for value in values)
+
+
+def _activation_blocked(setup: Mapping[str, object]) -> bool:
+    if _mapping(setup.get("conditional_plan")):
+        return False
+    return any(_SUPPRESSED_PLAN_WARNING in warning.lower() for warning in _warnings(setup))
+
+
+def _tp1_net_r(setup: Mapping[str, object]) -> float:
+    targets = _mappings(setup.get("take_profits"))
+    if not targets:
+        return float("-inf")
+    target = targets[0]
+    return (
+        _number(target.get("net_risk_reward"))
+        or _number(target.get("risk_reward"))
+        or float("-inf")
+    )
+
+
+def _ranking_score(item: Mapping[str, object]) -> tuple[int, float, float, float, float]:
+    """Rank actionability first and blocked plans by remaining economic value."""
 
     setup = hydrate_actionable_setup(item)
     quality = _mapping(setup.get("quality_dimensions"))
+    lane = plan_lane(setup)
+    secondary = _tp1_net_r(setup) if _activation_blocked(setup) else float(plan_completeness(setup))
     return (
-        plan_lane(setup),
-        plan_completeness(setup),
+        lane,
+        secondary,
         _number(setup.get("confidence_score")) or float("-inf"),
         _number(quality.get("overall_trade_quality")) or float("-inf"),
         _number(item.get("final_score")) or float("-inf"),
@@ -77,10 +115,27 @@ def _no_trade_items(payload: Mapping[str, object]) -> tuple[Mapping[str, object]
     return tuple(item for item in _scan_items(payload) if not _setup(item))
 
 
+def _plan_counts(trades: Sequence[Mapping[str, object]]) -> tuple[int, int, int]:
+    executable = 0
+    future = 0
+    blocked = 0
+    for item in trades:
+        setup = hydrate_actionable_setup(item)
+        if setup.get("execution_allowed_now") is True:
+            executable += 1
+        elif _activation_blocked(setup):
+            blocked += 1
+        else:
+            future += 1
+    return executable, future, blocked
+
+
 def _summary(
     payload: Mapping[str, object],
     *,
-    trade_count: int,
+    executable_count: int,
+    future_count: int,
+    blocked_count: int,
     no_trade_count: int,
 ) -> str:
     screening = _mapping(payload.get("screening"))
@@ -102,12 +157,14 @@ def _summary(
                     screening.get("shortlisted_count") or payload.get("attempted_symbol_count"),
                 ),
                 ("Symbols analyzed", payload.get("total_analysis_count")),
-                ("Trade plans", trade_count),
+                ("Executable now", executable_count),
+                ("Future / re-entry plans", future_count),
+                ("Activation blocked", blocked_count),
                 ("No valid setup", no_trade_count),
                 ("Symbols failed", len(failures)),
                 (
                     "Ranking",
-                    "Highest published confidence first within each actionability lane",
+                    "Actionability first; confidence within each actionable lane",
                 ),
             )
         ),
@@ -150,11 +207,14 @@ def render_compact_scan(payload: Mapping[str, object], *, explain: bool = False)
 
     trades = _trade_items(payload)
     no_trades = _no_trade_items(payload)
+    executable_count, future_count, blocked_count = _plan_counts(trades)
     sections = [render_title("Apex Market Scan")]
     sections.append(
         _summary(
             payload,
-            trade_count=len(trades),
+            executable_count=executable_count,
+            future_count=future_count,
+            blocked_count=blocked_count,
             no_trade_count=len(no_trades),
         )
     )
