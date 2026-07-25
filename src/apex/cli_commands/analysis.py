@@ -21,6 +21,7 @@ from apex.application.enriched_public_output import serialize_symbol_analysis
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
 )
+from apex.cli_commands.symbols import normalize_futures_symbol
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation import normalize_cli_output_mode
 from apex.presentation.methodology_selected_entry_output import render_discovery_analysis
@@ -48,7 +49,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
         symbol: str = typer.Argument(
             ...,
             metavar="SYMBOL",
-            help="Any provider-supported futures market symbol.",
+            help="Futures symbol; bare assets default to USDT, for example BANK.",
         ),
         output: str = typer.Option("text", "--output", "-o", help="text or json"),
         explain: bool = typer.Option(
@@ -69,14 +70,15 @@ def register_analysis_commands(app: typer.Typer) -> None:
 
         try:
             output_mode = normalize_cli_output_mode(output)
+            normalized_symbol = normalize_futures_symbol(symbol)
             with cli_progress() as progress:
                 progress.update("Loading configuration…")
                 context = bootstrap(config_dir)
-                progress.update(f"Fetching {symbol.upper()} market data…")
+                progress.update(f"Fetching {normalized_symbol} market data…")
                 with create_market_data_services(context.settings) as services:
                     progress.update("Running multi-timeframe analysis…")
                     result = analyze_selected_symbol(
-                        symbol,
+                        normalized_symbol,
                         services.candles,
                         timeframes=context.settings.analysis_timeframes,
                         timeframe_roles=getattr(context.settings, "timeframe_roles", None),
