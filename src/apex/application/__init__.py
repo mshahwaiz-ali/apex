@@ -9,11 +9,11 @@ from apex.application.analysis_records import (
     write_analysis_record_sqlite,
 )
 from apex.application.bootstrap import bootstrap
+from apex.application.canonical_scan import scan_symbols
 from apex.application.configuration_identity import configuration_metadata
 from apex.application.decision_analysis import (
     SymbolAnalysis,
     analyze_symbol,
-    scan_symbols,
     write_json_report,
 )
 from apex.application.discovery_contracts import ScanResult
