@@ -22,12 +22,13 @@ _SECTION_HEADINGS = {
     "WARNINGS",
 }
 _SCORE_LABELS = {
-    "Confidence",
+    "Selection score",
     "Setup quality",
     "Execution quality",
     "Target quality",
     "Risk quality",
     "Overall quality",
+    "Overall trade quality",
 }
 _WARNING_CRITICAL_TERMS = (
     "invalidated",
