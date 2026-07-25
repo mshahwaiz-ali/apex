@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import typer
 
 from apex.presentation.terminal import _emit_setup_header
