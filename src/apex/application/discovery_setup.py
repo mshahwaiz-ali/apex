@@ -298,15 +298,22 @@ def _conditional_plan_has_execution_room(
     *,
     direction: TradeDirection,
     trigger_kind: ActivationTriggerType,
+    trigger_level: float,
 ) -> bool:
-    "Return whether confirmation can complete before the chase boundary is stale."
+    """Return whether activation can complete before the chase boundary is stale.
+
+    Confirmation-based plans activate through their explicit trigger level, not
+    only after traversing the entire entry zone. Requiring chase room beyond the
+    far zone boundary can incorrectly suppress a valid future setup when the
+    trigger lies inside the zone.
+    """
 
     if trigger_kind is ActivationTriggerType.PRICE_TOUCH:
         return True
-    tolerance = max(abs(entry.preferred) * 1e-9, 1e-12)
+    tolerance = max(abs(trigger_level) * 1e-9, 1e-12)
     if direction is TradeDirection.LONG:
-        return entry.maximum_chase_price > entry.upper + tolerance
-    return entry.maximum_chase_price < entry.lower - tolerance
+        return entry.maximum_chase_price > trigger_level + tolerance
+    return entry.maximum_chase_price < trigger_level - tolerance
 
 
 def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
@@ -377,6 +384,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
             entry,
             direction=candidate.direction,
             trigger_kind=conditional_plan.trigger.kind,
+            trigger_level=conditional_plan.trigger.level,
         )
     )
     suppressed_conditional_plan = (
