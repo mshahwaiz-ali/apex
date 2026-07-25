@@ -187,6 +187,26 @@ def _price_move(price: object, reference: object) -> str:
     return f"{format_price(price)}  {_percentage(price, reference)}"
 
 
+def _target_context(target: Mapping[str, object]) -> str:
+    rationale = target.get("rationale")
+    basis = ""
+    if isinstance(rationale, Sequence) and not isinstance(rationale, str | bytes):
+        basis = next((str(item).strip() for item in rationale if str(item).strip()), "")
+    timeframe = target.get("target_timeframe")
+    timeframe_text = "" if timeframe in {None, ""} else str(timeframe).strip()
+    if basis:
+        return basis
+    if timeframe_text:
+        return f"{timeframe_text} target structure"
+    return ""
+
+
+def _target_line(target: Mapping[str, object], reference: object) -> str:
+    value = _price_move(target.get("price"), reference)
+    context = _target_context(target)
+    return value if not context else f"{value}  • {context}"
+
+
 def _execution_label(setup: Mapping[str, object]) -> str:
     if setup.get("execution_allowed_now") is True:
         return "Executable now"
@@ -296,7 +316,7 @@ def _trade_card(
                 tuple(
                     (
                         f"TP{target_index}",
-                        _price_move(target.get("price"), reference),
+                        _target_line(target, reference),
                     )
                     for target_index, target in enumerate(targets[:3], start=1)
                 )
