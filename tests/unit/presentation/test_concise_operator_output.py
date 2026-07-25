@@ -118,6 +118,64 @@ def _conditional_payload() -> dict[str, object]:
     }
 
 
+def _suppressed_payload() -> dict[str, object]:
+    return {
+        "symbol": "BANK/USDT",
+        "generated_at": "2026-07-25T00:11:40+00:00",
+        "opportunity_portfolio": {
+            "cmp": 0.3045,
+            "decision": "confirmation_at_cmp",
+            "opportunities": [
+                {
+                    "setup": {
+                        "direction": "long",
+                        "strategy": "breakout_retest",
+                        "entry_status": "confirmation_at_cmp",
+                        "confidence_score": 35.7,
+                        "execution_allowed_now": False,
+                        "execution_authority": "monitor_only",
+                        "entry_mode": "sweep_recovery",
+                        "entry": {
+                            "current_price": 0.3045,
+                            "lower": 0.3044,
+                            "upper": 0.3045,
+                            "preferred": 0.3045,
+                            "maximum_chase_price": 0.3045,
+                        },
+                        "stop_loss": {"price": 0.3018},
+                        "take_profits": [
+                            {
+                                "price": 0.3062,
+                                "risk_reward": 0.63,
+                                "net_risk_reward": 0.41,
+                            }
+                        ],
+                        "quality_dimensions": {
+                            "setup_quality": 44.1,
+                            "execution_quality": 20.0,
+                            "target_quality": 79.0,
+                        },
+                        "layered_state": {
+                            "structural_bias": "bullish",
+                            "timeframe_relationship": "with_trend",
+                            "relationship_severity": "moderate",
+                            "holding_horizon": "scalp",
+                        },
+                        "warnings": [
+                            "active-candle evidence is provisional",
+                            "3m refinement strongly opposes immediate continuation; wait for renewal",
+                            (
+                                "Confirmation-required setup has no post-confirmation execution room "
+                                "while preserving minimum net reward-to-risk."
+                            ),
+                        ],
+                    }
+                }
+            ],
+        },
+    }
+
+
 def test_exact_entry_is_not_labeled_as_zone() -> None:
     output = render_discovery_analysis(_payload())
     assert "Entry price" in output
@@ -156,3 +214,21 @@ def test_conditional_retest_is_labeled_and_explained_as_future_setup() -> None:
     assert "3.13R gross" in output
     assert "Additional targets" in output
     assert "Not published - no verified structure" in output
+
+
+def test_suppressed_activation_plan_replaces_misleading_unavailable_fields() -> None:
+    output = render_compact_analysis(_suppressed_payload(), explain=True)
+
+    assert "SETUP PLAN 1 • ACTIVATION BLOCKED" in output
+    assert "Setup valid - activation blocked" in output
+    assert "Monitor only - activation blocked" in output
+    assert "Activation plan" in output
+    assert "Suppressed" in output
+    assert "Only 0.41R net remains after confirmation and costs" in output
+    assert "Not applicable - activation plan suppressed" in output
+    assert "Not applicable - no authorised trigger" in output
+    assert "None - monitor only" in output
+    assert "Bullish • With trend • Moderate • Scalp" in output
+    assert "Trigger condition    Unavailable" not in output
+    assert "Order intent         Unavailable" not in output
+    assert "Setup expiry         Not configured" not in output
