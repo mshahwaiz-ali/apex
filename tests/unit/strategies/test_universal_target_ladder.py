@@ -131,9 +131,24 @@ def test_all_strategy_targets_are_reordered_behind_nearer_obstacles() -> None:
     context = StrategyContext(
         symbol="TEST/USDT",
         frames=(
-            _frame("15m", TimeframeRole.INTRADAY, atr=2.0, levels=(_level(108, 109, timeframe_index=20),)),
-            _frame("5m", TimeframeRole.SETUP, atr=1.0, levels=(_level(104, 104.5, timeframe_index=10),)),
-            _frame("3m", TimeframeRole.ENTRY, atr=0.5, levels=(_level(102, 102.2, timeframe_index=5),)),
+            _frame(
+                "15m",
+                TimeframeRole.INTRADAY,
+                atr=2.0,
+                levels=(_level(108, 109, timeframe_index=20),),
+            ),
+            _frame(
+                "5m",
+                TimeframeRole.SETUP,
+                atr=1.0,
+                levels=(_level(104, 104.5, timeframe_index=10),),
+            ),
+            _frame(
+                "3m",
+                TimeframeRole.ENTRY,
+                atr=0.5,
+                levels=(_level(102, 102.2, timeframe_index=5),),
+            ),
         ),
     )
 
@@ -143,12 +158,15 @@ def test_all_strategy_targets_are_reordered_behind_nearer_obstacles() -> None:
     assert [level.kind for level in candidate.targets.levels] == [
         TargetType.STRUCTURAL,
         TargetType.STRUCTURAL,
-        TargetType.STRUCTURAL,
+        TargetType.EXPANSION,
     ]
     assert candidate.targets.levels[0].price < candidate.targets.levels[1].price
     assert candidate.targets.levels[1].price < candidate.targets.levels[2].price
-    assert candidate.targets.levels[-1].price < 110.0
+    assert candidate.targets.levels[-1].price == 110.0
     assert candidate.metadata["target_ladder_scope"] == "all_strategy_families"
+    assert candidate.metadata["target_ladder_runner_preserved"] is True
     assert candidate.metadata["target_1_timeframe"] == "3m"
     assert candidate.metadata["target_2_timeframe"] == "5m"
-    assert candidate.metadata["target_3_timeframe"] == "15m"
+    assert candidate.metadata["target_3_activation"] == (
+        "runner only while continuation structure remains valid"
+    )
