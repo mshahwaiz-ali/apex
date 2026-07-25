@@ -27,6 +27,7 @@ from apex.application.enriched_public_output import (
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
 )
+from apex.cli_commands.symbols import normalize_futures_symbol
 from apex.data.providers.errors import MarketDataProviderError
 from apex.presentation.methodology_selected_entry_output import render_discovery_scan
 from apex.presentation.terminal import cli_progress, emit_terminal
@@ -69,6 +70,11 @@ def register_scanner_commands(app: typer.Typer) -> None:
 
     @app.command("scan")
     def scan(
+        symbol: str | None = typer.Argument(
+            None,
+            metavar="[SYMBOL]",
+            help="Optional single market; bare assets default to USDT, for example BANK.",
+        ),
         symbols_file: Path | None = typer.Option(
             None,
             "--symbols-file",
@@ -116,34 +122,45 @@ def register_scanner_commands(app: typer.Typer) -> None:
 
         try:
             output_mode = _normalize_scanner_output(output)
+            normalized_symbol = None if symbol is None else normalize_futures_symbol(symbol)
+            if normalized_symbol is not None and symbols_file is not None:
+                raise ValueError("provide either SYMBOL or --symbols-file, not both")
+
             with cli_progress() as progress:
                 progress.update("Loading configuration…")
                 context = bootstrap(config_dir)
+                selection = None
                 with create_market_data_services(context.settings) as services:
-                    base_screener_settings = context.settings.futures_screener
-                    screener_settings = base_screener_settings.model_copy(
-                        update={
-                            "shortlist_size": shortlist,
-                            "ticker_prefilter_size": max(
-                                base_screener_settings.ticker_prefilter_size,
-                                shortlist,
-                            ),
-                        }
-                    )
-                    progress.update("Discovering and screening Binance futures markets…")
-                    selection = select_futures_scan_symbols(
-                        services.futures_universe,
-                        services.futures_screener,
-                        services.candles,
-                        config=screener_settings.to_domain(),
-                        symbols_file=symbols_file,
-                        quote_asset=screener_settings.quote_asset,
-                        blacklist=screener_settings.blacklist,
-                        allowlist=screener_settings.allowlist,
-                    )
-                    progress.update("Analyzing shortlisted symbols…")
+                    if normalized_symbol is None:
+                        base_screener_settings = context.settings.futures_screener
+                        screener_settings = base_screener_settings.model_copy(
+                            update={
+                                "shortlist_size": shortlist,
+                                "ticker_prefilter_size": max(
+                                    base_screener_settings.ticker_prefilter_size,
+                                    shortlist,
+                                ),
+                            }
+                        )
+                        progress.update("Discovering and screening Binance futures markets…")
+                        selection = select_futures_scan_symbols(
+                            services.futures_universe,
+                            services.futures_screener,
+                            services.candles,
+                            config=screener_settings.to_domain(),
+                            symbols_file=symbols_file,
+                            quote_asset=screener_settings.quote_asset,
+                            blacklist=screener_settings.blacklist,
+                            allowlist=screener_settings.allowlist,
+                        )
+                        selected_symbols = selection.symbols
+                    else:
+                        progress.update(f"Preparing focused scan for {normalized_symbol}…")
+                        selected_symbols = (normalized_symbol,)
+
+                    progress.update("Analyzing selected symbols…")
                     result = scan_symbols(
-                        selection.symbols,
+                        selected_symbols,
                         services.candles,
                         timeframes=context.settings.analysis_timeframes,
                         timeframe_roles=getattr(context.settings, "timeframe_roles", None),
@@ -176,7 +193,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                     display_limit=results,
                     direction=direction,
                 )
-                if selection.screening is not None:
+                if selection is not None and selection.screening is not None:
                     payload["screening"] = serialize_futures_screening(selection.screening)
                 payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
                 outcome_db = context.settings.data_dir / "reports" / "analysis.db"
