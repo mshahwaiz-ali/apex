@@ -13,7 +13,6 @@ from apex.strategies.contracts import (
     RawQualityMetrics,
     StrategyEvidence,
     TargetConcept,
-    TargetLevel,
     TargetType,
     TradeCandidate,
     TradeDirection,
@@ -25,6 +24,11 @@ from apex.strategies.entry import (
     find_entry_zones,
 )
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_ladder import (
+    build_structural_target_ladder,
+    fallback_expansion_target,
+    target_ladder_metadata,
+)
 from apex.strategies.target_quality import target_space_quality
 from apex.structure.contracts import LevelRole, LevelStatus, TrendDirection
 
@@ -87,10 +91,11 @@ def _candidate_for_direction(
         context,
         bullish=bullish,
     )
-    target_price, target_type, target_rationale = _target_geometry(
-        context,
-        bullish=bullish,
-    )
+    target_levels = build_structural_target_ladder(context, direction=direction)
+    if not target_levels:
+        target_levels = (fallback_expansion_target(context, direction=direction),)
+    target_price = target_levels[0].price
+    target_type = target_levels[0].kind
     if not _valid_geometry(
         current=current,
         invalidation=invalidation_price,
@@ -146,6 +151,7 @@ def _candidate_for_direction(
         "higher_timeframe_conflict": higher_timeframe_conflict,
         "invalidation_includes_noise_buffer": True,
         "invalidation_buffer_source": "strategy_structure_or_volatility_stop",
+        **target_ladder_metadata(target_levels),
         **_selected_entry_geometry_metadata(
             context,
             entry_lower=entry.lower,
@@ -169,16 +175,7 @@ def _candidate_for_direction(
                 else "trade thesis fails beyond the nearest meaningful resistance",
             ),
         ),
-        targets=TargetConcept(
-            levels=(
-                TargetLevel(
-                    kind=target_type,
-                    price=target_price,
-                    label="primary",
-                    rationale=(target_rationale,),
-                ),
-            )
-        ),
+        targets=TargetConcept(levels=target_levels),
         quality=RawQualityMetrics(
             trend_alignment=trend_strength,
             structure_quality=trend_strength,
@@ -335,35 +332,14 @@ def _target_geometry(
     *,
     bullish: bool,
 ) -> tuple[float, TargetType, str]:
-    frame = context.decision_frame
-    current = context.current_price
-    role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
-    eligible = [
-        level.representative_price
-        for level in frame.structure.levels
-        if level.role is role
-        and level.status is not LevelStatus.BROKEN
-        and (
-            (bullish and level.representative_price > current)
-            or (not bullish and level.representative_price < current)
-        )
-    ]
-    if eligible:
-        return (
-            min(eligible) if bullish else max(eligible),
-            TargetType.STRUCTURAL,
-            (
-                "nearest observed opposing structural resistance"
-                if bullish
-                else "nearest observed opposing structural support"
-            ),
-        )
-    projected = current + context.atr * 2.4 if bullish else current - context.atr * 2.4
-    return (
-        projected,
-        TargetType.EXPANSION,
-        "2.4 ATR expansion projection; no verified opposing structure was available",
-    )
+    """Compatibility wrapper returning the first target from the new ladder."""
+
+    direction = TradeDirection.LONG if bullish else TradeDirection.SHORT
+    levels = build_structural_target_ladder(context, direction=direction)
+    if not levels:
+        levels = (fallback_expansion_target(context, direction=direction),)
+    primary = levels[0]
+    return primary.price, primary.kind, primary.rationale[0]
 
 
 def _momentum_is_constructive(context: StrategyContext, *, bullish: bool) -> bool:
