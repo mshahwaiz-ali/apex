@@ -181,3 +181,46 @@ def test_blocking_issue_excludes_conditional_setup_from_all_replay_authority(
     assert canonical.reason_code == "canonical_no_executable_opportunity"
     assert canonical.execution_authorized is False
     assert diagnostic == ()
+
+
+def test_legacy_replay_excludes_unreplayable_selected_setup(monkeypatch) -> None:
+    setup = _setup("legacy-watch", conditional=False, executable=False)
+    analysis = SimpleNamespace(
+        opportunity_portfolio=None,
+        assessment=SimpleNamespace(setup=setup),
+    )
+    monkeypatch.setattr(
+        module,
+        "build_actionability_state_assessment",
+        lambda setup, *, sequence_role: SimpleNamespace(
+            state=ActionabilityState.RETEST_PREFERRED,
+            has_blocking_issue=False,
+        ),
+    )
+
+    decisions = module.select_replay_opportunity_decisions(analysis)
+
+    assert decisions == ()
+
+
+def test_legacy_replay_preserves_valid_conditional_selected_setup(monkeypatch) -> None:
+    setup = _setup("legacy-conditional", conditional=True, executable=False)
+    analysis = SimpleNamespace(
+        opportunity_portfolio=None,
+        assessment=SimpleNamespace(setup=setup),
+    )
+    monkeypatch.setattr(
+        module,
+        "build_actionability_state_assessment",
+        lambda setup, *, sequence_role: SimpleNamespace(
+            state=ActionabilityState.RETEST_PREFERRED,
+            has_blocking_issue=False,
+        ),
+    )
+
+    decisions = module.select_replay_opportunity_decisions(analysis)
+
+    assert len(decisions) == 1
+    assert decisions[0].setup is setup
+    assert decisions[0].reason_code == "legacy_selected_setup"
+    assert decisions[0].execution_authorized is False
