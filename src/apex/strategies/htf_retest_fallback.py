@@ -91,10 +91,7 @@ def _fallback_for_direction(
         return None
     if intraday.structure.trend.direction not in aligned_trends:
         return None
-    if any(
-        parent.structure.trend.direction in opposed_trends
-        for parent in (setup, intraday)
-    ):
+    if any(parent.structure.trend.direction in opposed_trends for parent in (setup, intraday)):
         return None
     if frame.structure.trend.direction not in aligned_trends:
         return None

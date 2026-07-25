@@ -117,11 +117,7 @@ def _apply_target_ladder(
     )
     combined = (*structural, *originals)
     ordered = sorted(
-        (
-            level
-            for level in combined
-            if _target_is_valid_for_candidate(candidate, level)
-        ),
+        (level for level in combined if _target_is_valid_for_candidate(candidate, level)),
         key=lambda level: (
             abs(level.price - context.current_price),
             1 if level.kind is TargetType.EXPANSION else 0,
@@ -416,9 +412,7 @@ def _quantize_toward_current(
         return price
     units = price / tick_size
     return (
-        math.floor(units + 1e-12) * tick_size
-        if bullish
-        else math.ceil(units - 1e-12) * tick_size
+        math.floor(units + 1e-12) * tick_size if bullish else math.ceil(units - 1e-12) * tick_size
     )
 
 

@@ -44,11 +44,7 @@ def _ranking_score(item: Mapping[str, object]) -> tuple[float, float, float]:
 def _identity(item: Mapping[str, object]) -> tuple[str, str, str, str]:
     setup = _setup(item)
     entry = _mapping(setup.get("entry"))
-    identity = (
-        setup.get("candidate_id")
-        or item.get("candidate_id")
-        or entry.get("preferred")
-    )
+    identity = setup.get("candidate_id") or item.get("candidate_id") or entry.get("preferred")
     return (
         str(item.get("symbol") or setup.get("symbol") or ""),
         str(setup.get("direction") or item.get("direction") or ""),
@@ -92,18 +88,15 @@ def _summary(
             (
                 (
                     "Markets discovered",
-                    screening.get("total_contracts")
-                    or payload.get("attempted_symbol_count"),
+                    screening.get("total_contracts") or payload.get("attempted_symbol_count"),
                 ),
                 (
                     "Markets screened",
-                    screening.get("candle_screened_count")
-                    or payload.get("attempted_symbol_count"),
+                    screening.get("candle_screened_count") or payload.get("attempted_symbol_count"),
                 ),
                 (
                     "Symbols shortlisted",
-                    screening.get("shortlisted_count")
-                    or payload.get("attempted_symbol_count"),
+                    screening.get("shortlisted_count") or payload.get("attempted_symbol_count"),
                 ),
                 ("Symbols analyzed", payload.get("total_analysis_count")),
                 ("Trade plans", trade_count),
@@ -165,11 +158,7 @@ def render_compact_scan(payload: Mapping[str, object], *, explain: bool = False)
         _trade_card(
             item,
             index=index,
-            symbol=str(
-                item.get("symbol")
-                or _setup(item).get("symbol")
-                or "Unknown market"
-            ),
+            symbol=str(item.get("symbol") or _setup(item).get("symbol") or "Unknown market"),
             generated_at=item.get("generated_at") or generated_at,
             explain=explain,
         )
