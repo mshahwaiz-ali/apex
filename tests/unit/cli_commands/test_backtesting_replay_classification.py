@@ -5,6 +5,7 @@ from __future__ import annotations
 from apex.cli_commands.backtesting import (
     _classify_replay_trade_records,
     _geometry_rejection_summary,
+    _replay_class_from_source,
 )
 
 
@@ -98,3 +99,11 @@ def test_geometry_rejection_summary_aggregates_codes_lanes_and_ratios() -> None:
     assert averages["gross_tp1_reward_to_risk"] == 1.5
     assert averages["net_tp1_reward_to_risk"] == 0.65
     assert averages["stop_to_cost_ratio"] == 0.375
+
+
+def test_replay_source_classification_is_explicit_and_fail_closed() -> None:
+    assert _replay_class_from_source("production") == "production"
+    assert _replay_class_from_source("conditional_portfolio") == "conditional"
+    assert _replay_class_from_source("opportunity_portfolio") == "opportunity"
+    assert _replay_class_from_source("geometry_rejected") == "shadow"
+    assert _replay_class_from_source("experimental") == "unknown"

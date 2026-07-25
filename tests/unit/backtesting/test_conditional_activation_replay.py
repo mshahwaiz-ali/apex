@@ -197,3 +197,48 @@ def test_maximum_chase_remains_active_after_close_activation() -> None:
     assert trade.metadata["entry_filled"] is False
     assert trade.metadata["activation_outcome"] == "maximum_chase_breached_after_activation"
     assert trade.metadata["terminal_state"] == "missed_trigger"
+
+
+def test_conditional_wait_does_not_consume_post_fill_holding_window() -> None:
+    trade = simulate_trade(
+        _signal(expiry=5),
+        (
+            _candle(0, open_price=100.0, high=100.8, low=99.4, close=100.3),
+            _candle(1, open_price=100.3, high=101.4, low=99.8, close=101.2),
+            _candle(2, open_price=101.2, high=101.4, low=99.8, close=100.2),
+            _candle(3, open_price=100.2, high=103.0, low=99.9, close=102.5),
+            _candle(4, open_price=102.5, high=106.2, low=102.0, close=105.8),
+        ),
+        config=BacktestConfig(
+            fee_pct=0.0,
+            slippage_pct=0.0,
+            maximum_holding_candles=3,
+        ),
+    )
+
+    assert trade.outcome is BacktestOutcome.TARGET
+    assert trade.metadata["activation_candle"] == 2
+    assert trade.metadata["entry_fill_candle"] == 3
+    assert trade.holding_candles == 3
+
+
+def test_conditional_time_exit_reports_fill_to_exit_holding_duration() -> None:
+    trade = simulate_trade(
+        _signal(expiry=5),
+        (
+            _candle(0, open_price=100.0, high=100.8, low=99.4, close=100.3),
+            _candle(1, open_price=100.3, high=101.4, low=99.8, close=101.2),
+            _candle(2, open_price=101.2, high=101.4, low=99.8, close=100.2),
+            _candle(3, open_price=100.2, high=102.5, low=99.9, close=102.0),
+            _candle(4, open_price=102.0, high=103.0, low=101.5, close=102.5),
+        ),
+        config=BacktestConfig(
+            fee_pct=0.0,
+            slippage_pct=0.0,
+            maximum_holding_candles=3,
+        ),
+    )
+
+    assert trade.outcome is BacktestOutcome.EXPIRED
+    assert trade.metadata["entry_fill_candle"] == 3
+    assert trade.holding_candles == 3

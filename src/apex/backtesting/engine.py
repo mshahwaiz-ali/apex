@@ -60,11 +60,11 @@ def simulate_trade(
     stop = signal.stop_price
     targets = signal.target_prices
     partials = signal.partial_close_percentages
-    max_candles = min(len(candles), config.maximum_holding_candles)
+    decision_horizon_candles = min(len(candles), config.maximum_holding_candles)
 
     path_mfe_r = 0.0
     path_mae_r = 0.0
-    for candle in candles[:max_candles]:
+    for candle in candles[:decision_horizon_candles]:
         favorable_r, adverse_r = _candle_excursions_r(
             signal,
             candle,
@@ -72,7 +72,7 @@ def simulate_trade(
         )
         path_mfe_r = max(path_mfe_r, favorable_r)
         path_mae_r = max(path_mae_r, adverse_r)
-    final_close = candles[max_candles - 1].close
+    final_close = candles[decision_horizon_candles - 1].close
     direction_correct = (
         final_close > signal.entry_price
         if signal.direction is TradeDirection.LONG
@@ -81,7 +81,7 @@ def simulate_trade(
     metadata = {
         **({} if metadata is None else dict(metadata)),
         **deep_failure_shadow_metadata(signal),
-        **_thesis_outcome_metadata(signal, candles[:max_candles]),
+        **_thesis_outcome_metadata(signal, candles[:decision_horizon_candles]),
         **decision_feature_snapshot(signal),
         **volatility_risk_shadow_metadata(signal),
         "counterfactual_path_mfe_r": path_mfe_r,
@@ -113,6 +113,9 @@ def simulate_trade(
 
     activated = signal.activation_type is None
     entered = False
+    entry_fill_index: int | None = None
+    holding_end_index: int | None = None
+    last_processed_index = 0
     next_target_index = 0
     remaining_quantity = signal.quantity
     gross = 0.0
@@ -123,7 +126,10 @@ def simulate_trade(
     first_stop_touch_time: str | None = None
     first_tp1_touch_candle: int | None = None
     first_tp1_touch_time: str | None = None
-    for index, candle in enumerate(candles[:max_candles], start=1):
+    for index, candle in enumerate(candles, start=1):
+        if holding_end_index is not None and index > holding_end_index:
+            break
+        last_processed_index = index
         if not activated:
             if _pre_entry_invalidated(signal, candle):
                 return _unfilled_trade(
@@ -202,6 +208,11 @@ def simulate_trade(
             )
             entry = _slipped_entry(signal, config)
             entered = True
+            entry_fill_index = index
+            holding_end_index = min(
+                len(candles),
+                entry_fill_index - 1 + config.maximum_holding_candles,
+            )
             metadata = {
                 **({} if metadata is None else dict(metadata)),
                 "entry_fill_candle": index,
@@ -221,6 +232,8 @@ def simulate_trade(
                 ),
             }
         assert entry is not None
+        assert entry_fill_index is not None
+        assert holding_end_index is not None
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
         maximum_favorable_excursion_r = max(maximum_favorable_excursion_r, favorable_r)
         maximum_adverse_excursion_r = max(maximum_adverse_excursion_r, adverse_r)
@@ -257,7 +270,7 @@ def simulate_trade(
                 signal,
                 BacktestOutcome.STOP,
                 candle,
-                index,
+                index - entry_fill_index + 1,
                 entry,
                 _slipped_exit(signal, stop, config),
                 gross
@@ -273,7 +286,7 @@ def simulate_trade(
                     **runtime_metadata,
                     **_post_stop_thesis_metadata(
                         signal,
-                        candles[index:max_candles],
+                        candles[index:holding_end_index],
                         entry=entry,
                         stop=stop,
                         stop_candle=candle,
@@ -301,7 +314,7 @@ def simulate_trade(
                     signal,
                     BacktestOutcome.TARGET,
                     candle,
-                    index,
+                    index - entry_fill_index + 1,
                     entry,
                     target_price,
                     gross,
@@ -320,7 +333,7 @@ def simulate_trade(
                 signal,
                 BacktestOutcome.STOP,
                 candle,
-                index,
+                index - entry_fill_index + 1,
                 entry,
                 stop_exit,
                 gross
@@ -337,7 +350,7 @@ def simulate_trade(
                     "first_exit_event": "stop",
                     **_post_stop_thesis_metadata(
                         signal,
-                        candles[index:max_candles],
+                        candles[index:holding_end_index],
                         entry=entry,
                         stop=stop,
                         stop_candle=candle,
@@ -347,25 +360,28 @@ def simulate_trade(
                 partial_target_count=next_target_index,
             )
 
-    final = candles[max_candles - 1]
+    final_index = last_processed_index or len(candles)
+    final = candles[final_index - 1]
     if not entered:
         return _unfilled_trade(
             signal,
             (BacktestOutcome.MISSED_ENTRY if activated else BacktestOutcome.ACTIVATION_EXPIRED),
             final,
-            max_candles,
+            final_index,
             metadata=metadata,
             activation_outcome=(
                 "entry_not_touched_after_activation" if activated else "activation_window_ended"
             ),
         )
     assert entry is not None
+    assert entry_fill_index is not None
+    holding_candles = final_index - entry_fill_index + 1
     final_exit = _slipped_exit(signal, final.close, config)
     return _trade_from_components(
         signal,
         BacktestOutcome.EXPIRED,
         final,
-        max_candles,
+        holding_candles,
         entry,
         final_exit,
         gross

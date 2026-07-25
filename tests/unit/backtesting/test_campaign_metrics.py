@@ -136,8 +136,9 @@ def test_close_trigger_waits_until_next_candle_before_entry_fill() -> None:
     )
 
     assert trade.outcome is BacktestOutcome.TARGET
-    assert trade.holding_candles == 2
+    assert trade.holding_candles == 1
     assert trade.metadata["activation_candle"] == 1
+    assert trade.metadata["entry_fill_candle"] == 2
 
 
 def test_conditional_replay_records_pre_entry_invalidation() -> None:

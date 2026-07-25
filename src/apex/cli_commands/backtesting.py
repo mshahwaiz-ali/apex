@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +27,7 @@ from apex.application.canonical_opportunity_selection import (
     select_replay_opportunity_decisions,
 )
 from apex.application.discovery_contracts import DiscoverySetup
+from apex.application.portfolio_retention import setup_geometry_fingerprint
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
 )
@@ -339,18 +340,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "maximum_favorable_excursion_r": metadata.get("maximum_favorable_excursion_r"),
                 "maximum_adverse_excursion_r": metadata.get("maximum_adverse_excursion_r"),
                 "activation_outcome": metadata.get("activation_outcome"),
+                "candidate_id": trade.signal.candidate_id,
+                "replay_source": trade.signal.replay_source,
                 "replay_class": replay_class,
             }
 
-        replay_outcomes = {
-            trade.signal.generated_at.isoformat(): replay_record(trade, "production")
-            for trade in report.trades
-        }
-        replay_outcomes.update(
-            {
-                trade.signal.generated_at.isoformat(): replay_record(trade, "conditional")
-                for trade in conditional_report.trades
-            }
+        replay_outcomes = _replay_outcomes_by_decision(
+            production_trades=report.trades,
+            conditional_trades=conditional_report.trades,
+            replay_record=replay_record,
         )
         calibration_records = [
             {
@@ -364,6 +362,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         "maximum_favorable_excursion_r": None,
                         "maximum_adverse_excursion_r": None,
                         "activation_outcome": None,
+                        "candidate_id": None,
+                        "replay_source": None,
                         "replay_class": "none",
                     },
                 ),
@@ -373,12 +373,13 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         partition_by_time = {
             item["decision_time"]: item["partition"] for item in decision_partitions
         }
+        filled_report_trades = _filled_execution_trades(report.trades)
         partition_metrics = {
             partition: _report_metrics(
                 summarize_trades(
                     tuple(
                         trade
-                        for trade in report.trades
+                        for trade in filled_report_trades
                         if partition_by_time.get(trade.signal.generated_at.isoformat()) == partition
                     )
                 )
@@ -387,7 +388,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         }
         final_returns = tuple(
             trade.realized_r_multiple
-            for trade in report.trades
+            for trade in filled_report_trades
             if partition_by_time.get(trade.signal.generated_at.isoformat()) == "final_test"
         )
         training_value = partition_metrics["training"].get("expectancy", 0.0)
@@ -413,7 +414,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     [training_expectancy],
                     [final_expectancy],
                 )
-                if report.total_trades > 0
+                if final_returns
                 else None
             ),
         }
@@ -446,7 +447,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 fee_pct=config.fee_pct,
                 slippage_pct=config.slippage_pct,
             ),
-            "metrics": _report_metrics(report),
+            "metrics": _report_metrics(summarize_trades(_filled_execution_trades(report.trades))),
             "execution_metrics": _execution_metrics(report.trades),
             "decision_funnel": decision_funnel,
             "outcome_distribution": _outcome_distribution(report.trades),
@@ -475,7 +476,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     fee_pct=config.fee_pct,
                     slippage_pct=config.slippage_pct,
                 ),
-                "metrics": _report_metrics(conditional_report),
+                "metrics": _report_metrics(
+                    summarize_trades(_filled_execution_trades(conditional_report.trades))
+                ),
                 "activation_metrics": _activation_metrics(conditional_report.trades),
                 "execution_metrics": _execution_metrics(conditional_report.trades),
                 "outcome_distribution": _outcome_distribution(conditional_report.trades),
@@ -705,6 +708,39 @@ def _emit(payload: object, text: str, output_mode: OutputMode) -> None:
     emit_terminal(text)
 
 
+def _replay_outcomes_by_decision(
+    *,
+    production_trades: object,
+    conditional_trades: object,
+    replay_record: Callable[[SimulatedTrade, str], dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    """Resolve one authoritative replay outcome per decision timestamp.
+
+    Conditional replay fills gaps, while canonical production replay has
+    precedence when both populations contain the same decision timestamp.
+    """
+
+    conditional_values = (
+        tuple(conditional_trades) if isinstance(conditional_trades, tuple | list) else ()
+    )
+    production_values = (
+        tuple(production_trades) if isinstance(production_trades, tuple | list) else ()
+    )
+    outcomes = {
+        trade.signal.generated_at.isoformat(): replay_record(trade, "conditional")
+        for trade in conditional_values
+        if isinstance(trade, SimulatedTrade)
+    }
+    outcomes.update(
+        {
+            trade.signal.generated_at.isoformat(): replay_record(trade, "production")
+            for trade in production_values
+            if isinstance(trade, SimulatedTrade)
+        }
+    )
+    return outcomes
+
+
 def _campaign_partition(index: int, total: int) -> str:
     """Assign frozen chronological evaluation partitions without shuffling."""
 
@@ -793,6 +829,14 @@ def _calibration_record(
         "production_decision": serialized.get("decision"),
         "strategy": None if setup is None else setup.strategy.value,
         "direction": None if setup is None else setup.direction.value,
+        "candidate_id": None if setup is None else setup.candidate_id,
+        "strategy_version": None if setup is None else setup.strategy_version,
+        "setup_methodology_version": (
+            None if setup is None else setup.methodology_version
+        ),
+        "setup_geometry_fingerprint": (
+            None if setup is None else list(setup_geometry_fingerprint(setup))
+        ),
         "opportunity_id": resolved_decision.opportunity_id,
         "sequence_role": resolved_decision.sequence_role,
         "lane": resolved_decision.lane,
@@ -2015,6 +2059,22 @@ def _unique_geometry_population(
     }
 
 
+def _replay_class_from_source(source: object) -> str:
+    if source == "production":
+        return "production"
+    if source == "conditional_portfolio":
+        return "conditional"
+    if source == "opportunity_portfolio":
+        return "opportunity"
+    if source in {"runner_plan", "geometry_rejected", "methodology_shadow"}:
+        return "shadow"
+    return "unknown"
+
+
+def _canonical_source(source: object) -> bool:
+    return source in {"production", "conditional_portfolio"}
+
+
 def _canonical_trade_records(
     trades: object,
     *,
@@ -2025,6 +2085,12 @@ def _canonical_trade_records(
 ) -> list[dict[str, object]]:
     if not isinstance(trades, tuple | list):
         return []
+    calibration_by_candidate = {
+        str(record.get("candidate_id")): record
+        for record in calibration_records
+        if isinstance(record.get("candidate_id"), str)
+        and str(record.get("candidate_id")).strip()
+    }
     calibration_by_time = {
         str(record.get("decision_time")): record for record in calibration_records
     }
@@ -2036,7 +2102,16 @@ def _canonical_trade_records(
         signal = serialized.get("signal")
         generated_at = signal.get("generated_at") if isinstance(signal, Mapping) else None
         decision_time = str(generated_at or "")
-        calibration = calibration_by_time.get(decision_time, {})
+        candidate_id = (
+            signal.get("candidate_id") if isinstance(signal, Mapping) else None
+        )
+        calibration = (
+            calibration_by_candidate.get(str(candidate_id), {})
+            if isinstance(candidate_id, str) and candidate_id.strip()
+            else {}
+        )
+        if not calibration:
+            calibration = calibration_by_time.get(decision_time, {})
         metadata = serialized.get("metadata")
         metadata_map = metadata if isinstance(metadata, Mapping) else {}
         target_count = int(metadata_map.get("partial_target_count", 0) or 0)
@@ -2059,7 +2134,32 @@ def _canonical_trade_records(
                 "sequence_role": calibration.get("sequence_role"),
                 "actionability_state": calibration.get("actionability_state"),
                 "replay_reason_code": calibration.get("replay_reason_code"),
-                "canonical_portfolio": calibration.get("canonical_portfolio"),
+                "strategy_version": (
+                    signal.get("strategy_version")
+                    if isinstance(signal, Mapping)
+                    else calibration.get("strategy_version")
+                ),
+                "setup_methodology_version": (
+                    signal.get("setup_methodology_version")
+                    if isinstance(signal, Mapping)
+                    else calibration.get("setup_methodology_version")
+                ),
+                "setup_geometry_fingerprint": calibration.get(
+                    "setup_geometry_fingerprint"
+                ),
+                "replay_source": (
+                    signal.get("replay_source") if isinstance(signal, Mapping) else None
+                ),
+                "replay_class": _replay_class_from_source(
+                    signal.get("replay_source") if isinstance(signal, Mapping) else None
+                ),
+                "canonical_portfolio": (
+                    calibration.get("canonical_portfolio")
+                    if isinstance(calibration.get("canonical_portfolio"), bool)
+                    else _canonical_source(
+                        signal.get("replay_source") if isinstance(signal, Mapping) else None
+                    )
+                ),
                 "targets_hit": target_count,
                 "maximum_favorable_excursion_r": metadata_map.get("maximum_favorable_excursion_r"),
                 "maximum_adverse_excursion_r": metadata_map.get("maximum_adverse_excursion_r"),
@@ -2209,7 +2309,10 @@ def _canonical_trade_records(
 
 
 def _outcome_distribution(trades: object) -> dict[str, object]:
+    """Report lifecycle and post-fill outcomes with their correct populations."""
+
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    filled_values = _filled_execution_trades(values)
     outcome_counts = {
         "target": 0,
         "stop": 0,
@@ -2221,16 +2324,15 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
     target_counts = {"tp1_hit_count": 0, "tp2_hit_count": 0, "tp3_hit_count": 0}
     ambiguity_count = 0
     profitable_target_count = 0
+
     for trade in values:
         outcome = getattr(getattr(trade, "outcome", None), "value", None)
         if outcome in outcome_counts:
             outcome_counts[outcome] += 1
-        metadata = getattr(trade, "metadata", {})
-        target_count = (
-            int(metadata.get("partial_target_count", 0) or 0)
-            if isinstance(metadata, Mapping)
-            else 0
-        )
+
+    for trade in filled_values:
+        metadata = trade.metadata
+        target_count = int(metadata.get("partial_target_count", 0) or 0)
         for threshold, key in (
             (1, "tp1_hit_count"),
             (2, "tp2_hit_count"),
@@ -2238,35 +2340,53 @@ def _outcome_distribution(trades: object) -> dict[str, object]:
         ):
             if target_count >= threshold:
                 target_counts[key] += 1
-        if isinstance(metadata, Mapping):
-            ambiguity_count += metadata.get("same_candle_stop_target_ambiguous") is True
-            profitable_target_count += metadata.get("net_profitable_target") is True
+        ambiguity_count += metadata.get("same_candle_stop_target_ambiguous") is True
+        profitable_target_count += metadata.get("net_profitable_target") is True
 
-    total = len(values)
+    lifecycle_total = len(values)
+    filled_total = len(filled_values)
     return {
         **outcome_counts,
         **target_counts,
+        "signal_outcome_count": lifecycle_total,
+        "filled_trade_count": filled_total,
         "net_profitable_target_count": profitable_target_count,
         "same_candle_stop_target_ambiguity_count": ambiguity_count,
-        "stop_rate": outcome_counts["stop"] / total if total else None,
-        "missed_entry_rate": outcome_counts["missed_entry"] / total if total else None,
-        "expired_rate": outcome_counts["expired"] / total if total else None,
-        "tp1_hit_rate": target_counts["tp1_hit_count"] / total if total else None,
-        "tp2_hit_rate": target_counts["tp2_hit_count"] / total if total else None,
-        "tp3_hit_rate": target_counts["tp3_hit_count"] / total if total else None,
+        "stop_rate": outcome_counts["stop"] / filled_total if filled_total else None,
+        "missed_entry_rate": (
+            outcome_counts["missed_entry"] / lifecycle_total if lifecycle_total else None
+        ),
+        "pre_entry_invalidation_rate": (
+            outcome_counts["pre_entry_invalidated"] / lifecycle_total if lifecycle_total else None
+        ),
+        "activation_expiry_rate": (
+            outcome_counts["activation_expired"] / lifecycle_total if lifecycle_total else None
+        ),
+        "expired_rate": (outcome_counts["expired"] / filled_total if filled_total else None),
+        "tp1_hit_rate": (target_counts["tp1_hit_count"] / filled_total if filled_total else None),
+        "tp2_hit_rate": (target_counts["tp2_hit_count"] / filled_total if filled_total else None),
+        "tp3_hit_rate": (target_counts["tp3_hit_count"] / filled_total if filled_total else None),
     }
+
+
+def _filled_execution_trades(trades: object) -> tuple[SimulatedTrade, ...]:
+    """Return records that represent actual historical entry fills."""
+
+    values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    return tuple(
+        trade
+        for trade in values
+        if isinstance(trade, SimulatedTrade)
+        and isinstance(trade.metadata, Mapping)
+        and trade.metadata.get("entry_filled") is True
+    )
 
 
 def _execution_metrics(trades: object) -> dict[str, object]:
     """Return fill-only performance without counting unfilled plans as trades."""
 
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
-    filled = tuple(
-        trade
-        for trade in values
-        if isinstance(getattr(trade, "metadata", None), Mapping)
-        and trade.metadata.get("entry_filled") is True
-    )
+    filled = _filled_execution_trades(values)
     report = summarize_trades(filled)
     metrics = _report_metrics(report)
     return {
@@ -2338,69 +2458,105 @@ def _decision_funnel_metrics(
     production_trades: object,
     conditional_trades: object,
 ) -> dict[str, object]:
-    """Describe how chronological decisions move through the setup funnel."""
+    """Describe unique chronological decisions through the setup funnel.
 
-    production_values = (
-        tuple(production_trades) if isinstance(production_trades, tuple | list) else ()
+    Production decisions have precedence. Conditional replay is counted as a
+    future setup only when the same decision timestamp has no production setup.
+    This prevents alternative replay lanes from inflating coverage above 100%.
+    """
+
+    production_values = tuple(
+        trade
+        for trade in (
+            tuple(production_trades) if isinstance(production_trades, tuple | list) else ()
+        )
+        if isinstance(trade, SimulatedTrade)
     )
-    conditional_values = (
-        tuple(conditional_trades) if isinstance(conditional_trades, tuple | list) else ()
+    conditional_values = tuple(
+        trade
+        for trade in (
+            tuple(conditional_trades) if isinstance(conditional_trades, tuple | list) else ()
+        )
+        if isinstance(trade, SimulatedTrade)
     )
-    production_fills = sum(
-        isinstance(getattr(trade, "metadata", None), Mapping)
-        and trade.metadata.get("entry_filled") is True
+    production_times = {trade.signal.generated_at.isoformat() for trade in production_values}
+    conditional_times = {trade.signal.generated_at.isoformat() for trade in conditional_values}
+    future_only_times = conditional_times - production_times
+    overlap_times = production_times & conditional_times
+
+    production_fill_times = {
+        trade.signal.generated_at.isoformat()
         for trade in production_values
-    )
-    conditional_fills = sum(
-        isinstance(getattr(trade, "metadata", None), Mapping)
-        and trade.metadata.get("entry_filled") is True
+        if trade.metadata.get("entry_filled") is True
+    }
+    conditional_fill_times = {
+        trade.signal.generated_at.isoformat()
         for trade in conditional_values
-    )
+        if trade.metadata.get("entry_filled") is True
+        and trade.signal.generated_at.isoformat() in future_only_times
+    }
+
     true_no_setup = 0
+    pending_activation_count = 0
     for decision in no_trade_decisions:
         reasons = decision.get("reasons")
         reason_values = reasons if isinstance(reasons, list | tuple) else ()
-        if "canonical_opportunity_pending_activation" not in reason_values:
+        if "canonical_opportunity_pending_activation" in reason_values:
+            pending_activation_count += 1
+        else:
             true_no_setup += 1
+
+    immediate_count = len(production_times)
+    future_count = max(len(future_only_times), pending_activation_count)
+    setup_count = min(decision_point_count, immediate_count + future_count)
     return {
         "decision_point_count": decision_point_count,
-        "immediate_setup_count": production_signals,
-        "future_setup_count": conditional_signals,
-        "setup_found_count": production_signals + conditional_signals,
+        "raw_immediate_signal_count": production_signals,
+        "raw_conditional_signal_count": conditional_signals,
+        "pending_activation_decision_count": pending_activation_count,
+        "overlapping_setup_decision_count": len(overlap_times),
+        "immediate_setup_count": immediate_count,
+        "future_setup_count": future_count,
+        "setup_found_count": setup_count,
         "true_no_setup_count": true_no_setup,
         "immediate_setup_rate": (
-            production_signals / decision_point_count if decision_point_count else None
+            immediate_count / decision_point_count if decision_point_count else None
         ),
         "future_setup_rate": (
-            conditional_signals / decision_point_count if decision_point_count else None
+            future_count / decision_point_count if decision_point_count else None
         ),
         "setup_coverage_rate": (
-            (production_signals + conditional_signals) / decision_point_count
-            if decision_point_count
-            else None
+            setup_count / decision_point_count if decision_point_count else None
         ),
-        "immediate_fill_count": production_fills,
-        "future_fill_count": conditional_fills,
-        "total_fill_count": production_fills + conditional_fills,
+        "immediate_fill_count": len(production_fill_times),
+        "future_fill_count": len(conditional_fill_times),
+        "total_fill_count": len(production_fill_times | conditional_fill_times),
     }
 
 
 def _risk_and_excursion(trades: object) -> dict[str, object]:
+    """Separate realised fill excursion from counterfactual plan-path evidence."""
+
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
+    filled_values = _filled_execution_trades(values)
     mfe_values: list[float] = []
     mae_values: list[float] = []
     path_mfe_values: list[float] = []
     path_mae_values: list[float] = []
-    for trade in values:
-        metadata = getattr(trade, "metadata", {})
-        if not isinstance(metadata, Mapping):
-            continue
+
+    for trade in filled_values:
+        metadata = trade.metadata
         mfe = metadata.get("maximum_favorable_excursion_r")
         mae = metadata.get("maximum_adverse_excursion_r")
         if isinstance(mfe, int | float) and not isinstance(mfe, bool):
             mfe_values.append(float(mfe))
         if isinstance(mae, int | float) and not isinstance(mae, bool):
             mae_values.append(float(mae))
+
+    for trade in values:
+        metadata = getattr(trade, "metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
         path_mfe = metadata.get("counterfactual_path_mfe_r")
         path_mae = metadata.get("counterfactual_path_mae_r")
         if isinstance(path_mfe, int | float) and not isinstance(path_mfe, bool):
@@ -2409,10 +2565,12 @@ def _risk_and_excursion(trades: object) -> dict[str, object]:
             path_mae_values.append(float(path_mae))
 
     return {
+        "filled_trade_count": len(filled_values),
         "average_mfe_r": sum(mfe_values) / len(mfe_values) if mfe_values else None,
         "average_mae_r": sum(mae_values) / len(mae_values) if mae_values else None,
         "best_mfe_r": max(mfe_values) if mfe_values else None,
         "worst_mae_r": max(mae_values) if mae_values else None,
+        "counterfactual_path_count": max(len(path_mfe_values), len(path_mae_values)),
         "average_counterfactual_path_mfe_r": (
             sum(path_mfe_values) / len(path_mfe_values) if path_mfe_values else None
         ),
