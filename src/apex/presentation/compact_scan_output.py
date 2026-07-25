@@ -1,4 +1,4 @@
-"""Compact confidence-ranked renderer for Apex market scans."""
+"""Compact actionability-ranked renderer for Apex market scans."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from apex.presentation import (
     render_section,
     render_title,
 )
+from apex.presentation.actionable_plan import hydrate_actionable_setup, plan_completeness, plan_lane
 from apex.presentation.compact_analysis_output import _trade_card
 from apex.presentation.scan_groups import flatten_existing_scan_groups
 
@@ -29,12 +30,14 @@ def _setup(item: Mapping[str, object]) -> Mapping[str, object]:
     return _mapping(item.get("setup")) or _mapping(item.get("developing_setup"))
 
 
-def _ranking_score(item: Mapping[str, object]) -> tuple[float, float, float]:
-    """Rank by displayed confidence, then overall quality and final rank score."""
+def _ranking_score(item: Mapping[str, object]) -> tuple[int, int, float, float, float]:
+    """Rank actionability and completeness before displayed confidence."""
 
-    setup = _setup(item)
+    setup = hydrate_actionable_setup(item)
     quality = _mapping(setup.get("quality_dimensions"))
     return (
+        plan_lane(setup),
+        plan_completeness(setup),
         _number(setup.get("confidence_score")) or float("-inf"),
         _number(quality.get("overall_trade_quality")) or float("-inf"),
         _number(item.get("final_score")) or float("-inf"),
@@ -102,7 +105,7 @@ def _summary(
                 ("Trade plans", trade_count),
                 ("No valid setup", no_trade_count),
                 ("Symbols failed", len(failures)),
-                ("Ranking", "Highest published confidence first"),
+                ("Ranking", "Actionability, plan completeness, then confidence"),
             )
         ),
     )
