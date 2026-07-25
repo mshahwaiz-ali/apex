@@ -101,7 +101,7 @@ def test_countertrend_scope_can_exclude_distant_four_hour_structure() -> None:
         frames=(
             _frame(
                 "4h",
-                TimeframeRole.CONTEXT,
+                TimeframeRole.INTERMEDIATE,
                 current=0.1597,
                 atr=0.001,
                 tick_size=0.0001,
