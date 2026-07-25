@@ -83,9 +83,8 @@ def apply_target_ladder_to_candidates(
 
     Strategy-specific range, liquidity, reversal, and measured targets are
     preserved. Multi-timeframe structural front-run targets are inserted ahead
-    of any farther objective, then the complete map is sorted nearest-first and
-    deduplicated. This makes TP1 the first credible obstacle for every family,
-    while retaining farther valid objectives as TP2/TP3.
+    of any farther objective. TP1 remains the first credible obstacle, while a
+    farther strategy objective may survive as TP3 for conditional runner use.
     """
 
     if max_targets < 1:
@@ -107,7 +106,12 @@ def _apply_target_ladder(
         direction=candidate.direction,
         max_targets=max_targets,
     )
-    combined = (*structural, *candidate.targets.levels)
+    originals = tuple(
+        level
+        for level in candidate.targets.levels
+        if _target_is_ahead(context, candidate.direction, level)
+    )
+    combined = (*structural, *originals)
     ordered = sorted(
         (level for level in combined if _target_is_ahead(context, candidate.direction, level)),
         key=lambda level: (
@@ -121,14 +125,18 @@ def _apply_target_ladder(
         context.atr * _FRONT_RUN_ATR_FRACTION,
         context.current_price * 1e-6,
     )
-    selected: list[TargetLevel] = []
+    unique: list[TargetLevel] = []
     for level in ordered:
-        if any(abs(level.price - existing.price) <= tolerance for existing in selected):
+        if any(abs(level.price - existing.price) <= tolerance for existing in unique):
             continue
-        selected.append(level)
-        if len(selected) >= max_targets:
-            break
+        unique.append(level)
 
+    selected = _select_ladder_levels(
+        unique,
+        originals=originals,
+        current=context.current_price,
+        max_targets=max_targets,
+    )
     if not selected:
         selected = [fallback_expansion_target(context, direction=candidate.direction)]
 
@@ -139,11 +147,60 @@ def _apply_target_ladder(
     metadata.update(target_ladder_metadata(relabelled))
     metadata["target_ladder_scope"] = "all_strategy_families"
     metadata["target_ladder_first_obstacle_authoritative"] = True
+    metadata["target_ladder_runner_preserved"] = _runner_was_preserved(
+        relabelled,
+        originals=originals,
+        tolerance=tolerance,
+    )
+    metadata["target_1_management"] = "reduce at first obstacle or earlier confirmed rejection"
+    if len(relabelled) >= 2:
+        metadata["target_2_activation"] = "continue only after TP1 zone breaks and holds"
+    if len(relabelled) >= 3:
+        metadata["target_3_activation"] = "runner only while continuation structure remains valid"
     return replace(
         candidate,
         targets=TargetConcept(levels=relabelled),
         metadata=metadata,
     )
+
+
+def _select_ladder_levels(
+    ordered: list[TargetLevel],
+    *,
+    originals: tuple[TargetLevel, ...],
+    current: float,
+    max_targets: int,
+) -> list[TargetLevel]:
+    if len(ordered) <= max_targets:
+        return ordered
+    if max_targets == 1:
+        return ordered[:1]
+
+    farthest_original = max(
+        originals,
+        key=lambda level: abs(level.price - current),
+        default=None,
+    )
+    if farthest_original is None:
+        return ordered[:max_targets]
+
+    selected = ordered[: max_targets - 1]
+    if farthest_original not in selected:
+        selected.append(farthest_original)
+    selected.sort(key=lambda level: abs(level.price - current))
+    return selected[:max_targets]
+
+
+def _runner_was_preserved(
+    levels: tuple[TargetLevel, ...],
+    *,
+    originals: tuple[TargetLevel, ...],
+    tolerance: float,
+) -> bool:
+    if not originals or len(levels) < 2:
+        return False
+    farthest_original = max(originals, key=lambda level: abs(level.price))
+    return any(abs(level.price - farthest_original.price) <= tolerance for level in levels[1:])
 
 
 def fallback_expansion_target(
