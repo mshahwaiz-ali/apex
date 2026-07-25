@@ -74,7 +74,7 @@ def test_opportunity_headers_color_long_green_and_short_red(
         calls.append((line, fg, bold))
 
     monkeypatch.setattr(typer, "secho", capture)
-    monkeypatch.setattr(typer, "echo", lambda line: None)
+    monkeypatch.setattr(typer, "echo", lambda line, **kwargs: None)
 
     emit_terminal("▶  #1  BTCUSDT — LONG\n▶  #2  ETHUSDT — SHORT")
 
@@ -93,16 +93,48 @@ def test_terminal_uses_professional_trade_geometry_colors(
         calls.append((line, fg, bold))
 
     monkeypatch.setattr(typer, "secho", capture)
-    monkeypatch.setattr(typer, "echo", lambda line: None)
+    monkeypatch.setattr(typer, "echo", lambda line, **kwargs: None)
 
     emit_terminal(
         "  ENTRY\n    Ideal entry  100\n  RISK\n    Stop loss  97\n  TARGETS\n    TP1  106"
     )
 
     assert calls == [
-        ("  ENTRY", typer.colors.BRIGHT_WHITE, True),
-        ("  RISK", typer.colors.BRIGHT_WHITE, True),
+        ("  ENTRY", typer.colors.BRIGHT_CYAN, True),
+        ("  RISK", typer.colors.BRIGHT_CYAN, True),
         ("    Stop loss  97", typer.colors.BRIGHT_RED, False),
-        ("  TARGETS", typer.colors.BRIGHT_WHITE, True),
+        ("  TARGETS", typer.colors.BRIGHT_CYAN, True),
         ("    TP1  106", typer.colors.BRIGHT_GREEN, False),
+    ]
+
+
+def test_terminal_colors_cmp_scores_r_and_warning_severity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None, bool]] = []
+
+    def capture(line: str, *, fg: str | None = None, bold: bool = False) -> None:
+        calls.append((line, fg, bold))
+
+    monkeypatch.setattr(typer, "secho", capture)
+    monkeypatch.setattr(typer, "echo", lambda line, **kwargs: None)
+
+    emit_terminal(
+        "  CMP                0.3045\n"
+        "  Setup quality      44.1/100\n"
+        "  Execution quality  20.0/100\n"
+        "  Target quality     79.0/100\n"
+        "  Gross / net R      0.41R net\n"
+        "    - active-candle evidence is provisional\n"
+        "    - no post-confirmation execution room"
+    )
+
+    assert calls == [
+        ("0.3045", typer.colors.BRIGHT_YELLOW, True),
+        ("44.1/100", typer.colors.BRIGHT_RED, True),
+        ("20.0/100", typer.colors.BRIGHT_RED, True),
+        ("79.0/100", typer.colors.BRIGHT_GREEN, True),
+        ("0.41R net", typer.colors.BRIGHT_RED, True),
+        ("    - active-candle evidence is provisional", typer.colors.YELLOW, True),
+        ("    - no post-confirmation execution room", typer.colors.BRIGHT_RED, True),
     ]
