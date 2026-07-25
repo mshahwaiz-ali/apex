@@ -26,6 +26,7 @@ def _trade(
     mfe_r: float,
     mae_r: float,
     entry_filled: bool = True,
+    replay_source: str = "production",
 ) -> SimulatedTrade:
     signal = BacktestSignal(
         symbol="BTCUSDT",
@@ -38,6 +39,7 @@ def _trade(
         quantity=1.0,
         risk_amount=5.0,
         confidence_score=70.0,
+        replay_source=replay_source,
     )
     return SimulatedTrade(
         signal=signal,
@@ -186,6 +188,60 @@ def test_calibration_has_no_performance_metrics_without_filled_trades() -> None:
                 mfe_r=3.0,
                 mae_r=2.0,
                 entry_filled=False,
+            ),
+        )
+    )
+
+    assert calibration_metrics_from_report(report) == {}
+    assert calibration_acceptance_from_report(report).sample_size == 0
+
+
+def test_calibration_excludes_filled_geometry_shadow_replay() -> None:
+    report = summarize_trades(
+        (
+            _trade(
+                outcome=BacktestOutcome.STOP,
+                net_pnl=-5.0,
+                realized_r=-1.0,
+                partial_target_count=0,
+                mfe_r=0.2,
+                mae_r=1.1,
+            ),
+            _trade(
+                outcome=BacktestOutcome.TARGET,
+                net_pnl=100.0,
+                realized_r=20.0,
+                partial_target_count=2,
+                mfe_r=25.0,
+                mae_r=0.1,
+                replay_source="geometry_rejected",
+            ),
+        )
+    )
+
+    metrics = calibration_metrics_from_report(report)
+    acceptance = calibration_acceptance_from_report(report)
+
+    assert metrics[CalibrationMetric.WIN_RATE.value] == 0.0
+    assert metrics[CalibrationMetric.EXPECTANCY.value] == -5.0
+    assert metrics[CalibrationMetric.AVERAGE_R.value] == -1.0
+    assert metrics[CalibrationMetric.STOP_RATE.value] == 1.0
+    assert metrics[CalibrationMetric.MFE.value] == 0.2
+    assert metrics[CalibrationMetric.MAE.value] == 1.1
+    assert acceptance.sample_size == 1
+
+
+def test_calibration_excludes_unknown_filled_replay_source_fail_closed() -> None:
+    report = summarize_trades(
+        (
+            _trade(
+                outcome=BacktestOutcome.TARGET,
+                net_pnl=10.0,
+                realized_r=2.0,
+                partial_target_count=2,
+                mfe_r=2.4,
+                mae_r=0.3,
+                replay_source="experimental_counterfactual",
             ),
         )
     )

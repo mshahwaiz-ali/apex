@@ -10,6 +10,15 @@ from apex.backtesting.acceptance import (
 )
 from apex.backtesting.contracts import BacktestOutcome, BacktestReport, SimulatedTrade
 
+_CALIBRATION_REPLAY_SOURCES = frozenset(
+    {
+        "production",
+        "opportunity_portfolio",
+        "conditional_portfolio",
+        "runner_plan",
+    }
+)
+
 
 def calibration_metrics_from_report(report: BacktestReport) -> dict[str, float]:
     """Return calibration metrics from canonical filled trades only.
@@ -96,9 +105,18 @@ def calibration_reporting_payload(
 
 
 def _filled_trades(report: BacktestReport) -> tuple[SimulatedTrade, ...]:
-    """Return only records that represent an actual historical entry fill."""
+    """Return only canonical records that represent an actual entry fill.
 
-    return tuple(trade for trade in report.trades if trade.metadata.get("entry_filled") is True)
+    Research-shadow and unknown replay sources fail closed so counterfactual
+    fills cannot enter production calibration or confidence authority.
+    """
+
+    return tuple(
+        trade
+        for trade in report.trades
+        if trade.metadata.get("entry_filled") is True
+        and trade.signal.replay_source in _CALIBRATION_REPLAY_SOURCES
+    )
 
 
 def _partial_target_count(trade: SimulatedTrade) -> int:
