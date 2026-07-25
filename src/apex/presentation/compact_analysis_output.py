@@ -14,6 +14,11 @@ from apex.presentation import (
     render_title,
 )
 
+_SUPPRESSED_PLAN_WARNING = (
+    "confirmation-required setup has no post-confirmation execution room "
+    "while preserving minimum net reward-to-risk"
+)
+
 
 def _mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
@@ -68,6 +73,19 @@ def _conditional_plan(setup: Mapping[str, object]) -> Mapping[str, object]:
     return _mapping(setup.get("conditional_plan"))
 
 
+def _warnings(setup: Mapping[str, object]) -> tuple[str, ...]:
+    warnings = setup.get("warnings")
+    if not isinstance(warnings, Sequence) or isinstance(warnings, str | bytes):
+        return ()
+    return tuple(str(item) for item in warnings)
+
+
+def _activation_plan_suppressed(setup: Mapping[str, object]) -> bool:
+    if _conditional_plan(setup):
+        return False
+    return any(_SUPPRESSED_PLAN_WARNING in warning.lower() for warning in _warnings(setup))
+
+
 def _trigger_payload(setup: Mapping[str, object]) -> Mapping[str, object]:
     return _mapping(_conditional_plan(setup).get("trigger"))
 
@@ -81,6 +99,8 @@ def _trigger_kind(setup: Mapping[str, object]) -> str:
 def _status(setup: Mapping[str, object]) -> str:
     if setup.get("execution_allowed_now") is True:
         return "Ready now"
+    if _activation_plan_suppressed(setup):
+        return "Setup valid - activation blocked"
     trigger_kind = _trigger_kind(setup)
     if trigger_kind == "retest_hold":
         return "Future retest - hold required"
@@ -114,11 +134,28 @@ def _relationship(setup: Mapping[str, object]) -> str:
     return humanize_code(relationship) if relationship is not None else "Unavailable"
 
 
+def _timeframe_context(setup: Mapping[str, object]) -> str:
+    layered = _mapping(setup.get("layered_state"))
+    values = tuple(
+        humanize_code(value)
+        for value in (
+            layered.get("structural_bias"),
+            layered.get("timeframe_relationship"),
+            layered.get("relationship_severity"),
+            layered.get("holding_horizon"),
+        )
+        if value not in {None, "", "unavailable"}
+    )
+    return " • ".join(values) if values else "Not published"
+
+
 def _trigger(setup: Mapping[str, object]) -> str:
     trigger = _trigger_payload(setup)
     if not trigger:
         if setup.get("execution_allowed_now") is True:
             return "No additional trigger required"
+        if _activation_plan_suppressed(setup):
+            return "Suppressed - no valid post-confirmation entry remains"
         return "Monitor stated entry conditions"
     kind = humanize_code(trigger.get("type") or trigger.get("kind"))
     level = format_price(trigger.get("level"))
@@ -130,7 +167,11 @@ def _trigger(setup: Mapping[str, object]) -> str:
 def _pre_entry_invalidation(setup: Mapping[str, object]) -> str:
     plan = _conditional_plan(setup)
     invalidation = _mapping(plan.get("pre_entry_invalidation"))
-    return format_price(invalidation.get("price")) if invalidation else "Unavailable"
+    if invalidation:
+        return format_price(invalidation.get("price"))
+    if _activation_plan_suppressed(setup):
+        return "Not applicable - activation plan suppressed"
+    return "Unavailable"
 
 
 def _quality(setup: Mapping[str, object], opportunity: Mapping[str, object]) -> str:
@@ -149,6 +190,8 @@ def _price_move(price: object, reference: object) -> str:
 def _execution_label(setup: Mapping[str, object]) -> str:
     if setup.get("execution_allowed_now") is True:
         return "Executable now"
+    if _activation_plan_suppressed(setup):
+        return "Monitor only - activation blocked"
     authority = humanize_code(setup.get("execution_authority"))
     return "Do not enter now" if authority == "Unavailable" else authority
 
@@ -156,6 +199,8 @@ def _execution_label(setup: Mapping[str, object]) -> str:
 def _plan_title(setup: Mapping[str, object], index: int) -> str:
     if setup.get("execution_allowed_now") is True:
         return f"TRADE {index}"
+    if _activation_plan_suppressed(setup):
+        return f"SETUP PLAN {index} • ACTIVATION BLOCKED"
     trigger_kind = _trigger_kind(setup)
     if trigger_kind == "retest_hold":
         return f"SETUP PLAN {index} • FUTURE RETEST"
@@ -186,6 +231,14 @@ def _expiry(plan: Mapping[str, object]) -> str:
     return "Not configured"
 
 
+def _activation_suppression_reason(targets: tuple[Mapping[str, object], ...]) -> str:
+    if targets:
+        reward = _risk_reward(targets[0])
+        if reward != "Unavailable":
+            return f"Only {reward} remains after confirmation and costs"
+    return "Minimum post-confirmation net reward-to-risk cannot be preserved"
+
+
 def _trade_card(
     opportunity: Mapping[str, object],
     *,
@@ -203,6 +256,7 @@ def _trade_card(
     reference = entry.get("preferred") or entry.get("current_price")
     direction = _direction(setup, opportunity)
     strategy = _strategy(setup, opportunity)
+    activation_suppressed = _activation_plan_suppressed(setup)
 
     entry_fields: list[tuple[str, object]] = [
         ("CMP", format_price(entry.get("current_price"))),
@@ -249,33 +303,33 @@ def _trade_card(
             )
         )
 
-    body.extend(
-        (
-            "",
-            "  SETUP",
-            render_fields(
-                (
-                    ("Trend", _relationship(setup)),
-                    ("Trigger", _trigger(setup)),
-                    (
-                        "Next action",
-                        plan.get("reason_not_executable_now")
-                        or "Follow the published activation condition",
-                    ),
-                )
-            ),
+    setup_fields: list[tuple[str, object]] = [
+        ("Trend", _relationship(setup)),
+        ("Trigger", _trigger(setup)),
+    ]
+    if activation_suppressed:
+        setup_fields.extend(
+            (
+                ("Activation plan", "Suppressed"),
+                ("Reason", _activation_suppression_reason(targets)),
+                ("Next action", "Monitor only - do not enter at CMP"),
+            )
         )
-    )
+    else:
+        setup_fields.append(
+            (
+                "Next action",
+                plan.get("reason_not_executable_now")
+                or "Follow the published activation condition",
+            )
+        )
+
+    body.extend(("", "  SETUP", render_fields(tuple(setup_fields))))
 
     if explain:
         quality = _mapping(setup.get("quality_dimensions"))
         geometry = _mapping(plan.get("geometry"))
-        warnings = setup.get("warnings")
-        warning_values = (
-            tuple(str(item) for item in warnings)
-            if isinstance(warnings, Sequence) and not isinstance(warnings, str | bytes)
-            else ()
-        )
+        warning_values = _warnings(setup)
         explanation_fields: list[tuple[str, object]] = [
             ("Setup quality", f"{format_score(quality.get('setup_quality'))}/100"),
             (
@@ -285,17 +339,33 @@ def _trade_card(
             ("Target quality", f"{format_score(quality.get('target_quality'))}/100"),
             ("Execution authority", humanize_code(setup.get("execution_authority"))),
             ("Entry mode", humanize_code(setup.get("entry_mode"))),
-            ("Trigger condition", trigger.get("condition") or "Unavailable"),
-            (
-                "Confirmation TF",
-                trigger.get("confirmation_timeframe") or "Unavailable",
-            ),
-            ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+            ("Timeframe context", _timeframe_context(setup)),
             ("Gross / net R", _risk_reward(targets[0]) if targets else "Unavailable"),
-            ("Stop basis", humanize_code(geometry.get("stop_basis"))),
-            ("Target basis", humanize_code(geometry.get("targets_basis"))),
-            ("Setup expiry", _expiry(plan)),
         ]
+        if activation_suppressed:
+            explanation_fields.extend(
+                (
+                    ("Activation plan", "Suppressed"),
+                    ("Suppression reason", _activation_suppression_reason(targets)),
+                    ("Confirmation TF", "Not applicable - no authorised trigger"),
+                    ("Order intent", "None - monitor only"),
+                    ("Setup expiry", "Not applicable - no active plan"),
+                )
+            )
+        else:
+            explanation_fields.extend(
+                (
+                    ("Trigger condition", trigger.get("condition") or "Unavailable"),
+                    (
+                        "Confirmation TF",
+                        trigger.get("confirmation_timeframe") or "Unavailable",
+                    ),
+                    ("Order intent", humanize_code(plan.get("recommended_order_intent"))),
+                    ("Stop basis", humanize_code(geometry.get("stop_basis"))),
+                    ("Target basis", humanize_code(geometry.get("targets_basis"))),
+                    ("Setup expiry", _expiry(plan)),
+                )
+            )
         if len(targets) == 1:
             explanation_fields.append(
                 ("Additional targets", "Not published - no verified structure")
@@ -316,9 +386,7 @@ def _trade_card(
                 )
             )
 
-    title = (
-        f"{_plan_title(setup, index)} • {symbol} • {direction} • {strategy}"
-    )
+    title = f"{_plan_title(setup, index)} • {symbol} • {direction} • {strategy}"
     return render_section(title, "\n".join(body))
 
 
