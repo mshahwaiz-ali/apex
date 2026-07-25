@@ -16,6 +16,10 @@ _ACTIONABLE_STATUSES = {
     "MISSED_ENTRY",
     "LATE_OR_CHASING",
 }
+_SUPPRESSED_PLAN_WARNING = (
+    "confirmation-required setup has no post-confirmation execution room "
+    "while preserving minimum net reward-to-risk"
+)
 
 
 def _mapping(value: object) -> Mapping[str, object]:
@@ -141,6 +145,17 @@ def _status(setup: Mapping[str, object]) -> str:
     return str(setup.get("entry_status") or setup.get("actionability_state") or "").upper()
 
 
+def _warnings(setup: Mapping[str, object]) -> tuple[str, ...]:
+    values = setup.get("warnings")
+    if not isinstance(values, Sequence) or isinstance(values, str | bytes):
+        return ()
+    return tuple(str(value) for value in values)
+
+
+def _activation_plan_suppressed(setup: Mapping[str, object]) -> bool:
+    return any(_SUPPRESSED_PLAN_WARNING in warning.lower() for warning in _warnings(setup))
+
+
 def _default_trigger_type(status: str) -> str:
     if status in {"RECLAIM_REQUIRED", "WAIT_FOR_RECLAIM"}:
         return "reclaim_close"
@@ -216,7 +231,8 @@ def hydrate_actionable_setup(
         plan = dict(_first_mapping(mappings, ("conditional_plan", "activation_plan", "future_plan")))
 
     preferred = _number(entry.get("preferred"))
-    if status in _ACTIONABLE_STATUSES and preferred is not None:
+    suppressed = _activation_plan_suppressed(setup)
+    if not suppressed and status in _ACTIONABLE_STATUSES and preferred is not None:
         trigger = dict(_mapping(plan.get("trigger")))
         if not trigger:
             trigger = {
@@ -240,8 +256,10 @@ def hydrate_actionable_setup(
         if invalidation:
             plan["pre_entry_invalidation"] = invalidation
 
-    if plan:
+    if plan and not suppressed:
         setup["conditional_plan"] = plan
+    elif suppressed:
+        setup.pop("conditional_plan", None)
 
     return setup
 
