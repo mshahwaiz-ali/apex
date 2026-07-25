@@ -7,6 +7,7 @@ from datetime import datetime
 
 from apex.strategies.context import StrategyContext, TimeframeRole
 from apex.strategies.contracts import (
+    EntryMode,
     InvalidationConcept,
     RawQualityMetrics,
     StrategyEvidence,
@@ -121,7 +122,7 @@ def _fallback_for_direction(
     if not references:
         return None
     try:
-        entry_opportunities = find_entry_zones(
+        raw_entry_opportunities = find_entry_zones(
             current_price=current,
             atr=atr,
             direction=direction,
@@ -146,10 +147,15 @@ def _fallback_for_direction(
         )
     except ValueError:
         return None
-    if not entry_opportunities:
+    if not raw_entry_opportunities:
         return None
 
-    entry = entry_opportunities[0]
+    # This fallback exists specifically because local momentum is fully opposed.
+    # Publish the selected zone as a retest, even when the shared selector formed
+    # a scaled structural zone, so downstream execution requires acceptance/hold
+    # confirmation rather than treating the first touch as a limit-entry trigger.
+    entry = replace(raw_entry_opportunities[0], mode=EntryMode.RETEST)
+    entry_opportunities = (entry, *raw_entry_opportunities[1:])
     geometry_metadata = _selected_entry_geometry_metadata(
         context,
         entry_lower=entry.lower,
