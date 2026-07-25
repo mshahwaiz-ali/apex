@@ -10,7 +10,7 @@ from collections.abc import Mapping
 
 from apex.presentation import OutputMode
 from apex.presentation.compact_analysis_output import render_compact_analysis
-from apex.presentation.operator_output import render_scan
+from apex.presentation.compact_scan_output import render_compact_scan
 
 
 def render_discovery_analysis(
@@ -26,9 +26,9 @@ def render_discovery_analysis(
 
 
 def render_discovery_scan(payload: Mapping[str, object], *, explain: bool = False) -> str:
-    """Render concise grouped scan results without internal diagnostic appendices."""
+    """Render confidence-ranked scan results with analyze-style trade cards."""
 
-    return render_scan(payload, explain=explain)
+    return render_compact_scan(payload, explain=explain)
 
 
 __all__ = ["render_discovery_analysis", "render_discovery_scan"]
