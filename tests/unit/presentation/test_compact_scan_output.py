@@ -52,6 +52,28 @@ def _setup(symbol: str, confidence: float, preferred: float) -> dict[str, object
     }
 
 
+def _blocked_setup(
+    symbol: str,
+    confidence: float,
+    preferred: float,
+    net_r: float,
+) -> dict[str, object]:
+    item = _setup(symbol, confidence, preferred)
+    setup = item["setup"]
+    assert isinstance(setup, dict)
+    setup.pop("conditional_plan")
+    targets = setup["take_profits"]
+    assert isinstance(targets, list)
+    target = targets[0]
+    assert isinstance(target, dict)
+    target["net_risk_reward"] = net_r
+    setup["warnings"] = [
+        "Confirmation-required setup has no post-confirmation execution room "
+        "while preserving minimum net reward-to-risk."
+    ]
+    return item
+
+
 def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     payload = {
         "generated_at": "2026-07-25T00:21:31+00:00",
@@ -67,7 +89,9 @@ def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     output = render_compact_scan(payload)
 
     assert "Ranking" in output
-    assert "Highest published confidence first" in output
+    assert "Actionability first; confidence within each actionable lane" in output
+    assert "Future / re-entry plans  2" in output
+    assert "Activation blocked       0" in output
     assert "SETUP PLAN 1 • FUTURE RETEST • HIGH/USDT" in output
     assert "SETUP PLAN 2 • FUTURE RETEST • LOW/USDT" in output
     assert output.index("HIGH/USDT") < output.index("LOW/USDT")
@@ -75,6 +99,27 @@ def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     assert "RISK" in output
     assert "TARGETS" in output
     assert "SETUP" in output
+
+
+def test_blocked_plans_are_counted_separately_and_ranked_by_remaining_net_r() -> None:
+    payload = {
+        "generated_at": "2026-07-25T00:21:31+00:00",
+        "attempted_symbol_count": 3,
+        "total_analysis_count": 3,
+        "displayed_symbol_count": 3,
+        "results": [
+            _blocked_setup("LOW-R/USDT", 90.0, 1.0, 0.15),
+            _setup("FUTURE/USDT", 20.0, 2.0),
+            _blocked_setup("HIGH-R/USDT", 40.0, 3.0, 1.01),
+        ],
+    }
+
+    output = render_compact_scan(payload)
+
+    assert "Future / re-entry plans  1" in output
+    assert "Activation blocked       2" in output
+    assert output.index("FUTURE/USDT") < output.index("HIGH-R/USDT")
+    assert output.index("HIGH-R/USDT") < output.index("LOW-R/USDT")
 
 
 def test_scan_explain_reuses_analyze_explanation_fields() -> None:
