@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 _ACTIONABLE_STATUSES = {
     "READY_NOW",
@@ -73,7 +72,7 @@ def _first_value(
     for mapping in mappings:
         for key in keys:
             value = mapping.get(key)
-            if value not in {None, ""}:
+            if value is not None and value != "":
                 return value
     return None
 
