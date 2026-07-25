@@ -164,7 +164,7 @@ def _summary(
                 ("Symbols failed", len(failures)),
                 (
                     "Ranking",
-                    "Actionability first; confidence within each actionable lane",
+                    "Actionability first; selection score within each actionable lane",
                 ),
             )
         ),
