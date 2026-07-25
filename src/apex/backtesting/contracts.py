@@ -295,6 +295,17 @@ class BacktestRequest:
         )
         if expected != self.signals:
             raise ValueError("backtest signals must use deterministic chronological order")
+        replay_identities = tuple(
+            (
+                signal.generated_at,
+                signal.symbol,
+                signal.replay_source,
+                signal.candidate_id or "",
+            )
+            for signal in self.signals
+        )
+        if len(set(replay_identities)) != len(replay_identities):
+            raise ValueError("replay signal identities must be unique")
         normalized = {symbol: tuple(candles) for symbol, candles in self.candles_by_symbol.items()}
         if any(not symbol.strip() for symbol in normalized):
             raise ValueError("candle symbol keys cannot be empty")
