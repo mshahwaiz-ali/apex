@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 
 from apex.strategies.context import StrategyContext, TimeframeContext
@@ -16,7 +17,9 @@ from apex.structure.contracts import LevelRole, LevelStatus, StructureLevel
 
 _MAX_STRUCTURAL_TARGETS = 3
 _FRONT_RUN_ZONE_FRACTION = 0.25
-_FRONT_RUN_ATR_FRACTION = 0.15
+_FRONT_RUN_ATR_MIN_FRACTION = 0.05
+_FRONT_RUN_ATR_MAX_FRACTION = 0.15
+_DEFAULT_MAX_DISTANCE_ATR = 12.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,13 +41,22 @@ def build_structural_target_ladder(
     *,
     direction: TradeDirection,
     max_targets: int = _MAX_STRUCTURAL_TARGETS,
+    max_distance_atr: float = _DEFAULT_MAX_DISTANCE_ATR,
+    max_timeframe_minutes: int | None = None,
 ) -> tuple[TargetLevel, ...]:
-    """Return nearest-first targets across all relevant configured timeframes."""
+    """Return nearest-first targets across relevant configured timeframes."""
 
     if max_targets < 1:
         raise ValueError("max targets must be at least one")
+    if max_distance_atr <= 0.0:
+        raise ValueError("max distance ATR must be positive")
 
-    candidates = _collect_candidates(context, direction=direction)
+    candidates = _collect_candidates(
+        context,
+        direction=direction,
+        max_distance_atr=max_distance_atr,
+        max_timeframe_minutes=max_timeframe_minutes,
+    )
     selected: list[StructuralTargetCandidate] = []
     for candidate in candidates:
         if any(_zones_overlap(candidate, existing) for existing in selected):
@@ -74,7 +86,7 @@ def apply_target_ladder_to_candidates(
     *,
     max_targets: int = _MAX_STRUCTURAL_TARGETS,
 ) -> tuple[TradeCandidate, ...]:
-    """Apply nearest-obstacle target ordering to every strategy family."""
+    """Apply horizon-aware nearest-obstacle target ordering to every strategy."""
 
     if max_targets < 1:
         raise ValueError("max targets must be at least one")
@@ -90,10 +102,13 @@ def _apply_target_ladder(
     *,
     max_targets: int,
 ) -> TradeCandidate:
+    max_distance_atr, max_timeframe_minutes = _target_scope(candidate)
     structural = build_structural_target_ladder(
         context,
         direction=candidate.direction,
         max_targets=max_targets,
+        max_distance_atr=max_distance_atr,
+        max_timeframe_minutes=max_timeframe_minutes,
     )
     originals = tuple(
         level
@@ -114,8 +129,7 @@ def _apply_target_ladder(
         ),
     )
     tolerance = max(
-        context.decision_frame.exchange_tick_size or 0.0,
-        context.atr * _FRONT_RUN_ATR_FRACTION,
+        context.atr * _FRONT_RUN_ATR_MAX_FRACTION,
         context.current_price * 1e-6,
     )
     unique: list[TargetLevel] = []
@@ -145,7 +159,11 @@ def _apply_target_ladder(
     metadata = dict(candidate.metadata)
     metadata.update(target_ladder_metadata(relabelled))
     metadata["target_ladder_scope"] = "all_strategy_families"
-    metadata["target_ladder_first_obstacle_authoritative"] = True
+    metadata["target_ladder_first_obstacle_authoritative"] = bool(structural)
+    metadata["target_ladder_max_distance_atr"] = max_distance_atr
+    metadata["target_ladder_max_timeframe_minutes"] = (
+        max_timeframe_minutes if max_timeframe_minutes is not None else 0
+    )
     metadata["target_ladder_runner_preserved"] = _runner_was_preserved(
         relabelled,
         originals=originals,
@@ -162,6 +180,28 @@ def _apply_target_ladder(
         targets=TargetConcept(levels=relabelled),
         metadata=metadata,
     )
+
+
+def _target_scope(candidate: TradeCandidate) -> tuple[float, int | None]:
+    relationship = _enum_value(candidate.layered_state.timeframe_relationship)
+    horizon = _enum_value(candidate.layered_state.holding_horizon)
+
+    if relationship == "countertrend_scalp" or horizon == "scalp":
+        return 4.0, 15
+    if horizon in {"intraday", "session"}:
+        return 8.0, 60
+    if horizon == "multi_hour":
+        return 16.0, 240
+    if horizon == "swing":
+        return 40.0, 1440
+    if horizon == "runner":
+        return 80.0, None
+    return _DEFAULT_MAX_DISTANCE_ATR, 240
+
+
+def _enum_value(value: object) -> str:
+    raw = getattr(value, "value", value)
+    return "" if raw is None else str(raw).strip().lower()
 
 
 def _select_ladder_levels(
@@ -274,12 +314,21 @@ def _collect_candidates(
     context: StrategyContext,
     *,
     direction: TradeDirection,
+    max_distance_atr: float,
+    max_timeframe_minutes: int | None,
 ) -> tuple[StructuralTargetCandidate, ...]:
     bullish = direction is TradeDirection.LONG
     role = LevelRole.RESISTANCE if bullish else LevelRole.SUPPORT
     candidates: list[StructuralTargetCandidate] = []
 
     for frame in context.frames:
+        timeframe_minutes = _timeframe_minutes(frame.timeframe)
+        if (
+            max_timeframe_minutes is not None
+            and timeframe_minutes is not None
+            and timeframe_minutes > max_timeframe_minutes
+        ):
+            continue
         for level in frame.structure.levels:
             candidate = _candidate_from_level(
                 frame,
@@ -288,8 +337,11 @@ def _collect_candidates(
                 bullish=bullish,
                 expected_role=role,
             )
-            if candidate is not None:
-                candidates.append(candidate)
+            if candidate is None:
+                continue
+            if candidate.distance > context.atr * max_distance_atr:
+                continue
+            candidates.append(candidate)
 
     return tuple(
         sorted(
@@ -320,27 +372,67 @@ def _candidate_from_level(
         return None
 
     zone_width = max(level.high - level.low, 0.0)
-    tick_size = frame.exchange_tick_size or 0.0
-    buffer = max(
-        tick_size,
-        min(zone_width * _FRONT_RUN_ZONE_FRACTION, frame.features.atr * _FRONT_RUN_ATR_FRACTION),
-    )
+    atr = frame.features.atr
+    minimum_buffer = max(current * 1e-6, atr * _FRONT_RUN_ATR_MIN_FRACTION)
+    desired_buffer = max(zone_width * _FRONT_RUN_ZONE_FRACTION, minimum_buffer)
+    buffer = min(desired_buffer, atr * _FRONT_RUN_ATR_MAX_FRACTION)
     raw_price = level.low - buffer if bullish else level.high + buffer
-    if bullish and raw_price <= current:
+    price = _quantize_toward_current(
+        raw_price,
+        current=current,
+        tick_size=frame.exchange_tick_size,
+        atr=atr,
+        bullish=bullish,
+    )
+    if bullish and price <= current:
         return None
-    if not bullish and raw_price >= current:
+    if not bullish and price >= current:
         return None
 
     return StructuralTargetCandidate(
-        price=raw_price,
+        price=price,
         zone_low=level.low,
         zone_high=level.high,
         timeframe=frame.timeframe,
         role=level.role,
         touches=level.touches,
-        distance=abs(raw_price - current),
-        front_run_buffer=buffer,
+        distance=abs(price - current),
+        front_run_buffer=abs((level.low if bullish else level.high) - price),
     )
+
+
+def _quantize_toward_current(
+    price: float,
+    *,
+    current: float,
+    tick_size: float | None,
+    atr: float,
+    bullish: bool,
+) -> float:
+    if tick_size is None or tick_size <= 0.0:
+        return price
+    plausible_tick = min(atr * 0.25, current * 0.01)
+    if tick_size > plausible_tick:
+        return price
+    units = price / tick_size
+    return (
+        math.floor(units + 1e-12) * tick_size
+        if bullish
+        else math.ceil(units - 1e-12) * tick_size
+    )
+
+
+def _timeframe_minutes(timeframe: str) -> int | None:
+    value = timeframe.strip().lower()
+    if len(value) < 2 or not value[:-1].isdigit():
+        return None
+    amount = int(value[:-1])
+    unit = value[-1]
+    return {
+        "m": amount,
+        "h": amount * 60,
+        "d": amount * 1440,
+    }.get(unit)
 
 
 def _zones_overlap(
