@@ -34,6 +34,7 @@ def _setup(symbol: str, confidence: float, preferred: float) -> dict[str, object
                 "setup_quality": confidence,
                 "execution_quality": 55.0,
                 "target_quality": 75.0,
+                "risk_quality": 68.0,
                 "overall_trade_quality": confidence - 5.0,
             },
             "conditional_plan": {
@@ -78,7 +79,7 @@ def _single_spaced(value: str) -> str:
     return " ".join(value.split())
 
 
-def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
+def test_scan_uses_analyze_style_cards_sorted_by_selection_score() -> None:
     payload = {
         "generated_at": "2026-07-25T00:21:31+00:00",
         "attempted_symbol_count": 2,
@@ -94,12 +95,16 @@ def test_scan_uses_analyze_style_cards_sorted_by_confidence() -> None:
     compact = _single_spaced(output)
 
     assert "Ranking" in output
-    assert "Actionability first; confidence within each actionable lane" in compact
+    assert "Actionability first; selection score within each actionable lane" in compact
     assert "Future / re-entry plans 2" in compact
     assert "Activation blocked 0" in compact
     assert "SETUP PLAN 1 • FUTURE RETEST • HIGH/USDT" in output
     assert "SETUP PLAN 2 • FUTURE RETEST • LOW/USDT" in output
     assert output.index("HIGH/USDT") < output.index("LOW/USDT")
+    assert "Selection score" in output
+    assert "Overall trade quality" in output
+    assert "Historical confidence" in output
+    assert "Confidence" not in output
     assert "ENTRY" in output
     assert "RISK" in output
     assert "TARGETS" in output
@@ -143,4 +148,6 @@ def test_scan_explain_reuses_analyze_explanation_fields() -> None:
     assert "Setup quality" in output
     assert "Execution quality" in output
     assert "Target quality" in output
+    assert "Risk quality" in output
+    assert "Overall trade quality" in output
     assert "WARNINGS" in output
