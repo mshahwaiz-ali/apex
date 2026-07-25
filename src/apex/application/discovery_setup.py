@@ -220,6 +220,8 @@ def _is_public_setup_candidate(item: RankedCandidate) -> bool:
     if candidate is None:
         return item.outcome in _VALID_DEVELOPING_OUTCOMES
     status = classify_candidate_actionability(candidate)
+    if status is EntryStatus.INVALIDATED:
+        return False
     if status is EntryStatus.MISSED_ENTRY and not _missed_setup_htf_valid(candidate):
         return False
     if is_hierarchical_pre_entry_candidate(candidate, entry_status=status):
@@ -228,7 +230,7 @@ def _is_public_setup_candidate(item: RankedCandidate) -> bool:
         return True
     if item.outcome not in _MONITOR_ONLY_OUTCOMES:
         return False
-    return not is_entry_status_executable(status) and status is not EntryStatus.INVALIDATED
+    return not is_entry_status_executable(status)
 
 
 def _missed_setup_htf_valid(candidate: TradeCandidate) -> bool:
@@ -402,7 +404,6 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         ranked.outcome in _VALID_DEVELOPING_OUTCOMES
         and not execution_allowed_now
         and conditional_plan is not None
-        and entry_status is not EntryStatus.INVALIDATED
     )
     execution_authority = (
         ExecutionAuthority.EXECUTE_NOW
