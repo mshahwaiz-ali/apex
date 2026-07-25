@@ -106,7 +106,10 @@ def _normalise_entry(
         entry["upper"] = upper
     if preferred is not None:
         entry["preferred"] = preferred
-    maximum_chase = _first_value((raw,), ("maximum_chase_price", "maximum_chase", "chase_limit"))
+    maximum_chase = _first_value(
+        (raw,),
+        ("maximum_chase_price", "maximum_chase", "chase_limit"),
+    )
     if maximum_chase is not None:
         entry["maximum_chase_price"] = maximum_chase
     return entry
@@ -146,7 +149,10 @@ def _default_trigger_type(status: str) -> str:
 
 def _reason(status: str) -> str:
     if status == "MISSED_ENTRY":
-        return "Original entry was missed; use only the published re-entry zone after a fresh retest hold."
+        return (
+            "Original entry was missed; use only the published re-entry zone "
+            "after a fresh retest hold."
+        )
     if status in {"PULLBACK_PREFERRED", "LATE_OR_CHASING"}:
         return "Wait for price to return to the published entry zone; do not chase at CMP."
     if status in {"RECLAIM_REQUIRED", "WAIT_FOR_RECLAIM"}:
@@ -249,7 +255,12 @@ def plan_completeness(setup: Mapping[str, object]) -> int:
     trigger = _mapping(plan.get("trigger"))
     score = 0
     score += 1 if _number(entry.get("current_price")) is not None else 0
-    score += 2 if _number(entry.get("lower")) is not None and _number(entry.get("upper")) is not None else 0
+    score += (
+        2
+        if _number(entry.get("lower")) is not None
+        and _number(entry.get("upper")) is not None
+        else 0
+    )
     score += 1 if _number(entry.get("preferred")) is not None else 0
     score += 1 if _number(stop.get("price")) is not None else 0
     score += 2 if trigger and _number(trigger.get("level")) is not None else 0
