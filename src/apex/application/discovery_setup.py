@@ -311,21 +311,20 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         preferred_entry=entry_authority.selected_entry,
         runner_qualified=runner_qualified,
     )
-    entry = _clamp_entry_chase_to_net_r(
-        entry,
+    minimum_net_r = (
+        _positive_number(candidate.metadata.get("geometry_minimum_tp1_reward_to_risk"))
+        or DEFAULT_MINIMUM_CHASE_NET_R
+    )
+    expected_cost_pct = _positive_or_zero_number(candidate.metadata.get("expected_cost_pct"))
+    entry_opportunities = _clamp_entry_opportunities_to_net_r(
+        raw_entry_opportunities,
         direction=candidate.direction,
         stop=stop,
         tp1=targets[0],
-        minimum_net_r=_positive_number(
-            candidate.metadata.get("geometry_minimum_tp1_reward_to_risk")
-        )
-        or DEFAULT_MINIMUM_CHASE_NET_R,
-        expected_cost_pct=_positive_or_zero_number(candidate.metadata.get("expected_cost_pct")),
+        minimum_net_r=minimum_net_r,
+        expected_cost_pct=expected_cost_pct,
     )
-    # The first strategy opportunity is the same canonical entry represented
-    # by ``entry``.  Publish the post-policy version in both places so clients
-    # never receive two different maximum-chase boundaries for one setup.
-    entry_opportunities = (entry, *raw_entry_opportunities[1:]) if raw_entry_opportunities else ()
+    entry = entry_opportunities[0]
     lifecycle = candidate.lifecycle
     expiry_seconds = None if lifecycle is None else lifecycle.expires_after_seconds
     confirmation_required = candidate.entry.mode in _CONFIRMATION_REQUIRED_MODES
@@ -639,6 +638,35 @@ def _clamp_entry_chase_to_net_r(
         chase = max(entry.maximum_chase_price, boundary)
         chase = min(entry.lower, chase)
     return replace(entry, maximum_chase_price=chase)
+
+
+def _clamp_entry_opportunities_to_net_r(
+    entries: tuple[ActionableEntry, ...],
+    *,
+    direction: TradeDirection,
+    stop: StopLoss,
+    tp1: TakeProfit,
+    minimum_net_r: float,
+    expected_cost_pct: float | None,
+) -> tuple[ActionableEntry, ...]:
+    """Apply the same chase policy to every published entry opportunity.
+
+    Alternative pullback, retest, reclaim, and re-entry routes are public
+    execution geometry. They must not retain a looser raw chase boundary than
+    the selected entry merely because they are not currently preferred.
+    """
+
+    return tuple(
+        _clamp_entry_chase_to_net_r(
+            entry,
+            direction=direction,
+            stop=stop,
+            tp1=tp1,
+            minimum_net_r=minimum_net_r,
+            expected_cost_pct=expected_cost_pct,
+        )
+        for entry in entries
+    )
 
 
 def _positive_number(value: object) -> float | None:
