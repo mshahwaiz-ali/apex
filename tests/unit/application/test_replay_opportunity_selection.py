@@ -81,3 +81,42 @@ def test_replay_selector_deduplicates_opportunity_ids(monkeypatch) -> None:
     decisions = module.select_replay_opportunity_decisions(analysis)
 
     assert len(decisions) == 1
+
+
+def test_replay_selector_does_not_let_unreplayable_duplicate_hide_valid_setup(
+    monkeypatch,
+) -> None:
+    invalid = _setup("invalid", conditional=False, executable=False)
+    conditional = _setup("conditional", conditional=True, executable=False)
+    opportunities = (
+        SimpleNamespace(
+            setup=invalid,
+            sequence_role=SequenceRole.NEARBY,
+            opportunity_id="same",
+            effective_lane=None,
+        ),
+        SimpleNamespace(
+            setup=conditional,
+            sequence_role=SequenceRole.NEARBY,
+            opportunity_id="same",
+            effective_lane=None,
+        ),
+    )
+    analysis = SimpleNamespace(opportunity_portfolio=SimpleNamespace(opportunities=opportunities))
+
+    def assess(setup: DiscoverySetup, *, sequence_role: SequenceRole):
+        state = (
+            ActionabilityState.INVALIDATED
+            if setup is invalid
+            else ActionabilityState.RETEST_PREFERRED
+        )
+        return SimpleNamespace(state=state, has_blocking_issue=False)
+
+    monkeypatch.setattr(module, "build_actionability_state_assessment", assess)
+
+    decisions = module.select_replay_opportunity_decisions(analysis)
+
+    assert len(decisions) == 1
+    assert decisions[0].setup is conditional
+    assert decisions[0].opportunity_id == "same"
+    assert decisions[0].reason_code == "diagnostic_conditional_opportunity"
