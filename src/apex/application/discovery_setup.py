@@ -366,7 +366,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
     entry = entry_opportunities[0]
     lifecycle = candidate.lifecycle
     expiry_seconds = _setup_expiry_seconds(candidate)
-    confirmation_required = candidate.entry.mode in _CONFIRMATION_REQUIRED_MODES
+    confirmation_required = selected_entry_zone.mode in _CONFIRMATION_REQUIRED_MODES
     confirmation_complete = (
         candidate.metadata.get("entry_confirmation_complete") is True and not candidate.provisional
     )
@@ -377,6 +377,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         stop=stop,
         entry_authority=entry_authority,
         confirmation_complete=confirmation_complete,
+        entry_mode=selected_entry_zone.mode,
     )
     conditional_has_execution_room = (
         conditional_plan is not None
@@ -447,7 +448,7 @@ def _build_setup(ranked: RankedCandidate) -> DiscoverySetup:
         setup_expiry_bars=None if lifecycle is None else lifecycle.expires_after_bars,
         setup_expiry_reason=_expiry_reason(candidate),
         trader_headline=_trader_headline(entry_status),
-        entry_mode=candidate.entry.mode,
+        entry_mode=selected_entry_zone.mode,
         confirmation_required=confirmation_required,
         confirmation_complete=confirmation_complete,
         provisional=candidate.provisional,
@@ -508,12 +509,13 @@ def _conditional_plan(
     stop: StopLoss,
     entry_authority: CandidateEntryAuthority,
     confirmation_complete: bool,
+    entry_mode: EntryMode,
 ) -> ConditionalExecutionPlan | None:
     if is_entry_status_executable(entry_status) and confirmation_complete:
         return None
 
     confirmation_timeframe = _confirmation_timeframe(candidate)
-    mode = candidate.entry.mode
+    mode = entry_mode
     if mode in {EntryMode.PULLBACK, EntryMode.SCALED_ENTRY}:
         trigger_kind = ActivationTriggerType.PRICE_TOUCH
         condition = (
@@ -566,7 +568,7 @@ def _conditional_plan(
         recommended_order_intent=order_intent,
         reason_not_executable_now=_reason_not_executable(entry_status),
         geometry_basis=entry_authority.geometry_owner,
-        entry_source=_entry_source(candidate),
+        entry_source=_entry_source(candidate, entry_mode=entry_mode),
         trigger_matches_preferred_entry=(entry_authority.trigger_matches_selected_entry),
         stop_basis="structural_invalidation_buffered_from_candidate_entry",
         targets_basis="strategy_supplied_targets_with_explicit_provenance",
@@ -574,8 +576,12 @@ def _conditional_plan(
     )
 
 
-def _entry_source(candidate: TradeCandidate) -> str:
-    mode = candidate.entry.mode
+def _entry_source(
+    candidate: TradeCandidate,
+    *,
+    entry_mode: EntryMode | None = None,
+) -> str:
+    mode = candidate.entry.mode if entry_mode is None else entry_mode
     if mode is EntryMode.RETEST:
         return {
             "breakout_continuation": "strategy_generated_broken_level_retest",
