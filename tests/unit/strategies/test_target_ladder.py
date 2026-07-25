@@ -125,7 +125,11 @@ def test_long_target_ladder_uses_nearest_obstacles_across_timeframes() -> None:
         ),
     )
 
-    targets = build_structural_target_ladder(context, direction=TradeDirection.LONG)
+    targets = build_structural_target_ladder(
+        context,
+        direction=TradeDirection.LONG,
+        max_distance_atr=20.0,
+    )
 
     assert [target.label for target in targets] == ["tp1", "tp2", "tp3"]
     assert [target.kind for target in targets] == [
