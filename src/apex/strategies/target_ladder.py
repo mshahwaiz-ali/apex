@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from apex.strategies.context import StrategyContext, TimeframeContext
-from apex.strategies.contracts import TargetLevel, TargetType, TradeDirection
+from apex.strategies.contracts import (
+    TargetConcept,
+    TargetLevel,
+    TargetType,
+    TradeCandidate,
+    TradeDirection,
+)
 from apex.structure.contracts import LevelRole, LevelStatus, StructureLevel
 
 _MAX_STRUCTURAL_TARGETS = 3
@@ -67,6 +73,79 @@ def build_structural_target_ladder(
     )
 
 
+def apply_target_ladder_to_candidates(
+    context: StrategyContext,
+    candidates: tuple[TradeCandidate, ...],
+    *,
+    max_targets: int = _MAX_STRUCTURAL_TARGETS,
+) -> tuple[TradeCandidate, ...]:
+    """Merge every strategy's objectives with the nearest structural obstacles.
+
+    Strategy-specific range, liquidity, reversal, and measured targets are
+    preserved. Multi-timeframe structural front-run targets are inserted ahead
+    of any farther objective, then the complete map is sorted nearest-first and
+    deduplicated. This makes TP1 the first credible obstacle for every family,
+    while retaining farther valid objectives as TP2/TP3.
+    """
+
+    if max_targets < 1:
+        raise ValueError("max targets must be at least one")
+    return tuple(
+        _apply_target_ladder(context, candidate, max_targets=max_targets)
+        for candidate in candidates
+    )
+
+
+def _apply_target_ladder(
+    context: StrategyContext,
+    candidate: TradeCandidate,
+    *,
+    max_targets: int,
+) -> TradeCandidate:
+    structural = build_structural_target_ladder(
+        context,
+        direction=candidate.direction,
+        max_targets=max_targets,
+    )
+    combined = (*structural, *candidate.targets.levels)
+    ordered = sorted(
+        (level for level in combined if _target_is_ahead(context, candidate.direction, level)),
+        key=lambda level: (
+            abs(level.price - context.current_price),
+            1 if level.kind is TargetType.EXPANSION else 0,
+            level.price,
+        ),
+    )
+    tolerance = max(
+        context.decision_frame.exchange_tick_size or 0.0,
+        context.atr * _FRONT_RUN_ATR_FRACTION,
+        context.current_price * 1e-6,
+    )
+    selected: list[TargetLevel] = []
+    for level in ordered:
+        if any(abs(level.price - existing.price) <= tolerance for existing in selected):
+            continue
+        selected.append(level)
+        if len(selected) >= max_targets:
+            break
+
+    if not selected:
+        selected = [fallback_expansion_target(context, direction=candidate.direction)]
+
+    relabelled = tuple(
+        replace(level, label=f"tp{index}") for index, level in enumerate(selected, start=1)
+    )
+    metadata = dict(candidate.metadata)
+    metadata.update(target_ladder_metadata(relabelled))
+    metadata["target_ladder_scope"] = "all_strategy_families"
+    metadata["target_ladder_first_obstacle_authoritative"] = True
+    return replace(
+        candidate,
+        targets=TargetConcept(levels=relabelled),
+        metadata=metadata,
+    )
+
+
 def fallback_expansion_target(
     context: StrategyContext,
     *,
@@ -102,7 +181,30 @@ def target_ladder_metadata(levels: tuple[TargetLevel, ...]) -> dict[str, str | i
         metadata[f"target_{index}_price"] = level.price
         metadata[f"target_{index}_type"] = level.kind.value
         metadata[f"target_{index}_basis"] = level.rationale[0]
+        timeframe = _timeframe_from_rationale(level.rationale)
+        if timeframe is not None:
+            metadata[f"target_{index}_timeframe"] = timeframe
     return metadata
+
+
+def _target_is_ahead(
+    context: StrategyContext,
+    direction: TradeDirection,
+    level: TargetLevel,
+) -> bool:
+    if direction is TradeDirection.LONG:
+        return level.price > context.current_price
+    return level.price < context.current_price
+
+
+def _timeframe_from_rationale(rationale: tuple[str, ...]) -> str | None:
+    for item in rationale:
+        words = item.replace(";", " ").replace(",", " ").split()
+        for word in words:
+            value = word.strip().lower()
+            if value.endswith(("m", "h", "d")) and value[:-1].isdigit():
+                return value
+    return None
 
 
 def _collect_candidates(
@@ -187,6 +289,7 @@ def _zones_overlap(
 
 __all__ = [
     "StructuralTargetCandidate",
+    "apply_target_ladder_to_candidates",
     "build_structural_target_ladder",
     "fallback_expansion_target",
     "target_ladder_metadata",
