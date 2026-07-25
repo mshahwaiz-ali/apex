@@ -12,12 +12,16 @@ from apex.strategies.contracts import (
     RawQualityMetrics,
     StrategyEvidence,
     TargetConcept,
-    TargetLevel,
     TradeCandidate,
     TradeDirection,
 )
 from apex.strategies.entry import DEFAULT_ENTRY_SELECTION_CONFIG, find_entry_zones
 from apex.strategies.strategy_types import StrategyType
+from apex.strategies.target_ladder import (
+    build_structural_target_ladder,
+    fallback_expansion_target,
+    target_ladder_metadata,
+)
 from apex.strategies.target_quality import target_space_quality
 from apex.strategies.trend_pullback import (
     _BEARISH_TRENDS,
@@ -27,7 +31,6 @@ from apex.strategies.trend_pullback import (
     _momentum_quality,
     _optional_unit,
     _selected_entry_geometry_metadata,
-    _target_geometry,
     _valid_geometry,
     generate_trend_pullback_candidates,
 )
@@ -106,14 +109,14 @@ def _fallback_for_direction(
         context,
         bullish=bullish,
     )
-    target_price, target_type, target_rationale = _target_geometry(
-        context,
-        bullish=bullish,
-    )
+    target_levels = build_structural_target_ladder(context, direction=direction)
+    if not target_levels:
+        target_levels = (fallback_expansion_target(context, direction=direction),)
+    primary_target = target_levels[0]
     if not _valid_geometry(
         current=current,
         invalidation=invalidation_price,
-        target=target_price,
+        target=primary_target.price,
         bullish=bullish,
     ):
         return None
@@ -127,7 +130,7 @@ def _fallback_for_direction(
             atr=atr,
             direction=direction,
             invalidation_price=invalidation_price,
-            target_price=target_price,
+            target_price=primary_target.price,
             references=references,
             config=replace(
                 DEFAULT_ENTRY_SELECTION_CONFIG,
@@ -189,16 +192,7 @@ def _fallback_for_direction(
                 else "HTF trend-pullback thesis fails beyond the nearest structural resistance",
             ),
         ),
-        targets=TargetConcept(
-            levels=(
-                TargetLevel(
-                    kind=target_type,
-                    price=target_price,
-                    label="primary",
-                    rationale=(target_rationale,),
-                ),
-            )
-        ),
+        targets=TargetConcept(levels=target_levels),
         quality=RawQualityMetrics(
             trend_alignment=parent_strength,
             structure_quality=min(parent_strength, frame.structure.trend.strength),
@@ -209,8 +203,8 @@ def _fallback_for_direction(
             target_space_quality=target_space_quality(
                 current=current,
                 invalidation=invalidation_price,
-                target=target_price,
-                target_type=target_type,
+                target=primary_target.price,
+                target_type=primary_target.kind,
             ),
             extension_penalty=1.0 - entry.location_quality,
             conflict_penalty=0.0,
@@ -253,6 +247,7 @@ def _fallback_for_direction(
             "momentum_mismatch_treatment": "conditional_retest",
             "invalidation_includes_noise_buffer": True,
             "invalidation_buffer_source": "strategy_structure_or_volatility_stop",
+            **target_ladder_metadata(target_levels),
             **geometry_metadata,
         },
         entry_opportunities=entry_opportunities,
