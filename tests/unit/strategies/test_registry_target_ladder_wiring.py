@@ -8,8 +8,9 @@ from apex.strategies.context import StrategyContext
 from apex.strategies.contracts import TradeCandidate
 
 
-def test_registered_generators_apply_target_ladder_before_routing(monkeypatch) -> None:
+def test_registered_generators_apply_target_ladder_after_routing(monkeypatch) -> None:
     generated = cast(tuple[TradeCandidate, ...], (object(),))
+    routed = cast(tuple[TradeCandidate, ...], (object(),))
     laddered = cast(tuple[TradeCandidate, ...], (object(),))
     context = cast(StrategyContext, object())
     calls: list[str] = []
@@ -24,26 +25,26 @@ def test_registered_generators_apply_target_ladder_before_routing(monkeypatch) -
         calls.append("generate")
         return generated
 
-    def apply_ladder(
-        supplied_context: StrategyContext,
-        candidates: tuple[TradeCandidate, ...],
-    ) -> tuple[TradeCandidate, ...]:
-        assert supplied_context is context
-        assert candidates is generated
-        calls.append("ladder")
-        return laddered
-
     def route(
         supplied_context: StrategyContext,
         candidates: tuple[TradeCandidate, ...],
     ) -> tuple[TradeCandidate, ...]:
         assert supplied_context is context
-        assert candidates is laddered
+        assert candidates is generated
         calls.append("route")
-        return candidates
+        return routed
 
-    monkeypatch.setattr(registry, "apply_target_ladder_to_candidates", apply_ladder)
+    def apply_ladder(
+        supplied_context: StrategyContext,
+        candidates: tuple[TradeCandidate, ...],
+    ) -> tuple[TradeCandidate, ...]:
+        assert supplied_context is context
+        assert candidates is routed
+        calls.append("ladder")
+        return laddered
+
     monkeypatch.setattr(registry, "route_breakout_candidates", route)
+    monkeypatch.setattr(registry, "apply_target_ladder_to_candidates", apply_ladder)
 
     result = registry.run_strategy_generator(
         generator,
@@ -52,4 +53,4 @@ def test_registered_generators_apply_target_ladder_before_routing(monkeypatch) -
     )
 
     assert result is laddered
-    assert calls == ["generate", "ladder", "route"]
+    assert calls == ["generate", "route", "ladder"]
