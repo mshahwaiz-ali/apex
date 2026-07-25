@@ -131,8 +131,6 @@ def select_canonical_opportunity_decision(
         reason_code = "canonical_opportunity_missed_or_chasing"
     elif ActionabilityState.INVALIDATED in observed_states:
         reason_code = "canonical_opportunity_invalidated"
-    elif observed_states:
-        reason_code = "canonical_opportunity_pending_activation"
 
     return CanonicalOpportunityDecision(
         setup=None,
