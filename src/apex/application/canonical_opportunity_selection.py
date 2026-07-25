@@ -106,6 +106,7 @@ def select_canonical_opportunity_decision(
         if (
             pending_decision is None
             and setup.conditional_plan is not None
+            and not actionability.has_blocking_issue
             and actionability.state
             not in {
                 ActionabilityState.MISSED_OR_CHASING,
@@ -190,10 +191,15 @@ def select_replay_opportunity_decisions(
             and setup.execution_allowed_now
             and not actionability.has_blocking_issue
         )
-        conditional = setup.conditional_plan is not None and actionability.state not in {
-            ActionabilityState.MISSED_OR_CHASING,
-            ActionabilityState.INVALIDATED,
-        }
+        conditional = (
+            setup.conditional_plan is not None
+            and not actionability.has_blocking_issue
+            and actionability.state
+            not in {
+                ActionabilityState.MISSED_OR_CHASING,
+                ActionabilityState.INVALIDATED,
+            }
+        )
         if not executable and not conditional:
             continue
         if opportunity_id in seen_opportunity_ids:
