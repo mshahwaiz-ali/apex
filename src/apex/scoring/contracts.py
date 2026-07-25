@@ -217,10 +217,17 @@ class CandidateSelectionResult:
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     @property
+    def selected_setup_candidate(self) -> RankedCandidate | None:
+        """Return the retained current setup, otherwise the retained future setup."""
+
+        return self.selected_candidate or self.selected_future_candidate
+
+    @property
     def selected_direction(self) -> TradeDirection | None:
-        if self.selected_candidate is None:
+        selected = self.selected_setup_candidate
+        if selected is None:
             return None
-        return self.selected_candidate.candidate.direction
+        return selected.candidate.direction
 
     @property
     def selected_executable_candidate(self) -> RankedCandidate | None:
