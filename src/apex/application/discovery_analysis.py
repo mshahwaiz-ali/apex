@@ -99,7 +99,11 @@ from apex.application.methodology_geometry_runtime import (
     build_geometry_runtime_context,
 )
 from apex.application.methodology_htf_consequences import HtfConsequencePolicy
-from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
+from apex.application.methodology_identity import (
+    METHODOLOGY_AUTHORITY_PATH,
+    METHODOLOGY_VERSION,
+    methodology_identity_payload,
+)
 from apex.application.methodology_phase5_evidence import (
     selected_candidate_methodology_evidence,
 )
@@ -118,6 +122,12 @@ from apex.application.opportunity_portfolio import (
     opportunity_portfolio_payload,
 )
 from apex.application.portfolio_ranking import portfolio_ranking_policy_from_settings
+from apex.application.quality_contracts import (
+    build_canonical_market_snapshot,
+    build_market_behavior_profile,
+    canonical_market_snapshot_payload,
+    market_behavior_profile_payload,
+)
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
@@ -199,6 +209,7 @@ def analyze_symbol(
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+    previous_market_regime: str | None = None,
 ) -> SymbolAnalysis:
     """Run candidate discovery from market evidence and trade geometry."""
 
@@ -262,7 +273,18 @@ def analyze_symbol(
         mode=geometry_safety_mode,
     )
     eligible_routed = geometry_enforcement.analysis
-    market_intelligence = build_market_intelligence(context, dict(regimes))
+    market_intelligence = build_market_intelligence(
+        context,
+        dict(regimes),
+        previous_regime=previous_market_regime,
+    )
+    market_snapshot = build_canonical_market_snapshot(
+        context,
+        decision_time=decision_time,
+        provider=provider.name,
+        execution_costs=geometry_execution_costs,
+    )
+    market_profile = build_market_behavior_profile(context, decision_time=decision_time)
     selection = analyze_futures_phase5(
         eligible_routed,
         environment_route=market_strategy_route,
@@ -441,6 +463,8 @@ def analyze_symbol(
         historical_edge=historical_edge,
         outcome_candles=context.decision_frame.recent_candles,
         opportunity_portfolio=opportunity_portfolio,
+        market_snapshot=market_snapshot,
+        market_profile=market_profile,
     )
 
 
@@ -718,11 +742,14 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
     primary_opportunity = None if portfolio is None else portfolio.primary_opportunity
     setup = legacy_setup if primary_opportunity is None else primary_opportunity.setup
     portfolio_decision = None if portfolio is None else portfolio.public_decision.value
+    market_snapshot = getattr(analysis, "market_snapshot", None)
+    market_profile = getattr(analysis, "market_profile", None)
     payload: dict[str, Any] = {
         "symbol": analysis.symbol,
         "generated_at": analysis.generated_at.isoformat(),
         "methodology_version": METHODOLOGY_VERSION,
-        "methodology_path": METHODOLOGY_PATH,
+        "methodology_path": METHODOLOGY_AUTHORITY_PATH,
+        "methodology_identity": methodology_identity_payload(),
         "decision": setup.direction.value.upper() if setup is not None else "NO_TRADE",
         "portfolio_decision": portfolio_decision,
         "legacy_decision": (
@@ -752,6 +779,16 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "phase5_diagnostics": analysis.phase5_diagnostics,
         "market_intelligence": analysis.market_intelligence,
         "historical_edge": analysis.historical_edge,
+        "snapshot_identity": (
+            None
+            if market_snapshot is None
+            else canonical_market_snapshot_payload(market_snapshot)
+        ),
+        "market_profile": (
+            None
+            if market_profile is None
+            else market_behavior_profile_payload(market_profile)
+        ),
         "candidate_ranking": (
             candidate_ranking_payload(analysis.candidate_ranking)
             if analysis.candidate_ranking is not None

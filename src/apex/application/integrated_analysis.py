@@ -167,6 +167,7 @@ def analyze_symbol(
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+    previous_market_regime: str | None = None,
 ) -> SymbolAnalysis:
     """Run discovery and attach fused market environment."""
 
@@ -209,6 +210,7 @@ def analyze_symbol(
         geometry_execution_costs=geometry_execution_costs,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
+        previous_market_regime=previous_market_regime,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -227,6 +229,8 @@ def analyze_symbol(
         historical_edge=base.historical_edge,
         outcome_candles=base.outcome_candles,
         opportunity_portfolio=base.opportunity_portfolio,
+        market_snapshot=base.market_snapshot,
+        market_profile=base.market_profile,
         market_environment=environment,
         market_state=market_state,
     )

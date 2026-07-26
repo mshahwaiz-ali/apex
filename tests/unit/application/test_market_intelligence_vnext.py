@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ from apex.application.market_intelligence import (
     EarlyWarningState,
     RegimeHysteresis,
     assess_early_warning,
+    build_market_intelligence,
     classify_coin_archetype,
 )
 from apex.domain.futures_evidence import (
@@ -98,7 +100,30 @@ def test_archetype_and_hysteresis_are_deterministic() -> None:
     assert guard.select("trend", "range", 0.75) == "range"
 
 
-def test_major_archetype_accepts_display_symbol_separator() -> None:
+def test_market_intelligence_applies_previous_regime_hysteresis() -> None:
+    base = _context(final_close=100, oi_values=(100, 101), taker_ratio=1.0)
+    entry = base.frames[0]
+    context = StrategyContext(
+        base.symbol,
+        (
+            replace(entry, timeframe="1h", role=TimeframeRole.INTERMEDIATE),
+            replace(entry, timeframe="15m", role=TimeframeRole.SETUP),
+            entry,
+        ),
+        market_evidence=base.market_evidence,
+    )
+    payload = build_market_intelligence(
+        context,
+        {"1h": "range", "15m": "range", "5m": "trend"},
+        previous_regime="trend",
+    )
+
+    assert payload["regime"]["raw_state"] == "range"
+    assert payload["regime"]["state"] == "trend"
+    assert payload["regime"]["hysteresis_applied"] is True
+
+
+def test_archetype_does_not_change_only_because_symbol_is_btc() -> None:
     context = _context(final_close=100, oi_values=(100, 101), taker_ratio=1.0)
     major = StrategyContext("BTC/USDT", context.frames, market_evidence=context.market_evidence)
-    assert classify_coin_archetype(major) is CoinArchetype.MAJOR
+    assert classify_coin_archetype(major) is CoinArchetype.LIQUID_ALT

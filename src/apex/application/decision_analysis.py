@@ -73,6 +73,7 @@ def analyze_symbol(
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
+    previous_market_regime: str | None = None,
 ) -> SymbolAnalysis:
     """Run integrated discovery analysis, routing, and the shared methodology gate."""
 
@@ -93,6 +94,7 @@ def analyze_symbol(
         geometry_execution_costs=geometry_execution_costs,
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
+        previous_market_regime=previous_market_regime,
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
@@ -113,6 +115,8 @@ def analyze_symbol(
         historical_edge=base.historical_edge,
         outcome_candles=base.outcome_candles,
         opportunity_portfolio=base.opportunity_portfolio,
+        market_snapshot=base.market_snapshot,
+        market_profile=base.market_profile,
         market_environment=environment,
         market_state=base.market_state,
         market_strategy_route=route,

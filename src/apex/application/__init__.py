@@ -29,6 +29,12 @@ from apex.application.futures_scan_selection import (
 from apex.application.market_data import create_market_data_services
 from apex.application.methodology_analysis_records import build_analysis_record
 from apex.application.outcome_evaluation import ManualOutcome, append_manual_outcome
+from apex.application.quality_contracts import (
+    CanonicalMarketSnapshot,
+    MarketBehaviorProfile,
+    ParameterProvenance,
+    ResolvedParameter,
+)
 from apex.application.rollout_acceptance import (
     RolloutAcceptanceResult,
     evaluate_rollout_acceptance,
@@ -50,9 +56,13 @@ from apex.application.symbols import load_symbol_file, normalize_market_symbol
 
 __all__ = [
     "AnalysisComparisonReport",
+    "CanonicalMarketSnapshot",
     "DiagnosticDifference",
     "FuturesScanSelection",
     "ManualOutcome",
+    "MarketBehaviorProfile",
+    "ParameterProvenance",
+    "ResolvedParameter",
     "RolloutAcceptanceResult",
     "RolloutCommand",
     "ScanResult",

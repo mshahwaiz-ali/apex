@@ -9,6 +9,7 @@ from typing import Annotated
 import typer
 
 from apex import __version__
+from apex.application.configuration_identity import configuration_metadata
 from apex.config import load_settings
 from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.system import render_config, render_version
@@ -34,6 +35,7 @@ def register_system_commands(app: typer.Typer) -> None:
         output_mode = _output_mode(output)
         settings = load_settings(config_dir)
         payload = settings.model_dump(mode="json")
+        payload.update(configuration_metadata(payload))
         _emit(payload, render_config(payload, mode=output_mode), output_mode)
 
     @app.command("version")

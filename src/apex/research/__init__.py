@@ -14,3 +14,6 @@ __all__ = [
     "chronological_split",
     "evaluate_promotion",
 ]
+from apex.research.experiment import ExperimentManifest
+
+__all__ = ["ExperimentManifest"]

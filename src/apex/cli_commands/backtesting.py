@@ -26,10 +26,12 @@ from apex.application.canonical_opportunity_selection import (
     select_canonical_opportunity_decision,
     select_replay_opportunity_decisions,
 )
+from apex.application.configuration_identity import configuration_metadata
 from apex.application.discovery_contracts import DiscoverySetup
 from apex.application.methodology_geometry_runtime import (
     geometry_execution_costs_from_settings,
 )
+from apex.application.methodology_identity import methodology_identity_payload
 from apex.application.portfolio_retention import setup_geometry_fingerprint
 from apex.backtesting.contracts import (
     BacktestConfig,
@@ -50,10 +52,7 @@ from apex.data.timeframes import timeframe_delta
 from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.backtest_output import render_backtest
 from apex.presentation.terminal import emit_terminal
-from apex.research.metrics import (
-    deflated_sharpe_probability,
-    probability_of_backtest_overfitting,
-)
+from apex.research.metrics import deflated_sharpe_probability
 from apex.strategies import StrategyType, TradeDirection
 
 _ReplayDecision = CanonicalOpportunityDecision
@@ -197,6 +196,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             no_trade_decisions: list[dict[str, object]] = []
             calibration_records: list[dict[str, object]] = []
             decision_partitions: list[dict[str, str]] = []
+            previous_market_regime: str | None = None
             for decision_index, decision_time in enumerate(decision_times):
                 partition = _campaign_partition(decision_index, decision_points)
                 decision_partitions.append(
@@ -234,7 +234,14 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         context.settings.geometry_execution
                     ),
                     futures_evidence_enabled=context.settings.futures_evidence_enabled,
+                    previous_market_regime=previous_market_regime,
                 )
+                intelligence = analysis.market_intelligence or {}
+                regime_payload = intelligence.get("regime")
+                if isinstance(regime_payload, Mapping):
+                    regime_state = regime_payload.get("state")
+                    if isinstance(regime_state, str):
+                        previous_market_regime = regime_state
                 replay_decision = _select_replay_decision(analysis)
                 shadow_signals.extend(_shadow_replay_signals(analysis))
                 for opportunity_decision in select_replay_opportunity_decisions(analysis):
@@ -290,9 +297,30 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             typer.echo(f"Backtest market-data request failed: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
+        market_costs = context.settings.geometry_execution.market
         config = BacktestConfig(
             maximum_holding_candles=replay_candles,
             funding_pct=funding_pct,
+            entry_fee_pct=(
+                None if market_costs is None else market_costs.entry_fee_pct
+            ),
+            exit_fee_pct=(
+                None if market_costs is None else market_costs.exit_fee_pct
+            ),
+            entry_slippage_pct=(
+                None if market_costs is None else market_costs.entry_slippage_pct
+            ),
+            exit_slippage_pct=(
+                None if market_costs is None else market_costs.exit_slippage_pct
+            ),
+            cost_profile=(
+                "conservative_market"
+                if market_costs is not None
+                else "legacy_symmetric"
+            ),
+            include_observed_spread_in_cost=(
+                context.settings.geometry_execution.include_observed_spread_in_cost
+            ),
         )
         study = HistoricalBacktestRunner().run(
             BacktestRequest(
@@ -391,32 +419,32 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             for trade in filled_report_trades
             if partition_by_time.get(trade.signal.generated_at.isoformat()) == "final_test"
         )
-        training_value = partition_metrics["training"].get("expectancy", 0.0)
-        final_value = partition_metrics["final_test"].get("expectancy", 0.0)
-        training_expectancy = (
-            float(training_value) if isinstance(training_value, (int, float)) else 0.0
+        attempted_configurations = len(
+            {
+                (
+                    record.get("strategy"),
+                    record.get("setup_geometry_fingerprint"),
+                )
+                for record in calibration_records
+                if record.get("strategy") is not None
+            }
         )
-        final_expectancy = float(final_value) if isinstance(final_value, (int, float)) else 0.0
         promotion_statistics = {
             "deflated_sharpe_probability": (
                 deflated_sharpe_probability(
                     final_returns,
-                    trials=max(
-                        1,
-                        len({record.get("strategy") for record in calibration_records}),
-                    ),
+                    trials=max(1, attempted_configurations),
                 )
                 if final_returns
                 else None
             ),
-            "probability_backtest_overfitting": (
-                probability_of_backtest_overfitting(
-                    [training_expectancy],
-                    [final_expectancy],
-                )
-                if final_returns
-                else None
+            "probability_backtest_overfitting": None,
+            "probability_backtest_overfitting_reason": (
+                "insufficient_comparisons"
+                if attempted_configurations < 2
+                else "requires_fold_level_configuration_vectors"
             ),
+            "attempted_configurations": attempted_configurations,
         }
         decision_funnel = _decision_funnel_metrics(
             decision_point_count=decision_points,
@@ -426,8 +454,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             production_trades=report.trades,
             conditional_trades=conditional_report.trades,
         )
+        legacy_fee_pct = (
+            config.effective_entry_fee_pct + config.effective_exit_fee_pct
+        ) / 2.0
+        legacy_slippage_pct = (
+            config.effective_entry_slippage_pct + config.effective_exit_slippage_pct
+        ) / 2.0
         payload = {
-            "schema_version": 5,
+            "schema_version": 6,
+            "legacy_schema_version": 5,
             "symbol": normalized_symbol,
             "replay_timeframe": replay_timeframe,
             "replay_candles": replay_candles,
@@ -444,8 +479,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 report.trades,
                 calibration_records=calibration_records,
                 partition_by_time=partition_by_time,
-                fee_pct=config.fee_pct,
-                slippage_pct=config.slippage_pct,
+                fee_pct=legacy_fee_pct,
+                slippage_pct=legacy_slippage_pct,
             ),
             "metrics": _report_metrics(summarize_trades(_filled_execution_trades(report.trades))),
             "execution_metrics": _execution_metrics(report.trades),
@@ -459,6 +494,14 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
                 "funding_pct": config.funding_pct,
+                "entry_fee_pct": config.effective_entry_fee_pct,
+                "exit_fee_pct": config.effective_exit_fee_pct,
+                "entry_slippage_pct": config.effective_entry_slippage_pct,
+                "exit_slippage_pct": config.effective_exit_slippage_pct,
+                "cost_profile": config.cost_profile,
+                "include_observed_spread_in_cost": (
+                    config.include_observed_spread_in_cost
+                ),
                 "maximum_holding_candles": config.maximum_holding_candles,
                 "conservative_intrabar": config.conservative_intrabar,
                 "methodology_gate_mode": context.settings.methodology_gate_mode,
@@ -466,6 +509,12 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "metrics_by_partition": partition_metrics,
             "promotion_statistics": promotion_statistics,
             "calibration_authoritative": False,
+            "metric_authority": {
+                "canonical_performance": "authoritative_for_this_replay_only",
+                "calibration": "non_authoritative_until_untouched_outcomes",
+                "promotion": "not_authorized_by_single_symbol_backtest",
+            },
+            "methodology_identity": methodology_identity_payload(),
             "geometry_population": _unique_geometry_population(calibration_records),
             "conditional_replay": {
                 "signal_count": conditional_study.generated_signal_count,
@@ -473,8 +522,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     conditional_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
-                    fee_pct=config.fee_pct,
-                    slippage_pct=config.slippage_pct,
+                    fee_pct=legacy_fee_pct,
+                    slippage_pct=legacy_slippage_pct,
                 ),
                 "metrics": _report_metrics(
                     summarize_trades(_filled_execution_trades(conditional_report.trades))
@@ -496,8 +545,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     opportunity_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
-                    fee_pct=config.fee_pct,
-                    slippage_pct=config.slippage_pct,
+                    fee_pct=legacy_fee_pct,
+                    slippage_pct=legacy_slippage_pct,
                 ),
                 "metrics": _diagnostic_report_metrics(opportunity_report),
                 "activation_metrics": _activation_metrics(opportunity_report.trades),
@@ -521,8 +570,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     shadow_report.trades,
                     calibration_records=calibration_records,
                     partition_by_time=partition_by_time,
-                    fee_pct=config.fee_pct,
-                    slippage_pct=config.slippage_pct,
+                    fee_pct=legacy_fee_pct,
+                    slippage_pct=legacy_slippage_pct,
                 ),
                 "metrics": _diagnostic_report_metrics(shadow_report),
                 "outcome_distribution": _outcome_distribution(shadow_report.trades),
@@ -543,6 +592,9 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "skipped_signal_count": study.skipped_signal_count,
             },
         }
+        payload.update(
+            configuration_metadata(context.settings.model_dump(mode="json"))
+        )
         _classify_replay_trade_records(
             payload, section="conditional_replay", replay_class="conditional"
         )

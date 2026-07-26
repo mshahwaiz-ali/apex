@@ -508,8 +508,10 @@ Only report validation results that were actually observed.
 ## Documentation
 
 - [`commands.md`](commands.md) — complete CLI reference and practical examples
-- [`docs/cli_plan.md`](docs/cli_plan.md) — final CLI implementation plan
-- [`docs/trade_plan.md`](docs/trade_plan.md) — methodology authority
+- [`docs/apex_quality_recovery_audit.md`](docs/apex_quality_recovery_audit.md) — implemented methodology and evidence authority
+- [`docs/apex_quality_recovery_plan.md`](docs/apex_quality_recovery_plan.md) — remaining quality-recovery roadmap
+- [`docs/apex_backtest_validation_spec.md`](docs/apex_backtest_validation_spec.md) — chronological evaluation and promotion rules
+- [`docs/apex_external_sources.md`](docs/apex_external_sources.md) — source register and applicability limits
 - [`config/default.yaml`](config/default.yaml) — default runtime configuration
 
 ## License

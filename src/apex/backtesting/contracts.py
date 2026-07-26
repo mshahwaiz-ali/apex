@@ -42,17 +42,45 @@ class BacktestConfig:
     funding_pct: float = 0.0
     maximum_holding_candles: int = 24
     conservative_intrabar: bool = True
+    entry_fee_pct: float | None = None
+    exit_fee_pct: float | None = None
+    entry_slippage_pct: float | None = None
+    exit_slippage_pct: float | None = None
+    cost_profile: str = "legacy_symmetric"
+    include_observed_spread_in_cost: bool = False
 
     def __post_init__(self) -> None:
         for name, value in (
             ("fee percentage", self.fee_pct),
             ("slippage percentage", self.slippage_pct),
             ("funding percentage", self.funding_pct),
+            ("entry fee percentage", self.effective_entry_fee_pct),
+            ("exit fee percentage", self.effective_exit_fee_pct),
+            ("entry slippage percentage", self.effective_entry_slippage_pct),
+            ("exit slippage percentage", self.effective_exit_slippage_pct),
         ):
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")
         if self.maximum_holding_candles < 1:
             raise ValueError("maximum holding candles must be positive")
+        if not self.cost_profile.strip():
+            raise ValueError("cost profile cannot be empty")
+
+    @property
+    def effective_entry_fee_pct(self) -> float:
+        return self.fee_pct if self.entry_fee_pct is None else self.entry_fee_pct
+
+    @property
+    def effective_exit_fee_pct(self) -> float:
+        return self.fee_pct if self.exit_fee_pct is None else self.exit_fee_pct
+
+    @property
+    def effective_entry_slippage_pct(self) -> float:
+        return self.slippage_pct if self.entry_slippage_pct is None else self.entry_slippage_pct
+
+    @property
+    def effective_exit_slippage_pct(self) -> float:
+        return self.slippage_pct if self.exit_slippage_pct is None else self.exit_slippage_pct
 
 
 @dataclass(frozen=True, slots=True)

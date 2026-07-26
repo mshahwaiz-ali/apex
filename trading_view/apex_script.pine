@@ -1,0 +1,3766 @@
+//@version=6
+indicator(
+     "Apex Precision Trader — Foundation",
+     shorttitle="APEX-B1",
+     overlay=true,
+     max_labels_count=50,
+     max_lines_count=50,
+     max_boxes_count=20
+)
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 1
+// Clean foundation only:
+// - timeframe role resolution
+// - fixed role-specific indicator profiles
+// - non-repainting MTF context
+// - market-state classification
+// - compact dashboard
+//
+// No trade entries, stops, targets, or alerts are generated in this batch.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupGeneral = "General"
+mode = input.string(
+     "Auto",
+     "Trading mode",
+     options=["Auto", "Scalp", "Intraday", "Swing"],
+     group=groupGeneral
+)
+showDashboard = input.bool(true, "Show dashboard", group=groupGeneral)
+showRegimeBackground = input.bool(false, "Show subtle regime background", group=groupGeneral)
+showRoleAverages = input.bool(true, "Show role EMAs", group=groupGeneral)
+showStructureLevels = input.bool(false, "Show recent structure levels", group=groupGeneral)
+showDebug = input.bool(false, "Show diagnostic rows", group=groupGeneral)
+
+groupState = "Market State"
+structureLookback = input.int(40, "Structure lookback", minval=20, maxval=250, group=groupState)
+efficiencyLookback = input.int(30, "Efficiency lookback", minval=10, maxval=100, group=groupState)
+compressionLookback = input.int(50, "Compression baseline", minval=20, maxval=200, group=groupState)
+rangeEfficiencyMax = input.float(0.30, "Range efficiency maximum", minval=0.10, maxval=0.60, step=0.01, group=groupState)
+compressionFactor = input.float(0.75, "Compression factor", minval=0.40, maxval=0.95, step=0.01, group=groupState)
+expansionRangeFactor = input.float(1.35, "Expansion range factor", minval=1.05, maxval=3.00, step=0.05, group=groupState)
+expansionRvolMin = input.float(1.20, "Expansion relative volume", minval=0.80, maxval=5.00, step=0.05, group=groupState)
+
+groupDisplay = "Display"
+bullColor = input.color(color.rgb(0, 190, 120), "Bullish colour", group=groupDisplay)
+bearColor = input.color(color.rgb(235, 70, 80), "Bearish colour", group=groupDisplay)
+neutralColor = input.color(color.rgb(145, 150, 160), "Neutral colour", group=groupDisplay)
+compressionColor = input.color(color.rgb(230, 180, 55), "Compression colour", group=groupDisplay)
+transitionColor = input.color(color.rgb(90, 150, 230), "Transition colour", group=groupDisplay)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+f_safe_div(float numerator, float denominator) =>
+    denominator == 0.0 ? 0.0 : numerator / denominator
+
+f_clamp(float value, float low, float high) =>
+    math.max(low, math.min(high, value))
+
+f_chart_role(string selectedMode) =>
+    float seconds = timeframe.in_seconds()
+    string autoRole = seconds <= 60 ? "TIMING" :
+         seconds <= 180 ? "REFINEMENT" :
+         seconds <= 300 ? "ENTRY" :
+         seconds <= 900 ? "SETUP" :
+         seconds <= 1800 ? "INTRADAY" :
+         seconds <= 3600 ? "INTERMEDIATE" : "MACRO"
+
+    string resolvedRole = switch selectedMode
+        "Scalp" => seconds <= 180 ? "REFINEMENT" : "ENTRY"
+        "Intraday" => seconds <= 900 ? "SETUP" : "INTRADAY"
+        "Swing" => seconds <= 3600 ? "INTERMEDIATE" : "MACRO"
+        => autoRole
+
+    resolvedRole
+
+f_context_timeframes() =>
+    float seconds = timeframe.in_seconds()
+
+    string setupTf = seconds <= 60 ? "5" :
+         seconds <= 180 ? "15" :
+         seconds <= 300 ? "15" :
+         seconds <= 900 ? "30" :
+         seconds <= 1800 ? "60" :
+         seconds <= 3600 ? "240" : "D"
+
+    string macroTf = seconds <= 300 ? "60" :
+         seconds <= 1800 ? "240" :
+         seconds <= 14400 ? "D" : "W"
+
+    [setupTf, macroTf]
+
+f_trend_state(float price, float fast, float slow, float atrValue) =>
+    float slope = fast - fast[3]
+    float separationAtr = f_safe_div(math.abs(fast - slow), atrValue)
+
+    bool bullish = price > fast and fast > slow and slope > 0.0
+    bool bearish = price < fast and fast < slow and slope < 0.0
+
+    int state = bullish ? (separationAtr >= 0.45 ? 2 : 1) :
+         bearish ? (separationAtr >= 0.45 ? -2 : -1) : 0
+
+    state
+
+f_trend_text(int state) =>
+    state == 2 ? "STRONG UP" :
+     state == 1 ? "UP" :
+     state == -2 ? "STRONG DOWN" :
+     state == -1 ? "DOWN" : "NEUTRAL"
+
+f_trend_colour(int state) =>
+    state > 0 ? bullColor :
+     state < 0 ? bearColor : neutralColor
+
+f_state_colour(string state) =>
+    state == "TREND UP" or state == "EXPANSION UP" ? bullColor :
+     state == "TREND DOWN" or state == "EXPANSION DOWN" ? bearColor :
+     state == "COMPRESSION" ? compressionColor :
+     state == "TRANSITION" ? transitionColor :
+     state == "CHAOTIC" ? color.orange :
+     neutralColor
+
+f_cell(table panel, int row, string labelText, string valueText, color valueColour) =>
+    table.cell(
+         panel,
+         0,
+         row,
+         labelText,
+         text_color=color.new(color.white, 20),
+         bgcolor=color.new(color.black, 20),
+         text_size=size.small
+    )
+    table.cell(
+         panel,
+         1,
+         row,
+         valueText,
+         text_color=valueColour,
+         bgcolor=color.new(color.black, 20),
+         text_size=size.small
+    )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. TIMEFRAME ROLE RESOLUTION
+// ─────────────────────────────────────────────────────────────────────────────
+string role = f_chart_role(mode)
+[setupTf, macroTf] = f_context_timeframes()
+
+// Pine requires simple integer lengths. Each fixed profile is calculated on
+// every bar, then the active profile is selected.
+
+// Timing profile
+float emaFastTiming = ta.ema(close, 7)
+float emaSlowTiming = ta.ema(close, 18)
+float rsiTiming = ta.rsi(close, 7)
+float atrTiming = ta.atr(7)
+float volumeAvgTiming = ta.sma(volume, 12)
+
+// Refinement profile
+float emaFastRefinement = ta.ema(close, 9)
+float emaSlowRefinement = ta.ema(close, 21)
+float rsiRefinement = ta.rsi(close, 9)
+float atrRefinement = ta.atr(9)
+float volumeAvgRefinement = ta.sma(volume, 16)
+
+// Entry profile
+float emaFastEntry = ta.ema(close, 12)
+float emaSlowEntry = ta.ema(close, 26)
+float rsiEntry = ta.rsi(close, 10)
+float atrEntry = ta.atr(10)
+float volumeAvgEntry = ta.sma(volume, 20)
+
+// Setup profile
+float emaFastSetup = ta.ema(close, 20)
+float emaSlowSetup = ta.ema(close, 50)
+float rsiSetup = ta.rsi(close, 14)
+float atrSetup = ta.atr(14)
+float volumeAvgSetup = ta.sma(volume, 24)
+
+// Intraday profile
+float emaFastIntraday = ta.ema(close, 21)
+float emaSlowIntraday = ta.ema(close, 50)
+float rsiIntraday = ta.rsi(close, 14)
+float atrIntraday = ta.atr(14)
+float volumeAvgIntraday = ta.sma(volume, 24)
+
+// Intermediate profile
+float emaFastIntermediate = ta.ema(close, 24)
+float emaSlowIntermediate = ta.ema(close, 50)
+float rsiIntermediate = ta.rsi(close, 14)
+float atrIntermediate = ta.atr(14)
+float volumeAvgIntermediate = ta.sma(volume, 30)
+
+// Macro profile
+float emaFastMacro = ta.ema(close, 30)
+float emaSlowMacro = ta.ema(close, 50)
+float rsiMacro = ta.rsi(close, 14)
+float atrMacro = ta.atr(14)
+float volumeAvgMacro = ta.sma(volume, 36)
+
+float roleFast = switch role
+    "TIMING" => emaFastTiming
+    "REFINEMENT" => emaFastRefinement
+    "ENTRY" => emaFastEntry
+    "SETUP" => emaFastSetup
+    "INTRADAY" => emaFastIntraday
+    "INTERMEDIATE" => emaFastIntermediate
+    => emaFastMacro
+
+float roleSlow = switch role
+    "TIMING" => emaSlowTiming
+    "REFINEMENT" => emaSlowRefinement
+    "ENTRY" => emaSlowEntry
+    "SETUP" => emaSlowSetup
+    "INTRADAY" => emaSlowIntraday
+    "INTERMEDIATE" => emaSlowIntermediate
+    => emaSlowMacro
+
+float roleRsi = switch role
+    "TIMING" => rsiTiming
+    "REFINEMENT" => rsiRefinement
+    "ENTRY" => rsiEntry
+    "SETUP" => rsiSetup
+    "INTRADAY" => rsiIntraday
+    "INTERMEDIATE" => rsiIntermediate
+    => rsiMacro
+
+float roleAtr = switch role
+    "TIMING" => atrTiming
+    "REFINEMENT" => atrRefinement
+    "ENTRY" => atrEntry
+    "SETUP" => atrSetup
+    "INTRADAY" => atrIntraday
+    "INTERMEDIATE" => atrIntermediate
+    => atrMacro
+
+float roleVolumeAverage = switch role
+    "TIMING" => volumeAvgTiming
+    "REFINEMENT" => volumeAvgRefinement
+    "ENTRY" => volumeAvgEntry
+    "SETUP" => volumeAvgSetup
+    "INTRADAY" => volumeAvgIntraday
+    "INTERMEDIATE" => volumeAvgIntermediate
+    => volumeAvgMacro
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. NON-REPAINTING MTF CONTEXT
+// ─────────────────────────────────────────────────────────────────────────────
+float setupClose = request.security(
+     syminfo.tickerid,
+     setupTf,
+     close,
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float setupFast = request.security(
+     syminfo.tickerid,
+     setupTf,
+     ta.ema(close, 20),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float setupSlow = request.security(
+     syminfo.tickerid,
+     setupTf,
+     ta.ema(close, 50),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float setupAtrContext = request.security(
+     syminfo.tickerid,
+     setupTf,
+     ta.atr(14),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float macroClose = request.security(
+     syminfo.tickerid,
+     macroTf,
+     close,
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float macroFastContext = request.security(
+     syminfo.tickerid,
+     macroTf,
+     ta.ema(close, 24),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float macroSlowContext = request.security(
+     syminfo.tickerid,
+     macroTf,
+     ta.ema(close, 50),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+float macroAtrContext = request.security(
+     syminfo.tickerid,
+     macroTf,
+     ta.atr(14),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+int localTrend = f_trend_state(close, roleFast, roleSlow, roleAtr)
+int setupTrend = f_trend_state(setupClose, setupFast, setupSlow, setupAtrContext)
+int macroTrend = f_trend_state(macroClose, macroFastContext, macroSlowContext, macroAtrContext)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. STRUCTURE AND NORMALISED MARKET FEATURES
+// ─────────────────────────────────────────────────────────────────────────────
+float recentHigh = ta.highest(high[1], structureLookback)
+float recentLow = ta.lowest(low[1], structureLookback)
+float structureWidth = math.max(recentHigh - recentLow, syminfo.mintick)
+float channelPosition = f_clamp(f_safe_div(close - recentLow, structureWidth), 0.0, 1.0)
+
+float netMovement = math.abs(close - close[efficiencyLookback])
+float absoluteBarChange = math.abs(ta.change(close))
+float pathMovement = math.sum(absoluteBarChange, efficiencyLookback)
+float efficiency = f_safe_div(netMovement, pathMovement)
+
+float currentRange = high - low
+float averageRange = ta.sma(currentRange, 20)
+float rangeRatio = f_safe_div(currentRange, averageRange)
+
+float relativeVolume = f_safe_div(volume, roleVolumeAverage)
+float atrPercent = f_safe_div(roleAtr, close) * 100.0
+float atrPercentAverage = ta.sma(atrPercent, compressionLookback)
+
+float bbBasis = ta.sma(close, 20)
+float bbDeviation = ta.stdev(close, 20) * 2.0
+float bbWidth = f_safe_div(bbDeviation * 2.0, bbBasis)
+float bbWidthAverage = ta.sma(bbWidth, compressionLookback)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. MARKET-STATE CLASSIFICATION
+// ─────────────────────────────────────────────────────────────────────────────
+bool compressedVolatility =
+     bbWidth < bbWidthAverage * compressionFactor and
+     atrPercent < atrPercentAverage * 0.85
+
+bool expandedCandle =
+     rangeRatio >= expansionRangeFactor and
+     relativeVolume >= expansionRvolMin
+
+bool stableRange =
+     efficiency <= rangeEfficiencyMax and
+     structureWidth >= roleAtr * 2.5 and
+     structureWidth <= roleAtr * 10.0
+
+bool chaotic =
+     rangeRatio >= 2.20 and
+     relativeVolume < 0.90
+
+bool expansionUp =
+     expandedCandle and
+     close > open and
+     close > recentHigh
+
+bool expansionDown =
+     expandedCandle and
+     close < open and
+     close < recentLow
+
+string marketState =
+     chaotic ? "CHAOTIC" :
+     compressedVolatility ? "COMPRESSION" :
+     expansionUp ? "EXPANSION UP" :
+     expansionDown ? "EXPANSION DOWN" :
+     stableRange ? "RANGE" :
+     localTrend > 0 ? "TREND UP" :
+     localTrend < 0 ? "TREND DOWN" :
+     "TRANSITION"
+
+color stateColour = f_state_colour(marketState)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. CONTEXT AGREEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+string contextAgreement =
+     localTrend > 0 and setupTrend > 0 and macroTrend > 0 ? "BULLISH ALIGNED" :
+     localTrend < 0 and setupTrend < 0 and macroTrend < 0 ? "BEARISH ALIGNED" :
+     localTrend == 0 and setupTrend == 0 and macroTrend == 0 ? "NEUTRAL" :
+     localTrend > 0 and macroTrend < 0 ? "LOCAL UP / MACRO DOWN" :
+     localTrend < 0 and macroTrend > 0 ? "LOCAL DOWN / MACRO UP" :
+     "MIXED"
+
+color contextColour =
+     contextAgreement == "BULLISH ALIGNED" ? bullColor :
+     contextAgreement == "BEARISH ALIGNED" ? bearColor :
+     contextAgreement == "MIXED" ? compressionColor :
+     neutralColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. CHART VISUALS
+// ─────────────────────────────────────────────────────────────────────────────
+plot(
+     showRoleAverages ? roleFast : na,
+     "Role EMA Fast",
+     color=color.new(stateColour, 5),
+     linewidth=1
+)
+
+plot(
+     showRoleAverages ? roleSlow : na,
+     "Role EMA Slow",
+     color=color.new(neutralColor, 20),
+     linewidth=2
+)
+
+plot(
+     showStructureLevels ? recentHigh : na,
+     "Recent Structure High",
+     color=color.new(bearColor, 55),
+     linewidth=1,
+     style=plot.style_linebr
+)
+
+plot(
+     showStructureLevels ? recentLow : na,
+     "Recent Structure Low",
+     color=color.new(bullColor, 55),
+     linewidth=1,
+     style=plot.style_linebr
+)
+
+color backgroundColour =
+     marketState == "TREND UP" or marketState == "EXPANSION UP" ? color.new(bullColor, 92) :
+     marketState == "TREND DOWN" or marketState == "EXPANSION DOWN" ? color.new(bearColor, 92) :
+     marketState == "COMPRESSION" ? color.new(compressionColor, 91) :
+     marketState == "CHAOTIC" ? color.new(color.orange, 89) :
+     color.new(neutralColor, 94)
+
+bgcolor(showRegimeBackground ? backgroundColour : na)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+int dashboardRows = showDebug ? 13 : 9
+var table dashboard = table.new(
+     position.top_right,
+     2,
+     13,
+     border_width=1,
+     frame_color=color.new(color.white, 80),
+     border_color=color.new(color.white, 85)
+)
+
+if barstate.islast and showDashboard
+    table.clear(dashboard, 0, 0, 1, 12)
+
+    table.cell(
+         dashboard,
+         0,
+         0,
+         "APEX FOUNDATION",
+         text_color=color.white,
+         bgcolor=color.new(stateColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         0,
+         role,
+         text_color=color.white,
+         bgcolor=color.new(stateColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(dashboard, 1, "Market state", marketState, stateColour)
+    f_cell(dashboard, 2, "Context", contextAgreement, contextColour)
+    f_cell(dashboard, 3, "Local", f_trend_text(localTrend), f_trend_colour(localTrend))
+    f_cell(dashboard, 4, "Setup " + setupTf, f_trend_text(setupTrend), f_trend_colour(setupTrend))
+    f_cell(dashboard, 5, "Macro " + macroTf, f_trend_text(macroTrend), f_trend_colour(macroTrend))
+    f_cell(dashboard, 6, "RSI", str.tostring(roleRsi, "#.0"), color.white)
+    f_cell(dashboard, 7, "Relative volume", str.tostring(relativeVolume, "#.##"), color.white)
+    f_cell(dashboard, 8, "ATR %", str.tostring(atrPercent, "#.###") + "%", color.white)
+
+    if showDebug
+        f_cell(dashboard, 9, "Efficiency", str.tostring(efficiency, "#.###"), color.white)
+        f_cell(dashboard, 10, "Range ratio", str.tostring(rangeRatio, "#.##"), color.white)
+        f_cell(dashboard, 11, "Channel position", str.tostring(channelPosition * 100.0, "#.0") + "%", color.white)
+        f_cell(dashboard, 12, "BB width", str.tostring(bbWidth, "#.####"), color.white)
+
+// Hide the table cleanly when disabled.
+if barstate.islast and not showDashboard
+    table.clear(dashboard, 0, 0, 1, 12)
+
+
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 2 APPEND BLOCK
+// STRUCTURE ENGINE
+// Paste this complete block at the END of the Batch 1 .pine file.
+// Do not delete or replace any Batch 1 code.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB2Structure = "Batch 2 — Structure Engine"
+
+b2PivotLeft = input.int(
+     3,
+     "Pivot left bars",
+     minval=1,
+     maxval=10,
+     group=groupB2Structure
+)
+
+b2PivotRight = input.int(
+     3,
+     "Pivot right bars",
+     minval=1,
+     maxval=10,
+     group=groupB2Structure
+)
+
+b2ZoneAtrWidth = input.float(
+     0.30,
+     "Zone half-width (ATR)",
+     minval=0.05,
+     maxval=1.50,
+     step=0.05,
+     group=groupB2Structure
+)
+
+b2BreakoutBufferAtr = input.float(
+     0.10,
+     "Breakout close buffer (ATR)",
+     minval=0.00,
+     maxval=1.00,
+     step=0.05,
+     group=groupB2Structure
+)
+
+b2RetestToleranceAtr = input.float(
+     0.25,
+     "Retest tolerance (ATR)",
+     minval=0.05,
+     maxval=1.00,
+     step=0.05,
+     group=groupB2Structure
+)
+
+b2ShowZones = input.bool(
+     true,
+     "Show support/resistance zones",
+     group=groupB2Structure
+)
+
+b2ShowPivotMarkers = input.bool(
+     false,
+     "Show confirmed pivot markers",
+     group=groupB2Structure
+)
+
+b2ShowStructurePanel = input.bool(
+     true,
+     "Show structure panel",
+     group=groupB2Structure
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.2 CONFIRMED SWING DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+float b2PivotHigh = ta.pivothigh(high, b2PivotLeft, b2PivotRight)
+float b2PivotLow = ta.pivotlow(low, b2PivotLeft, b2PivotRight)
+
+var float b2LastSwingHigh = na
+var float b2PreviousSwingHigh = na
+var float b2LastSwingLow = na
+var float b2PreviousSwingLow = na
+
+var int b2LastSwingHighBar = na
+var int b2LastSwingLowBar = na
+
+if not na(b2PivotHigh)
+    b2PreviousSwingHigh := b2LastSwingHigh
+    b2LastSwingHigh := b2PivotHigh
+    b2LastSwingHighBar := bar_index - b2PivotRight
+
+if not na(b2PivotLow)
+    b2PreviousSwingLow := b2LastSwingLow
+    b2LastSwingLow := b2PivotLow
+    b2LastSwingLowBar := bar_index - b2PivotRight
+
+bool b2HigherHigh =
+     not na(b2LastSwingHigh) and
+     not na(b2PreviousSwingHigh) and
+     b2LastSwingHigh > b2PreviousSwingHigh
+
+bool b2LowerHigh =
+     not na(b2LastSwingHigh) and
+     not na(b2PreviousSwingHigh) and
+     b2LastSwingHigh < b2PreviousSwingHigh
+
+bool b2HigherLow =
+     not na(b2LastSwingLow) and
+     not na(b2PreviousSwingLow) and
+     b2LastSwingLow > b2PreviousSwingLow
+
+bool b2LowerLow =
+     not na(b2LastSwingLow) and
+     not na(b2PreviousSwingLow) and
+     b2LastSwingLow < b2PreviousSwingLow
+
+string b2SwingStructure =
+     b2HigherHigh and b2HigherLow ? "BULLISH" :
+     b2LowerHigh and b2LowerLow ? "BEARISH" :
+     b2HigherHigh and b2LowerLow ? "EXPANDING" :
+     b2LowerHigh and b2HigherLow ? "CONTRACTING" :
+     "MIXED"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.3 SUPPORT / RESISTANCE ZONES
+// Uses Batch 1 values: roleAtr, recentHigh, recentLow.
+// ─────────────────────────────────────────────────────────────────────────────
+float b2SupportCentre =
+     not na(b2LastSwingLow) ? b2LastSwingLow : recentLow
+
+float b2ResistanceCentre =
+     not na(b2LastSwingHigh) ? b2LastSwingHigh : recentHigh
+
+float b2ZoneHalfWidth = roleAtr * b2ZoneAtrWidth
+
+float b2SupportLow = b2SupportCentre - b2ZoneHalfWidth
+float b2SupportHigh = b2SupportCentre + b2ZoneHalfWidth
+
+float b2ResistanceLow = b2ResistanceCentre - b2ZoneHalfWidth
+float b2ResistanceHigh = b2ResistanceCentre + b2ZoneHalfWidth
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.4 BREAKOUT ACCEPTANCE / FAILURE
+// ─────────────────────────────────────────────────────────────────────────────
+float b2BullBreakoutLevel =
+     b2ResistanceHigh + roleAtr * b2BreakoutBufferAtr
+
+float b2BearBreakoutLevel =
+     b2SupportLow - roleAtr * b2BreakoutBufferAtr
+
+bool b2AcceptedBreakout =
+     close > b2BullBreakoutLevel and
+     close[1] <= b2BullBreakoutLevel and
+     relativeVolume >= 1.10
+
+bool b2AcceptedBreakdown =
+     close < b2BearBreakoutLevel and
+     close[1] >= b2BearBreakoutLevel and
+     relativeVolume >= 1.10
+
+bool b2ResistanceSweep =
+     high > b2ResistanceHigh and
+     close < b2ResistanceCentre
+
+bool b2SupportSweep =
+     low < b2SupportLow and
+     close > b2SupportCentre
+
+float b2CandleBody =
+     math.max(math.abs(close - open), syminfo.mintick)
+
+float b2UpperWick =
+     high - math.max(open, close)
+
+float b2LowerWick =
+     math.min(open, close) - low
+
+bool b2FailedBreakout =
+     b2ResistanceSweep and
+     close < open and
+     b2UpperWick >= b2CandleBody * 0.60
+
+bool b2FailedBreakdown =
+     b2SupportSweep and
+     close > open and
+     b2LowerWick >= b2CandleBody * 0.60
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.5 RETEST DETECTION
+// Retests can occur for several bars after the accepted break.
+// ─────────────────────────────────────────────────────────────────────────────
+int b2BarsSinceBreakout = ta.barssince(b2AcceptedBreakout)
+int b2BarsSinceBreakdown = ta.barssince(b2AcceptedBreakdown)
+
+bool b2RecentBreakout =
+     not na(b2BarsSinceBreakout) and
+     b2BarsSinceBreakout >= 1 and
+     b2BarsSinceBreakout <= 8
+
+bool b2RecentBreakdown =
+     not na(b2BarsSinceBreakdown) and
+     b2BarsSinceBreakdown >= 1 and
+     b2BarsSinceBreakdown <= 8
+
+bool b2BullishRetest =
+     b2RecentBreakout and
+     low <= b2ResistanceHigh + roleAtr * b2RetestToleranceAtr and
+     close >= b2ResistanceCentre and
+     close > open
+
+bool b2BearishRetest =
+     b2RecentBreakdown and
+     high >= b2SupportLow - roleAtr * b2RetestToleranceAtr and
+     close <= b2SupportCentre and
+     close < open
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.6 STRUCTURE BIAS AND EVENT
+// ─────────────────────────────────────────────────────────────────────────────
+string b2StructureEvent =
+     b2AcceptedBreakout ? "BREAKOUT ACCEPTED" :
+     b2AcceptedBreakdown ? "BREAKDOWN ACCEPTED" :
+     b2BullishRetest ? "BULLISH RETEST" :
+     b2BearishRetest ? "BEARISH RETEST" :
+     b2FailedBreakout ? "FAILED BREAKOUT" :
+     b2FailedBreakdown ? "FAILED BREAKDOWN" :
+     b2ResistanceSweep ? "RESISTANCE SWEEP" :
+     b2SupportSweep ? "SUPPORT SWEEP" :
+     "NONE"
+
+string b2StructureBias =
+     b2AcceptedBreakout or b2BullishRetest ? "BULLISH" :
+     b2AcceptedBreakdown or b2BearishRetest ? "BEARISH" :
+     b2SwingStructure == "BULLISH" ? "BULLISH" :
+     b2SwingStructure == "BEARISH" ? "BEARISH" :
+     "NEUTRAL"
+
+color b2StructureColour =
+     b2StructureBias == "BULLISH" ? bullColor :
+     b2StructureBias == "BEARISH" ? bearColor :
+     neutralColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.7 ZONE VISUALS
+// Only the latest active support and resistance zones are displayed.
+// ─────────────────────────────────────────────────────────────────────────────
+var box b2SupportBox = na
+var box b2ResistanceBox = na
+
+if barstate.islast
+    box.delete(b2SupportBox)
+    box.delete(b2ResistanceBox)
+
+    if b2ShowZones and not na(b2SupportCentre)
+        b2SupportBox := box.new(
+             left=bar_index - structureLookback,
+             top=b2SupportHigh,
+             right=bar_index + 12,
+             bottom=b2SupportLow,
+             border_color=color.new(bullColor, 45),
+             bgcolor=color.new(bullColor, 90)
+        )
+
+    if b2ShowZones and not na(b2ResistanceCentre)
+        b2ResistanceBox := box.new(
+             left=bar_index - structureLookback,
+             top=b2ResistanceHigh,
+             right=bar_index + 12,
+             bottom=b2ResistanceLow,
+             border_color=color.new(bearColor, 45),
+             bgcolor=color.new(bearColor, 90)
+        )
+
+plotshape(
+     b2ShowPivotMarkers and not na(b2PivotHigh),
+     title="Confirmed Pivot High",
+     style=shape.triangledown,
+     location=location.abovebar,
+     offset=-b2PivotRight,
+     color=color.new(bearColor, 15),
+     size=size.tiny
+)
+
+plotshape(
+     b2ShowPivotMarkers and not na(b2PivotLow),
+     title="Confirmed Pivot Low",
+     style=shape.triangleup,
+     location=location.belowbar,
+     offset=-b2PivotRight,
+     color=color.new(bullColor, 15),
+     size=size.tiny
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2.8 STRUCTURE PANEL
+// Separate panel keeps Batch 1 dashboard untouched.
+// ─────────────────────────────────────────────────────────────────────────────
+var table b2StructurePanel = table.new(
+     position.bottom_right,
+     2,
+     7,
+     border_width=1,
+     frame_color=color.new(color.white, 80),
+     border_color=color.new(color.white, 85)
+)
+
+if barstate.islast and b2ShowStructurePanel
+    table.clear(b2StructurePanel, 0, 0, 1, 6)
+
+    table.cell(
+         b2StructurePanel,
+         0,
+         0,
+         "APEX STRUCTURE",
+         text_color=color.white,
+         bgcolor=color.new(b2StructureColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         b2StructurePanel,
+         1,
+         0,
+         b2StructureBias,
+         text_color=color.white,
+         bgcolor=color.new(b2StructureColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(
+         b2StructurePanel,
+         1,
+         "Swing structure",
+         b2SwingStructure,
+         b2StructureColour
+    )
+
+    f_cell(
+         b2StructurePanel,
+         2,
+         "Current event",
+         b2StructureEvent,
+         b2StructureEvent == "NONE" ? neutralColor : b2StructureColour
+    )
+
+    f_cell(
+         b2StructurePanel,
+         3,
+         "Support",
+         str.tostring(b2SupportCentre, format.mintick),
+         bullColor
+    )
+
+    f_cell(
+         b2StructurePanel,
+         4,
+         "Resistance",
+         str.tostring(b2ResistanceCentre, format.mintick),
+         bearColor
+    )
+
+    f_cell(
+         b2StructurePanel,
+         5,
+         "Last swing high",
+         na(b2LastSwingHigh) ? "—" : str.tostring(b2LastSwingHigh, format.mintick),
+         bearColor
+    )
+
+    f_cell(
+         b2StructurePanel,
+         6,
+         "Last swing low",
+         na(b2LastSwingLow) ? "—" : str.tostring(b2LastSwingLow, format.mintick),
+         bullColor
+    )
+
+if barstate.islast and not b2ShowStructurePanel
+    table.clear(b2StructurePanel, 0, 0, 1, 6)
+
+// ============================================================================
+// END OF BATCH 2 APPEND BLOCK
+// ============================================================================
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 3 APPEND BLOCK
+// LONG / SHORT CANDIDATE ENGINES
+// Paste this complete block at the END of the file after Batch 2.
+// Do not delete or replace Batch 1 or Batch 2 code.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB3Candidates = "Batch 3 — Candidate Engines"
+
+b3MinimumQuality = input.float(
+     62.0,
+     "Minimum candidate quality",
+     minval=40.0,
+     maxval=90.0,
+     step=1.0,
+     group=groupB3Candidates
+)
+
+b3MinimumRelativeVolume = input.float(
+     0.85,
+     "Minimum relative volume",
+     minval=0.30,
+     maxval=3.00,
+     step=0.05,
+     group=groupB3Candidates
+)
+
+b3PullbackToleranceAtr = input.float(
+     0.30,
+     "Pullback tolerance (ATR)",
+     minval=0.05,
+     maxval=1.50,
+     step=0.05,
+     group=groupB3Candidates
+)
+
+b3RangeEdgeFraction = input.float(
+     0.22,
+     "Range edge fraction",
+     minval=0.10,
+     maxval=0.40,
+     step=0.01,
+     group=groupB3Candidates
+)
+
+b3ConflictMargin = input.float(
+     5.0,
+     "Minimum quality lead",
+     minval=0.0,
+     maxval=20.0,
+     step=0.5,
+     group=groupB3Candidates
+)
+
+b3ShowCandidatePanel = input.bool(
+     true,
+     "Show candidate panel",
+     group=groupB3Candidates
+)
+
+b3ShowCandidateMarkers = input.bool(
+     false,
+     "Show raw candidate markers",
+     group=groupB3Candidates
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.2 CANDLE EVIDENCE
+// ─────────────────────────────────────────────────────────────────────────────
+float b3Body = math.max(math.abs(close - open), syminfo.mintick)
+float b3LowerWick = math.min(open, close) - low
+float b3UpperWick = high - math.max(open, close)
+
+bool b3BullishCandle = close > open
+bool b3BearishCandle = close < open
+
+bool b3BullishRejection =
+     b3BullishCandle and
+     b3LowerWick >= b3Body * 0.70
+
+bool b3BearishRejection =
+     b3BearishCandle and
+     b3UpperWick >= b3Body * 0.70
+
+bool b3ParticipationValid =
+     relativeVolume >= b3MinimumRelativeVolume
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.3 STRATEGY FAMILY — TREND PULLBACK
+// ─────────────────────────────────────────────────────────────────────────────
+bool b3LongTrendContext =
+     setupTrend > 0 and
+     macroTrend >= 0 and
+     b2StructureBias != "BEARISH"
+
+bool b3ShortTrendContext =
+     setupTrend < 0 and
+     macroTrend <= 0 and
+     b2StructureBias != "BULLISH"
+
+bool b3LongPullbackTouch =
+     low <= roleFast + roleAtr * b3PullbackToleranceAtr and
+     close >= roleFast
+
+bool b3ShortPullbackTouch =
+     high >= roleFast - roleAtr * b3PullbackToleranceAtr and
+     close <= roleFast
+
+bool b3LongTrendPullback =
+     b3LongTrendContext and
+     b3LongPullbackTouch and
+     b3BullishCandle and
+     b3ParticipationValid
+
+bool b3ShortTrendPullback =
+     b3ShortTrendContext and
+     b3ShortPullbackTouch and
+     b3BearishCandle and
+     b3ParticipationValid
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.4 STRATEGY FAMILY — BREAKOUT / BREAKDOWN RETEST
+// ─────────────────────────────────────────────────────────────────────────────
+bool b3LongBreakoutRetest =
+     b2BullishRetest and
+     setupTrend >= 0 and
+     macroTrend >= -1 and
+     b3ParticipationValid
+
+bool b3ShortBreakdownRetest =
+     b2BearishRetest and
+     setupTrend <= 0 and
+     macroTrend <= 1 and
+     b3ParticipationValid
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.5 STRATEGY FAMILY — FAILED BREAKOUT / RECLAIM
+// ─────────────────────────────────────────────────────────────────────────────
+bool b3LongFailedBreakdownReclaim =
+     b2FailedBreakdown and
+     close > b2SupportCentre and
+     b3BullishRejection and
+     macroTrend >= -1
+
+bool b3ShortFailedBreakoutRejection =
+     b2FailedBreakout and
+     close < b2ResistanceCentre and
+     b3BearishRejection and
+     macroTrend <= 1
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.6 STRATEGY FAMILY — RANGE EDGE REJECTION
+// ─────────────────────────────────────────────────────────────────────────────
+bool b3RangeEnvironment =
+     marketState == "RANGE" or
+     (
+         marketState == "TRANSITION" and
+         efficiency <= rangeEfficiencyMax * 1.15
+     )
+
+bool b3NearRangeSupport =
+     channelPosition <= b3RangeEdgeFraction
+
+bool b3NearRangeResistance =
+     channelPosition >= 1.0 - b3RangeEdgeFraction
+
+bool b3LongRangeRejection =
+     b3RangeEnvironment and
+     b3NearRangeSupport and
+     b3BullishRejection and
+     close > b2SupportCentre and
+     b3ParticipationValid
+
+bool b3ShortRangeRejection =
+     b3RangeEnvironment and
+     b3NearRangeResistance and
+     b3BearishRejection and
+     close < b2ResistanceCentre and
+     b3ParticipationValid
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.7 RAW CANDIDATE SELECTION
+// Each side is evaluated independently.
+// ─────────────────────────────────────────────────────────────────────────────
+string b3LongStrategy =
+     b3LongTrendPullback ? "TREND PULLBACK" :
+     b3LongBreakoutRetest ? "BREAKOUT RETEST" :
+     b3LongFailedBreakdownReclaim ? "FAILED BREAKDOWN RECLAIM" :
+     b3LongRangeRejection ? "RANGE SUPPORT REJECTION" :
+     "NONE"
+
+string b3ShortStrategy =
+     b3ShortTrendPullback ? "TREND PULLBACK" :
+     b3ShortBreakdownRetest ? "BREAKDOWN RETEST" :
+     b3ShortFailedBreakoutRejection ? "FAILED BREAKOUT REJECTION" :
+     b3ShortRangeRejection ? "RANGE RESISTANCE REJECTION" :
+     "NONE"
+
+bool b3LongRaw = b3LongStrategy != "NONE"
+bool b3ShortRaw = b3ShortStrategy != "NONE"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.8 QUALITY MODEL
+// This is an evidence score, not a win probability.
+// ─────────────────────────────────────────────────────────────────────────────
+f_b3_structure_score(int direction) =>
+    float score =
+         direction == 1 ?
+         (
+             b2StructureBias == "BULLISH" ? 88.0 :
+             b2StructureBias == "NEUTRAL" ? 62.0 :
+             30.0
+         ) :
+         (
+             b2StructureBias == "BEARISH" ? 88.0 :
+             b2StructureBias == "NEUTRAL" ? 62.0 :
+             30.0
+         )
+    score
+
+f_b3_trend_score(int direction) =>
+    float score =
+         direction == 1 ?
+         (
+             setupTrend > 0 and macroTrend > 0 ? 90.0 :
+             setupTrend > 0 and macroTrend == 0 ? 76.0 :
+             setupTrend >= 0 and macroTrend >= -1 ? 60.0 :
+             28.0
+         ) :
+         (
+             setupTrend < 0 and macroTrend < 0 ? 90.0 :
+             setupTrend < 0 and macroTrend == 0 ? 76.0 :
+             setupTrend <= 0 and macroTrend <= 1 ? 60.0 :
+             28.0
+         )
+    score
+
+f_b3_location_score(int direction) =>
+    float score =
+         direction == 1 ?
+         (
+             channelPosition <= 0.20 ? 92.0 :
+             channelPosition <= 0.40 ? 78.0 :
+             channelPosition <= 0.65 ? 60.0 :
+             38.0
+         ) :
+         (
+             channelPosition >= 0.80 ? 92.0 :
+             channelPosition >= 0.60 ? 78.0 :
+             channelPosition >= 0.35 ? 60.0 :
+             38.0
+         )
+    score
+
+f_b3_momentum_score(int direction) =>
+    float score =
+         direction == 1 ?
+         f_clamp(50.0 + (roleRsi - 50.0) * 1.35, 20.0, 92.0) :
+         f_clamp(50.0 + (50.0 - roleRsi) * 1.35, 20.0, 92.0)
+    score
+
+f_b3_participation_score() =>
+    f_clamp(
+         45.0 + (relativeVolume - 0.80) * 35.0,
+         25.0,
+         95.0
+    )
+
+f_b3_strategy_score(string strategy) =>
+    float score =
+         strategy == "TREND PULLBACK" ? 84.0 :
+         strategy == "BREAKOUT RETEST" ? 82.0 :
+         strategy == "BREAKDOWN RETEST" ? 82.0 :
+         strategy == "FAILED BREAKDOWN RECLAIM" ? 80.0 :
+         strategy == "FAILED BREAKOUT REJECTION" ? 80.0 :
+         strategy == "RANGE SUPPORT REJECTION" ? 76.0 :
+         strategy == "RANGE RESISTANCE REJECTION" ? 76.0 :
+         0.0
+    score
+
+f_b3_candidate_quality(int direction, string strategy) =>
+    float structureScore = f_b3_structure_score(direction)
+    float trendScore = f_b3_trend_score(direction)
+    float locationScore = f_b3_location_score(direction)
+    float momentumScore = f_b3_momentum_score(direction)
+    float participationScore = f_b3_participation_score()
+    float strategyScore = f_b3_strategy_score(strategy)
+
+    float total =
+         structureScore * 0.24 +
+         trendScore * 0.22 +
+         locationScore * 0.18 +
+         momentumScore * 0.12 +
+         participationScore * 0.10 +
+         strategyScore * 0.14
+
+    total
+
+float b3LongQuality =
+     b3LongRaw ?
+     f_b3_candidate_quality(1, b3LongStrategy) :
+     0.0
+
+float b3ShortQuality =
+     b3ShortRaw ?
+     f_b3_candidate_quality(-1, b3ShortStrategy) :
+     0.0
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.9 HTF CONFLICT SEVERITY
+// ─────────────────────────────────────────────────────────────────────────────
+f_b3_conflict_severity(int direction) =>
+    bool setupOpposes =
+         direction == 1 ?
+         setupTrend < 0 :
+         setupTrend > 0
+
+    bool macroOpposes =
+         direction == 1 ?
+         macroTrend < 0 :
+         macroTrend > 0
+
+    bool strongSetupOpposes =
+         direction == 1 ?
+         setupTrend == -2 :
+         setupTrend == 2
+
+    bool strongMacroOpposes =
+         direction == 1 ?
+         macroTrend == -2 :
+         macroTrend == 2
+
+    int severity =
+         strongSetupOpposes and strongMacroOpposes ? 4 :
+         strongMacroOpposes ? 3 :
+         setupOpposes and macroOpposes ? 2 :
+         setupOpposes or macroOpposes ? 1 :
+         0
+
+    severity
+
+f_b3_conflict_penalty(int severity) =>
+    severity == 4 ? 100.0 :
+     severity == 3 ? 26.0 :
+     severity == 2 ? 15.0 :
+     severity == 1 ? 7.0 :
+     0.0
+
+f_b3_conflict_text(int severity) =>
+    severity == 4 ? "CRITICAL" :
+     severity == 3 ? "STRONG" :
+     severity == 2 ? "MODERATE" :
+     severity == 1 ? "MILD" :
+     "NONE"
+
+int b3LongConflict = f_b3_conflict_severity(1)
+int b3ShortConflict = f_b3_conflict_severity(-1)
+
+b3LongQuality -= f_b3_conflict_penalty(b3LongConflict)
+b3ShortQuality -= f_b3_conflict_penalty(b3ShortConflict)
+
+bool b3LongValid =
+     b3LongRaw and
+     b3LongQuality >= b3MinimumQuality and
+     b3LongConflict < 4 and
+     marketState != "CHAOTIC"
+
+bool b3ShortValid =
+     b3ShortRaw and
+     b3ShortQuality >= b3MinimumQuality and
+     b3ShortConflict < 4 and
+     marketState != "CHAOTIC"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.10 DETERMINISTIC ARBITRATION
+// ─────────────────────────────────────────────────────────────────────────────
+int b3SelectedDirection =
+     b3LongValid and not b3ShortValid ? 1 :
+     b3ShortValid and not b3LongValid ? -1 :
+     b3LongValid and b3ShortValid and
+     b3LongQuality > b3ShortQuality + b3ConflictMargin ? 1 :
+     b3LongValid and b3ShortValid and
+     b3ShortQuality > b3LongQuality + b3ConflictMargin ? -1 :
+     0
+
+bool b3DirectionConflict =
+     b3LongValid and
+     b3ShortValid and
+     b3SelectedDirection == 0
+
+string b3SelectedStrategy =
+     b3SelectedDirection == 1 ? b3LongStrategy :
+     b3SelectedDirection == -1 ? b3ShortStrategy :
+     "NONE"
+
+float b3SelectedQuality =
+     b3SelectedDirection == 1 ? b3LongQuality :
+     b3SelectedDirection == -1 ? b3ShortQuality :
+     0.0
+
+int b3SelectedConflict =
+     b3SelectedDirection == 1 ? b3LongConflict :
+     b3SelectedDirection == -1 ? b3ShortConflict :
+     0
+
+string b3Decision =
+     b3DirectionConflict ? "DIRECTION CONFLICT" :
+     b3SelectedDirection == 1 ? "LONG CANDIDATE" :
+     b3SelectedDirection == -1 ? "SHORT CANDIDATE" :
+     "NO VALID CANDIDATE"
+
+color b3DecisionColour =
+     b3SelectedDirection == 1 ? bullColor :
+     b3SelectedDirection == -1 ? bearColor :
+     b3DirectionConflict ? compressionColor :
+     neutralColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.11 RAW CANDIDATE MARKERS
+// Disabled by default to keep the chart clean.
+// ─────────────────────────────────────────────────────────────────────────────
+plotshape(
+     b3ShowCandidateMarkers and b3LongRaw,
+     title="Raw Long Candidate",
+     style=shape.circle,
+     location=location.belowbar,
+     color=color.new(bullColor, 20),
+     size=size.tiny,
+     text="L"
+)
+
+plotshape(
+     b3ShowCandidateMarkers and b3ShortRaw,
+     title="Raw Short Candidate",
+     style=shape.circle,
+     location=location.abovebar,
+     color=color.new(bearColor, 20),
+     size=size.tiny,
+     text="S"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3.12 CANDIDATE PANEL
+// Separate panel preserves Batch 1 and Batch 2 panels.
+// ─────────────────────────────────────────────────────────────────────────────
+var table b3CandidatePanel = table.new(
+     position.bottom_left,
+     2,
+     9,
+     border_width=1,
+     frame_color=color.new(color.white, 80),
+     border_color=color.new(color.white, 85)
+)
+
+if barstate.islast and b3ShowCandidatePanel
+    table.clear(b3CandidatePanel, 0, 0, 1, 8)
+
+    table.cell(
+         b3CandidatePanel,
+         0,
+         0,
+         "APEX CANDIDATES",
+         text_color=color.white,
+         bgcolor=color.new(b3DecisionColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         b3CandidatePanel,
+         1,
+         0,
+         b3Decision,
+         text_color=color.white,
+         bgcolor=color.new(b3DecisionColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         1,
+         "Selected strategy",
+         b3SelectedStrategy,
+         b3DecisionColour
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         2,
+         "Selected quality",
+         b3SelectedDirection == 0 ?
+         "—" :
+         str.tostring(math.round(b3SelectedQuality)) + "/100",
+         b3DecisionColour
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         3,
+         "Selected conflict",
+         b3SelectedDirection == 0 ?
+         "—" :
+         f_b3_conflict_text(b3SelectedConflict),
+         b3SelectedConflict >= 3 ?
+         bearColor :
+         b3SelectedConflict >= 1 ?
+         compressionColor :
+         bullColor
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         4,
+         "Long strategy",
+         b3LongStrategy,
+         b3LongRaw ? bullColor : neutralColor
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         5,
+         "Long quality",
+         b3LongRaw ?
+         str.tostring(math.round(b3LongQuality)) :
+         "—",
+         b3LongValid ? bullColor : neutralColor
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         6,
+         "Short strategy",
+         b3ShortStrategy,
+         b3ShortRaw ? bearColor : neutralColor
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         7,
+         "Short quality",
+         b3ShortRaw ?
+         str.tostring(math.round(b3ShortQuality)) :
+         "—",
+         b3ShortValid ? bearColor : neutralColor
+    )
+
+    f_cell(
+         b3CandidatePanel,
+         8,
+         "Participation",
+         b3ParticipationValid ? "VALID" : "WEAK",
+         b3ParticipationValid ? bullColor : compressionColor
+    )
+
+if barstate.islast and not b3ShowCandidatePanel
+    table.clear(b3CandidatePanel, 0, 0, 1, 8)
+
+// ============================================================================
+// END OF BATCH 3 APPEND BLOCK
+// ============================================================================
+
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 4 APPEND BLOCK
+// ENTRY LIFECYCLE ENGINE
+// Paste this complete block at the END of the file after Batch 3.
+// Do not delete or replace earlier batches.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB4Lifecycle = "Batch 4 — Entry Lifecycle"
+
+b4EntryZoneAtr = input.float(
+     0.20,
+     "Entry zone half-width (ATR)",
+     minval=0.05,
+     maxval=1.00,
+     step=0.05,
+     group=groupB4Lifecycle
+)
+
+b4MaximumChaseAtr = input.float(
+     0.45,
+     "Maximum chase distance (ATR)",
+     minval=0.10,
+     maxval=2.00,
+     step=0.05,
+     group=groupB4Lifecycle
+)
+
+b4ExpiryBars = input.int(
+     8,
+     "Setup expiry bars",
+     minval=2,
+     maxval=50,
+     group=groupB4Lifecycle
+)
+
+b4ReentryBars = input.int(
+     6,
+     "Re-entry window bars",
+     minval=1,
+     maxval=30,
+     group=groupB4Lifecycle
+)
+
+b4ConfirmationBodyFraction = input.float(
+     0.55,
+     "Confirmation body fraction",
+     minval=0.20,
+     maxval=0.95,
+     step=0.05,
+     group=groupB4Lifecycle
+)
+
+b4RequireClosedBar = input.bool(
+     true,
+     "Require closed candle",
+     group=groupB4Lifecycle
+)
+
+b4ShowLifecyclePanel = input.bool(
+     true,
+     "Show lifecycle panel",
+     group=groupB4Lifecycle
+)
+
+b4ShowStateMarkers = input.bool(
+     false,
+     "Show lifecycle markers",
+     group=groupB4Lifecycle
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.2 IDEAL ENTRY REFERENCE
+// Uses the selected Batch 3 candidate.
+// ─────────────────────────────────────────────────────────────────────────────
+float b4IdealEntry =
+     b3SelectedDirection == 1 ?
+     (
+         b3SelectedStrategy == "TREND PULLBACK" ? roleFast :
+         b3SelectedStrategy == "BREAKOUT RETEST" ? b2ResistanceCentre :
+         b3SelectedStrategy == "FAILED BREAKDOWN RECLAIM" ? b2SupportCentre :
+         b3SelectedStrategy == "RANGE SUPPORT REJECTION" ? b2SupportCentre :
+         na
+     ) :
+     b3SelectedDirection == -1 ?
+     (
+         b3SelectedStrategy == "TREND PULLBACK" ? roleFast :
+         b3SelectedStrategy == "BREAKDOWN RETEST" ? b2SupportCentre :
+         b3SelectedStrategy == "FAILED BREAKOUT REJECTION" ? b2ResistanceCentre :
+         b3SelectedStrategy == "RANGE RESISTANCE REJECTION" ? b2ResistanceCentre :
+         na
+     ) :
+     na
+
+float b4EntryLow =
+     not na(b4IdealEntry) ?
+     b4IdealEntry - roleAtr * b4EntryZoneAtr :
+     na
+
+float b4EntryHigh =
+     not na(b4IdealEntry) ?
+     b4IdealEntry + roleAtr * b4EntryZoneAtr :
+     na
+
+float b4MaximumChase =
+     b3SelectedDirection == 1 ?
+     b4IdealEntry + roleAtr * b4MaximumChaseAtr :
+     b3SelectedDirection == -1 ?
+     b4IdealEntry - roleAtr * b4MaximumChaseAtr :
+     na
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.3 PRE-ENTRY INVALIDATION
+// This is not the final stop loss. It defines when a pending setup is no longer valid.
+// ─────────────────────────────────────────────────────────────────────────────
+float b4PreEntryInvalidation =
+     b3SelectedDirection == 1 ?
+     (
+         b3SelectedStrategy == "TREND PULLBACK" ? math.min(b2SupportLow, b2LastSwingLow) :
+         b3SelectedStrategy == "BREAKOUT RETEST" ? b2ResistanceLow :
+         b3SelectedStrategy == "FAILED BREAKDOWN RECLAIM" ? b2SupportLow :
+         b3SelectedStrategy == "RANGE SUPPORT REJECTION" ? b2SupportLow :
+         na
+     ) :
+     b3SelectedDirection == -1 ?
+     (
+         b3SelectedStrategy == "TREND PULLBACK" ? math.max(b2ResistanceHigh, b2LastSwingHigh) :
+         b3SelectedStrategy == "BREAKDOWN RETEST" ? b2SupportHigh :
+         b3SelectedStrategy == "FAILED BREAKOUT REJECTION" ? b2ResistanceHigh :
+         b3SelectedStrategy == "RANGE RESISTANCE REJECTION" ? b2ResistanceHigh :
+         na
+     ) :
+     na
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.4 CONFIRMATION EVIDENCE
+// ─────────────────────────────────────────────────────────────────────────────
+float b4FullRange = math.max(high - low, syminfo.mintick)
+float b4BodyFraction = math.abs(close - open) / b4FullRange
+
+bool b4BullishConfirmation =
+     close > open and
+     b4BodyFraction >= b4ConfirmationBodyFraction and
+     close >= b4IdealEntry
+
+bool b4BearishConfirmation =
+     close < open and
+     b4BodyFraction >= b4ConfirmationBodyFraction and
+     close <= b4IdealEntry
+
+bool b4BarConfirmed =
+     not b4RequireClosedBar or
+     barstate.isconfirmed
+
+bool b4InEntryZone =
+     b3SelectedDirection != 0 and
+     not na(b4EntryLow) and
+     close >= b4EntryLow and
+     close <= b4EntryHigh
+
+bool b4ApproachingEntry =
+     b3SelectedDirection == 1 ?
+     close < b4EntryLow and
+     close >= b4EntryLow - roleAtr * 0.50 :
+     b3SelectedDirection == -1 ?
+     close > b4EntryHigh and
+     close <= b4EntryHigh + roleAtr * 0.50 :
+     false
+
+bool b4Chased =
+     b3SelectedDirection == 1 ?
+     close > b4MaximumChase :
+     b3SelectedDirection == -1 ?
+     close < b4MaximumChase :
+     false
+
+bool b4InvalidatedNow =
+     b3SelectedDirection == 1 ?
+     close < b4PreEntryInvalidation :
+     b3SelectedDirection == -1 ?
+     close > b4PreEntryInvalidation :
+     false
+
+bool b4ReadyNow =
+     b3SelectedDirection == 1 ?
+     b4InEntryZone and
+     b4BullishConfirmation and
+     b4BarConfirmed :
+     b3SelectedDirection == -1 ?
+     b4InEntryZone and
+     b4BearishConfirmation and
+     b4BarConfirmed :
+     false
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.5 PERSISTENT SETUP SNAPSHOT
+// The selected candidate is frozen when it first appears so its lifecycle can
+// continue even if the raw candidate disappears on the next candle.
+// ─────────────────────────────────────────────────────────────────────────────
+var bool b4SetupActive = false
+var int b4SetupDirection = 0
+var string b4SetupStrategy = "NONE"
+var float b4SetupQuality = na
+var int b4SetupConflict = 0
+var float b4SetupIdealEntry = na
+var float b4SetupEntryLow = na
+var float b4SetupEntryHigh = na
+var float b4SetupMaximumChase = na
+var float b4SetupPreInvalidation = na
+var int b4SetupCreatedBar = na
+var int b4SetupTriggeredBar = na
+var int b4SetupMissedBar = na
+var bool b4SetupTriggered = false
+var bool b4SetupMissed = false
+var bool b4SetupInvalidated = false
+var bool b4SetupExpired = false
+
+bool b4NewCandidate =
+     b3SelectedDirection != 0 and
+     b3SelectedStrategy != "NONE" and
+     not na(b4IdealEntry)
+
+bool b4DifferentCandidate =
+     not b4SetupActive or
+     b4SetupDirection != b3SelectedDirection or
+     b4SetupStrategy != b3SelectedStrategy
+
+if b4NewCandidate and b4DifferentCandidate
+    b4SetupActive := true
+    b4SetupDirection := b3SelectedDirection
+    b4SetupStrategy := b3SelectedStrategy
+    b4SetupQuality := b3SelectedQuality
+    b4SetupConflict := b3SelectedConflict
+    b4SetupIdealEntry := b4IdealEntry
+    b4SetupEntryLow := b4EntryLow
+    b4SetupEntryHigh := b4EntryHigh
+    b4SetupMaximumChase := b4MaximumChase
+    b4SetupPreInvalidation := b4PreEntryInvalidation
+    b4SetupCreatedBar := bar_index
+    b4SetupTriggeredBar := na
+    b4SetupMissedBar := na
+    b4SetupTriggered := false
+    b4SetupMissed := false
+    b4SetupInvalidated := false
+    b4SetupExpired := false
+
+int b4SetupAge =
+     b4SetupActive and not na(b4SetupCreatedBar) ?
+     bar_index - b4SetupCreatedBar :
+     0
+
+bool b4SnapshotInEntryZone =
+     b4SetupActive and
+     close >= b4SetupEntryLow and
+     close <= b4SetupEntryHigh
+
+bool b4SnapshotBullishConfirmation =
+     b4SetupDirection == 1 and
+     close > open and
+     b4BodyFraction >= b4ConfirmationBodyFraction and
+     close >= b4SetupIdealEntry and
+     b4BarConfirmed
+
+bool b4SnapshotBearishConfirmation =
+     b4SetupDirection == -1 and
+     close < open and
+     b4BodyFraction >= b4ConfirmationBodyFraction and
+     close <= b4SetupIdealEntry and
+     b4BarConfirmed
+
+bool b4SnapshotReady =
+     b4SnapshotInEntryZone and
+     (
+         b4SnapshotBullishConfirmation or
+         b4SnapshotBearishConfirmation
+     )
+
+bool b4SnapshotChased =
+     b4SetupDirection == 1 ?
+     close > b4SetupMaximumChase :
+     b4SetupDirection == -1 ?
+     close < b4SetupMaximumChase :
+     false
+
+bool b4SnapshotInvalidated =
+     b4SetupDirection == 1 ?
+     close < b4SetupPreInvalidation :
+     b4SetupDirection == -1 ?
+     close > b4SetupPreInvalidation :
+     false
+
+bool b4SnapshotExpired =
+     b4SetupActive and
+     not b4SetupTriggered and
+     b4SetupAge > b4ExpiryBars
+
+if b4SetupActive and not b4SetupTriggered and not b4SetupInvalidated and not b4SetupExpired
+    if b4SnapshotReady
+        b4SetupTriggered := true
+        b4SetupTriggeredBar := bar_index
+
+    if b4SnapshotChased and not b4SnapshotInEntryZone
+        b4SetupMissed := true
+        b4SetupMissedBar := bar_index
+
+    if b4SnapshotInvalidated
+        b4SetupInvalidated := true
+
+    if b4SnapshotExpired
+        b4SetupExpired := true
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.6 RE-ENTRY WINDOW
+// ─────────────────────────────────────────────────────────────────────────────
+int b4BarsSinceMissed =
+     not na(b4SetupMissedBar) ?
+     bar_index - b4SetupMissedBar :
+     100000
+
+bool b4InsideReentryWindow =
+     b4SetupMissed and
+     b4BarsSinceMissed >= 1 and
+     b4BarsSinceMissed <= b4ReentryBars
+
+bool b4ReentryAvailable =
+     b4InsideReentryWindow and
+     b4SnapshotInEntryZone and
+     not b4SetupInvalidated and
+     not b4SetupExpired
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.7 LIFECYCLE STATE
+// ─────────────────────────────────────────────────────────────────────────────
+string b4LifecycleState =
+     not b4SetupActive ? "NO SETUP" :
+     b4SetupInvalidated ? "INVALIDATED" :
+     b4SetupExpired ? "EXPIRED" :
+     b4SetupTriggered ? "TRIGGERED" :
+     b4ReentryAvailable ? "REENTRY AVAILABLE" :
+     b4SetupMissed ? "MISSED ENTRY" :
+     b4SnapshotReady ? "READY NOW" :
+     b4SnapshotInEntryZone ? "CONFIRMATION" :
+     b4SetupDirection == 1 and close < b4SetupEntryLow ? "APPROACHING ENTRY" :
+     b4SetupDirection == -1 and close > b4SetupEntryHigh ? "APPROACHING ENTRY" :
+     "PULLBACK / RETEST PENDING"
+
+color b4LifecycleColour =
+     b4LifecycleState == "READY NOW" or
+     b4LifecycleState == "TRIGGERED" or
+     b4LifecycleState == "REENTRY AVAILABLE" ?
+     (
+         b4SetupDirection == 1 ?
+         bullColor :
+         bearColor
+     ) :
+     b4LifecycleState == "INVALIDATED" or
+     b4LifecycleState == "EXPIRED" ?
+     neutralColor :
+     b4LifecycleState == "MISSED ENTRY" ?
+     compressionColor :
+     transitionColor
+
+string b4SetupDirectionText =
+     b4SetupDirection == 1 ? "LONG" :
+     b4SetupDirection == -1 ? "SHORT" :
+     "NONE"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.8 OPTIONAL STATE MARKERS
+// ─────────────────────────────────────────────────────────────────────────────
+plotshape(
+     b4ShowStateMarkers and
+     b4LifecycleState == "READY NOW" and
+     b4SetupDirection == 1,
+     title="Lifecycle Long Ready",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=bullColor,
+     size=size.tiny,
+     text="READY"
+)
+
+plotshape(
+     b4ShowStateMarkers and
+     b4LifecycleState == "READY NOW" and
+     b4SetupDirection == -1,
+     title="Lifecycle Short Ready",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=bearColor,
+     size=size.tiny,
+     text="READY"
+)
+
+plotshape(
+     b4ShowStateMarkers and
+     b4LifecycleState == "REENTRY AVAILABLE",
+     title="Lifecycle Re-entry",
+     style=shape.diamond,
+     location=location.absolute,
+     color=compressionColor,
+     size=size.tiny,
+     text="RE"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B4.9 LIFECYCLE PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+var table b4LifecyclePanel = table.new(
+     position.middle_right,
+     2,
+     10,
+     border_width=1,
+     frame_color=color.new(color.white, 80),
+     border_color=color.new(color.white, 85)
+)
+
+if barstate.islast and b4ShowLifecyclePanel
+    table.clear(b4LifecyclePanel, 0, 0, 1, 9)
+
+    table.cell(
+         b4LifecyclePanel,
+         0,
+         0,
+         "APEX LIFECYCLE",
+         text_color=color.white,
+         bgcolor=color.new(b4LifecycleColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         b4LifecyclePanel,
+         1,
+         0,
+         b4LifecycleState,
+         text_color=color.white,
+         bgcolor=color.new(b4LifecycleColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         1,
+         "Direction",
+         b4SetupDirectionText,
+         b4SetupDirection == 1 ?
+         bullColor :
+         b4SetupDirection == -1 ?
+         bearColor :
+         neutralColor
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         2,
+         "Strategy",
+         b4SetupStrategy,
+         color.white
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         3,
+         "Ideal entry",
+         na(b4SetupIdealEntry) ?
+         "—" :
+         str.tostring(b4SetupIdealEntry, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         4,
+         "Entry zone",
+         na(b4SetupEntryLow) or na(b4SetupEntryHigh) ?
+         "—" :
+         str.tostring(b4SetupEntryLow, format.mintick) +
+         " - " +
+         str.tostring(b4SetupEntryHigh, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         5,
+         "Maximum chase",
+         na(b4SetupMaximumChase) ?
+         "—" :
+         str.tostring(b4SetupMaximumChase, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         6,
+         "Pre-invalidation",
+         na(b4SetupPreInvalidation) ?
+         "—" :
+         str.tostring(b4SetupPreInvalidation, format.mintick),
+         bearColor
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         7,
+         "Age",
+         b4SetupActive ?
+         str.tostring(b4SetupAge) + " bars" :
+         "—",
+         color.white
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         8,
+         "Quality",
+         na(b4SetupQuality) ?
+         "—" :
+         str.tostring(math.round(b4SetupQuality)) + "/100",
+         color.white
+    )
+
+    f_cell(
+         b4LifecyclePanel,
+         9,
+         "HTF conflict",
+         b4SetupActive ?
+         f_b3_conflict_text(b4SetupConflict) :
+         "—",
+         b4SetupConflict >= 3 ?
+         bearColor :
+         b4SetupConflict >= 1 ?
+         compressionColor :
+         bullColor
+    )
+
+if barstate.islast and not b4ShowLifecyclePanel
+    table.clear(b4LifecyclePanel, 0, 0, 1, 9)
+
+// ============================================================================
+// END OF BATCH 4 APPEND BLOCK
+// ============================================================================
+
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 5 APPEND BLOCK
+// GEOMETRY ENGINE
+// Paste this complete block at the END of the file after Batch 4.
+// Do not delete or replace earlier batches.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB5Geometry = "Batch 5 — Geometry Engine"
+
+b5StopAtrBuffer = input.float(
+     0.25,
+     "Stop ATR buffer",
+     minval=0.05,
+     maxval=2.00,
+     step=0.05,
+     group=groupB5Geometry
+)
+
+b5MinimumStopAtr = input.float(
+     0.30,
+     "Minimum stop distance (ATR)",
+     minval=0.10,
+     maxval=2.00,
+     step=0.05,
+     group=groupB5Geometry
+)
+
+b5MaximumStopAtr = input.float(
+     3.00,
+     "Maximum stop distance (ATR)",
+     minval=0.50,
+     maxval=10.00,
+     step=0.10,
+     group=groupB5Geometry
+)
+
+b5MinimumNetRR = input.float(
+     1.15,
+     "Minimum net TP1 R:R",
+     minval=0.50,
+     maxval=5.00,
+     step=0.05,
+     group=groupB5Geometry
+)
+
+b5FeeSlippagePct = input.float(
+     0.14,
+     "Round-trip fee + slippage %",
+     minval=0.00,
+     maxval=2.00,
+     step=0.01,
+     group=groupB5Geometry
+)
+
+b5Tp2R = input.float(
+     2.00,
+     "TP2 R multiple",
+     minval=1.00,
+     maxval=6.00,
+     step=0.25,
+     group=groupB5Geometry
+)
+
+b5Tp3R = input.float(
+     3.00,
+     "TP3 R multiple",
+     minval=1.50,
+     maxval=10.00,
+     step=0.25,
+     group=groupB5Geometry
+)
+
+b5RunnerMinQuality = input.float(
+     74.0,
+     "Runner minimum quality",
+     minval=50.0,
+     maxval=95.0,
+     step=1.0,
+     group=groupB5Geometry
+)
+
+b5ShowGeometry = input.bool(
+     true,
+     "Show active trade geometry",
+     group=groupB5Geometry
+)
+
+b5ShowGeometryPanel = input.bool(
+     true,
+     "Show geometry panel",
+     group=groupB5Geometry
+)
+
+b5ProjectionBars = input.int(
+     14,
+     "Projection bars",
+     minval=5,
+     maxval=50,
+     group=groupB5Geometry
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.2 STRUCTURAL STOP SOURCE
+// ─────────────────────────────────────────────────────────────────────────────
+float b5LongStructuralStop =
+     b4SetupStrategy == "TREND PULLBACK" ?
+     math.min(b2SupportLow, nz(b2LastSwingLow, b2SupportLow)) :
+     b4SetupStrategy == "BREAKOUT RETEST" ?
+     b2ResistanceLow :
+     b4SetupStrategy == "FAILED BREAKDOWN RECLAIM" ?
+     b2SupportLow :
+     b4SetupStrategy == "RANGE SUPPORT REJECTION" ?
+     b2SupportLow :
+     na
+
+float b5ShortStructuralStop =
+     b4SetupStrategy == "TREND PULLBACK" ?
+     math.max(b2ResistanceHigh, nz(b2LastSwingHigh, b2ResistanceHigh)) :
+     b4SetupStrategy == "BREAKDOWN RETEST" ?
+     b2SupportHigh :
+     b4SetupStrategy == "FAILED BREAKOUT REJECTION" ?
+     b2ResistanceHigh :
+     b4SetupStrategy == "RANGE RESISTANCE REJECTION" ?
+     b2ResistanceHigh :
+     na
+
+float b5RawStop =
+     b4SetupDirection == 1 ?
+     b5LongStructuralStop - roleAtr * b5StopAtrBuffer :
+     b4SetupDirection == -1 ?
+     b5ShortStructuralStop + roleAtr * b5StopAtrBuffer :
+     na
+
+float b5RawRiskDistance =
+     b4SetupDirection == 1 ?
+     b4SetupIdealEntry - b5RawStop :
+     b4SetupDirection == -1 ?
+     b5RawStop - b4SetupIdealEntry :
+     na
+
+float b5MinimumRiskDistance = roleAtr * b5MinimumStopAtr
+float b5MaximumRiskDistance = roleAtr * b5MaximumStopAtr
+
+float b5FinalRiskDistance =
+     not na(b5RawRiskDistance) ?
+     math.max(b5RawRiskDistance, b5MinimumRiskDistance) :
+     na
+
+float b5StopPrice =
+     b4SetupDirection == 1 ?
+     b4SetupIdealEntry - b5FinalRiskDistance :
+     b4SetupDirection == -1 ?
+     b4SetupIdealEntry + b5FinalRiskDistance :
+     na
+
+bool b5StopTooWide =
+     not na(b5FinalRiskDistance) and
+     b5FinalRiskDistance > b5MaximumRiskDistance
+
+bool b5StopValid =
+     b4SetupActive and
+     not na(b5StopPrice) and
+     not na(b5FinalRiskDistance) and
+     b5FinalRiskDistance > syminfo.mintick * 2.0 and
+     not b5StopTooWide
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.3 STRUCTURAL TARGET SOURCES
+// ─────────────────────────────────────────────────────────────────────────────
+float b5LongNearestStructure =
+     b2ResistanceCentre > b4SetupIdealEntry ?
+     b2ResistanceCentre :
+     recentHigh
+
+float b5ShortNearestStructure =
+     b2SupportCentre < b4SetupIdealEntry ?
+     b2SupportCentre :
+     recentLow
+
+float b5FallbackTp1Long =
+     b4SetupIdealEntry + b5FinalRiskDistance * 1.25
+
+float b5FallbackTp1Short =
+     b4SetupIdealEntry - b5FinalRiskDistance * 1.25
+
+float b5Tp1 =
+     b4SetupDirection == 1 ?
+     (
+         not na(b5LongNearestStructure) and
+         b5LongNearestStructure > b4SetupIdealEntry ?
+         math.min(
+              b5LongNearestStructure,
+              b4SetupIdealEntry + b5FinalRiskDistance * 1.80
+         ) :
+         b5FallbackTp1Long
+     ) :
+     b4SetupDirection == -1 ?
+     (
+         not na(b5ShortNearestStructure) and
+         b5ShortNearestStructure < b4SetupIdealEntry ?
+         math.max(
+              b5ShortNearestStructure,
+              b4SetupIdealEntry - b5FinalRiskDistance * 1.80
+         ) :
+         b5FallbackTp1Short
+     ) :
+     na
+
+float b5Tp2 =
+     b4SetupDirection == 1 ?
+     b4SetupIdealEntry + b5FinalRiskDistance * b5Tp2R :
+     b4SetupDirection == -1 ?
+     b4SetupIdealEntry - b5FinalRiskDistance * b5Tp2R :
+     na
+
+float b5Tp3 =
+     b4SetupDirection == 1 ?
+     b4SetupIdealEntry + b5FinalRiskDistance * b5Tp3R :
+     b4SetupDirection == -1 ?
+     b4SetupIdealEntry - b5FinalRiskDistance * b5Tp3R :
+     na
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.4 COST-AWARE R:R
+// ─────────────────────────────────────────────────────────────────────────────
+float b5RoundTripCostDistance =
+     b4SetupIdealEntry * (b5FeeSlippagePct / 100.0)
+
+float b5GrossRewardTp1 =
+     b4SetupDirection == 1 ?
+     b5Tp1 - b4SetupIdealEntry :
+     b4SetupDirection == -1 ?
+     b4SetupIdealEntry - b5Tp1 :
+     na
+
+float b5NetRewardTp1 =
+     not na(b5GrossRewardTp1) ?
+     math.max(b5GrossRewardTp1 - b5RoundTripCostDistance, 0.0) :
+     na
+
+float b5GrossRR1 =
+     b5StopValid ?
+     f_safe_div(b5GrossRewardTp1, b5FinalRiskDistance) :
+     na
+
+float b5NetRR1 =
+     b5StopValid ?
+     f_safe_div(b5NetRewardTp1, b5FinalRiskDistance) :
+     na
+
+bool b5Tp1CorrectSide =
+     b4SetupDirection == 1 ?
+     b5Tp1 > b4SetupIdealEntry :
+     b4SetupDirection == -1 ?
+     b5Tp1 < b4SetupIdealEntry :
+     false
+
+bool b5TargetValid =
+     b5StopValid and
+     b5Tp1CorrectSide and
+     not na(b5NetRR1) and
+     b5NetRR1 >= b5MinimumNetRR
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.5 RUNNER RULES
+// TP3 is disabled when HTF conflict is meaningful or candidate quality is weak.
+// ─────────────────────────────────────────────────────────────────────────────
+bool b5TrendAlignedForRunner =
+     b4SetupDirection == 1 ?
+     setupTrend > 0 and macroTrend >= 0 :
+     b4SetupDirection == -1 ?
+     setupTrend < 0 and macroTrend <= 0 :
+     false
+
+bool b5RunnerAllowed =
+     b4SetupActive and
+     b4SetupConflict <= 1 and
+     b4SetupQuality >= b5RunnerMinQuality and
+     b5TrendAlignedForRunner and
+     marketState != "RANGE" and
+     marketState != "CHAOTIC"
+
+float b5DisplayedTp3 =
+     b5RunnerAllowed ?
+     b5Tp3 :
+     na
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.6 FINAL GEOMETRY STATUS
+// ─────────────────────────────────────────────────────────────────────────────
+bool b5GeometryValid =
+     b4SetupActive and
+     b5StopValid and
+     b5TargetValid
+
+string b5GeometryState =
+     not b4SetupActive ? "NO SETUP" :
+     b5StopTooWide ? "STOP TOO WIDE" :
+     not b5StopValid ? "STOP INVALID" :
+     not b5Tp1CorrectSide ? "TARGET INVALID" :
+     not b5TargetValid ? "R:R INSUFFICIENT" :
+     "VALID"
+
+color b5GeometryColour =
+     b5GeometryState == "VALID" ?
+     (
+         b4SetupDirection == 1 ?
+         bullColor :
+         bearColor
+     ) :
+     b5GeometryState == "NO SETUP" ?
+     neutralColor :
+     compressionColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.7 ACTIVE GEOMETRY VISUALS
+// Only one current setup is shown.
+// ─────────────────────────────────────────────────────────────────────────────
+var box b5EntryBox = na
+var line b5IdealEntryLine = na
+var line b5StopLine = na
+var line b5Tp1Line = na
+var line b5Tp2Line = na
+var line b5Tp3Line = na
+var line b5MaximumChaseLine = na
+var line b5PreInvalidationLine = na
+var label b5PlanLabel = na
+
+if barstate.islast
+    box.delete(b5EntryBox)
+    line.delete(b5IdealEntryLine)
+    line.delete(b5StopLine)
+    line.delete(b5Tp1Line)
+    line.delete(b5Tp2Line)
+    line.delete(b5Tp3Line)
+    line.delete(b5MaximumChaseLine)
+    line.delete(b5PreInvalidationLine)
+    label.delete(b5PlanLabel)
+
+    if b5ShowGeometry and b4SetupActive
+        color b5DirectionColour =
+             b4SetupDirection == 1 ?
+             bullColor :
+             bearColor
+
+        b5EntryBox := box.new(
+             left=bar_index - 1,
+             top=b4SetupEntryHigh,
+             right=bar_index + b5ProjectionBars,
+             bottom=b4SetupEntryLow,
+             border_color=color.new(compressionColor, 15),
+             bgcolor=color.new(compressionColor, 87)
+        )
+
+        b5IdealEntryLine := line.new(
+             x1=bar_index - 1,
+             y1=b4SetupIdealEntry,
+             x2=bar_index + b5ProjectionBars,
+             y2=b4SetupIdealEntry,
+             color=compressionColor,
+             width=2
+        )
+
+        b5MaximumChaseLine := line.new(
+             x1=bar_index - 1,
+             y1=b4SetupMaximumChase,
+             x2=bar_index + b5ProjectionBars,
+             y2=b4SetupMaximumChase,
+             color=color.new(compressionColor, 30),
+             width=1,
+             style=line.style_dotted
+        )
+
+        b5PreInvalidationLine := line.new(
+             x1=bar_index - 1,
+             y1=b4SetupPreInvalidation,
+             x2=bar_index + b5ProjectionBars,
+             y2=b4SetupPreInvalidation,
+             color=color.new(bearColor, 35),
+             width=1,
+             style=line.style_dashed
+        )
+
+        if b5StopValid
+            b5StopLine := line.new(
+                 x1=bar_index - 1,
+                 y1=b5StopPrice,
+                 x2=bar_index + b5ProjectionBars,
+                 y2=b5StopPrice,
+                 color=bearColor,
+                 width=2
+            )
+
+        if b5TargetValid
+            b5Tp1Line := line.new(
+                 x1=bar_index - 1,
+                 y1=b5Tp1,
+                 x2=bar_index + b5ProjectionBars,
+                 y2=b5Tp1,
+                 color=bullColor,
+                 width=2
+            )
+
+            b5Tp2Line := line.new(
+                 x1=bar_index - 1,
+                 y1=b5Tp2,
+                 x2=bar_index + b5ProjectionBars,
+                 y2=b5Tp2,
+                 color=color.new(bullColor, 22),
+                 width=1
+            )
+
+            if b5RunnerAllowed
+                b5Tp3Line := line.new(
+                     x1=bar_index - 1,
+                     y1=b5DisplayedTp3,
+                     x2=bar_index + b5ProjectionBars,
+                     y2=b5DisplayedTp3,
+                     color=color.new(bullColor, 40),
+                     width=1,
+                     style=line.style_dashed
+                )
+
+        string b5LabelText =
+             "APEX " +
+             b4SetupDirectionText +
+             "\n" +
+             b4SetupStrategy +
+             "\n" +
+             b4LifecycleState +
+             " • " +
+             b5GeometryState
+
+        b5PlanLabel := label.new(
+             x=bar_index,
+             y=b4SetupDirection == 1 ? low : high,
+             text=b5LabelText,
+             style=b4SetupDirection == 1 ?
+             label.style_label_up :
+             label.style_label_down,
+             color=b5DirectionColour,
+             textcolor=color.white,
+             size=size.small
+        )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5.8 GEOMETRY PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+var table b5GeometryPanel = table.new(
+     position.middle_left,
+     2,
+     12,
+     border_width=1,
+     frame_color=color.new(color.white, 80),
+     border_color=color.new(color.white, 85)
+)
+
+if barstate.islast and b5ShowGeometryPanel
+    table.clear(b5GeometryPanel, 0, 0, 1, 11)
+
+    table.cell(
+         b5GeometryPanel,
+         0,
+         0,
+         "APEX GEOMETRY",
+         text_color=color.white,
+         bgcolor=color.new(b5GeometryColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         b5GeometryPanel,
+         1,
+         0,
+         b5GeometryState,
+         text_color=color.white,
+         bgcolor=color.new(b5GeometryColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         1,
+         "Ideal entry",
+         na(b4SetupIdealEntry) ?
+         "—" :
+         str.tostring(b4SetupIdealEntry, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         2,
+         "Entry range",
+         na(b4SetupEntryLow) or na(b4SetupEntryHigh) ?
+         "—" :
+         str.tostring(b4SetupEntryLow, format.mintick) +
+         " - " +
+         str.tostring(b4SetupEntryHigh, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         3,
+         "Stop loss",
+         na(b5StopPrice) ?
+         "—" :
+         str.tostring(b5StopPrice, format.mintick),
+         bearColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         4,
+         "Stop ATR",
+         na(b5FinalRiskDistance) ?
+         "—" :
+         str.tostring(f_safe_div(b5FinalRiskDistance, roleAtr), "#.##"),
+         b5StopValid ? color.white : compressionColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         5,
+         "TP1",
+         na(b5Tp1) ?
+         "—" :
+         str.tostring(b5Tp1, format.mintick),
+         bullColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         6,
+         "TP2",
+         na(b5Tp2) ?
+         "—" :
+         str.tostring(b5Tp2, format.mintick),
+         bullColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         7,
+         "TP3",
+         b5RunnerAllowed and not na(b5DisplayedTp3) ?
+         str.tostring(b5DisplayedTp3, format.mintick) :
+         "DISABLED",
+         b5RunnerAllowed ? bullColor : neutralColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         8,
+         "Gross R:R",
+         na(b5GrossRR1) ?
+         "—" :
+         str.tostring(b5GrossRR1, "#.##") + "R",
+         color.white
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         9,
+         "Net R:R",
+         na(b5NetRR1) ?
+         "—" :
+         str.tostring(b5NetRR1, "#.##") + "R",
+         b5TargetValid ? bullColor : compressionColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         10,
+         "Maximum chase",
+         na(b4SetupMaximumChase) ?
+         "—" :
+         str.tostring(b4SetupMaximumChase, format.mintick),
+         compressionColor
+    )
+
+    f_cell(
+         b5GeometryPanel,
+         11,
+         "Runner",
+         b5RunnerAllowed ? "ALLOWED" : "DISABLED",
+         b5RunnerAllowed ? bullColor : neutralColor
+    )
+
+if barstate.islast and not b5ShowGeometryPanel
+    table.clear(b5GeometryPanel, 0, 0, 1, 11)
+
+// ============================================================================
+// END OF BATCH 5 APPEND BLOCK
+// ============================================================================
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 6 APPEND BLOCK
+// VISUAL CONSOLIDATION & UX
+// Paste this complete block at the END of the file after Batch 5.
+// Do not delete or replace earlier batches.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB6Display = "Batch 6 — Visual Consolidation"
+
+b6UseUnifiedDashboard = input.bool(
+     true,
+     "Use unified Apex dashboard",
+     group=groupB6Display
+)
+
+b6CompactMode = input.bool(
+     true,
+     "Compact dashboard mode",
+     group=groupB6Display
+)
+
+b6ShowEvidenceRows = input.bool(
+     false,
+     "Show evidence rows",
+     group=groupB6Display
+)
+
+b6ShowOnlyBestSetup = input.bool(
+     true,
+     "Show only best active setup",
+     group=groupB6Display
+)
+
+b6ShowNoTradeReason = input.bool(
+     true,
+     "Show no-trade reason",
+     group=groupB6Display
+)
+
+b6ShowSignalBadge = input.bool(
+     true,
+     "Show signal badge",
+     group=groupB6Display
+)
+
+b6ShowProjectedLabels = input.bool(
+     true,
+     "Show entry / SL / TP labels",
+     group=groupB6Display
+)
+
+b6FadeInactiveGeometry = input.bool(
+     true,
+     "Fade invalid or expired geometry",
+     group=groupB6Display
+)
+
+b6DashboardPosition = input.string(
+     "Top Right",
+     "Dashboard position",
+     options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"],
+     group=groupB6Display
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.2 DISPLAY HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+f_b6_position(string selectedPosition) =>
+    selectedPosition == "Top Left" ? position.top_left :
+     selectedPosition == "Bottom Right" ? position.bottom_right :
+     selectedPosition == "Bottom Left" ? position.bottom_left :
+     position.top_right
+
+f_b6_price(float value) =>
+    na(value) ? "—" : str.tostring(value, format.mintick)
+
+f_b6_quality(float value) =>
+    na(value) ? "—" : str.tostring(math.round(value)) + "/100"
+
+f_b6_rr(float value) =>
+    na(value) ? "—" : str.tostring(value, "#.##") + "R"
+
+f_b6_direction_text() =>
+    b4SetupDirection == 1 ? "LONG" :
+     b4SetupDirection == -1 ? "SHORT" :
+     "NONE"
+
+f_b6_direction_colour() =>
+    b4SetupDirection == 1 ? bullColor :
+     b4SetupDirection == -1 ? bearColor :
+     neutralColor
+
+f_b6_no_trade_reason() =>
+    string reason =
+         marketState == "CHAOTIC" ? "CHAOTIC MARKET" :
+         b3DirectionConflict ? "LONG / SHORT CONFLICT" :
+         not b3LongRaw and not b3ShortRaw ? "NO VALID STRATEGY" :
+         b3LongRaw and not b3LongValid and
+         b3ShortRaw and not b3ShortValid ? "QUALITY / HTF FILTER" :
+         not b4SetupActive ? "NO ACTIVE SETUP" :
+         b4SetupInvalidated ? "SETUP INVALIDATED" :
+         b4SetupExpired ? "SETUP EXPIRED" :
+         not b5StopValid ? "STOP INVALID" :
+         not b5TargetValid ? "TARGET OR R:R INVALID" :
+         "NO EXECUTABLE ENTRY"
+    reason
+
+string b6DirectionText = f_b6_direction_text()
+color b6DirectionColour = f_b6_direction_colour()
+string b6NoTradeReason = f_b6_no_trade_reason()
+
+bool b6ExecutableNow =
+     b4SetupActive and
+     b5GeometryValid and
+     (
+         b4LifecycleState == "READY NOW" or
+         b4LifecycleState == "TRIGGERED" or
+         b4LifecycleState == "REENTRY AVAILABLE"
+     )
+
+bool b6FutureSetup =
+     b4SetupActive and
+     b5GeometryValid and
+     (
+         b4LifecycleState == "APPROACHING ENTRY" or
+         b4LifecycleState == "CONFIRMATION" or
+         b4LifecycleState == "PULLBACK / RETEST PENDING"
+     )
+
+string b6PrimaryStatus =
+     b6ExecutableNow ? "EXECUTABLE" :
+     b6FutureSetup ? "FUTURE SETUP" :
+     b4SetupMissed ? "MISSED ENTRY" :
+     b4SetupInvalidated ? "INVALIDATED" :
+     b4SetupExpired ? "EXPIRED" :
+     "NO TRADE"
+
+color b6PrimaryColour =
+     b6ExecutableNow ? b6DirectionColour :
+     b6FutureSetup ? transitionColor :
+     b4SetupMissed ? compressionColor :
+     neutralColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.3 HIDE LEGACY PANELS WHEN UNIFIED MODE IS ENABLED
+// Earlier panel code remains intact, but these blocks clear them on the last bar.
+// ─────────────────────────────────────────────────────────────────────────────
+if barstate.islast and b6UseUnifiedDashboard
+    table.clear(dashboard, 0, 0, 1, 12)
+    table.clear(b2StructurePanel, 0, 0, 1, 6)
+    table.clear(b3CandidatePanel, 0, 0, 1, 8)
+    table.clear(b4LifecyclePanel, 0, 0, 1, 9)
+    table.clear(b5GeometryPanel, 0, 0, 1, 11)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.4 UNIFIED DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+var table b6UnifiedDashboard = table.new(
+     f_b6_position(b6DashboardPosition),
+     2,
+     18,
+     border_width=1,
+     frame_color=color.new(color.white, 78),
+     border_color=color.new(color.white, 84)
+)
+
+if barstate.islast and b6UseUnifiedDashboard
+    table.clear(b6UnifiedDashboard, 0, 0, 1, 17)
+
+    table.cell(
+         b6UnifiedDashboard,
+         0,
+         0,
+         "APEX PRECISION",
+         text_color=color.white,
+         bgcolor=color.new(b6PrimaryColour, 25),
+         text_size=size.small
+    )
+
+    table.cell(
+         b6UnifiedDashboard,
+         1,
+         0,
+         b6PrimaryStatus,
+         text_color=color.white,
+         bgcolor=color.new(b6PrimaryColour, 25),
+         text_size=size.small
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         1,
+         "Direction",
+         b6DirectionText,
+         b6DirectionColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         2,
+         "Strategy",
+         b4SetupActive ? b4SetupStrategy : "NONE",
+         color.white
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         3,
+         "Lifecycle",
+         b4LifecycleState,
+         b4LifecycleColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         4,
+         "Market state",
+         marketState,
+         stateColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         5,
+         "Context",
+         contextAgreement,
+         contextColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         6,
+         "Structure",
+         b2SwingStructure,
+         b2StructureColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         7,
+         "Entry",
+         f_b6_price(b4SetupIdealEntry),
+         compressionColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         8,
+         "Entry range",
+         na(b4SetupEntryLow) or na(b4SetupEntryHigh) ?
+         "—" :
+         f_b6_price(b4SetupEntryLow) + " - " + f_b6_price(b4SetupEntryHigh),
+         compressionColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         9,
+         "Stop",
+         f_b6_price(b5StopPrice),
+         bearColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         10,
+         "TP1",
+         f_b6_price(b5Tp1),
+         bullColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         11,
+         "TP2",
+         f_b6_price(b5Tp2),
+         bullColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         12,
+         "TP3",
+         b5RunnerAllowed ? f_b6_price(b5DisplayedTp3) : "DISABLED",
+         b5RunnerAllowed ? bullColor : neutralColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         13,
+         "Net R:R",
+         f_b6_rr(b5NetRR1),
+         b5TargetValid ? bullColor : compressionColor
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         14,
+         "Quality",
+         f_b6_quality(b4SetupQuality),
+         b6DirectionColour
+    )
+
+    f_cell(
+         b6UnifiedDashboard,
+         15,
+         "HTF conflict",
+         b4SetupActive ? f_b3_conflict_text(b4SetupConflict) : "—",
+         b4SetupConflict >= 3 ?
+         bearColor :
+         b4SetupConflict >= 1 ?
+         compressionColor :
+         bullColor
+    )
+
+    if not b6CompactMode
+        f_cell(
+             b6UnifiedDashboard,
+             16,
+             "Maximum chase",
+             f_b6_price(b4SetupMaximumChase),
+             compressionColor
+        )
+
+        f_cell(
+             b6UnifiedDashboard,
+             17,
+             "Pre-invalidation",
+             f_b6_price(b4SetupPreInvalidation),
+             bearColor
+        )
+    else
+        string compactReason =
+             b6PrimaryStatus == "NO TRADE" and b6ShowNoTradeReason ?
+             b6NoTradeReason :
+             b4SetupActive ?
+             "AGE " + str.tostring(b4SetupAge) + " BARS" :
+             b6NoTradeReason
+
+        f_cell(
+             b6UnifiedDashboard,
+             16,
+             "Status detail",
+             compactReason,
+             b6PrimaryColour
+        )
+
+        f_cell(
+             b6UnifiedDashboard,
+             17,
+             "Role",
+             role + " | " + setupTf + " / " + macroTf,
+             color.white
+        )
+
+if barstate.islast and not b6UseUnifiedDashboard
+    table.clear(b6UnifiedDashboard, 0, 0, 1, 17)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.5 EVIDENCE PANEL
+// Optional advanced diagnostic panel.
+// ─────────────────────────────────────────────────────────────────────────────
+var table b6EvidencePanel = table.new(
+     position.top_center,
+     2,
+     8,
+     border_width=1,
+     frame_color=color.new(color.white, 82),
+     border_color=color.new(color.white, 88)
+)
+
+if barstate.islast and b6ShowEvidenceRows
+    table.clear(b6EvidencePanel, 0, 0, 1, 7)
+
+    table.cell(
+         b6EvidencePanel,
+         0,
+         0,
+         "APEX EVIDENCE",
+         text_color=color.white,
+         bgcolor=color.new(neutralColor, 35),
+         text_size=size.small
+    )
+
+    table.cell(
+         b6EvidencePanel,
+         1,
+         0,
+         "LIVE",
+         text_color=color.white,
+         bgcolor=color.new(neutralColor, 35),
+         text_size=size.small
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         1,
+         "Local trend",
+         f_trend_text(localTrend),
+         f_trend_colour(localTrend)
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         2,
+         "Setup trend",
+         f_trend_text(setupTrend),
+         f_trend_colour(setupTrend)
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         3,
+         "Macro trend",
+         f_trend_text(macroTrend),
+         f_trend_colour(macroTrend)
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         4,
+         "Relative volume",
+         str.tostring(relativeVolume, "#.##"),
+         color.white
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         5,
+         "RSI",
+         str.tostring(roleRsi, "#.0"),
+         color.white
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         6,
+         "Efficiency",
+         str.tostring(efficiency, "#.###"),
+         color.white
+    )
+
+    f_cell(
+         b6EvidencePanel,
+         7,
+         "Channel position",
+         str.tostring(channelPosition * 100.0, "#.0") + "%",
+         color.white
+    )
+
+if barstate.islast and not b6ShowEvidenceRows
+    table.clear(b6EvidencePanel, 0, 0, 1, 7)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.6 PROJECTED PRICE LABELS
+// ─────────────────────────────────────────────────────────────────────────────
+var label b6EntryLabel = na
+var label b6StopLabel = na
+var label b6Tp1Label = na
+var label b6Tp2Label = na
+var label b6Tp3Label = na
+
+if barstate.islast
+    label.delete(b6EntryLabel)
+    label.delete(b6StopLabel)
+    label.delete(b6Tp1Label)
+    label.delete(b6Tp2Label)
+    label.delete(b6Tp3Label)
+
+    if b6ShowProjectedLabels and b4SetupActive
+        b6EntryLabel := label.new(
+             x=bar_index + b5ProjectionBars,
+             y=b4SetupIdealEntry,
+             text="ENTRY " + f_b6_price(b4SetupIdealEntry),
+             style=label.style_label_left,
+             color=color.new(compressionColor, 15),
+             textcolor=color.white,
+             size=size.tiny
+        )
+
+        if b5StopValid
+            b6StopLabel := label.new(
+                 x=bar_index + b5ProjectionBars,
+                 y=b5StopPrice,
+                 text="SL " + f_b6_price(b5StopPrice),
+                 style=label.style_label_left,
+                 color=color.new(bearColor, 10),
+                 textcolor=color.white,
+                 size=size.tiny
+            )
+
+        if b5TargetValid
+            b6Tp1Label := label.new(
+                 x=bar_index + b5ProjectionBars,
+                 y=b5Tp1,
+                 text="TP1 " + f_b6_price(b5Tp1),
+                 style=label.style_label_left,
+                 color=color.new(bullColor, 10),
+                 textcolor=color.white,
+                 size=size.tiny
+            )
+
+            b6Tp2Label := label.new(
+                 x=bar_index + b5ProjectionBars,
+                 y=b5Tp2,
+                 text="TP2 " + f_b6_price(b5Tp2),
+                 style=label.style_label_left,
+                 color=color.new(bullColor, 25),
+                 textcolor=color.white,
+                 size=size.tiny
+            )
+
+            if b5RunnerAllowed
+                b6Tp3Label := label.new(
+                     x=bar_index + b5ProjectionBars,
+                     y=b5DisplayedTp3,
+                     text="TP3 " + f_b6_price(b5DisplayedTp3),
+                     style=label.style_label_left,
+                     color=color.new(bullColor, 40),
+                     textcolor=color.white,
+                     size=size.tiny
+                )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.7 SIGNAL BADGE
+// ─────────────────────────────────────────────────────────────────────────────
+var label b6SignalBadge = na
+
+if barstate.islast
+    label.delete(b6SignalBadge)
+
+    if b6ShowSignalBadge
+        string badgeText =
+             b6ExecutableNow ?
+             "APEX " + b6DirectionText + "\n" + b4SetupStrategy + "\nREADY" :
+             b6FutureSetup ?
+             "APEX " + b6DirectionText + "\n" + b4SetupStrategy + "\n" + b4LifecycleState :
+             b6ShowNoTradeReason ?
+             "APEX NO TRADE\n" + b6NoTradeReason :
+             ""
+
+        if badgeText != ""
+            float badgeY =
+                 b4SetupDirection == 1 ?
+                 low :
+                 b4SetupDirection == -1 ?
+                 high :
+                 close
+
+            b6SignalBadge := label.new(
+                 x=bar_index,
+                 y=badgeY,
+                 text=badgeText,
+                 style=b4SetupDirection == 1 ?
+                 label.style_label_up :
+                 b4SetupDirection == -1 ?
+                 label.style_label_down :
+                 label.style_label_left,
+                 color=color.new(b6PrimaryColour, 10),
+                 textcolor=color.white,
+                 size=size.small
+            )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B6.8 VISUAL FADING FOR INACTIVE SETUPS
+// ─────────────────────────────────────────────────────────────────────────────
+bool b6InactivePlan =
+     b4SetupInvalidated or
+     b4SetupExpired or
+     not b5GeometryValid
+
+color b6GeometryFadeColour =
+     b6InactivePlan and b6FadeInactiveGeometry ?
+     color.new(neutralColor, 70) :
+     na
+
+plot(
+     b6InactivePlan and b6FadeInactiveGeometry and b4SetupActive ?
+     b4SetupIdealEntry :
+     na,
+     "Inactive Setup Reference",
+     color=b6GeometryFadeColour,
+     linewidth=1,
+     style=plot.style_linebr
+)
+
+// ============================================================================
+// END OF BATCH 6 APPEND BLOCK
+// ============================================================================
+
+
+// ============================================================================
+// APEX PRECISION TRADER — BATCH 7 APPEND BLOCK
+// ALERTS, VALIDATION HOOKS, AND FINAL RUNTIME STATES
+// Paste this complete block at the END of the file after Batch 6.
+// Do not delete or replace earlier batches.
+// ============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.1 INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+groupB7Alerts = "Batch 7 — Alerts & Validation"
+
+b7EnableReadyAlerts = input.bool(
+     true,
+     "Enable ready alerts",
+     group=groupB7Alerts
+)
+
+b7EnableFutureAlerts = input.bool(
+     true,
+     "Enable approaching / future alerts",
+     group=groupB7Alerts
+)
+
+b7EnableInvalidationAlerts = input.bool(
+     true,
+     "Enable invalidation alerts",
+     group=groupB7Alerts
+)
+
+b7EnableOutcomeAlerts = input.bool(
+     true,
+     "Enable TP / SL alerts",
+     group=groupB7Alerts
+)
+
+b7ShowValidationPanel = input.bool(
+     false,
+     "Show validation panel",
+     group=groupB7Alerts
+)
+
+b7RequireStateChangeForAlert = input.bool(
+     true,
+     "Alert only on state change",
+     group=groupB7Alerts
+)
+
+b7EnableHistoricalMarkers = input.bool(
+     true,
+     "Show historical signal markers",
+     group=groupB7Alerts
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.2 STATE TRANSITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+string b7CurrentState =
+     b6ExecutableNow ? "EXECUTABLE" :
+     b6FutureSetup ? "FUTURE" :
+     b4SetupMissed ? "MISSED" :
+     b4SetupInvalidated ? "INVALIDATED" :
+     b4SetupExpired ? "EXPIRED" :
+     "NO_TRADE"
+
+string b7PreviousState = nz(b7CurrentState[1], "NO_TRADE")
+
+bool b7StateChanged =
+     b7CurrentState != b7PreviousState
+
+bool b7AlertGate =
+     not b7RequireStateChangeForAlert or
+     b7StateChanged
+
+bool b7NewExecutableLong =
+     b7EnableReadyAlerts and
+     b7AlertGate and
+     b6ExecutableNow and
+     b4SetupDirection == 1 and
+     barstate.isconfirmed
+
+bool b7NewExecutableShort =
+     b7EnableReadyAlerts and
+     b7AlertGate and
+     b6ExecutableNow and
+     b4SetupDirection == -1 and
+     barstate.isconfirmed
+
+bool b7NewFutureLong =
+     b7EnableFutureAlerts and
+     b7AlertGate and
+     b6FutureSetup and
+     b4SetupDirection == 1 and
+     barstate.isconfirmed
+
+bool b7NewFutureShort =
+     b7EnableFutureAlerts and
+     b7AlertGate and
+     b6FutureSetup and
+     b4SetupDirection == -1 and
+     barstate.isconfirmed
+
+bool b7NewInvalidation =
+     b7EnableInvalidationAlerts and
+     b7AlertGate and
+     b4SetupInvalidated and
+     barstate.isconfirmed
+
+bool b7NewExpiry =
+     b7EnableInvalidationAlerts and
+     b7AlertGate and
+     b4SetupExpired and
+     barstate.isconfirmed
+
+bool b7NewMissedEntry =
+     b7EnableFutureAlerts and
+     b7AlertGate and
+     b4SetupMissed and
+     barstate.isconfirmed
+
+bool b7NewReentry =
+     b7EnableReadyAlerts and
+     b7AlertGate and
+     b4LifecycleState == "REENTRY AVAILABLE" and
+     barstate.isconfirmed
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.3 OUTCOME TRACKING
+// Tracks only the currently active persistent setup.
+// ─────────────────────────────────────────────────────────────────────────────
+var bool b7OutcomeTrackingActive = false
+var bool b7Tp1Hit = false
+var bool b7Tp2Hit = false
+var bool b7Tp3Hit = false
+var bool b7StopHit = false
+var int b7OutcomeSetupCreatedBar = na
+
+bool b7NewTrackedSetup =
+     b4SetupActive and
+     b5GeometryValid and
+     (
+         na(b7OutcomeSetupCreatedBar) or
+         b7OutcomeSetupCreatedBar != b4SetupCreatedBar
+     )
+
+if b7NewTrackedSetup
+    b7OutcomeTrackingActive := true
+    b7Tp1Hit := false
+    b7Tp2Hit := false
+    b7Tp3Hit := false
+    b7StopHit := false
+    b7OutcomeSetupCreatedBar := b4SetupCreatedBar
+
+bool b7LongTp1Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == 1 and
+     high >= b5Tp1
+
+bool b7LongTp2Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == 1 and
+     high >= b5Tp2
+
+bool b7LongTp3Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == 1 and
+     b5RunnerAllowed and
+     high >= b5DisplayedTp3
+
+bool b7LongStopTouch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == 1 and
+     low <= b5StopPrice
+
+bool b7ShortTp1Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == -1 and
+     low <= b5Tp1
+
+bool b7ShortTp2Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == -1 and
+     low <= b5Tp2
+
+bool b7ShortTp3Touch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == -1 and
+     b5RunnerAllowed and
+     low <= b5DisplayedTp3
+
+bool b7ShortStopTouch =
+     b7OutcomeTrackingActive and
+     b4SetupDirection == -1 and
+     high >= b5StopPrice
+
+bool b7Tp1Touch =
+     b7LongTp1Touch or
+     b7ShortTp1Touch
+
+bool b7Tp2Touch =
+     b7LongTp2Touch or
+     b7ShortTp2Touch
+
+bool b7Tp3Touch =
+     b7LongTp3Touch or
+     b7ShortTp3Touch
+
+bool b7StopTouch =
+     b7LongStopTouch or
+     b7ShortStopTouch
+
+// Conservative same-bar ordering:
+// if stop and target are both touched on the same candle, stop wins.
+if b7OutcomeTrackingActive and not b7StopHit
+    if b7StopTouch
+        b7StopHit := true
+        b7OutcomeTrackingActive := false
+    else
+        if b7Tp1Touch
+            b7Tp1Hit := true
+
+        if b7Tp2Touch
+            b7Tp2Hit := true
+
+        if b7Tp3Touch
+            b7Tp3Hit := true
+            b7OutcomeTrackingActive := false
+
+bool b7NewTp1Hit =
+     b7EnableOutcomeAlerts and
+     b7Tp1Hit and
+     not b7Tp1Hit[1] and
+     barstate.isconfirmed
+
+bool b7NewTp2Hit =
+     b7EnableOutcomeAlerts and
+     b7Tp2Hit and
+     not b7Tp2Hit[1] and
+     barstate.isconfirmed
+
+bool b7NewTp3Hit =
+     b7EnableOutcomeAlerts and
+     b7Tp3Hit and
+     not b7Tp3Hit[1] and
+     barstate.isconfirmed
+
+bool b7NewStopHit =
+     b7EnableOutcomeAlerts and
+     b7StopHit and
+     not b7StopHit[1] and
+     barstate.isconfirmed
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.4 HISTORICAL MARKERS
+// ─────────────────────────────────────────────────────────────────────────────
+plotshape(
+     b7EnableHistoricalMarkers and b7NewExecutableLong,
+     title="APEX Long Ready",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=bullColor,
+     size=size.small,
+     text="APEX L"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewExecutableShort,
+     title="APEX Short Ready",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=bearColor,
+     size=size.small,
+     text="APEX S"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewFutureLong,
+     title="APEX Future Long",
+     style=shape.circle,
+     location=location.belowbar,
+     color=color.new(transitionColor, 10),
+     size=size.tiny,
+     text="FL"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewFutureShort,
+     title="APEX Future Short",
+     style=shape.circle,
+     location=location.abovebar,
+     color=color.new(transitionColor, 10),
+     size=size.tiny,
+     text="FS"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewInvalidation,
+     title="APEX Invalidated",
+     style=shape.xcross,
+     location=location.abovebar,
+     color=neutralColor,
+     size=size.tiny,
+     text="X"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewMissedEntry,
+     title="APEX Missed Entry",
+     style=shape.square,
+     location=location.abovebar,
+     color=compressionColor,
+     size=size.tiny,
+     text="MISS"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewTp1Hit,
+     title="APEX TP1 Hit",
+     style=shape.circle,
+     location=location.abovebar,
+     color=bullColor,
+     size=size.tiny,
+     text="TP1"
+)
+
+plotshape(
+     b7EnableHistoricalMarkers and b7NewStopHit,
+     title="APEX Stop Hit",
+     style=shape.xcross,
+     location=location.belowbar,
+     color=bearColor,
+     size=size.tiny,
+     text="SL"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.5 ALERT CONDITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+alertcondition(
+     b7NewExecutableLong,
+     "APEX LONG READY",
+     "APEX LONG READY | {{ticker}} | TF {{interval}} | Closed-candle confirmed"
+)
+
+alertcondition(
+     b7NewExecutableShort,
+     "APEX SHORT READY",
+     "APEX SHORT READY | {{ticker}} | TF {{interval}} | Closed-candle confirmed"
+)
+
+alertcondition(
+     b7NewFutureLong,
+     "APEX FUTURE LONG",
+     "APEX FUTURE LONG | {{ticker}} | TF {{interval}} | Entry not ready"
+)
+
+alertcondition(
+     b7NewFutureShort,
+     "APEX FUTURE SHORT",
+     "APEX FUTURE SHORT | {{ticker}} | TF {{interval}} | Entry not ready"
+)
+
+alertcondition(
+     b7NewReentry,
+     "APEX REENTRY AVAILABLE",
+     "APEX REENTRY AVAILABLE | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewMissedEntry,
+     "APEX ENTRY MISSED",
+     "APEX ENTRY MISSED | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewInvalidation,
+     "APEX SETUP INVALIDATED",
+     "APEX SETUP INVALIDATED | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewExpiry,
+     "APEX SETUP EXPIRED",
+     "APEX SETUP EXPIRED | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewTp1Hit,
+     "APEX TP1 HIT",
+     "APEX TP1 HIT | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewTp2Hit,
+     "APEX TP2 HIT",
+     "APEX TP2 HIT | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewTp3Hit,
+     "APEX TP3 HIT",
+     "APEX TP3 HIT | {{ticker}} | TF {{interval}}"
+)
+
+alertcondition(
+     b7NewStopHit,
+     "APEX STOP HIT",
+     "APEX STOP HIT | {{ticker}} | TF {{interval}}"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.6 VALIDATION FLAGS
+// These are runtime consistency checks, not trading signals.
+// ─────────────────────────────────────────────────────────────────────────────
+bool b7EntryRangeValid =
+     not b4SetupActive or
+     (
+         not na(b4SetupEntryLow) and
+         not na(b4SetupEntryHigh) and
+         b4SetupEntryLow <= b4SetupEntryHigh
+     )
+
+bool b7StopCorrectSide =
+     not b4SetupActive or
+     (
+         b4SetupDirection == 1 ?
+         b5StopPrice < b4SetupIdealEntry :
+         b4SetupDirection == -1 ?
+         b5StopPrice > b4SetupIdealEntry :
+         true
+     )
+
+bool b7Tp1CorrectSideCheck =
+     not b4SetupActive or
+     (
+         b4SetupDirection == 1 ?
+         b5Tp1 > b4SetupIdealEntry :
+         b4SetupDirection == -1 ?
+         b5Tp1 < b4SetupIdealEntry :
+         true
+     )
+
+bool b7NoCriticalConflictExecutable =
+     not b6ExecutableNow or
+     b4SetupConflict < 4
+
+bool b7ClosedBarExecutable =
+     not b6ExecutableNow or
+     barstate.isconfirmed
+
+bool b7ValidationPassed =
+     b7EntryRangeValid and
+     b7StopCorrectSide and
+     b7Tp1CorrectSideCheck and
+     b7NoCriticalConflictExecutable and
+     b7ClosedBarExecutable
+
+string b7ValidationState =
+     b7ValidationPassed ? "PASS" :
+     not b7EntryRangeValid ? "ENTRY RANGE ERROR" :
+     not b7StopCorrectSide ? "STOP SIDE ERROR" :
+     not b7Tp1CorrectSideCheck ? "TP SIDE ERROR" :
+     not b7NoCriticalConflictExecutable ? "HTF CONFLICT ERROR" :
+     not b7ClosedBarExecutable ? "OPEN BAR ERROR" :
+     "UNKNOWN ERROR"
+
+color b7ValidationColour =
+     b7ValidationPassed ?
+     bullColor :
+     bearColor
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B7.7 VALIDATION PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+var table b7ValidationPanel = table.new(
+     position.bottom_center,
+     2,
+     8,
+     border_width=1,
+     frame_color=color.new(color.white, 82),
+     border_color=color.new(color.white, 88)
+)
+
+if barstate.islast and b7ShowValidationPanel
+    table.clear(b7ValidationPanel, 0, 0, 1, 7)
+
+    table.cell(
+         b7ValidationPanel,
+         0,
+         0,
+         "APEX VALIDATION",
+         text_color=color.white,
+         bgcolor=color.new(b7ValidationColour, 30),
+         text_size=size.small
+    )
+
+    table.cell(
+         b7ValidationPanel,
+         1,
+         0,
+         b7ValidationState,
+         text_color=color.white,
+         bgcolor=color.new(b7ValidationColour, 30),
+         text_size=size.small
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         1,
+         "Entry range",
+         b7EntryRangeValid ? "PASS" : "FAIL",
+         b7EntryRangeValid ? bullColor : bearColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         2,
+         "Stop side",
+         b7StopCorrectSide ? "PASS" : "FAIL",
+         b7StopCorrectSide ? bullColor : bearColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         3,
+         "TP1 side",
+         b7Tp1CorrectSideCheck ? "PASS" : "FAIL",
+         b7Tp1CorrectSideCheck ? bullColor : bearColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         4,
+         "Critical HTF",
+         b7NoCriticalConflictExecutable ? "PASS" : "FAIL",
+         b7NoCriticalConflictExecutable ? bullColor : bearColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         5,
+         "Closed bar",
+         b7ClosedBarExecutable ? "PASS" : "FAIL",
+         b7ClosedBarExecutable ? bullColor : bearColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         6,
+         "Tracked TP1",
+         b7Tp1Hit ? "HIT" : "PENDING",
+         b7Tp1Hit ? bullColor : neutralColor
+    )
+
+    f_cell(
+         b7ValidationPanel,
+         7,
+         "Tracked stop",
+         b7StopHit ? "HIT" : "PENDING",
+         b7StopHit ? bearColor : neutralColor
+    )
+
+if barstate.islast and not b7ShowValidationPanel
+    table.clear(b7ValidationPanel, 0, 0, 1, 7)
+
+// ============================================================================
+// END OF BATCH 7 APPEND BLOCK
+// ============================================================================

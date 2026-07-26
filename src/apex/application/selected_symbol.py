@@ -34,6 +34,7 @@ def analyze_selected_symbol(
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     futures_evidence_enabled: bool = True,
+    previous_market_regime: str | None = None,
 ) -> SymbolAnalysis:
     """Normalize a user-entered symbol and run the shared discovery pipeline."""
 
@@ -52,6 +53,8 @@ def analyze_selected_symbol(
         "market_environment_config": market_environment_config,
         "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }
+    if previous_market_regime is not None:
+        kwargs["previous_market_regime"] = previous_market_regime
     if timeframe_indicator_profiles is not None:
         kwargs["timeframe_indicator_profiles"] = timeframe_indicator_profiles
     if not futures_evidence_enabled:

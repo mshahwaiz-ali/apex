@@ -5,7 +5,10 @@ from apex.application.discovery_analysis import (
     _shared_structure_map_payload,
     _timeframe_alignment_payload,
 )
-from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
+from apex.application.methodology_identity import (
+    METHODOLOGY_AUTHORITY_PATH,
+    METHODOLOGY_VERSION,
+)
 
 
 def test_analysis_records_include_stable_methodology_identity() -> None:
@@ -18,7 +21,8 @@ def test_analysis_records_include_stable_methodology_identity() -> None:
     )
 
     assert record["methodology_version"] == METHODOLOGY_VERSION
-    assert record["methodology_path"] == METHODOLOGY_PATH
+    assert record["methodology_path"] == METHODOLOGY_AUTHORITY_PATH
+    assert record["methodology_identity"]["authority_path"] == METHODOLOGY_AUTHORITY_PATH
 
 
 def test_higher_timeframe_direct_opposition_is_explicit() -> None:

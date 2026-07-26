@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
+from statistics import median
 from typing import Any
 
 from apex.domain.futures_evidence import MarketEvidenceBundle
@@ -72,17 +73,26 @@ def build_market_intelligence(
     regimes: dict[str, str],
     *,
     benchmark_correlation: float | None = None,
+    previous_regime: str | None = None,
 ) -> dict[str, Any]:
     archetype = classify_coin_archetype(context, benchmark_correlation=benchmark_correlation)
     regime = assess_regime(context, regimes)
+    selected_regime = RegimeHysteresis().select(
+        previous_regime,
+        regime.state,
+        regime.probability,
+    )
     warning = assess_early_warning(context, context.market_evidence)
     return {
         "archetype": archetype.value,
         "regime": {
-            "state": regime.state,
+            "state": selected_regime,
+            "raw_state": regime.state,
             "probability": regime.probability,
             "persistence": regime.persistence,
             "transition_watch": regime.transition_watch,
+            "previous_state": previous_regime,
+            "hysteresis_applied": selected_regime != regime.state,
         },
         "early_warning": {
             "state": warning.state.value,
@@ -99,9 +109,6 @@ def build_market_intelligence(
 def classify_coin_archetype(
     context: StrategyContext, *, benchmark_correlation: float | None = None
 ) -> CoinArchetype:
-    base = context.symbol.upper().replace("/", "").replace("-", "").removesuffix("USDT")
-    if base in {"BTC", "ETH"}:
-        return CoinArchetype.MAJOR
     decision = context.decision_frame
     closed = tuple(candle for candle in decision.recent_candles if candle.is_closed)
     if len(closed) < 100:
@@ -109,6 +116,13 @@ def classify_coin_archetype(
     if benchmark_correlation is not None and abs(benchmark_correlation) < 0.20:
         return CoinArchetype.BENCHMARK_DECOUPLED
     lookback = closed[-min(24, len(closed)) :]
+    quote_volumes = tuple(
+        candle.quote_volume
+        for candle in lookback
+        if candle.quote_volume is not None and math.isfinite(candle.quote_volume)
+    )
+    if quote_volumes and median(quote_volumes) >= 100_000_000.0:
+        return CoinArchetype.MAJOR
     move = abs(lookback[-1].close / lookback[0].open - 1.0)
     relative_volume = decision.features.relative_volume or 0.0
     if move >= 0.06 or relative_volume >= 1.8:

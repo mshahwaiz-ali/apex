@@ -25,7 +25,11 @@ from apex.application.methodology_evidence_aggregation import (
     aggregate_evidence_families,
     evidence_family_aggregate_payload,
 )
-from apex.application.methodology_identity import METHODOLOGY_PATH, METHODOLOGY_VERSION
+from apex.application.methodology_identity import (
+    METHODOLOGY_AUTHORITY_PATH,
+    METHODOLOGY_VERSION,
+    methodology_identity_payload,
+)
 from apex.application.methodology_management_contracts import (
     ManagementActionType,
     ManagementStep,
@@ -161,7 +165,8 @@ def methodology_snapshot_payload(snapshot: MethodologySnapshot) -> dict[str, Any
     return {
         "direction": None if snapshot.direction is None else snapshot.direction.value,
         "methodology_version": METHODOLOGY_VERSION,
-        "methodology_path": METHODOLOGY_PATH,
+        "methodology_path": METHODOLOGY_AUTHORITY_PATH,
+        "methodology_identity": methodology_identity_payload(),
         "market_usability": (
             None
             if snapshot.market_usability is None

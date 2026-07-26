@@ -16,6 +16,7 @@ from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
 from apex.application.methodology_identity import METHODOLOGY_VERSION
 from apex.application.methodology_snapshot import MethodologySnapshot
+from apex.application.quality_contracts import CanonicalMarketSnapshot, MarketBehaviorProfile
 from apex.domain.decision_volatility import DecisionVolatilityProfile
 from apex.domain.methodology_contracts import (
     LayeredStateSnapshot,
@@ -451,6 +452,8 @@ class SymbolAnalysis:
     historical_edge: Mapping[str, Any] | None = None
     outcome_candles: tuple[Candle, ...] = ()
     opportunity_portfolio: SymbolOpportunityPortfolio | None = None
+    market_snapshot: CanonicalMarketSnapshot | None = None
+    market_profile: MarketBehaviorProfile | None = None
 
 
 @dataclass(frozen=True, slots=True)

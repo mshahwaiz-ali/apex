@@ -1810,7 +1810,7 @@ def _hash_json(payload: object) -> str:
 
 
 def _slipped_entry(signal: BacktestSignal, config: BacktestConfig) -> float:
-    slippage = signal.entry_price * config.slippage_pct / 100.0
+    slippage = signal.entry_price * config.effective_entry_slippage_pct / 100.0
     return (
         signal.entry_price + slippage
         if signal.direction is TradeDirection.LONG
@@ -1819,7 +1819,7 @@ def _slipped_entry(signal: BacktestSignal, config: BacktestConfig) -> float:
 
 
 def _slipped_exit(signal: BacktestSignal, price: float, config: BacktestConfig) -> float:
-    slippage = price * config.slippage_pct / 100.0
+    slippage = price * config.effective_exit_slippage_pct / 100.0
     return price - slippage if signal.direction is TradeDirection.LONG else price + slippage
 
 
@@ -1869,7 +1869,13 @@ def _trade_from_components(
     *,
     partial_target_count: int = 0,
 ) -> SimulatedTrade:
-    fees = (entry * signal.quantity + exit_fee_notional) * config.fee_pct / 100.0
+    entry_fee = (
+        entry * signal.quantity * config.effective_entry_fee_pct / 100.0
+    )
+    exit_fee = (
+        exit_fee_notional * config.effective_exit_fee_pct / 100.0
+    )
+    fees = entry_fee + exit_fee
     funding = entry * signal.quantity * config.funding_pct / 100.0
     net = gross - fees - funding
     output_metadata: dict[str, str | int | float | bool] = (
@@ -1914,8 +1920,12 @@ def _trade_from_components(
         quantity=signal.quantity,
     )
 
-    planned_entry_fee = modeled_entry * signal.quantity * config.fee_pct / 100.0
-    planned_stop_exit_fee = modeled_stop_exit * signal.quantity * config.fee_pct / 100.0
+    planned_entry_fee = (
+        modeled_entry * signal.quantity * config.effective_entry_fee_pct / 100.0
+    )
+    planned_stop_exit_fee = (
+        modeled_stop_exit * signal.quantity * config.effective_exit_fee_pct / 100.0
+    )
     modeled_slippage_loss = max(
         0.0,
         planned_stop_gross_pnl - modeled_stop_gross_pnl,
@@ -1949,6 +1959,15 @@ def _trade_from_components(
     output_metadata.setdefault("modeled_stop_fill_price", modeled_stop_exit)
     output_metadata.setdefault("configured_fee_pct", config.fee_pct)
     output_metadata.setdefault("configured_slippage_pct", config.slippage_pct)
+    output_metadata.setdefault("configured_entry_fee_pct", config.effective_entry_fee_pct)
+    output_metadata.setdefault("configured_exit_fee_pct", config.effective_exit_fee_pct)
+    output_metadata.setdefault(
+        "configured_entry_slippage_pct", config.effective_entry_slippage_pct
+    )
+    output_metadata.setdefault(
+        "configured_exit_slippage_pct", config.effective_exit_slippage_pct
+    )
+    output_metadata.setdefault("configured_cost_profile", config.cost_profile)
     output_metadata.setdefault("configured_funding_pct", config.funding_pct)
 
     return SimulatedTrade(

@@ -22,6 +22,11 @@ from apex.research.campaign import (
     latest_complete_utc_months,
     write_manifest,
 )
+from apex.research.experiment import (
+    default_experiment_manifest,
+    load_experiment_manifest,
+    write_experiment_manifest,
+)
 from apex.research.training import train_campaign_models
 
 
@@ -47,6 +52,15 @@ def register_research_commands(app: typer.Typer) -> None:
         ] = Path("data/research/binance_um"),
         download_missing: Annotated[bool, typer.Option("--download-missing")] = False,
         train_model: Annotated[bool, typer.Option("--train-model")] = False,
+        experiment_spec: Annotated[
+            Path | None,
+            typer.Option(
+                "--experiment-spec",
+                exists=True,
+                dir_okay=False,
+                help="Optional versioned walk-forward experiment manifest.",
+            ),
+        ] = None,
         report_file: Annotated[
             Path | None,
             typer.Option(
@@ -79,6 +93,7 @@ def register_research_commands(app: typer.Typer) -> None:
             end=end,
             download_missing=download_missing,
             train_model=train_model,
+            experiment_spec=experiment_spec,
         )
         if report_file is not None:
             report_file.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +117,7 @@ def _run_public_data_campaign(
     end: str | None,
     download_missing: bool,
     train_model: bool,
+    experiment_spec: Path | None = None,
 ) -> dict[str, Any]:
     months = latest_complete_utc_months(datetime.now(UTC), 24)
     if start is not None:
@@ -169,8 +185,19 @@ def _run_public_data_campaign(
     write_manifest(manifest_path, manifest)
     training_result = train_campaign_models(dataset_dir) if train_model else None
     unique_symbols = sorted({symbol for values in universe.values() for symbol in values})
+    experiment = (
+        load_experiment_manifest(experiment_spec)
+        if experiment_spec is not None
+        else default_experiment_manifest(
+            dataset_fingerprint=manifest.checksum,
+            symbols=tuple(unique_symbols),
+        )
+    )
+    experiment_path = dataset_dir / "experiment_manifest.json"
+    write_experiment_manifest(experiment_path, experiment)
     return {
-        "schema_version": 1,
+        "schema_version": 6,
+        "legacy_schema_version": 1,
         "campaign": True,
         "months": list(months),
         "date_range": {"start": months[0], "end": months[-1]},
@@ -187,14 +214,21 @@ def _run_public_data_campaign(
         "manifest": str(manifest_path),
         "manifest_hash": manifest.checksum,
         "manifest_schema_version": manifest.schema_version,
+        "evaluation_manifest": experiment.as_payload(),
+        "evaluation_manifest_path": str(experiment_path),
         "train_model_requested": train_model,
         "model_training": training_result if train_model else "not requested",
         "artifacts": {
             "dataset_dir": str(dataset_dir),
             "universe": str(universe_path),
             "manifest": str(manifest_path),
+            "experiment_manifest": str(experiment_path),
         },
         "calibration_authoritative": False,
+        "metric_authority": {
+            "calibration": "non_authoritative_until_untouched_outcomes",
+            "promotion": "research_only",
+        },
     }
 
 
