@@ -18,15 +18,18 @@ from apex.cli_commands.backtesting import (
     _anchor_displaced_bars,
     _calibration_record,
     _diagnostic_report_metrics,
+    _evaluation_outcome_rows,
     _jsonable,
     _parse_as_of,
     _report_metrics,
     _shadow_replay_signals,
+    _sorted_replay_signals,
     _stop_breach_metrics,
     _sweep_reclaim_metrics,
     _thesis_metrics,
     _unique_geometry_population,
 )
+from apex.domain.futures_evidence import FundingRateSnapshot
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
@@ -108,6 +111,82 @@ def test_trade_records_excursions_and_funding_drag() -> None:
     assert trade.metadata["maximum_adverse_excursion_r"] == pytest.approx(0.5)
     assert trade.metadata["actual_funding"] == pytest.approx(0.1)
     assert trade.net_pnl == pytest.approx(3.9)
+
+
+def test_trade_applies_historical_funding_events_only_after_entry() -> None:
+    trade = simulate_trade(
+        _signal(),
+        (
+            _candle(1, low=99.0, high=102.0, close=101.0),
+            _candle(2, low=100.0, high=104.5, close=104.0),
+        ),
+        config=BacktestConfig(fee_pct=0.0, slippage_pct=0.0),
+        funding_events=(
+            FundingRateSnapshot(
+                "BTCUSDT",
+                0.05,
+                datetime(2026, 1, 1, 0, 5, tzinfo=UTC),
+                "fixture",
+            ),
+            FundingRateSnapshot(
+                "BTCUSDT",
+                0.001,
+                datetime(2026, 1, 1, 0, 15, tzinfo=UTC),
+                "fixture",
+            ),
+        ),
+    )
+
+    assert trade.metadata["historical_funding_event_count"] == 1
+    assert trade.metadata["historical_event_funding"] == pytest.approx(0.1)
+    assert trade.metadata["manual_funding_stress"] == 0.0
+    assert trade.net_pnl == pytest.approx(3.9)
+
+
+def test_backtest_evaluation_rows_do_not_promote_rule_scores_to_probabilities() -> None:
+    rows = _evaluation_outcome_rows(
+        {
+            "configuration_id": "settings",
+            "study": {"config_hash": "costs"},
+            "symbol": "BTCUSDT",
+            "replay_timeframe": "5m",
+            "calibration_records": [
+                {
+                    "decision_time": "2026-01-01T00:00:00+00:00",
+                    "market_profile": {"cohort": "directional"},
+                }
+            ],
+            "trades": [
+                {
+                    "decision_time": "2026-01-01T00:00:00+00:00",
+                    "realized_r_multiple": 0.5,
+                    "metadata": {"entry_filled": True},
+                    "signal": {
+                        "strategy": "trend_pullback",
+                        "confidence_score": 85.0,
+                    },
+                }
+            ],
+        }
+    )
+
+    assert rows[0]["configuration_id"] == "settings:costs"
+    assert rows[0]["cohort"] == "directional"
+    assert rows[0]["probability"] is None
+    assert rows[0]["probability_authority"] == ("unavailable_rule_score_is_not_a_probability")
+
+
+def test_replay_signal_batch_is_sorted_and_exact_duplicates_are_suppressed() -> None:
+    first = _signal()
+    second = replace(
+        first,
+        generated_at=first.generated_at + timedelta(hours=1),
+        candidate_id="later",
+    )
+
+    result = _sorted_replay_signals([second, first, first])
+
+    assert result == (first, second)
 
 
 def test_price_touch_conditional_replay_can_activate_and_fill_same_candle() -> None:

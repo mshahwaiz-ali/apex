@@ -302,6 +302,9 @@ class BinanceMarketDataProvider:
             )
             if notional_value is None:
                 raise KeyError("minNotional")
+            symbol_payload = symbols[0]
+            status_value = str(symbol_payload.get("status", "")).strip().upper()
+            onboard_value = symbol_payload.get("onboardDate")
             return ExchangeFilterSnapshot(
                 symbol=symbol.upper(),
                 tick_size=float(price_filter["tickSize"]),
@@ -310,6 +313,12 @@ class BinanceMarketDataProvider:
                 min_notional=float(notional_value),
                 captured_at=datetime.now(UTC),
                 source=self.name,
+                contract_status=status_value or None,
+                onboarded_at=(
+                    self._milliseconds_to_datetime(onboard_value)
+                    if onboard_value is not None and int(onboard_value) > 0
+                    else None
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ProviderResponseError(

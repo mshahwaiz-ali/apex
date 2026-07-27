@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 import typer
 
 from apex.application import (
+    RegimeHistoryStore,
     bootstrap,
     build_analysis_record,
     configuration_metadata,
     create_market_data_services,
     reconcile_pending_opportunities_sqlite,
+    regime_observation_from_analysis,
     scan_symbols,
     select_futures_scan_symbols,
     serialize_futures_screening,
@@ -129,6 +132,9 @@ def register_scanner_commands(app: typer.Typer) -> None:
             with cli_progress() as progress:
                 progress.update("Loading configuration…")
                 context = bootstrap(config_dir)
+                scan_time = datetime.now(UTC)
+                regime_history_path = context.settings.data_dir / "reports" / "regime_history.json"
+                regime_history = RegimeHistoryStore(regime_history_path)
                 selection = None
                 with create_market_data_services(context.settings) as services:
                     if normalized_symbol is None:
@@ -159,6 +165,17 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         selected_symbols = (normalized_symbol,)
 
                     progress.update("Analyzing selected symbols…")
+                    previous_regimes = {
+                        selected_symbol.upper(): previous
+                        for selected_symbol in selected_symbols
+                        if (
+                            previous := regime_history.previous_state(
+                                selected_symbol,
+                                before=scan_time,
+                            )
+                        )
+                        is not None
+                    }
                     result = scan_symbols(
                         selected_symbols,
                         services.candles,
@@ -173,6 +190,7 @@ def register_scanner_commands(app: typer.Typer) -> None:
                             context.settings, "timeframe_indicator_profiles", None
                         ),
                         candle_limit=candle_limit,
+                        generated_at=scan_time,
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
                         methodology_gate_mode=context.settings.methodology_gate_mode,
                         methodology_settings=context.settings.methodology,
@@ -186,7 +204,18 @@ def register_scanner_commands(app: typer.Typer) -> None:
                         ),
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
+                        previous_market_regimes=previous_regimes,
                     )
+                persisted_regimes = 0
+                for analysis in result.analyses:
+                    regime_observation = regime_observation_from_analysis(
+                        symbol=analysis.symbol,
+                        observed_at=analysis.generated_at,
+                        market_intelligence=analysis.market_intelligence,
+                    )
+                    if regime_observation is not None:
+                        regime_history.append(regime_observation)
+                        persisted_regimes += 1
                 progress.update("Ranking retained opportunities…")
                 payload = _serialize_scan_payload(
                     result,
@@ -196,6 +225,12 @@ def register_scanner_commands(app: typer.Typer) -> None:
                 if selection is not None and selection.screening is not None:
                     payload["screening"] = serialize_futures_screening(selection.screening)
                 payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
+                payload["regime_history"] = {
+                    "schema_version": 1,
+                    "path": str(regime_history_path),
+                    "prior_state_count": len(previous_regimes),
+                    "persisted_observation_count": persisted_regimes,
+                }
                 outcome_db = context.settings.data_dir / "reports" / "analysis.db"
                 payload["outcome_tracking"] = {
                     "enabled": context.settings.outcome_tracking_enabled,

@@ -303,8 +303,12 @@ apex backtest BTCUSDT --decision-points 10
 # Anchor comparable runs to the same historical cutoff
 apex backtest BTCUSDT --as-of 2026-07-22T12:00:00Z
 
-# Model optional funding drag
+# Apply a labeled manual funding stress override
 apex backtest BTCUSDT --funding-pct 0.01
+
+# Apply verified historical funding events from a Binance monthly archive
+apex backtest BTCUSDT \
+  --funding-archive data/research/binance_um/fundingRate/BTCUSDT-fundingRate-2026-06.zip
 
 # Increase historical analysis depth
 apex backtest BTCUSDT --candles 400 --replay-candles 50
@@ -323,7 +327,8 @@ apex backtest BTCUSDT \
 | `--replay-timeframe TIMEFRAME` | `5m` | Candle stream used for historical outcome replay. |
 | `--replay-candles INTEGER` | `24` | Maximum replay candles retained after each decision. |
 | `--decision-points INTEGER` | `5` | Number of non-overlapping chronological decisions. |
-| `--funding-pct FLOAT` | `0.0` | Optional modeled funding drag. |
+| `--funding-pct FLOAT` | `0.0` | Optional manual funding stress override, reported separately from history. |
+| `--funding-archive FILE` | live history when available | Verified Binance monthly funding ZIP used for event-level holding-period costs. |
 | `--as-of TIMESTAMP` | none | Anchors the latest visible candle to a timezone-aware ISO-8601 cutoff. |
 | `--report-file PATH` | none | Writes the complete structured backtest payload to JSON. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
@@ -386,11 +391,15 @@ It can:
 
 - resolve a complete UTC month range;
 - use or build a point-in-time symbol universe;
-- download missing Binance public archives;
+- download monthly klines, funding, aggregate trades, mark/index/premium
+  lineages, and optional daily historical metrics;
 - verify downloaded files;
 - write a campaign manifest;
 - report missing files and reasons;
 - optionally train campaign models;
+- write a versioned experiment manifest;
+- evaluate canonical outcome files with purged walk-forward folds and an
+  untouched final test;
 - preserve a complete JSON report.
 
 This command does not claim strategy profitability.
@@ -409,6 +418,12 @@ apex research campaign
 
 # Build missing universe data and download missing archives
 apex research campaign --download-missing
+
+# Download point-in-time derivatives lineage and daily OI/ratio metrics
+apex research campaign \
+  --data-types fundingRate,markPriceKlines,indexPriceKlines,premiumIndexKlines \
+  --include-daily-metrics \
+  --download-missing
 
 # Restrict the campaign to a month range
 apex research campaign \
@@ -437,6 +452,12 @@ apex research campaign --output json
 apex research campaign \
   --download-missing \
   --report-file data/research/campaign_report.json
+
+# Evaluate predeclared outcome populations without changing runtime decisions
+apex research campaign \
+  --experiment-spec data/research/experiment.json \
+  --outcomes-file data/research/outcomes.jsonl \
+  --report-file data/research/evaluation_campaign.json
 ```
 
 ### Options
@@ -449,6 +470,10 @@ apex research campaign \
 | `--dataset-dir DIRECTORY` | `data/research/binance_um` | Dataset, universe, manifest, features, and model root. |
 | `--download-missing` | off | Builds missing universe data and downloads missing verified archives. |
 | `--train-model` | off | Requests campaign model training when required feature data exists. |
+| `--data-types TEXT` | `klines,fundingRate,aggTrades` | Comma-separated monthly archive families. |
+| `--include-daily-metrics` | off | Includes checksum-verified daily OI and ratio archives. |
+| `--experiment-spec FILE` | generated default | Uses a predeclared versioned experiment manifest. |
+| `--outcomes-file FILE` | none | Evaluates JSON/JSONL canonical and shadow outcome populations. |
 | `--report-file PATH` | none | Writes the complete structured campaign payload to JSON. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
 | `--config-dir DIRECTORY` | `config` | Loads another Apex configuration directory. |
@@ -470,6 +495,9 @@ The campaign renderer includes:
 - Downloads are checksum-verified.
 - Missing historical files remain explicit.
 - Missing OI or other unavailable evidence is never converted to zero.
+- Canonical decisions and shadow experiments remain separate populations.
+- Final-test promotion counts executed canonical outcomes, not no-trade rows.
+- PBO remains unavailable without multiple varying configuration-fold vectors.
 - Model authority remains withheld until all promotion gates pass.
 - `--report-file` preserves complete campaign details even when terminal output is concise.
 

@@ -24,6 +24,7 @@ from apex.backtesting.sweep_reclaim_adapter import (
 )
 from apex.domain.decision_features import decision_feature_snapshot
 from apex.domain.deep_failure_risk import deep_failure_shadow_metadata
+from apex.domain.futures_evidence import FundingRateSnapshot
 from apex.domain.models import Candle
 from apex.domain.volatility_risk import volatility_risk_shadow_metadata
 from apex.strategies import TradeDirection
@@ -48,6 +49,7 @@ def simulate_trade(
     candles: Sequence[Candle],
     *,
     config: BacktestConfig | None = None,
+    funding_events: Sequence[FundingRateSnapshot] = (),
     metadata: Mapping[str, str | int | float | bool] | None = None,
 ) -> SimulatedTrade:
     """Replay one signal over future candles without assuming profitable ambiguity."""
@@ -120,6 +122,12 @@ def simulate_trade(
     remaining_quantity = signal.quantity
     gross = 0.0
     exit_fee_notional = 0.0
+    event_funding = 0.0
+    applied_funding_events = 0
+    ordered_funding = tuple(sorted(funding_events, key=lambda item: item.funding_time))
+    if any(item.symbol.upper() != signal.symbol.upper() for item in ordered_funding):
+        raise ValueError("funding observations must match the simulated symbol")
+    funding_cursor = 0
     maximum_favorable_excursion_r = 0.0
     maximum_adverse_excursion_r = 0.0
     first_stop_touch_candle: int | None = None
@@ -231,9 +239,26 @@ def simulate_trade(
                     )
                 ),
             }
+            while (
+                funding_cursor < len(ordered_funding)
+                and ordered_funding[funding_cursor].funding_time <= candle.close_time
+            ):
+                funding_cursor += 1
         assert entry is not None
         assert entry_fill_index is not None
         assert holding_end_index is not None
+        while (
+            funding_cursor < len(ordered_funding)
+            and ordered_funding[funding_cursor].funding_time <= candle.close_time
+        ):
+            event = ordered_funding[funding_cursor]
+            event_funding += _funding_event_cost(
+                signal.direction,
+                notional=entry * remaining_quantity,
+                funding_rate=event.funding_rate,
+            )
+            applied_funding_events += 1
+            funding_cursor += 1
         favorable_r, adverse_r = _candle_excursions_r(signal, candle, entry)
         maximum_favorable_excursion_r = max(maximum_favorable_excursion_r, favorable_r)
         maximum_adverse_excursion_r = max(maximum_adverse_excursion_r, adverse_r)
@@ -282,6 +307,8 @@ def simulate_trade(
                 ),
                 exit_fee_notional + _slipped_exit(signal, stop, config) * remaining_quantity,
                 config,
+                event_funding=event_funding,
+                applied_funding_events=applied_funding_events,
                 metadata={
                     **runtime_metadata,
                     **_post_stop_thesis_metadata(
@@ -320,6 +347,8 @@ def simulate_trade(
                     gross,
                     exit_fee_notional,
                     config,
+                    event_funding=event_funding,
+                    applied_funding_events=applied_funding_events,
                     metadata={
                         **runtime_metadata,
                         "first_exit_event": "target",
@@ -345,6 +374,8 @@ def simulate_trade(
                 ),
                 exit_fee_notional + stop_exit * remaining_quantity,
                 config,
+                event_funding=event_funding,
+                applied_funding_events=applied_funding_events,
                 metadata={
                     **runtime_metadata,
                     "first_exit_event": "stop",
@@ -393,6 +424,8 @@ def simulate_trade(
         ),
         exit_fee_notional + final_exit * remaining_quantity,
         config,
+        event_funding=event_funding,
+        applied_funding_events=applied_funding_events,
         metadata={
             **_excursion_metadata(
                 metadata,
@@ -422,7 +455,14 @@ class HistoricalBacktestRunner:
             if not future:
                 skipped += 1
                 continue
-            trades.append(simulate_trade(signal, future, config=request.config))
+            trades.append(
+                simulate_trade(
+                    signal,
+                    future,
+                    config=request.config,
+                    funding_events=request.funding_by_symbol.get(signal.symbol, ()),
+                )
+            )
 
         report = summarize_trades(trades)
         report_metadata = dict(report.metadata)
@@ -1796,6 +1836,18 @@ def _dataset_hash(request: BacktestRequest) -> str:
             ]
             for symbol, candles in sorted(request.candles_by_symbol.items())
         },
+        "funding": {
+            symbol: [
+                {
+                    "funding_time": item.funding_time.isoformat(),
+                    "funding_rate": item.funding_rate,
+                    "funding_interval_hours": item.funding_interval_hours,
+                    "source": item.source,
+                }
+                for item in observations
+            ]
+            for symbol, observations in sorted(request.funding_by_symbol.items())
+        },
     }
     return _hash_json(payload)
 
@@ -1865,18 +1917,17 @@ def _trade_from_components(
     gross: float,
     exit_fee_notional: float,
     config: BacktestConfig,
+    event_funding: float = 0.0,
+    applied_funding_events: int = 0,
     metadata: Mapping[str, str | int | float | bool] | None = None,
     *,
     partial_target_count: int = 0,
 ) -> SimulatedTrade:
-    entry_fee = (
-        entry * signal.quantity * config.effective_entry_fee_pct / 100.0
-    )
-    exit_fee = (
-        exit_fee_notional * config.effective_exit_fee_pct / 100.0
-    )
+    entry_fee = entry * signal.quantity * config.effective_entry_fee_pct / 100.0
+    exit_fee = exit_fee_notional * config.effective_exit_fee_pct / 100.0
     fees = entry_fee + exit_fee
-    funding = entry * signal.quantity * config.funding_pct / 100.0
+    manual_funding_stress = entry * signal.quantity * config.funding_pct / 100.0
+    funding = event_funding + manual_funding_stress
     net = gross - fees - funding
     output_metadata: dict[str, str | int | float | bool] = (
         {} if metadata is None else dict(metadata)
@@ -1920,9 +1971,7 @@ def _trade_from_components(
         quantity=signal.quantity,
     )
 
-    planned_entry_fee = (
-        modeled_entry * signal.quantity * config.effective_entry_fee_pct / 100.0
-    )
+    planned_entry_fee = modeled_entry * signal.quantity * config.effective_entry_fee_pct / 100.0
     planned_stop_exit_fee = (
         modeled_stop_exit * signal.quantity * config.effective_exit_fee_pct / 100.0
     )
@@ -1951,6 +2000,13 @@ def _trade_from_components(
     output_metadata.setdefault("actual_simulated_fill_loss", max(0.0, -gross))
     output_metadata.setdefault("actual_fees", fees)
     output_metadata.setdefault("actual_funding", funding)
+    output_metadata.setdefault("historical_event_funding", event_funding)
+    output_metadata.setdefault("historical_funding_event_count", applied_funding_events)
+    output_metadata.setdefault("manual_funding_stress", manual_funding_stress)
+    output_metadata.setdefault(
+        "funding_price_authority",
+        "entry_fill_notional_approximation" if applied_funding_events else "not_applicable",
+    )
     output_metadata.setdefault("actual_net_loss", max(0.0, -net))
     output_metadata.setdefault("realized_r", net / signal.risk_amount)
     output_metadata.setdefault("planned_entry_price", planned_entry)
@@ -1961,12 +2017,8 @@ def _trade_from_components(
     output_metadata.setdefault("configured_slippage_pct", config.slippage_pct)
     output_metadata.setdefault("configured_entry_fee_pct", config.effective_entry_fee_pct)
     output_metadata.setdefault("configured_exit_fee_pct", config.effective_exit_fee_pct)
-    output_metadata.setdefault(
-        "configured_entry_slippage_pct", config.effective_entry_slippage_pct
-    )
-    output_metadata.setdefault(
-        "configured_exit_slippage_pct", config.effective_exit_slippage_pct
-    )
+    output_metadata.setdefault("configured_entry_slippage_pct", config.effective_entry_slippage_pct)
+    output_metadata.setdefault("configured_exit_slippage_pct", config.effective_exit_slippage_pct)
     output_metadata.setdefault("configured_cost_profile", config.cost_profile)
     output_metadata.setdefault("configured_funding_pct", config.funding_pct)
 
@@ -1982,6 +2034,17 @@ def _trade_from_components(
         holding_candles=holding_candles,
         metadata=output_metadata,
     )
+
+
+def _funding_event_cost(
+    direction: TradeDirection,
+    *,
+    notional: float,
+    funding_rate: float,
+) -> float:
+    """Return signed trader cost: positive is paid, negative is received."""
+
+    return notional * funding_rate * (1.0 if direction is TradeDirection.LONG else -1.0)
 
 
 def _gross_for_fill(

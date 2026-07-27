@@ -22,11 +22,14 @@ class FundingRateSnapshot:
     funding_rate: float
     funding_time: datetime
     source: str
+    funding_interval_hours: int | None = None
 
     def __post_init__(self) -> None:
         _validate(self.symbol, self.funding_time, self.source)
         if not math.isfinite(self.funding_rate):
             raise ValueError("funding rate must be finite")
+        if self.funding_interval_hours is not None and self.funding_interval_hours < 1:
+            raise ValueError("funding interval hours must be positive when provided")
 
 
 @dataclass(frozen=True, slots=True)

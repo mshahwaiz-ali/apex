@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from tests.unit.features.test_registry import make_candles
 
@@ -103,3 +105,30 @@ def test_active_candle_keeps_structure_relative_volume_aligned(monkeypatch) -> N
     assert len(analyzed_candles) == len(relative_volume) == len(candles) - 1
     assert all(candle.is_closed for candle in analyzed_candles)
     assert frame.active_candle is True
+
+
+def test_context_excludes_future_rows_and_reclassifies_race_close_as_active() -> None:
+    candles = make_candles(119)
+    decision_time = candles[-2].open_time + timedelta(
+        seconds=(candles[-2].close_time - candles[-2].open_time).total_seconds() / 2
+    )
+
+    frame, _ = _frame_from_candles(
+        "BTC/USDT",
+        "15m",
+        TimeframeRole.SETUP,
+        candles,
+        received_at=decision_time,
+        max_staleness_seconds=None,
+        ticker_price=None,
+        spread_percentage=None,
+        order_book_snapshot=None,
+        exchange_filter_snapshot=None,
+        mark_price=None,
+        index_price=None,
+    )
+
+    assert len(frame.recent_candles) == 118
+    assert frame.recent_candles[-1].open_time == candles[-2].open_time
+    assert frame.recent_candles[-1].is_closed is False
+    assert all(candle.open_time <= decision_time for candle in frame.recent_candles)

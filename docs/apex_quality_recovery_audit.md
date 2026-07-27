@@ -52,12 +52,14 @@ at each decision time. Public command names remain `scan`, `analyze`, `backtest`
 |---|---|---|
 | Market context | `discovery_context.py` | Builds role-aware closed-candle frames and explicit data quality |
 | Snapshot | `quality_contracts.py` | Adds immutable point-in-time lineage, evidence availability, precision, staleness, and costs |
+| Regime history | `regime_history.py` | Persists bounded per-symbol observations and retrieves only state strictly before a decision |
 | Strategy production | `strategies/analysis.py` and registry | Produces specialized candidates against one context |
 | Timeframe authority | `hierarchical_timeframe_routing.py` | Prevents execution frames from replacing higher-timeframe structure |
 | Geometry | methodology geometry modules | Validates entry, invalidation, cost room, targets, and chase |
 | Portfolio | `opportunity_portfolio.py` | Separates executable, conditional, developing, missed, and invalid states |
-| Replay | `historical_signal_replay.py` and backtesting engine | Freezes closed prefixes and applies conservative lifecycle simulation |
+| Replay | `historical_signal_replay.py` and backtesting engine | Freezes closed prefixes, applies conservative lifecycle simulation, and charges actual holding-period funding events when supplied |
 | Configuration | Pydantic settings and `configuration_identity.py` | Validates YAML, hashes the resolved snapshot, and exposes parameter provenance |
+| Research evaluation | `research/evaluation.py` | Selects on purged validation folds, unlocks one untouched final test, and keeps canonical/shadow populations separate |
 
 ## Source roles
 
@@ -75,14 +77,32 @@ not attribute uncovered later-book material to that file.
 
 - Historical candle replay cannot reconstruct unavailable derivatives evidence;
   candle-only decisions are explicitly degraded.
-- Actual historical funding is downloaded by research campaigns but is not yet
-  applied event-by-event by single-symbol replay.
+- Historical contract metadata is unavailable unless point-in-time
+  exchange-information snapshots were captured; current metadata is not
+  backfilled into old decisions.
+- Ratio-only public metrics do not provide raw taker volumes, so Apex does not
+  fabricate them.
 - Behavior cohorts and snapshot metadata are observe-only; they do not authorize
   trades.
-- PBO is unavailable until fold-level results from multiple tried
-  configurations exist.
+- PBO is unavailable until multiple tried configurations produce varying
+  fold-level comparison vectors.
 - Calibration remains non-authoritative until untouched, cost-aware outcomes are
   sufficiently populated.
+
+## Implemented evidence behavior
+
+- Live and replay context construction removes candles that close after the
+  decision time. A candle that crosses the decision boundary remains
+  provisional even if the provider marks it closed during a fetch race.
+- Snapshot quality rejects future closed data and unavailable contracts, and
+  degrades explicitly for active candles, staleness, alignment, or missing
+  precision/listing lineage.
+- Verified Binance public archives support funding, aggregate trades,
+  mark/index/premium klines, and daily OI/ratio metrics.
+- Funding events are applied after entry through exit against remaining
+  position quantity. Manual funding remains a separately labeled stress input.
+- File-backed regime history is explicit, bounded, atomic, and
+  point-in-time-safe; it is not hidden mutable model state.
 
 ## Evidence gates
 

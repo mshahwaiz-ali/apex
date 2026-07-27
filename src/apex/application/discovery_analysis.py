@@ -780,14 +780,10 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "market_intelligence": analysis.market_intelligence,
         "historical_edge": analysis.historical_edge,
         "snapshot_identity": (
-            None
-            if market_snapshot is None
-            else canonical_market_snapshot_payload(market_snapshot)
+            None if market_snapshot is None else canonical_market_snapshot_payload(market_snapshot)
         ),
         "market_profile": (
-            None
-            if market_profile is None
-            else market_behavior_profile_payload(market_profile)
+            None if market_profile is None else market_behavior_profile_payload(market_profile)
         ),
         "candidate_ranking": (
             candidate_ranking_payload(analysis.candidate_ranking)

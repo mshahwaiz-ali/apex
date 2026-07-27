@@ -163,6 +163,8 @@ Kyun:
 - chop
 - wick/noise behavior
 - maturity evidence where available
+- false-break frequency
+- execution-friction score
 - dynamic behavioral cohort
 
 Kyun:
@@ -196,9 +198,9 @@ Kyun:
 - marginal regime probability changes par repeated flip-flopping reduce karna;
 - live aur historical state contract ko explicit banana.
 
-Persistent cross-process live regime state abhi remaining work hai. Current live
-request mein prior state available na ho to output honest null state retain
-karta hai.
+File-backed `RegimeHistoryStore` ab per-symbol bounded history atomically
+persist karta hai. Lookup decision timestamp se strictly pehle ki observation
+use karta hai; hidden global mutable state use nahi hoti.
 
 ### 3.5 Resolved parameter provenance
 
@@ -227,7 +229,7 @@ Kyun:
 - value kahan se aayi aur kyun use ho rahi hai yeh inspectable banana;
 - future adaptive adjustment ko base value se separate rakhna.
 
-### 3.6 Experiment manifest
+### 3.6 Experiment manifest and walk-forward evaluator
 
 New file: `src/apex/research/experiment.py`
 
@@ -246,10 +248,16 @@ Manifest records:
 - attempted configuration count
 - cost profile
 - objective
+- exact attempted configuration IDs
+- declared strategy, timeframe, and geometry shadow matrix
+- fold count, bootstrap samples, drawdown budget, and minimum executed outcomes
 
 Research CLI mein new optional interface:
 
 - `apex research campaign --experiment-spec PATH`
+- `apex research campaign --outcomes-file PATH`
+- `apex research campaign --data-types TEXT`
+- `apex research campaign --include-daily-metrics`
 
 Campaign output:
 
@@ -258,6 +266,12 @@ Campaign output:
 - evaluation manifest payload
 - written `experiment_manifest.json`
 - metric-authority reasons
+- purged/embargoed expanding folds
+- validation-only configuration selection
+- one untouched final holdout
+- bootstrap lower bound, profit factor, drawdown, stability, and exclusion gates
+- reliability bins and Brier decomposition when genuine probabilities exist
+- canonical/shadow population isolation and matrix coverage
 
 Kyun:
 
@@ -295,9 +309,10 @@ Kyun:
 Observed spread ko cost mein include karne ka flag report hota hai. Cost
 components ko silently double-charge karne ka naya path add nahi kiya gaya.
 
-Manual funding input stress override ke taur par preserve hai. Historical
-event-by-event funding ingestion abhi implement nahi hui aur future roadmap mein
-explicitly documented hai.
+Verified historical funding events entry ke baad se exit tak remaining position
+quantity par charge/credit hote hain. Manual funding input separate stress
+override ke taur par preserve aur label hota hai. Fee, spread, slippage, actual
+funding, aur manual stress ek dusre mein silently merge nahi hote.
 
 ### 3.8 PBO and DSR authority
 
@@ -308,7 +323,9 @@ Backtest promotion statistics mein:
 - PBO unsupported population par numeric value manufacture nahi karta;
 - PBO `null` return karta hai;
 - reason `insufficient_comparisons` ya
-  `requires_fold_level_configuration_vectors` hota hai.
+  `requires_fold_level_configuration_vectors` hota hai;
+- multiple configurations ke identical fold vectors par bhi PBO unavailable
+  rehta hai, kyunke cross-sectional comparison information absent hoti hai.
 
 Kyun:
 
@@ -369,6 +386,35 @@ Kyun:
 - operator JSON consumers ko existing fields ke saath new lineage dena;
 - backwards compatibility maintain karna.
 
+### 3.11 Public historical evidence archives
+
+Files:
+
+- `src/apex/research/campaign.py`
+- `src/apex/domain/futures_evidence.py`
+
+Additions:
+
+- checksum-verified monthly funding archives;
+- aggregate-trade parsing and taker-flow aggregation;
+- mark, index, and premium-index kline lineage;
+- daily five-minute OI and ratio metrics;
+- millisecond aur microsecond timestamp normalization;
+- stable campaign fingerprint jo run creation time ko identity mein include
+  nahi karta.
+
+Ratio-only metrics se raw taker volumes fabricate nahi kiye jate. Historical
+contract eligibility metadata absent ho to current exchange status ko past mein
+backfill nahi kiya jata.
+
+### 3.12 Point-in-time race protection
+
+Multi-timeframe live fetch ke duran koi candle close ho sakti hai. Context
+builder ab declared decision time ke baad open hone wali rows remove karta hai
+aur decision boundary cross karne wali row ko provisional active candle
+reclassify karta hai. Is se snapshot aur strategy calculation same frozen prefix
+consume karte hain.
+
 ## 4. Documentation jo create ki gayi
 
 ### `docs/apex_quality_recovery_audit.md`
@@ -423,6 +469,11 @@ candidates.
 Yeh current report: implemented changes, deletion rationale, compatibility,
 validation, aur remaining work ka detailed record.
 
+### `docs/apex_quality_recovery_validation_report.md`
+
+Verified public archives, real funding replay, canonical/shadow outcome counts,
+walk-forward gates, live snapshot smoke, aur explicit no-promotion result.
+
 ## 5. Tests jo add ya update kiye gaye
 
 New tests:
@@ -439,6 +490,15 @@ New tests:
 - `tests/unit/research/test_experiment_manifest.py`
   - stable manifest identity
   - serialization round trip
+- `tests/unit/research/test_walk_forward_evaluation.py`
+  - purged/embargoed folds
+  - canonical/shadow isolation
+  - PBO availability
+  - calibration and fail-closed promotion
+- `tests/unit/application/test_regime_history_store.py`
+  - atomic persistence
+  - bounded history
+  - strict point-in-time lookup
 
 Updated tests:
 
@@ -450,18 +510,24 @@ Updated tests:
 
 Completed checks:
 
-- full test suite: 1,897 tests passed
-- Ruff: passed
-- mypy: passed across 326 source files
-- CLI help: passed
-- research help and `--experiment-spec`: passed
-- `config-check` JSON parsing: passed
-- configuration schema v2 metadata: verified
-- README link targets: verified
-- retired identity trace search: no match
-- Git whitespace/error check: passed
+- full test suite: 1,911 tests passed;
+- Ruff: passed;
+- strict mypy: passed across 328 source files;
+- root, backtest, and research CLI help: passed;
+- `config-check` JSON parse: passed;
+- README local link targets: passed;
+- retired authority path/version trace search over tracked current files: no
+  match;
+- Git whitespace/error check: passed;
+- live BTCUSDT point-in-time snapshot smoke: passed;
+- live ETHUSDT and SOLUSDT chronological replay smokes: passed;
+- controlled 34-file public archive campaign: all files verified, zero missing;
+- two-configuration purged walk-forward campaign: completed and correctly
+  refused promotion.
 
-The original suite count grew because new coverage was added.
+The original suite count grew because new coverage was added. Real-data
+validation details are preserved in
+`docs/apex_quality_recovery_validation_report.md`.
 
 ## 7. Trading behavior par impact
 
@@ -485,22 +551,19 @@ Intentional evaluation impact:
 
 ## 8. Abhi kya remaining hai
 
-Yeh items deliberately complete claim nahi kiye gaye:
+Implementation machinery complete hai, lekin empirical promotion complete claim
+nahi ki gayi:
 
-- historical event-by-event funding ingestion;
-- persistent live regime state across separate CLI processes;
-- optional derivatives evidence ke complete historical archives;
-- full walk-forward multi-configuration campaign execution;
-- untouched final-test promotion evidence;
-- cohort and symbol holdout results;
-- best-symbol and best-month exclusion results;
-- reliability diagrams and Brier decomposition on sufficient untouched outcomes;
-- 95% bootstrap lower-bound promotion proof;
-- parameter promotion after out-of-sample validation.
+- historical exchange-information snapshots capture karna;
+- declared 336-cell shadow matrix ko multi-symbol/timeframe evidence se fill
+  karna;
+- minimum untouched executed-outcome population accumulate karna;
+- genuine pre-outcome probabilities milne par calibration assess karna;
+- koi parameter sirf tab promote karna jab har out-of-sample gate pass ho.
 
-In cheezon ko code defaults ya internet settings se guess nahi kiya gaya,
-kyunke inke liye real historical evidence aur predeclared experiments required
-hain.
+Controlled campaign ne zero canonical trades aur negative observed shadow cells
+report kiye. Is liye no-promotion implementation failure nahi, evidence gate ka
+correct result hai.
 
 ## 9. Repository and Git boundary
 
@@ -509,15 +572,16 @@ hain.
 - No push performed.
 - No Git history rewritten.
 - Deleted generated reports Git history se recoverable hain.
-- Unrelated untracked zero-byte `trading_view/apex_script.pine` ko inspect kiya
-  gaya lekin modify ya delete nahi kiya gaya.
+- Pre-existing `trading_view/` work ko quality-recovery scope mein edit, delete,
+  ya claim nahi kiya gaya.
 
 ## 10. Final conclusion
 
 Implementation ne retired plan identity ko runtime authority se cleanly remove
 kiya, evidence audit ko canonical authority banaya, snapshot/provenance/profile
-contracts introduce kiye, backtest cost and statistical authority improve ki,
-aur future research ke liye reproducible manifest foundation add ki.
+contracts introduce kiye, actual funding aur regime history integrate ki,
+verified historical archives add kiye, aur reproducible walk-forward promotion
+machinery complete ki.
 
 Jahan sufficient evidence available nahi tha wahan system numeric certainty ya
 completion manufacture nahi karta. Remaining validation work clearly roadmap

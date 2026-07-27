@@ -35,6 +35,11 @@ from apex.application.quality_contracts import (
     ParameterProvenance,
     ResolvedParameter,
 )
+from apex.application.regime_history import (
+    RegimeHistoryStore,
+    RegimeObservation,
+    regime_observation_from_analysis,
+)
 from apex.application.rollout_acceptance import (
     RolloutAcceptanceResult,
     evaluate_rollout_acceptance,
@@ -62,6 +67,8 @@ __all__ = [
     "ManualOutcome",
     "MarketBehaviorProfile",
     "ParameterProvenance",
+    "RegimeHistoryStore",
+    "RegimeObservation",
     "ResolvedParameter",
     "RolloutAcceptanceResult",
     "RolloutCommand",
@@ -81,6 +88,7 @@ __all__ = [
     "load_symbol_file",
     "normalize_market_symbol",
     "reconcile_pending_opportunities_sqlite",
+    "regime_observation_from_analysis",
     "rollout_acceptance_payload",
     "scan_symbols",
     "select_futures_scan_symbols",

@@ -11,6 +11,7 @@ from types import MappingProxyType
 
 from apex.application.methodology_identity import METHODOLOGY_VERSION
 from apex.domain.decision_volatility import DecisionVolatilityProfile
+from apex.domain.futures_evidence import FundingRateSnapshot
 from apex.domain.models import Candle
 from apex.strategies import StrategyType, TradeDirection
 
@@ -325,6 +326,7 @@ class BacktestRequest:
 
     signals: tuple[BacktestSignal, ...]
     candles_by_symbol: Mapping[str, tuple[Candle, ...]]
+    funding_by_symbol: Mapping[str, tuple[FundingRateSnapshot, ...]] = field(default_factory=dict)
     config: BacktestConfig = field(default_factory=BacktestConfig)
     dataset_id: str = "local"
     code_version: str = "local-worktree"
@@ -346,7 +348,20 @@ class BacktestRequest:
         normalized = {symbol: tuple(candles) for symbol, candles in self.candles_by_symbol.items()}
         if any(not symbol.strip() for symbol in normalized):
             raise ValueError("candle symbol keys cannot be empty")
+        funding = {
+            symbol: tuple(sorted(values, key=lambda item: item.funding_time))
+            for symbol, values in self.funding_by_symbol.items()
+        }
+        if any(not symbol.strip() for symbol in funding):
+            raise ValueError("funding symbol keys cannot be empty")
+        for symbol, values in funding.items():
+            if any(item.symbol.upper() != symbol.upper() for item in values):
+                raise ValueError("funding observations must match their symbol key")
+            timestamps = tuple(item.funding_time for item in values)
+            if len(set(timestamps)) != len(timestamps):
+                raise ValueError("funding observations must use unique timestamps")
         object.__setattr__(self, "candles_by_symbol", MappingProxyType(normalized))
+        object.__setattr__(self, "funding_by_symbol", MappingProxyType(funding))
 
 
 @dataclass(frozen=True, slots=True)

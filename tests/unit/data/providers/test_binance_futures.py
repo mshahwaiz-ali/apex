@@ -197,6 +197,8 @@ def test_fetch_exchange_filters_supports_futures_notional_field() -> None:
                 "symbols": [
                     {
                         "symbol": "BTCUSDT",
+                        "status": "TRADING",
+                        "onboardDate": 1609459200000,
                         "filters": [
                             {
                                 "filterType": "PRICE_FILTER",
@@ -231,6 +233,8 @@ def test_fetch_exchange_filters_supports_futures_notional_field() -> None:
     assert filters.min_quantity == 0.001
     assert filters.min_notional == 5.0
     assert filters.source == "binance-futures"
+    assert filters.contract_status == "TRADING"
+    assert filters.onboarded_at == datetime(2021, 1, 1, tzinfo=UTC)
 
     client.close()
 

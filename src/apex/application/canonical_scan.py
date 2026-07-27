@@ -32,6 +32,7 @@ def scan_symbols(
     geometry_safety_mode: GeometrySafetyGateMode | str = GeometrySafetyGateMode.SHADOW,
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
+    previous_market_regimes: Mapping[str, str] | None = None,
 ) -> ScanResult:
     """Analyze every shortlisted symbol with the same full authority as ``analyze``.
 
@@ -63,6 +64,11 @@ def scan_symbols(
                     geometry_execution_costs=geometry_execution_costs,
                     market_environment_config=market_environment_config,
                     futures_evidence_enabled=futures_evidence_enabled,
+                    previous_market_regime=(
+                        None
+                        if previous_market_regimes is None
+                        else previous_market_regimes.get(symbol.upper())
+                    ),
                 )
             )
         except Exception as exc:  # Scanner intentionally isolates per-symbol failures.

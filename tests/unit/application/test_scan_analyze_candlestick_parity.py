@@ -71,7 +71,7 @@ def _candles() -> tuple[Candle, ...]:
 
 def test_scan_and_analyze_share_candlestick_evidence() -> None:
     provider = FakeProvider(_candles())
-    generated_at = datetime(2026, 1, 2, tzinfo=UTC)
+    generated_at = datetime(2026, 1, 4, tzinfo=UTC)
 
     selected = analyze_symbol(
         "BTCUSDT",
@@ -96,7 +96,7 @@ def test_scan_and_analyze_share_candlestick_evidence() -> None:
 
 def test_scan_and_analyze_serialize_the_same_full_methodology() -> None:
     provider = FakeProvider(_candles())
-    generated_at = datetime(2026, 1, 2, tzinfo=UTC)
+    generated_at = datetime(2026, 1, 4, tzinfo=UTC)
 
     selected = analyze_symbol(
         "BTCUSDT",
@@ -113,4 +113,13 @@ def test_scan_and_analyze_serialize_the_same_full_methodology() -> None:
         generated_at=generated_at,
     ).analyses[0]
 
-    assert serialize_symbol_analysis(selected) == serialize_symbol_analysis(scanned)
+    selected_payload = serialize_symbol_analysis(selected)
+    scanned_payload = serialize_symbol_analysis(scanned)
+
+    assert selected_payload == scanned_payload
+    assert selected_payload["snapshot_identity"]["snapshot_id"]
+    assert (
+        selected_payload["snapshot_identity"]["snapshot_id"]
+        == scanned_payload["snapshot_identity"]["snapshot_id"]
+    )
+    assert selected_payload["opportunity_portfolio"] == scanned_payload["opportunity_portfolio"]

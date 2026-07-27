@@ -49,9 +49,7 @@ def test_canonical_snapshot_has_stable_identity_and_rejects_future_data() -> Non
             symbol="BTCUSDT",
             decision_time=decision_time,
             provider="historical_replay",
-            timeframes=(
-                _timeframe(closed_at=datetime(2026, 7, 27, 12, 5, tzinfo=UTC)),
-            ),
+            timeframes=(_timeframe(closed_at=datetime(2026, 7, 27, 12, 5, tzinfo=UTC)),),
             available_evidence=(),
             missing_evidence=(),
             execution_cost_profile=(),
@@ -73,8 +71,7 @@ def test_resolved_parameters_expose_every_configuration_leaf() -> None:
         "methodology_gate_mode",
     }
     assert all(
-        item.provenance is ParameterProvenance.EXISTING_PRODUCTION_VALUE
-        for item in resolved
+        item.provenance is ParameterProvenance.EXISTING_PRODUCTION_VALUE for item in resolved
     )
 
 

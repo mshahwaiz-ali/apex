@@ -156,6 +156,8 @@ class ExchangeFilterSnapshot(BaseModel):
     min_notional: float = Field(ge=0)
     captured_at: datetime
     source: str
+    contract_status: str | None = None
+    onboarded_at: datetime | None = None
 
 
 class EntryZone(BaseModel):

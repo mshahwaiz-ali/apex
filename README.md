@@ -10,6 +10,26 @@ Apex scans Binance USDT perpetual markets, shortlists symbols worth deeper inspe
 
 > **Scope:** Apex is an analysis and research application. It does not place orders, manage exchange accounts, recommend leverage, or guarantee profitable trades.
 
+## Quality recovery status
+
+The `quality-recovery-v1` engineering implementation is complete and locally
+validated. Apex now includes immutable point-in-time snapshots, verified
+historical derivatives archives, event-level funding, persistent regime
+history, observe-only market profiles, parameter provenance, purged
+walk-forward evaluation, probability diagnostics, shadow-matrix reporting, and
+fail-closed promotion gates.
+
+Completion does not imply proven profitability. The controlled campaign
+promoted no configuration because it had no executed canonical final-test
+outcomes, insufficient shadow-matrix coverage, unavailable calibration, and no
+valid PBO comparison population. More predeclared multi-symbol/month evidence
+must pass every promotion gate before runtime parameters can change.
+
+Current evidence and the exact promotion decision are documented in the
+[`Apex Quality Recovery Validation Report`](docs/apex_quality_recovery_validation_report.md).
+Implemented runtime behavior is documented separately in the
+[`Apex Quality Recovery Audit`](docs/apex_quality_recovery_audit.md).
+
 ## What Apex does
 
 Apex is designed to answer:
@@ -110,6 +130,8 @@ For historical dataset preparation:
 
 ```bash
 apex research campaign \
+  --data-types fundingRate,markPriceKlines,indexPriceKlines,premiumIndexKlines \
+  --include-daily-metrics \
   --download-missing \
   --report-file data/research/campaign_report.json
 ```
@@ -386,7 +408,8 @@ The backtest:
 - does not fabricate fills for nearby, developing, missed, chasing, or invalidated plans;
 - records canonical no-trade reasons;
 - preserves opportunity ID, sequence role, and actionability;
-- models fees, slippage, funding, expiry, and conservative intrabar assumptions;
+- models configured fees and slippage once, applies historical funding events when
+  available, and keeps manual funding as a labeled stress override;
 - records TP1–TP3 hits, stop outcomes, MFE, MAE, and complete trade records;
 - reports training, validation, and final-test partitions;
 - preserves dataset, configuration, and code fingerprints.
@@ -403,12 +426,15 @@ It can:
 
 - resolve complete UTC months;
 - use or build a point-in-time universe;
-- download missing Binance public archives;
+- download checksum-verified monthly candle, aggregate-trade, funding,
+  mark-price, index-price, and premium-index archives;
+- download daily historical OI/ratio metrics;
 - verify files;
 - preserve missing-file reasons;
 - write a campaign manifest;
 - summarize monthly universe coverage;
 - optionally train campaign models;
+- evaluate predeclared purged walk-forward experiments from canonical outcome files;
 - save complete structured campaign output.
 
 The renderer includes:
@@ -422,6 +448,8 @@ The renderer includes:
 7. Artifacts
 
 Model authority remains withheld until every configured promotion gate passes.
+Unsupported PBO and probability calibration remain unavailable instead of being
+reported as reassuring numeric values.
 
 ## Configuration
 
@@ -465,7 +493,12 @@ Apex currently includes:
 - methodology diagnostics;
 - automatic SQLite outcome tracking;
 - chronological single-symbol backtesting;
-- historical public-data campaign preparation;
+- historical public-data campaign preparation and checksum verification;
+- event-level historical funding replay;
+- persistent point-in-time regime history;
+- versioned purged walk-forward experiment evaluation;
+- reliability/Brier diagnostics when genuine probabilities are available;
+- fail-closed promotion and shadow-matrix reporting;
 - optional model-training workflows.
 
 Apex does **not** include:
@@ -510,6 +543,7 @@ Only report validation results that were actually observed.
 - [`commands.md`](commands.md) — complete CLI reference and practical examples
 - [`docs/apex_quality_recovery_audit.md`](docs/apex_quality_recovery_audit.md) — implemented methodology and evidence authority
 - [`docs/apex_quality_recovery_plan.md`](docs/apex_quality_recovery_plan.md) — remaining quality-recovery roadmap
+- [`docs/apex_quality_recovery_validation_report.md`](docs/apex_quality_recovery_validation_report.md) — real-data verification and promotion decision
 - [`docs/apex_backtest_validation_spec.md`](docs/apex_backtest_validation_spec.md) — chronological evaluation and promotion rules
 - [`docs/apex_external_sources.md`](docs/apex_external_sources.md) — source register and applicability limits
 - [`config/default.yaml`](config/default.yaml) — default runtime configuration

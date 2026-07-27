@@ -49,9 +49,11 @@ from apex.backtesting.historical_signal_replay import (
 from apex.backtesting.methodology_segmentation import methodology_segment_metrics
 from apex.data.providers.errors import MarketDataProviderError
 from apex.data.timeframes import timeframe_delta
+from apex.domain.futures_evidence import FundingRateSnapshot
 from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.backtest_output import render_backtest
 from apex.presentation.terminal import emit_terminal
+from apex.research.campaign import read_funding_rate_archive
 from apex.research.metrics import deflated_sharpe_probability
 from apex.strategies import StrategyType, TradeDirection
 
@@ -104,7 +106,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             typer.Option(
                 "--decision-points",
                 min=1,
-                max=50,
+                max=200,
                 help="Chronological non-overlapping decisions in the replay campaign.",
             ),
         ] = 5,
@@ -112,6 +114,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             float,
             typer.Option("--funding-pct", min=0.0, help="Optional modeled funding drag."),
         ] = 0.0,
+        funding_archive: Annotated[
+            Path | None,
+            typer.Option(
+                "--funding-archive",
+                exists=True,
+                dir_okay=False,
+                help="Verified Binance monthly funding ZIP for event-level replay costs.",
+            ),
+        ] = None,
         as_of: Annotated[
             str | None,
             typer.Option(
@@ -143,6 +154,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             analysis_timeframes = tuple(context.settings.analysis_timeframes)
             requested_timeframes = tuple(dict.fromkeys((*analysis_timeframes, replay_timeframe)))
             source_limit = candle_limit + replay_candles * decision_points
+            funding_events: tuple[FundingRateSnapshot, ...] = ()
+            funding_history_reason = "futures_evidence_disabled"
 
             with create_market_data_services(context.settings) as services:
                 series = tuple(
@@ -176,6 +189,39 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     )
                     for timeframe in requested_timeframes
                 )
+                if funding_archive is not None:
+                    fetched_funding = read_funding_rate_archive(
+                        funding_archive,
+                        symbol=normalized_symbol,
+                    )
+                    funding_events = tuple(
+                        item
+                        for item in fetched_funding
+                        if anchor_time is None or item.funding_time <= anchor_time
+                    )
+                    funding_history_reason = (
+                        "available:checksum_archive_supplied_by_operator"
+                        if funding_events
+                        else "archive_has_no_events_in_requested_point_in_time_window"
+                    )
+                elif context.settings.futures_evidence_enabled:
+                    try:
+                        fetched_funding = services.futures_evidence.fetch_funding_rates(
+                            normalized_symbol,
+                            limit=500,
+                        )
+                        funding_events = tuple(
+                            item
+                            for item in fetched_funding
+                            if anchor_time is None or item.funding_time <= anchor_time
+                        )
+                        funding_history_reason = (
+                            "available"
+                            if funding_events
+                            else "no_events_in_requested_point_in_time_window"
+                        )
+                    except MarketDataProviderError as exc:
+                        funding_history_reason = f"unavailable:{type(exc).__name__}"
 
             replay_series = next(item for item in series if item.timeframe == replay_timeframe)
             if len(replay_series.candles) < source_limit:
@@ -301,22 +347,12 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         config = BacktestConfig(
             maximum_holding_candles=replay_candles,
             funding_pct=funding_pct,
-            entry_fee_pct=(
-                None if market_costs is None else market_costs.entry_fee_pct
-            ),
-            exit_fee_pct=(
-                None if market_costs is None else market_costs.exit_fee_pct
-            ),
-            entry_slippage_pct=(
-                None if market_costs is None else market_costs.entry_slippage_pct
-            ),
-            exit_slippage_pct=(
-                None if market_costs is None else market_costs.exit_slippage_pct
-            ),
+            entry_fee_pct=(None if market_costs is None else market_costs.entry_fee_pct),
+            exit_fee_pct=(None if market_costs is None else market_costs.exit_fee_pct),
+            entry_slippage_pct=(None if market_costs is None else market_costs.entry_slippage_pct),
+            exit_slippage_pct=(None if market_costs is None else market_costs.exit_slippage_pct),
             cost_profile=(
-                "conservative_market"
-                if market_costs is not None
-                else "legacy_symmetric"
+                "conservative_market" if market_costs is not None else "legacy_symmetric"
             ),
             include_observed_spread_in_cost=(
                 context.settings.geometry_execution.include_observed_spread_in_cost
@@ -324,32 +360,36 @@ def register_backtesting_commands(app: typer.Typer) -> None:
         )
         study = HistoricalBacktestRunner().run(
             BacktestRequest(
-                signals=tuple(signals),
+                signals=_sorted_replay_signals(signals),
                 candles_by_symbol={normalized_symbol: replay_series.candles},
+                funding_by_symbol={normalized_symbol: funding_events},
                 config=config,
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:campaign",
             )
         )
         conditional_study = HistoricalBacktestRunner().run(
             BacktestRequest(
-                signals=tuple(conditional_signals),
+                signals=_sorted_replay_signals(conditional_signals),
                 candles_by_symbol={normalized_symbol: replay_series.candles},
+                funding_by_symbol={normalized_symbol: funding_events},
                 config=config,
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:conditional-campaign",
             )
         )
         opportunity_study = HistoricalBacktestRunner().run(
             BacktestRequest(
-                signals=tuple(opportunity_signals),
+                signals=_sorted_replay_signals(opportunity_signals),
                 candles_by_symbol={normalized_symbol: replay_series.candles},
+                funding_by_symbol={normalized_symbol: funding_events},
                 config=config,
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:opportunity-campaign",
             )
         )
         shadow_study = HistoricalBacktestRunner().run(
             BacktestRequest(
-                signals=tuple(shadow_signals),
+                signals=_sorted_replay_signals(shadow_signals),
                 candles_by_symbol={normalized_symbol: replay_series.candles},
+                funding_by_symbol={normalized_symbol: funding_events},
                 config=config,
                 dataset_id=f"{normalized_symbol}:{replay_timeframe}:shadow-campaign",
             )
@@ -454,9 +494,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             production_trades=report.trades,
             conditional_trades=conditional_report.trades,
         )
-        legacy_fee_pct = (
-            config.effective_entry_fee_pct + config.effective_exit_fee_pct
-        ) / 2.0
+        legacy_fee_pct = (config.effective_entry_fee_pct + config.effective_exit_fee_pct) / 2.0
         legacy_slippage_pct = (
             config.effective_entry_slippage_pct + config.effective_exit_slippage_pct
         ) / 2.0
@@ -494,14 +532,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
                 "funding_pct": config.funding_pct,
+                "funding_pct_authority": "manual_stress_override",
+                "historical_funding_event_count": len(funding_events),
+                "historical_funding_status": funding_history_reason,
                 "entry_fee_pct": config.effective_entry_fee_pct,
                 "exit_fee_pct": config.effective_exit_fee_pct,
                 "entry_slippage_pct": config.effective_entry_slippage_pct,
                 "exit_slippage_pct": config.effective_exit_slippage_pct,
                 "cost_profile": config.cost_profile,
-                "include_observed_spread_in_cost": (
-                    config.include_observed_spread_in_cost
-                ),
+                "include_observed_spread_in_cost": (config.include_observed_spread_in_cost),
                 "maximum_holding_candles": config.maximum_holding_candles,
                 "conservative_intrabar": config.conservative_intrabar,
                 "methodology_gate_mode": context.settings.methodology_gate_mode,
@@ -592,9 +631,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 "skipped_signal_count": study.skipped_signal_count,
             },
         }
-        payload.update(
-            configuration_metadata(context.settings.model_dump(mode="json"))
-        )
+        payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
         _classify_replay_trade_records(
             payload, section="conditional_replay", replay_class="conditional"
         )
@@ -602,6 +639,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             payload, section="opportunity_replay", replay_class="opportunity"
         )
         _classify_replay_trade_records(payload, section="shadow_replay", replay_class="shadow")
+        payload["evaluation_outcomes"] = _evaluation_outcome_rows(payload)
         if len(report.trades) == 1:
             payload["trade"] = _jsonable(report.trades[0])
         if report_file is not None:
@@ -919,6 +957,8 @@ def _calibration_record(
             else None
         ),
         "methodology_version": serialized.get("methodology_version"),
+        "snapshot_identity": serialized.get("snapshot_identity"),
+        "market_profile": serialized.get("market_profile"),
         "no_trade_reasons": serialized.get("reasons"),
         "zero_trade_diagnostics": zero_trade,
         "layered_state": None if setup is None else setup.layered_state.to_dict(),
@@ -2125,6 +2165,158 @@ def _canonical_source(source: object) -> bool:
     return source in {"production", "conditional_portfolio"}
 
 
+def _sorted_replay_signals(
+    signals: list[BacktestSignal],
+) -> tuple[BacktestSignal, ...]:
+    """Match the immutable request identity and suppress exact duplicate rows."""
+
+    unique: dict[tuple[object, ...], BacktestSignal] = {}
+    for signal in signals:
+        identity = _replay_signal_sort_identity(signal)
+        unique.setdefault(identity, signal)
+    return tuple(unique[key] for key in sorted(unique))
+
+
+def _replay_signal_sort_identity(signal: BacktestSignal) -> tuple[object, ...]:
+    base: tuple[object, ...] = (
+        signal.generated_at,
+        signal.symbol,
+        signal.replay_source,
+    )
+    if signal.candidate_id is not None:
+        return (*base, "candidate", signal.candidate_id)
+    return (
+        *base,
+        "geometry",
+        signal.strategy.value,
+        signal.direction.value,
+        signal.entry_zone_low,
+        signal.entry_price,
+        signal.entry_zone_high,
+        signal.stop_price,
+        signal.target_prices,
+        signal.partial_close_percentages,
+        None if signal.activation_type is None else signal.activation_type.value,
+        signal.activation_level,
+        signal.pre_entry_invalidation_price,
+        signal.maximum_chase_price,
+        signal.activation_expiry_candles,
+    )
+
+
+def _evaluation_outcome_rows(payload: Mapping[str, object]) -> list[dict[str, object]]:
+    """Expose research JSONL-shaped rows without treating rule scores as probabilities."""
+
+    calibration_records = payload.get("calibration_records")
+    profile_by_time: dict[str, Mapping[str, object]] = {}
+    if isinstance(calibration_records, list):
+        for item in calibration_records:
+            if not isinstance(item, Mapping):
+                continue
+            decision_time = item.get("decision_time")
+            market_profile = item.get("market_profile")
+            if isinstance(decision_time, str) and isinstance(market_profile, Mapping):
+                profile_by_time[decision_time] = market_profile
+
+    study = payload.get("study")
+    study_config_hash = study.get("config_hash") if isinstance(study, Mapping) else None
+    configuration_id = (
+        f"{payload.get('configuration_id')}:{study_config_hash}"
+        if payload.get("configuration_id") and study_config_hash
+        else str(payload.get("configuration_id") or study_config_hash or "unknown")
+    )
+    replay_timeframe = str(payload.get("replay_timeframe") or "unknown")
+    symbol = str(payload.get("symbol") or "unknown")
+    rows: list[dict[str, object]] = []
+    sections: tuple[tuple[str, str], ...] = (
+        ("trades", "canonical"),
+        ("conditional_replay", "conditional"),
+        ("opportunity_replay", "opportunity"),
+        ("shadow_replay", "shadow"),
+    )
+    canonical_trade_times: set[str] = set()
+    for section, geometry_profile in sections:
+        section_value = payload.get(section)
+        trades = (
+            section_value
+            if isinstance(section_value, list)
+            else section_value.get("trades")
+            if isinstance(section_value, Mapping)
+            else None
+        )
+        if not isinstance(trades, list):
+            continue
+        for trade in trades:
+            if not isinstance(trade, Mapping):
+                continue
+            metadata = trade.get("metadata")
+            if not isinstance(metadata, Mapping) or metadata.get("entry_filled") is not True:
+                continue
+            signal = trade.get("signal")
+            decision_time = trade.get("decision_time")
+            profile = (
+                profile_by_time.get(decision_time, {}) if isinstance(decision_time, str) else {}
+            )
+            realized_r = trade.get("realized_r_multiple")
+            if isinstance(realized_r, bool) or not isinstance(realized_r, int | float):
+                continue
+            rows.append(
+                {
+                    "configuration_id": configuration_id,
+                    "timestamp": decision_time,
+                    "symbol": symbol,
+                    "cohort": str(profile.get("cohort") or "unknown"),
+                    "net_return_r": float(realized_r),
+                    "strategy_family": (
+                        str(signal.get("strategy") or "unknown")
+                        if isinstance(signal, Mapping)
+                        else "unknown"
+                    ),
+                    "timeframe": replay_timeframe,
+                    "geometry_profile": geometry_profile,
+                    "evaluation_population": ("canonical" if section == "trades" else "shadow"),
+                    "executed": True,
+                    "decision_state": str(trade.get("outcome") or "executed"),
+                    "probability": None,
+                    "label": None,
+                    "probability_authority": ("unavailable_rule_score_is_not_a_probability"),
+                }
+            )
+            if section == "trades" and isinstance(decision_time, str):
+                canonical_trade_times.add(decision_time)
+    if isinstance(calibration_records, list):
+        for item in calibration_records:
+            if not isinstance(item, Mapping):
+                continue
+            decision_time = item.get("decision_time")
+            if not isinstance(decision_time, str) or decision_time in canonical_trade_times:
+                continue
+            no_trade_profile = item.get("market_profile")
+            rows.append(
+                {
+                    "configuration_id": configuration_id,
+                    "timestamp": decision_time,
+                    "symbol": symbol,
+                    "cohort": (
+                        str(no_trade_profile.get("cohort") or "unknown")
+                        if isinstance(no_trade_profile, Mapping)
+                        else "unknown"
+                    ),
+                    "net_return_r": 0.0,
+                    "strategy_family": "no_trade",
+                    "timeframe": replay_timeframe,
+                    "geometry_profile": "canonical",
+                    "evaluation_population": "canonical",
+                    "executed": False,
+                    "decision_state": "no_trade",
+                    "probability": None,
+                    "label": None,
+                    "probability_authority": ("unavailable_rule_score_is_not_a_probability"),
+                }
+            )
+    return rows
+
+
 def _canonical_trade_records(
     trades: object,
     *,
@@ -2358,8 +2550,7 @@ def _filled_or_legacy_execution_trades(trades: object) -> tuple[object, ...]:
     values = tuple(trades) if isinstance(trades, tuple | list) else ()
     explicit = _filled_execution_trades(values)
     has_explicit_fill_metadata = any(
-        isinstance(getattr(trade, "metadata", None), Mapping)
-        and "entry_filled" in trade.metadata
+        isinstance(getattr(trade, "metadata", None), Mapping) and "entry_filled" in trade.metadata
         for trade in values
     )
     if has_explicit_fill_metadata:

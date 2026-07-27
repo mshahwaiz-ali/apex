@@ -143,8 +143,17 @@ def _frame_from_candles(
     index_price: float | None,
     indicator_profile: TimeframeIndicatorSettings | None = None,
 ) -> tuple[TimeframeContext, str]:
+    point_in_time: list[Candle] = []
+    for candle in candles:
+        if candle.close_time <= received_at:
+            point_in_time.append(candle)
+        elif candle.open_time <= received_at:
+            point_in_time.append(
+                candle if not candle.is_closed else candle.model_copy(update={"is_closed": False})
+            )
+    candles = tuple(point_in_time)
     if not candles:
-        raise ValueError(f"{symbol} {timeframe} returned no candles")
+        raise ValueError(f"{symbol} {timeframe} returned no point-in-time candles")
     minimum_usable_candles = 50
     closed_count = len(candles) - (0 if candles[-1].is_closed else 1)
     if closed_count < minimum_usable_candles:

@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 
 from apex.application import (
+    RegimeHistoryStore,
     analyze_selected_symbol,
     bootstrap,
     build_analysis_record,
     configuration_metadata,
     create_market_data_services,
     reconcile_pending_opportunities_sqlite,
+    regime_observation_from_analysis,
     write_analysis_record_sqlite,
 )
 from apex.application.discovery_contracts import SymbolAnalysis
@@ -74,6 +77,13 @@ def register_analysis_commands(app: typer.Typer) -> None:
             with cli_progress() as progress:
                 progress.update("Loading configuration…")
                 context = bootstrap(config_dir)
+                analysis_time = datetime.now(UTC)
+                regime_history_path = context.settings.data_dir / "reports" / "regime_history.json"
+                regime_history = RegimeHistoryStore(regime_history_path)
+                previous_regime = regime_history.previous_state(
+                    normalized_symbol,
+                    before=analysis_time,
+                )
                 progress.update(f"Fetching {normalized_symbol} market data…")
                 with create_market_data_services(context.settings) as services:
                     progress.update("Running multi-timeframe analysis…")
@@ -91,6 +101,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                             context.settings, "timeframe_indicator_profiles", None
                         ),
                         candle_limit=candle_limit,
+                        generated_at=analysis_time,
                         strategy_routing=getattr(context.settings, "strategy_routing", None),
                         methodology_gate_mode=context.settings.methodology_gate_mode,
                         methodology_settings=context.settings.methodology,
@@ -104,9 +115,23 @@ def register_analysis_commands(app: typer.Typer) -> None:
                         ),
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
+                        previous_market_regime=previous_regime,
                     )
+                regime_observation = regime_observation_from_analysis(
+                    symbol=result.symbol,
+                    observed_at=result.generated_at,
+                    market_intelligence=result.market_intelligence,
+                )
+                if regime_observation is not None:
+                    regime_history.append(regime_observation)
                 progress.update("Building trade opportunities…")
                 payload = _serialize_analysis_payload(result)
+                payload["regime_history"] = {
+                    "schema_version": 1,
+                    "path": str(regime_history_path),
+                    "previous_state": previous_regime,
+                    "persisted": regime_observation is not None,
+                }
                 payload.update(configuration_metadata(context.settings.model_dump(mode="json")))
                 if context.settings.outcome_tracking_enabled:
                     outcome_db = context.settings.data_dir / "reports" / "analysis.db"

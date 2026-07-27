@@ -97,6 +97,11 @@ class CanonicalMarketSnapshot:
     missing_evidence: tuple[tuple[str, str], ...]
     execution_cost_profile: tuple[tuple[str, float | bool], ...]
     authority: str = "observe_only"
+    contract_status: str | None = None
+    listing_age_days: float | None = None
+    precision_valid: bool = False
+    quality_status: str = "degraded"
+    quality_reasons: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.symbol.strip() or not self.provider.strip():
@@ -109,6 +114,14 @@ class CanonicalMarketSnapshot:
             raise ValueError("market snapshot cannot include a future closed candle")
         if len({frame.timeframe for frame in self.timeframes}) != len(self.timeframes):
             raise ValueError("market snapshot timeframes must be unique")
+        if self.contract_status is not None and not self.contract_status.strip():
+            raise ValueError("snapshot contract status cannot be blank")
+        if self.listing_age_days is not None and (
+            not math.isfinite(self.listing_age_days) or self.listing_age_days < 0.0
+        ):
+            raise ValueError("snapshot listing age must be finite and non-negative")
+        if self.quality_status not in {"valid", "degraded", "rejected"}:
+            raise ValueError("snapshot quality status must be valid, degraded, or rejected")
 
     @property
     def snapshot_id(self) -> str:
@@ -127,16 +140,29 @@ class MarketBehaviorProfile:
     chop_score: float | None
     wick_noise_score: float | None
     sample_size: int
+    false_break_frequency: float | None = None
+    execution_friction_score: float | None = None
+    listing_maturity_days: float | None = None
     authority: str = "observe_only"
     provenance: ParameterProvenance = ParameterProvenance.EMPIRICAL_CANDIDATE
 
     def __post_init__(self) -> None:
         if not self.cohort.strip() or self.sample_size < 0:
             raise ValueError("market profile cohort and sample size must be valid")
-        for name in ("directional_efficiency", "chop_score", "wick_noise_score"):
+        for name in (
+            "directional_efficiency",
+            "chop_score",
+            "wick_noise_score",
+            "false_break_frequency",
+            "execution_friction_score",
+        ):
             value = getattr(self, name)
             if value is not None and (not math.isfinite(value) or not 0.0 <= value <= 1.0):
                 raise ValueError(f"{name} must be between zero and one")
+        if self.listing_maturity_days is not None and (
+            not math.isfinite(self.listing_maturity_days) or self.listing_maturity_days < 0.0
+        ):
+            raise ValueError("listing maturity days must be finite and non-negative")
 
 
 def build_canonical_market_snapshot(
@@ -186,6 +212,42 @@ def build_canonical_market_snapshot(
                 execution_costs.include_observed_spread_in_cost,
             ),
         )
+    future_closed = sum(item.future_closed_candle_count for item in observations)
+    exchange_filters = None if evidence is None else evidence.exchange_filters
+    contract_status = None if exchange_filters is None else exchange_filters.contract_status
+    onboarded_at = None if exchange_filters is None else exchange_filters.onboarded_at
+    listing_age_days = (
+        None
+        if onboarded_at is None or onboarded_at > decision_time
+        else (decision_time - onboarded_at).total_seconds() / 86_400.0
+    )
+    quality_reasons: list[str] = []
+    if future_closed:
+        quality_reasons.append("future_closed_candles_present")
+    if any(item.stale for item in observations):
+        quality_reasons.append("stale_timeframe")
+    if any(item.active_candle_present for item in observations):
+        quality_reasons.append("active_candle_present_but_not_authoritative")
+    precision_valid = all(
+        item.tick_size is not None
+        and item.tick_size > 0.0
+        and item.step_size is not None
+        and item.step_size > 0.0
+        for item in observations
+    )
+    if not precision_valid:
+        quality_reasons.append("precision_filters_unavailable_or_invalid")
+    if contract_status is None:
+        quality_reasons.append("contract_status_unavailable")
+    elif contract_status != "TRADING":
+        quality_reasons.append("contract_not_trading")
+    if listing_age_days is None:
+        quality_reasons.append("listing_age_unavailable")
+    quality_status = (
+        "rejected"
+        if future_closed or contract_status not in {None, "TRADING"}
+        else ("degraded" if quality_reasons else "valid")
+    )
     return CanonicalMarketSnapshot(
         symbol=context.symbol,
         decision_time=decision_time,
@@ -198,6 +260,11 @@ def build_canonical_market_snapshot(
             else evidence.missing_reasons
         ),
         execution_cost_profile=costs,
+        precision_valid=precision_valid,
+        quality_status=quality_status,
+        quality_reasons=tuple(quality_reasons),
+        contract_status=contract_status,
+        listing_age_days=listing_age_days,
     )
 
 
@@ -220,11 +287,9 @@ def build_market_behavior_profile(
     )
     directional_efficiency: float | None = None
     wick_noise: float | None = None
+    false_break_frequency: float | None = None
     if len(window) >= 2:
-        path = sum(
-            abs(current.close - previous.close)
-            for previous, current in pairwise(window)
-        )
+        path = sum(abs(current.close - previous.close) for previous, current in pairwise(window))
         directional_efficiency = (
             min(1.0, abs(window[-1].close - window[0].close) / path) if path > 0.0 else 0.0
         )
@@ -238,6 +303,7 @@ def build_market_behavior_profile(
             if candle.high > candle.low
         )
         wick_noise = fmean(wick_ratios) if wick_ratios else None
+        false_break_frequency = _false_break_frequency(window)
     cohort = _behavior_cohort(
         sample_size=len(window),
         volatility_class=volatility.volatility_class,
@@ -253,7 +319,54 @@ def build_market_behavior_profile(
         chop_score=None if directional_efficiency is None else 1.0 - directional_efficiency,
         wick_noise_score=wick_noise,
         sample_size=len(window),
+        false_break_frequency=false_break_frequency,
+        execution_friction_score=_execution_friction_score(context),
+        listing_maturity_days=_listing_maturity_days(context, decision_time),
     )
+
+
+def _false_break_frequency(candles: tuple[Any, ...], *, lookback: int = 20) -> float | None:
+    if len(candles) <= lookback:
+        return None
+    tests = 0
+    false_breaks = 0
+    for index in range(lookback, len(candles)):
+        prior = candles[index - lookback : index]
+        prior_high = max(item.high for item in prior)
+        prior_low = min(item.low for item in prior)
+        candle = candles[index]
+        broke_high = candle.high > prior_high
+        broke_low = candle.low < prior_low
+        if not broke_high and not broke_low:
+            continue
+        tests += 1
+        if (broke_high and candle.close <= prior_high) or (broke_low and candle.close >= prior_low):
+            false_breaks += 1
+    return false_breaks / tests if tests else 0.0
+
+
+def _execution_friction_score(context: StrategyContext) -> float | None:
+    frame = context.decision_frame
+    spread = (
+        frame.order_book_spread_percentage
+        if frame.order_book_spread_percentage is not None
+        else frame.spread_percentage
+    )
+    if spread is None or not math.isfinite(spread):
+        return None
+    return min(1.0, max(0.0, spread / 0.50))
+
+
+def _listing_maturity_days(
+    context: StrategyContext,
+    decision_time: datetime,
+) -> float | None:
+    evidence = context.market_evidence
+    filters = None if evidence is None else evidence.exchange_filters
+    onboarded_at = None if filters is None else filters.onboarded_at
+    if onboarded_at is None or onboarded_at > decision_time:
+        return None
+    return (decision_time - onboarded_at).total_seconds() / 86_400.0
 
 
 def _behavior_cohort(
@@ -284,6 +397,11 @@ def canonical_market_snapshot_payload(
         "decision_time": snapshot.decision_time.isoformat(),
         "provider": snapshot.provider,
         "authority": snapshot.authority,
+        "contract_status": snapshot.contract_status,
+        "listing_age_days": snapshot.listing_age_days,
+        "precision_valid": snapshot.precision_valid,
+        "quality_status": snapshot.quality_status,
+        "quality_reasons": list(snapshot.quality_reasons),
         "timeframes": [
             {
                 **asdict(frame),
