@@ -29,7 +29,7 @@ from apex.application.opportunity_portfolio import (
     SymbolOpportunityPortfolio,
 )
 from apex.config.methodology import MethodologySettings
-from apex.config.settings import TimeframeIndicatorSettings
+from apex.config.settings import PrecisionGateSettings, TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -74,6 +74,7 @@ def analyze_symbol(
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
     previous_market_regime: str | None = None,
+    precision_gate_settings: PrecisionGateSettings | None = None,
 ) -> SymbolAnalysis:
     """Run integrated discovery analysis, routing, and the shared methodology gate."""
 
@@ -95,6 +96,7 @@ def analyze_symbol(
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
         previous_market_regime=previous_market_regime,
+        precision_gate_settings=precision_gate_settings,
     )
     environment = base.market_environment
     route = route_market_strategies(environment) if environment is not None else None
@@ -113,6 +115,8 @@ def analyze_symbol(
         methodology_gate=getattr(base, "methodology_gate", None),
         market_intelligence=base.market_intelligence,
         historical_edge=base.historical_edge,
+        precision_gate=base.precision_gate,
+        candidate_feature_snapshots=base.candidate_feature_snapshots,
         outcome_candles=base.outcome_candles,
         opportunity_portfolio=base.opportunity_portfolio,
         market_snapshot=base.market_snapshot,

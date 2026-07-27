@@ -29,7 +29,7 @@ from apex.application.methodology_market_state import adapt_market_state
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import load_symbol_file
 from apex.config.methodology import MethodologySettings
-from apex.config.settings import TimeframeIndicatorSettings
+from apex.config.settings import PrecisionGateSettings, TimeframeIndicatorSettings
 from apex.data.providers.base import FuturesEvidenceProvider, MarketDataProvider
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
@@ -168,6 +168,7 @@ def analyze_symbol(
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
     previous_market_regime: str | None = None,
+    precision_gate_settings: PrecisionGateSettings | None = None,
 ) -> SymbolAnalysis:
     """Run discovery and attach fused market environment."""
 
@@ -211,6 +212,7 @@ def analyze_symbol(
         futures_evidence_enabled=futures_evidence_enabled,
         analysis_mode=analysis_mode,
         previous_market_regime=previous_market_regime,
+        precision_gate_settings=precision_gate_settings,
     )
     return SymbolAnalysis(
         symbol=base.symbol,
@@ -227,6 +229,8 @@ def analyze_symbol(
         methodology_gate=base.methodology_gate,
         market_intelligence=base.market_intelligence,
         historical_edge=base.historical_edge,
+        precision_gate=base.precision_gate,
+        candidate_feature_snapshots=base.candidate_feature_snapshots,
         outcome_candles=base.outcome_candles,
         opportunity_portfolio=base.opportunity_portfolio,
         market_snapshot=base.market_snapshot,

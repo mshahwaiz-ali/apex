@@ -34,6 +34,7 @@ from apex.research.experiment import (
     load_experiment_manifest,
     write_experiment_manifest,
 )
+from apex.research.precision import export_training_rows
 from apex.research.training import train_campaign_models
 
 
@@ -94,6 +95,24 @@ def register_research_commands(app: typer.Typer) -> None:
                 help="Optional JSONL outcomes for purged walk-forward evaluation.",
             ),
         ] = None,
+        feature_snapshots_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--feature-snapshots-file",
+                exists=True,
+                dir_okay=False,
+                help="Decision-time CandidateFeatureSnapshot JSONL exported by archive replay.",
+            ),
+        ] = None,
+        candidate_outcomes_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--candidate-outcomes-file",
+                exists=True,
+                dir_okay=False,
+                help="Separate resolved CandidateOutcomeLabel JSONL from archive replay.",
+            ),
+        ] = None,
         report_file: Annotated[
             Path | None,
             typer.Option(
@@ -130,6 +149,8 @@ def register_research_commands(app: typer.Typer) -> None:
             include_daily_metrics=include_daily_metrics,
             experiment_spec=experiment_spec,
             outcomes_file=outcomes_file,
+            feature_snapshots_file=feature_snapshots_file,
+            candidate_outcomes_file=candidate_outcomes_file,
         )
         if report_file is not None:
             report_file.parent.mkdir(parents=True, exist_ok=True)
@@ -157,6 +178,8 @@ def _run_public_data_campaign(
     include_daily_metrics: bool = False,
     experiment_spec: Path | None = None,
     outcomes_file: Path | None = None,
+    feature_snapshots_file: Path | None = None,
+    candidate_outcomes_file: Path | None = None,
 ) -> dict[str, Any]:
     months = latest_complete_utc_months(datetime.now(UTC), 24)
     if start is not None:
@@ -246,6 +269,19 @@ def _run_public_data_campaign(
     )
     manifest_path = dataset_dir / "campaign_manifest.json"
     write_manifest(manifest_path, manifest)
+    if (feature_snapshots_file is None) != (candidate_outcomes_file is None):
+        raise typer.BadParameter(
+            "feature snapshots and candidate outcomes must be provided together"
+        )
+    feature_export = (
+        export_training_rows(
+            feature_snapshots_file,
+            candidate_outcomes_file,
+            dataset_dir / "feature_rows.jsonl",
+        )
+        if feature_snapshots_file is not None and candidate_outcomes_file is not None
+        else None
+    )
     training_result = train_campaign_models(dataset_dir) if train_model else None
     unique_symbols = sorted({symbol for values in universe.values() for symbol in values})
     experiment = (
@@ -332,6 +368,14 @@ def _run_public_data_campaign(
         ),
         "train_model_requested": train_model,
         "model_training": training_result if train_model else "not requested",
+        "candidate_feature_export": (
+            feature_export
+            if feature_export is not None
+            else {
+                "available": False,
+                "reason": "feature snapshots and candidate outcomes were not supplied",
+            }
+        ),
         "artifacts": {
             "dataset_dir": str(dataset_dir),
             "universe": str(universe_path),

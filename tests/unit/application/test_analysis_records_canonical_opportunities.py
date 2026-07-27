@@ -125,6 +125,38 @@ def test_scan_registers_every_canonical_portfolio_opportunity(tmp_path: Path) ->
     ]
 
 
+def test_precision_decision_is_persisted_additively(tmp_path: Path) -> None:
+    generated_at = datetime(2026, 7, 20, 12, tzinfo=UTC).isoformat()
+    analysis = _analysis("BTCUSDT", generated_at)
+    analysis["precision_gate"] = {
+        "mode": "paper",
+        "candidate_decisions": [
+            {
+                "candidate_id": "candidate-btc-long-current",
+                "state": "abstain",
+                "calibrated_positive_net_probability": 0.61,
+                "expected_r": -0.04,
+                "reason_codes": ["positive_net_probability_below_minimum"],
+                "artifact_version": "precision-v1",
+            }
+        ],
+    }
+    path = tmp_path / "analysis.db"
+
+    write_analysis_record_sqlite(path, build_analysis_record(analysis))
+
+    with sqlite3.connect(path) as connection:
+        stored = connection.execute(
+            """
+            SELECT precision_gate_state, precision_positive_net_probability,
+                   precision_expected_r, precision_artifact_version
+            FROM opportunity_outcomes
+            WHERE candidate_id = 'candidate-btc-long-current'
+            """
+        ).fetchone()
+    assert stored == ("abstain", 0.61, -0.04, "precision-v1")
+
+
 def test_scan_and_analysis_records_share_canonical_opportunity_ids(tmp_path: Path) -> None:
     generated_at = datetime(2026, 7, 20, 12, tzinfo=UTC).isoformat()
     analysis = _analysis("BTCUSDT", generated_at)

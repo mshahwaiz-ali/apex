@@ -12,7 +12,7 @@ from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.opportunity_portfolio import AnalysisMode
 from apex.application.symbols import normalize_market_symbol
 from apex.config.methodology import MethodologySettings
-from apex.config.settings import TimeframeIndicatorSettings
+from apex.config.settings import PrecisionGateSettings, TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -35,6 +35,7 @@ def analyze_selected_symbol(
     market_environment_config: MarketEnvironmentConfig = DEFAULT_MARKET_ENVIRONMENT_CONFIG,
     futures_evidence_enabled: bool = True,
     previous_market_regime: str | None = None,
+    precision_gate_settings: PrecisionGateSettings | None = None,
 ) -> SymbolAnalysis:
     """Normalize a user-entered symbol and run the shared discovery pipeline."""
 
@@ -53,6 +54,8 @@ def analyze_selected_symbol(
         "market_environment_config": market_environment_config,
         "analysis_mode": AnalysisMode.ANALYZE_FULL,
     }
+    if precision_gate_settings is not None:
+        kwargs["precision_gate_settings"] = precision_gate_settings
     if previous_market_regime is not None:
         kwargs["previous_market_regime"] = previous_market_regime
     if timeframe_indicator_profiles is not None:

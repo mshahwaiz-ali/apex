@@ -22,6 +22,14 @@ geometry_execution:
     exit_fee_pct: 0.05
     entry_slippage_pct: 0.00
     exit_slippage_pct: 0.02
+precision_gate:
+  # Prediction is metadata-only until historical and fresh paper gates both pass.
+  mode: observe_only
+  trusted_artifact_path: data/models/runtime_precision.json
+  required_positive_net_probability: 0.65
+  required_expected_r_lower_bound: 0.0
+  minimum_segment_support: 50
+  fail_closed_in_enforce: true
 methodology_gate_mode: enforce
 futures_screener:
   minimum_quote_volume_24h: 5000000

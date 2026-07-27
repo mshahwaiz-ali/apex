@@ -30,6 +30,70 @@ still required before any production promotion.
 No commit, push, or Git-history rewrite was performed as part of this local
 implementation.
 
+## Precision-first extension
+
+The subsequent precision-first recovery patch added engineering needed to
+research loss suppression without weakening the deterministic methodology:
+
+- immutable `CandidateFeatureSnapshot` records contain decision-time candidate,
+  score, geometry, market-profile, snapshot-lineage, missing-mask, dataset,
+  configuration, and code identities;
+- `CandidateOutcomeLabel` stores fill and future positive-net results
+  separately, with a win defined as realized net `R > 0`;
+- duplicate geometry is removed inside a symbol/decision-time group, and the
+  grouped chronological splitter prevents any group crossing train,
+  calibration, or untouched-final partitions;
+- the existing deterministic logistic-regression/HGB and isotonic framework
+  trains fill and post-fill positive-net families;
+- precision frontiers report coverage, win rate, expectancy, profit factor,
+  average win/loss, and payoff-implied break-even accuracy;
+- threshold choice is calibration-only and requires positive expectancy plus
+  profit factor at least `1.20`;
+- current/retest, no-chase, TP1, partial/runner, higher-cost, and delayed-fill
+  alternatives are labeled `shadow_only` and counted in the attempted
+  configuration population;
+- `RuntimePrecisionArtifact` and `RuntimePrecisionDecision` expose calibrated
+  fill/positive-net probabilities, expected-R intervals, sample authority,
+  checksums, modes, states, and reason codes;
+- scan, analyze, replay JSON, operator diagnostics, and SQLite opportunity rows
+  receive additive precision metadata;
+- default mode is `observe_only`; paper is also non-mutating; enforcement is
+  fail-closed and requires both historical and fresh paper promotion.
+
+The runtime gate is downstream of methodology, HTF, geometry, and deterministic
+candidate validation. It can only rerank or suppress an already-valid
+candidate. It cannot approve a rejected candidate, invent an entry/stop/target,
+override direct HTF opposition, bypass chase or invalidation, or turn a
+conditional opportunity into an executable trade.
+
+### Precision promotion status
+
+Production enforcement is **not approved**. The already inspected campaign
+cannot become untouched evidence, and no complete fresh post-June-2026 period
+or eight-week paper population exists as of this report date. The historical
+gate also requires at least 200 untouched filled outcomes, `65%` point win
+rate, a `55%` Wilson lower bound, positive bootstrap expectancy, profit factor
+at least `1.20`, positive adequate folds and exclusion tests, four stable
+cohorts, positive Brier skill, calibration error at most `0.05`, DSR at least
+`0.95`, and PBO at most `0.20`.
+
+Paper authority subsequently requires at least 50 resolved fills over eight
+weeks, eight symbols, four cohorts, no symbol above 20%, `65%` point win rate,
+a `50%` Wilson lower bound, positive bootstrap expectancy, and profit factor at
+least `1.20`. If any gate fails, Apex remains paper/observe-only.
+
+Precision-first verification completed with all 1,930 collected tests passing,
+Ruff clean across source/tests/tools, mypy clean across all 331 authoritative
+source files, successful configuration validation, visible research CLI
+feature/outcome options, valid SQLite schema-v5 migration, and a clean
+`git diff --check`.
+
+A three-decision BTCUSDT archive smoke then exercised the real schema-v6
+backtest path. It produced 18 decision-time feature snapshots across canonical
+and shadow-counterfactual populations, 10 separately resolved outcome labels,
+and zero production trades. The result retained the schema-v5 compatibility
+marker and did not force a trade.
+
 ## Controlled public-data campaign
 
 The controlled campaign used BTCUSDT for June 2026 and the declared
@@ -104,6 +168,41 @@ No configuration was promoted. The fail-closed gates reported:
 This is a valid quality-recovery result: the implementation completed the
 measurement and promotion machinery, while the evidence correctly refused a
 production change.
+
+## Broad multi-market calibration
+
+A second campaign expanded the evidence to 12 representative symbols over 12
+complete months, with 288 manifest-verified kline and funding archives. It ran:
+
+- 2,400 full-range decisions at 5m × 24;
+- 1,200 full-range decisions at 3m × 20;
+- 1,200 full-range decisions at 15m × 24;
+- 864 predeclared precision rules through five purged validation folds and one
+  final 20% holdout.
+
+All 4,800 canonical decisions remained no-trade. Shadow candidates were
+negative after conservative costs in every horizon. The selected final-holdout
+rule reached a `50.9259%` win rate but had `-0.384038 R` expectancy, a
+`-0.644465 R` bootstrap lower bound, and `0.547803` profit factor. It was not
+promoted.
+
+A validation-only abstention frontier then tested stricter loss avoidance. The
+highest-accuracy lane produced 59 wins and 22 losses (`72.8395%`), but its
+average win was `0.333355 R` versus a `1.091447 R` average loss. Its break-even
+requirement was therefore `76.6034%`; realized expectancy was `-0.053628 R`
+and profit factor was `0.819094`. It was unstable across folds and remained
+observe-only.
+
+A legacy sweep/reclaim diagnostic initially displayed an 80% result on 30
+events. A leakage audit showed that the eligibility flag included future
+post-stop path facts. The new point-in-time evaluator reduced the clean
+independent population to 81 episodes with a `39.5062%` win rate,
+`-0.584931 R` expectancy, and `0.342376` profit factor. This candidate was also
+rejected.
+
+The full market panel, timeframe results, selection process, leakage finding,
+and reproduction commands are recorded in the
+[`Apex Multi-Market Calibration Campaign Report`](apex_calibration_campaign_report.md).
 
 In practical terms:
 

@@ -304,6 +304,7 @@ def _intelligence_sections(payload: Mapping[str, object]) -> list[str]:
     intelligence = _mapping(payload.get("market_intelligence"))
     warning = _mapping(intelligence.get("early_warning"))
     edge = _mapping(payload.get("historical_edge"))
+    precision = _mapping(payload.get("precision_gate"))
     sections: list[str] = []
     if warning:
         evidence = _strings(warning.get("evidence"))
@@ -328,6 +329,36 @@ def _intelligence_sections(payload: Mapping[str, object]) -> list[str]:
             f"{float(interval[0]) * 100:.1f}%-{float(interval[1]) * 100:.1f}%"
             if isinstance(interval, list) and len(interval) == 2
             else UNAVAILABLE
+        )
+    if precision:
+        decision = _mapping(precision.get("selected_candidate_decision"))
+        reasons = _strings(decision.get("reason_codes")) or _strings(
+            precision.get("reason_codes")
+        )
+        probability = decision.get("calibrated_positive_net_probability")
+        sections.append(
+            render_section(
+                "Precision Gate",
+                render_fields(
+                    (
+                        ("Mode", humanize_code(precision.get("mode"))),
+                        ("State", humanize_code(decision.get("state"))),
+                        (
+                            "Calibrated positive-net probability",
+                            (
+                                f"{float(probability) * 100:.1f}%"
+                                if isinstance(probability, (int, float))
+                                else UNAVAILABLE
+                            ),
+                        ),
+                        ("Production changed", precision.get("production_changed")),
+                        (
+                            "Reason",
+                            humanize_code(reasons[0]) if reasons else "No abstention reason",
+                        ),
+                    )
+                ),
+            )
         )
         expected_r = edge.get("expected_r")
         sections.append(

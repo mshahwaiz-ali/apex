@@ -25,8 +25,35 @@ outcomes, insufficient shadow-matrix coverage, unavailable calibration, and no
 valid PBO comparison population. More predeclared multi-symbol/month evidence
 must pass every promotion gate before runtime parameters can change.
 
+A broader 12-symbol, 12-month archive campaign also promoted nothing. Its best
+untouched precision rule won `50.93%` of 108 outcomes but remained unprofitable
+after conservative costs (`-0.384 R` expectancy; `0.548` profit factor). A
+seemingly strong sweep/reclaim diagnostic was rejected after a point-in-time
+leakage audit; the clean result was `39.51%` across 81 independent episodes.
+Apex does not claim an 85–90% win rate, and production thresholds were not
+loosened to chase one.
+
+A stricter loss-avoidance search raised development accuracy to `72.84%`
+(`59/81`), but remained unprofitable because the average loss was more than
+three times the average win. Apex reports this abstention frontier as
+observe-only instead of presenting a higher but economically misleading win
+rate.
+
+The precision-first implementation now adds a separate decision-time feature
+contract, grouped chronological partitions, deterministic fill and
+positive-net model training, validation-only precision frontiers, shadow-only
+payoff comparisons, and a runtime `pass`/`abstain`/`unavailable` decision.
+Runtime mode defaults to `observe_only`. A predictor cannot resurrect a
+methodology rejection, override HTF opposition, invent geometry, or make a
+conditional setup executable. Enforcement remains locked until both historical
+and fresh paper promotion gates pass.
+
 Current evidence and the exact promotion decision are documented in the
 [`Apex Quality Recovery Validation Report`](docs/apex_quality_recovery_validation_report.md).
+The full calibration evidence is documented in the
+[`Apex Multi-Market Calibration Campaign Report`](docs/apex_calibration_campaign_report.md).
+The precision-first code and evidence ledger is documented in the
+[`Apex Precision-First Implementation Report`](docs/apex_precision_first_implementation_report.md).
 Implemented runtime behavior is documented separately in the
 [`Apex Quality Recovery Audit`](docs/apex_quality_recovery_audit.md).
 
@@ -52,6 +79,8 @@ Apex is designed to answer:
 - **Fail-soft optional evidence:** unavailable OI, funding, depth, or other optional inputs do not become zero.
 - **Configuration-driven behavior:** thresholds, methodology gate mode, persistence, and feature switches live in YAML.
 - **Complete JSON authority:** text output is operator-focused; JSON preserves the complete structured record.
+- **Precision without forced frequency:** prediction may suppress an already-valid
+  candidate, but no weekly quota can manufacture a setup.
 
 ## Public CLI
 
@@ -434,6 +463,8 @@ It can:
 - write a campaign manifest;
 - summarize monthly universe coverage;
 - optionally train campaign models;
+- join archive-replay `CandidateFeatureSnapshot` and separate
+  `CandidateOutcomeLabel` JSONL into a versioned `feature_rows.jsonl`;
 - evaluate predeclared purged walk-forward experiments from canonical outcome files;
 - save complete structured campaign output.
 
@@ -450,6 +481,11 @@ The renderer includes:
 Model authority remains withheld until every configured promotion gate passes.
 Unsupported PBO and probability calibration remain unavailable instead of being
 reported as reassuring numeric values.
+
+Precision-gate configuration lives under `precision_gate` in
+`config/default.yaml`. `observe_only` and `paper` are non-mutating. `enforce`
+is fail-closed and requires a checksum-verified artifact with both historical
+and paper promotion authority.
 
 ## Configuration
 
@@ -544,6 +580,7 @@ Only report validation results that were actually observed.
 - [`docs/apex_quality_recovery_audit.md`](docs/apex_quality_recovery_audit.md) — implemented methodology and evidence authority
 - [`docs/apex_quality_recovery_plan.md`](docs/apex_quality_recovery_plan.md) — remaining quality-recovery roadmap
 - [`docs/apex_quality_recovery_validation_report.md`](docs/apex_quality_recovery_validation_report.md) — real-data verification and promotion decision
+- [`docs/apex_calibration_campaign_report.md`](docs/apex_calibration_campaign_report.md) — multi-market calibration and leakage-audit evidence
 - [`docs/apex_backtest_validation_spec.md`](docs/apex_backtest_validation_spec.md) — chronological evaluation and promotion rules
 - [`docs/apex_external_sources.md`](docs/apex_external_sources.md) — source register and applicability limits
 - [`config/default.yaml`](config/default.yaml) — default runtime configuration

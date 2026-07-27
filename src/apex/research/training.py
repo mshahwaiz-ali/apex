@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from apex.research.models import ModelFamily, save_trusted_artifact, train_model_family
-from apex.research.splits import chronological_split
+from apex.research.precision import (
+    precision_frontier,
+    select_validation_threshold,
+)
+from apex.research.splits import grouped_chronological_split
 
 
 def train_campaign_models(dataset_dir: Path) -> dict[str, object]:
@@ -30,8 +34,9 @@ def train_campaign_models(dataset_dir: Path) -> dict[str, object]:
             artifacts[family.value] = {"trained": False, "reason": "fewer than 30 rows"}
             continue
         timestamps = tuple(datetime.fromisoformat(str(row["timestamp"])) for row in family_rows)
-        split = chronological_split(
+        split = grouped_chronological_split(
             timestamps,
+            tuple(str(row.get("group_id") or row["timestamp"]) for row in family_rows),
             horizon=timedelta(hours=24),
             embargo=timedelta(hours=1),
         )
@@ -87,13 +92,64 @@ def train_campaign_models(dataset_dir: Path) -> dict[str, object]:
                 "sample_size": len(family_rows),
             },
         )
-        artifacts[family.value] = {
+        artifact_summary: dict[str, object] = {
             "trained": True,
             "artifact": str(artifact_path),
             "manifest": str(artifact_path.with_suffix(".pkl.manifest.json")),
             "artifact_sha256": manifest.artifact_sha256,
             "metrics": metrics,
         }
+        artifacts[family.value] = artifact_summary
+        if family is ModelFamily.POST_FILL_OUTCOME and all(
+            "net_r" in family_rows[index] for index in (*split.calibration, *split.final_test)
+        ):
+            positive_index = model.classes.index(1)
+            validation_probabilities = [
+                row[positive_index]
+                for row in model.predict_proba(_select(matrix, split.calibration))
+            ]
+            frontier = precision_frontier(
+                validation_probabilities,
+                [float(family_rows[index]["net_r"]) for index in split.calibration],
+                minimum_outcomes=min(50, len(split.calibration)),
+            )
+            selected_threshold = select_validation_threshold(frontier)
+            artifact_summary["validation_precision_frontier"] = [
+                {
+                    "threshold": point.threshold,
+                    "outcomes": point.outcomes,
+                    "wins": point.wins,
+                    "win_rate": point.win_rate,
+                    "expectancy_r": point.expectancy_r,
+                    "profit_factor": point.profit_factor,
+                    "break_even_win_rate": point.break_even_win_rate,
+                    "eligible": point.eligible,
+                }
+                for point in frontier
+            ]
+            artifact_summary["selected_threshold"] = (
+                None if selected_threshold is None else selected_threshold.threshold
+            )
+            if selected_threshold is not None:
+                final_probabilities = [
+                    row[positive_index]
+                    for row in model.predict_proba(_select(matrix, split.final_test))
+                ]
+                final_point = precision_frontier(
+                    final_probabilities,
+                    [float(family_rows[index]["net_r"]) for index in split.final_test],
+                    thresholds=(selected_threshold.threshold,),
+                    minimum_outcomes=1,
+                )[0]
+                artifact_summary["untouched_final_precision"] = {
+                    "threshold": final_point.threshold,
+                    "outcomes": final_point.outcomes,
+                    "wins": final_point.wins,
+                    "win_rate": final_point.win_rate,
+                    "expectancy_r": final_point.expectancy_r,
+                    "profit_factor": final_point.profit_factor,
+                    "break_even_win_rate": final_point.break_even_win_rate,
+                }
     return {
         "trained": any(
             isinstance(item, dict) and item.get("trained") is True for item in artifacts.values()

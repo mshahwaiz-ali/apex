@@ -10,7 +10,7 @@ from apex.application.methodology_geometry_enforcement import GeometrySafetyGate
 from apex.application.methodology_geometry_runtime import GeometryExecutionCosts
 from apex.application.selected_symbol import analyze_selected_symbol
 from apex.config.methodology import MethodologySettings
-from apex.config.settings import TimeframeIndicatorSettings
+from apex.config.settings import PrecisionGateSettings, TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.market_environment import DEFAULT_MARKET_ENVIRONMENT_CONFIG, MarketEnvironmentConfig
 
@@ -33,6 +33,7 @@ def scan_symbols(
     geometry_execution_costs: GeometryExecutionCosts | None = None,
     futures_evidence_enabled: bool = True,
     previous_market_regimes: Mapping[str, str] | None = None,
+    precision_gate_settings: PrecisionGateSettings | None = None,
 ) -> ScanResult:
     """Analyze every shortlisted symbol with the same full authority as ``analyze``.
 
@@ -64,6 +65,7 @@ def scan_symbols(
                     geometry_execution_costs=geometry_execution_costs,
                     market_environment_config=market_environment_config,
                     futures_evidence_enabled=futures_evidence_enabled,
+                    precision_gate_settings=precision_gate_settings,
                     previous_market_regime=(
                         None
                         if previous_market_regimes is None

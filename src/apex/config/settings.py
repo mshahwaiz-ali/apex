@@ -16,6 +16,7 @@ from apex.market_environment.config import MarketEnvironmentConfig
 from apex.strategies import StrategyType
 
 MethodologyGateModeSetting = Literal["shadow", "enforce"]
+PrecisionGateModeSetting = Literal["observe_only", "paper", "enforce"]
 
 _VALID_TIMEFRAME_ROLES = {
     "long_term_macro",
@@ -294,6 +295,19 @@ class GeometryExecutionSettings(BaseModel):
         return self
 
 
+class PrecisionGateSettings(BaseModel):
+    """Fail-soft until a trusted artifact passes historical and paper gates."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: PrecisionGateModeSetting = "observe_only"
+    trusted_artifact_path: Path = Path("data/models/runtime_precision.json")
+    required_positive_net_probability: float = Field(default=0.65, ge=0.0, le=1.0)
+    required_expected_r_lower_bound: float = 0.0
+    minimum_segment_support: int = Field(default=50, ge=1)
+    fail_closed_in_enforce: bool = True
+
+
 class FileSettings(BaseModel):
     """Validated settings loaded from the default YAML file."""
 
@@ -311,6 +325,7 @@ class FileSettings(BaseModel):
     outcome_tracking_enabled: bool = True
     rollout_diagnostics_enabled: bool = False
     geometry_execution: GeometryExecutionSettings = Field(default_factory=GeometryExecutionSettings)
+    precision_gate: PrecisionGateSettings = Field(default_factory=PrecisionGateSettings)
     futures_screener: FuturesScreenerSettings = Field(default_factory=FuturesScreenerSettings)
     analysis_timeframes: list[str] = Field(default_factory=list)
     timeframe_roles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TIMEFRAME_ROLES))

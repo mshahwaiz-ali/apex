@@ -41,7 +41,7 @@ PROFILES = (
     ReplayProfile("intraday", "30m", 16, 3),
 )
 
-EXPECTED_BACKTEST_SCHEMA_VERSION = 5
+EXPECTED_BACKTEST_SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True, slots=True)

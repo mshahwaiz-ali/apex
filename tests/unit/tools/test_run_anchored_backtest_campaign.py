@@ -84,4 +84,4 @@ def test_runner_reports_actual_schema_on_mismatch(
 
     assert result.succeeded is False
     assert result.report_valid is False
-    assert result.error == "report schema is missing or unexpected: expected 5, got 4"
+    assert result.error == "report schema is missing or unexpected: expected 6, got 4"

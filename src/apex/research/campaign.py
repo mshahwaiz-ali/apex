@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+from apex.data.resampling import resample_candles
 from apex.domain.futures_evidence import (
     FundingRateSnapshot,
     OpenInterestSnapshot,
@@ -352,6 +353,180 @@ def read_kline_archive(path: Path, *, symbol: str, timeframe: str = "1m") -> tup
     return ordered
 
 
+def read_verified_campaign_klines(
+    dataset_dir: Path,
+    *,
+    symbol: str,
+    timeframe: str = "1m",
+) -> tuple[Candle, ...]:
+    """Load every manifest-verified campaign kline archive for one symbol.
+
+    The campaign manifest is the dataset boundary. Files absent from it are not
+    silently consumed, even when they happen to exist below ``dataset_dir``.
+    """
+
+    manifest = _read_campaign_manifest_payload(dataset_dir)
+    files = _manifest_files(manifest)
+    display_symbol = symbol.upper()
+    normalized_symbol = display_symbol.replace("/", "")
+    prefix = f"klines/{normalized_symbol}/{timeframe}/"
+    archive_paths = tuple(
+        (relative_path, expected_checksum)
+        for relative_path, expected_checksum in sorted(files.items())
+        if relative_path.startswith(prefix) and relative_path.endswith(".zip")
+    )
+    if not archive_paths:
+        raise ValueError(
+            f"campaign manifest contains no {normalized_symbol} {timeframe} kline archives"
+        )
+
+    candles: list[Candle] = []
+    for relative_path, expected_checksum in archive_paths:
+        path = _verified_manifest_file(
+            dataset_dir,
+            relative_path=relative_path,
+            expected_checksum=expected_checksum,
+        )
+        candles.extend(read_kline_archive(path, symbol=display_symbol, timeframe=timeframe))
+    ordered = tuple(sorted(candles, key=lambda item: item.open_time))
+    if len({item.open_time for item in ordered}) != len(ordered):
+        raise ValueError("campaign kline archives contain duplicate open timestamps")
+    return ordered
+
+
+def read_verified_campaign_resampled_klines(
+    dataset_dir: Path,
+    *,
+    symbol: str,
+    target_timeframe: str,
+    source_timeframe: str = "1m",
+) -> tuple[Candle, ...]:
+    """Verify and resample campaign archives one file at a time.
+
+    Monthly processing keeps peak memory bounded while preserving the manifest
+    as the only accepted dataset boundary.
+    """
+
+    if target_timeframe == source_timeframe:
+        return read_verified_campaign_klines(
+            dataset_dir,
+            symbol=symbol,
+            timeframe=source_timeframe,
+        )
+    manifest = _read_campaign_manifest_payload(dataset_dir)
+    files = _manifest_files(manifest)
+    display_symbol = symbol.upper()
+    normalized_symbol = display_symbol.replace("/", "")
+    prefix = f"klines/{normalized_symbol}/{source_timeframe}/"
+    archive_paths = tuple(
+        (relative_path, expected_checksum)
+        for relative_path, expected_checksum in sorted(files.items())
+        if relative_path.startswith(prefix) and relative_path.endswith(".zip")
+    )
+    if not archive_paths:
+        raise ValueError(
+            f"campaign manifest contains no {normalized_symbol} "
+            f"{source_timeframe} kline archives"
+        )
+
+    candles: list[Candle] = []
+    for relative_path, expected_checksum in archive_paths:
+        path = _verified_manifest_file(
+            dataset_dir,
+            relative_path=relative_path,
+            expected_checksum=expected_checksum,
+        )
+        monthly = read_kline_archive(
+            path,
+            symbol=display_symbol,
+            timeframe=source_timeframe,
+        )
+        candles.extend(
+            candle
+            for candle in resample_candles(
+                monthly,
+                source_timeframe=source_timeframe,
+                target_timeframe=target_timeframe,
+            )
+            if candle.is_closed
+        )
+    ordered = tuple(sorted(candles, key=lambda item: item.open_time))
+    if len({item.open_time for item in ordered}) != len(ordered):
+        raise ValueError("resampled campaign archives contain duplicate timestamps")
+    return ordered
+
+
+def read_verified_campaign_funding(
+    dataset_dir: Path,
+    *,
+    symbol: str,
+) -> tuple[FundingRateSnapshot, ...]:
+    """Load every manifest-verified funding archive for one campaign symbol."""
+
+    manifest = _read_campaign_manifest_payload(dataset_dir)
+    files = _manifest_files(manifest)
+    display_symbol = symbol.upper()
+    normalized_symbol = display_symbol.replace("/", "")
+    prefix = f"fundingRate/{normalized_symbol}/"
+    archive_paths = tuple(
+        (relative_path, expected_checksum)
+        for relative_path, expected_checksum in sorted(files.items())
+        if relative_path.startswith(prefix) and relative_path.endswith(".zip")
+    )
+    observations: list[FundingRateSnapshot] = []
+    for relative_path, expected_checksum in archive_paths:
+        path = _verified_manifest_file(
+            dataset_dir,
+            relative_path=relative_path,
+            expected_checksum=expected_checksum,
+        )
+        observations.extend(read_funding_rate_archive(path, symbol=display_symbol))
+    ordered = tuple(sorted(observations, key=lambda item: item.funding_time))
+    if len({item.funding_time for item in ordered}) != len(ordered):
+        raise ValueError("campaign funding archives contain duplicate timestamps")
+    return ordered
+
+
+def _read_campaign_manifest_payload(dataset_dir: Path) -> Mapping[str, object]:
+    manifest_path = dataset_dir / "campaign_manifest.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError("campaign manifest is unavailable") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("campaign manifest is invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("campaign manifest root must be an object")
+    return payload
+
+
+def _manifest_files(payload: Mapping[str, object]) -> Mapping[str, str]:
+    files = payload.get("files")
+    if not isinstance(files, dict):
+        raise ValueError("campaign manifest files must be an object")
+    if any(not isinstance(key, str) or not isinstance(value, str) for key, value in files.items()):
+        raise ValueError("campaign manifest file identities must be strings")
+    return files
+
+
+def _verified_manifest_file(
+    dataset_dir: Path,
+    *,
+    relative_path: str,
+    expected_checksum: str,
+) -> Path:
+    path = dataset_dir / relative_path
+    if not path.is_file():
+        raise ValueError(f"campaign archive is missing: {relative_path}")
+    actual_checksum = sha256_file(path)
+    if actual_checksum != expected_checksum:
+        raise ValueError(
+            f"campaign archive checksum mismatch: {relative_path}: "
+            f"{actual_checksum} != {expected_checksum}"
+        )
+    return path
+
+
 def read_funding_rate_archive(path: Path, *, symbol: str) -> tuple[FundingRateSnapshot, ...]:
     """Parse Binance monthly funding history without fabricating mark prices."""
 
@@ -535,6 +710,9 @@ __all__ = [
     "read_funding_rate_archive",
     "read_historical_metrics_archive",
     "read_kline_archive",
+    "read_verified_campaign_funding",
+    "read_verified_campaign_klines",
+    "read_verified_campaign_resampled_klines",
     "sha256_file",
     "write_manifest",
 ]

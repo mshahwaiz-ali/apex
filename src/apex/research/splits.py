@@ -50,3 +50,51 @@ def chronological_split(
         final_test=tuple(index for index in range(calibration_end, size) if index not in purged),
         purged=tuple(sorted(purged)),
     )
+
+
+def grouped_chronological_split(
+    timestamps: tuple[datetime, ...],
+    group_ids: tuple[str, ...],
+    *,
+    horizon: timedelta = timedelta(0),
+    embargo: timedelta = timedelta(0),
+) -> ChronologicalSplit:
+    """Keep every decision group in one chronological partition.
+
+    Rows may share a timestamp, but a group may not occur at multiple timestamps.
+    Purge and embargo are calculated at the unique decision-time boundary and then
+    expanded back to row indexes.
+    """
+
+    if not timestamps or len(timestamps) != len(group_ids):
+        raise ValueError("grouped split requires equally sized timestamped groups")
+    if tuple(sorted(timestamps)) != timestamps:
+        raise ValueError("timestamps must be chronological")
+    group_time: dict[str, datetime] = {}
+    for timestamp, group_id in zip(timestamps, group_ids, strict=True):
+        if not group_id.strip():
+            raise ValueError("chronological group identity cannot be blank")
+        previous = group_time.setdefault(group_id, timestamp)
+        if previous != timestamp:
+            raise ValueError("one chronological group cannot span decision timestamps")
+    unique_times = tuple(sorted(set(timestamps)))
+    base = chronological_split(unique_times, horizon=horizon, embargo=embargo)
+    memberships = {
+        "training": {unique_times[index] for index in base.training},
+        "calibration": {unique_times[index] for index in base.calibration},
+        "final_test": {unique_times[index] for index in base.final_test},
+        "purged": {unique_times[index] for index in base.purged},
+    }
+    return ChronologicalSplit(
+        training=tuple(i for i, value in enumerate(timestamps) if value in memberships["training"]),
+        calibration=tuple(
+            i for i, value in enumerate(timestamps) if value in memberships["calibration"]
+        ),
+        final_test=tuple(
+            i for i, value in enumerate(timestamps) if value in memberships["final_test"]
+        ),
+        purged=tuple(i for i, value in enumerate(timestamps) if value in memberships["purged"]),
+    )
+
+
+__all__ = ["ChronologicalSplit", "chronological_split", "grouped_chronological_split"]

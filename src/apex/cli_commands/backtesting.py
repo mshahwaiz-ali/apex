@@ -48,12 +48,17 @@ from apex.backtesting.historical_signal_replay import (
 )
 from apex.backtesting.methodology_segmentation import methodology_segment_metrics
 from apex.data.providers.errors import MarketDataProviderError
+from apex.data.resampling import resample_candles
 from apex.data.timeframes import timeframe_delta
 from apex.domain.futures_evidence import FundingRateSnapshot
 from apex.presentation import OutputMode, normalize_cli_output_mode
 from apex.presentation.backtest_output import render_backtest
 from apex.presentation.terminal import emit_terminal
-from apex.research.campaign import read_funding_rate_archive
+from apex.research.campaign import (
+    read_funding_rate_archive,
+    read_verified_campaign_funding,
+    read_verified_campaign_klines,
+)
 from apex.research.metrics import deflated_sharpe_probability
 from apex.strategies import StrategyType, TradeDirection
 
@@ -123,6 +128,28 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                 help="Verified Binance monthly funding ZIP for event-level replay costs.",
             ),
         ] = None,
+        archive_dataset_dir: Annotated[
+            Path | None,
+            typer.Option(
+                "--archive-dataset-dir",
+                exists=True,
+                file_okay=False,
+                help=(
+                    "Manifest-verified Binance campaign dataset used instead of "
+                    "the live candle tail."
+                ),
+            ),
+        ] = None,
+        sample_full_range: Annotated[
+            bool,
+            typer.Option(
+                "--sample-full-range",
+                help=(
+                    "Distribute decisions across the complete usable archive range "
+                    "instead of sampling the contiguous tail."
+                ),
+            ),
+        ] = False,
         as_of: Annotated[
             str | None,
             typer.Option(
@@ -156,38 +183,15 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             source_limit = candle_limit + replay_candles * decision_points
             funding_events: tuple[FundingRateSnapshot, ...] = ()
             funding_history_reason = "futures_evidence_disabled"
+            candle_source_authority = "live_provider_tail"
+            decision_sampling_authority = "contiguous_tail"
 
-            with create_market_data_services(context.settings) as services:
-                series = tuple(
-                    HistoricalCandleSeries(
-                        symbol=normalized_symbol,
-                        timeframe=timeframe,
-                        candles=tuple(
-                            candle
-                            for candle in services.candles.fetch_candles(
-                                normalized_symbol,
-                                timeframe,
-                                limit=min(
-                                    10_000,
-                                    _campaign_source_limit(
-                                        timeframe=timeframe,
-                                        replay_timeframe=replay_timeframe,
-                                        candle_limit=candle_limit,
-                                        replay_candles=replay_candles,
-                                        decision_points=decision_points,
-                                    )
-                                    + _anchor_displaced_bars(
-                                        timeframe=timeframe,
-                                        anchor_time=anchor_time,
-                                        fetch_time=fetch_time,
-                                    ),
-                                ),
-                            )
-                            if candle.is_closed
-                            and (anchor_time is None or candle.close_time <= anchor_time)
-                        ),
-                    )
-                    for timeframe in requested_timeframes
+            if archive_dataset_dir is not None:
+                series = _archive_campaign_series(
+                    archive_dataset_dir=archive_dataset_dir,
+                    symbol=normalized_symbol,
+                    timeframes=requested_timeframes,
+                    anchor_time=anchor_time,
                 )
                 if funding_archive is not None:
                     fetched_funding = read_funding_rate_archive(
@@ -205,10 +209,63 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                         else "archive_has_no_events_in_requested_point_in_time_window"
                     )
                 elif context.settings.futures_evidence_enabled:
-                    try:
-                        fetched_funding = services.futures_evidence.fetch_funding_rates(
-                            normalized_symbol,
-                            limit=500,
+                    fetched_funding = read_verified_campaign_funding(
+                        archive_dataset_dir,
+                        symbol=normalized_symbol,
+                    )
+                    funding_events = tuple(
+                        item
+                        for item in fetched_funding
+                        if anchor_time is None or item.funding_time <= anchor_time
+                    )
+                    funding_history_reason = (
+                        "available:manifest_verified_campaign"
+                        if funding_events
+                        else "campaign_has_no_funding_events"
+                    )
+                candle_source_authority = "manifest_verified_campaign_archives"
+                decision_sampling_authority = (
+                    "full_usable_archive_range" if sample_full_range else "contiguous_tail"
+                )
+            else:
+                if sample_full_range:
+                    raise ValueError("--sample-full-range requires --archive-dataset-dir")
+                with create_market_data_services(context.settings) as services:
+                    series = tuple(
+                        HistoricalCandleSeries(
+                            symbol=normalized_symbol,
+                            timeframe=timeframe,
+                            candles=tuple(
+                                candle
+                                for candle in services.candles.fetch_candles(
+                                    normalized_symbol,
+                                    timeframe,
+                                    limit=min(
+                                        10_000,
+                                        _campaign_source_limit(
+                                            timeframe=timeframe,
+                                            replay_timeframe=replay_timeframe,
+                                            candle_limit=candle_limit,
+                                            replay_candles=replay_candles,
+                                            decision_points=decision_points,
+                                        )
+                                        + _anchor_displaced_bars(
+                                            timeframe=timeframe,
+                                            anchor_time=anchor_time,
+                                            fetch_time=fetch_time,
+                                        ),
+                                    ),
+                                )
+                                if candle.is_closed
+                                and (anchor_time is None or candle.close_time <= anchor_time)
+                            ),
+                        )
+                        for timeframe in requested_timeframes
+                    )
+                    if funding_archive is not None:
+                        fetched_funding = read_funding_rate_archive(
+                            funding_archive,
+                            symbol=normalized_symbol,
                         )
                         funding_events = tuple(
                             item
@@ -216,24 +273,42 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                             if anchor_time is None or item.funding_time <= anchor_time
                         )
                         funding_history_reason = (
-                            "available"
+                            "available:checksum_archive_supplied_by_operator"
                             if funding_events
-                            else "no_events_in_requested_point_in_time_window"
+                            else "archive_has_no_events_in_requested_point_in_time_window"
                         )
-                    except MarketDataProviderError as exc:
-                        funding_history_reason = f"unavailable:{type(exc).__name__}"
+                    elif context.settings.futures_evidence_enabled:
+                        try:
+                            fetched_funding = services.futures_evidence.fetch_funding_rates(
+                                normalized_symbol,
+                                limit=500,
+                            )
+                            funding_events = tuple(
+                                item
+                                for item in fetched_funding
+                                if anchor_time is None or item.funding_time <= anchor_time
+                            )
+                            funding_history_reason = (
+                                "available"
+                                if funding_events
+                                else "no_events_in_requested_point_in_time_window"
+                            )
+                        except MarketDataProviderError as exc:
+                            funding_history_reason = f"unavailable:{type(exc).__name__}"
 
             replay_series = next(item for item in series if item.timeframe == replay_timeframe)
-            if len(replay_series.candles) < source_limit:
+            if not sample_full_range and len(replay_series.candles) < source_limit:
                 raise ValueError(
                     "backtest requires enough closed candles for analysis and every replay window"
                 )
             store = HistoricalCandleStore(series)
-            decision_times = tuple(
-                replay_series.candles[
-                    len(replay_series.candles) - replay_candles * (decision_points - index) - 1
-                ].close_time
-                for index in range(decision_points)
+            decision_times = _campaign_decision_times(
+                series=series,
+                replay_series=replay_series,
+                candle_limit=candle_limit,
+                replay_candles=replay_candles,
+                decision_points=decision_points,
+                sample_full_range=sample_full_range,
             )
             signals: list[BacktestSignal] = []
             conditional_signals: list[BacktestSignal] = []
@@ -241,6 +316,7 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             shadow_signals: list[BacktestSignal] = []
             no_trade_decisions: list[dict[str, object]] = []
             calibration_records: list[dict[str, object]] = []
+            candidate_feature_snapshots: list[dict[str, object]] = []
             decision_partitions: list[dict[str, str]] = []
             previous_market_regime: str | None = None
             for decision_index, decision_time in enumerate(decision_times):
@@ -279,10 +355,17 @@ def register_backtesting_commands(app: typer.Typer) -> None:
                     geometry_execution_costs=geometry_execution_costs_from_settings(
                         context.settings.geometry_execution
                     ),
+                    precision_gate_settings=context.settings.precision_gate,
                     futures_evidence_enabled=context.settings.futures_evidence_enabled,
                     previous_market_regime=previous_market_regime,
                 )
                 intelligence = analysis.market_intelligence or {}
+                serialized_analysis = serialize_symbol_analysis(analysis)
+                serialized_features = serialized_analysis.get("candidate_feature_snapshots")
+                if isinstance(serialized_features, list):
+                    candidate_feature_snapshots.extend(
+                        item for item in serialized_features if isinstance(item, dict)
+                    )
                 regime_payload = intelligence.get("regime")
                 if isinstance(regime_payload, Mapping):
                     regime_state = regime_payload.get("state")
@@ -442,6 +525,46 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             item["decision_time"]: item["partition"] for item in decision_partitions
         }
         filled_report_trades = _filled_execution_trades(report.trades)
+        replay_trade_by_candidate = {
+            (trade.signal.generated_at.isoformat(), trade.signal.candidate_id): trade
+            for population in (
+                report.trades,
+                conditional_report.trades,
+                shadow_report.trades,
+            )
+            for trade in population
+        }
+        feature_snapshot_by_id = {
+            str(item["feature_snapshot_id"]): item
+            for item in candidate_feature_snapshots
+            if item.get("feature_snapshot_id") is not None
+        }
+        candidate_outcome_labels = []
+        for feature_snapshot_id, snapshot in feature_snapshot_by_id.items():
+            trade = replay_trade_by_candidate.get(
+                (str(snapshot.get("decision_time")), str(snapshot.get("candidate_id")))
+            )
+            if trade is None:
+                continue
+            filled = (
+                isinstance(trade.metadata, Mapping)
+                and trade.metadata.get("entry_filled") is True
+            )
+            candidate_outcome_labels.append(
+                {
+                    "feature_snapshot_id": feature_snapshot_id,
+                    "resolved_at": trade.exit_time.isoformat(),
+                    "filled": filled,
+                    "net_r": trade.realized_r_multiple if filled else None,
+                    "positive_net": trade.realized_r_multiple > 0.0 if filled else None,
+                    "outcome": trade.outcome.value,
+                    "funding_source": (
+                        "historical_events"
+                        if funding_events
+                        else "unavailable"
+                    ),
+                }
+            )
         partition_metrics = {
             partition: _report_metrics(
                 summarize_trades(
@@ -463,7 +586,11 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             {
                 (
                     record.get("strategy"),
-                    record.get("setup_geometry_fingerprint"),
+                    json.dumps(
+                        record.get("setup_geometry_fingerprint"),
+                        sort_keys=True,
+                        default=str,
+                    ),
                 )
                 for record in calibration_records
                 if record.get("strategy") is not None
@@ -512,6 +639,8 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "decision_partitions": decision_partitions,
             "no_trade_decisions": no_trade_decisions,
             "calibration_records": calibration_records,
+            "candidate_feature_snapshots": list(feature_snapshot_by_id.values()),
+            "candidate_outcome_labels": candidate_outcome_labels,
             "methodology_segment_metrics": methodology_segment_metrics(calibration_records),
             "trades": _canonical_trade_records(
                 report.trades,
@@ -529,6 +658,11 @@ def register_backtesting_commands(app: typer.Typer) -> None:
             "stop_breach_metrics": _stop_breach_metrics(report.trades),
             "sweep_reclaim_metrics": _sweep_reclaim_metrics(report.trades),
             "execution_assumptions": {
+                "candle_source_authority": candle_source_authority,
+                "decision_sampling_authority": decision_sampling_authority,
+                "archive_dataset_dir": (
+                    None if archive_dataset_dir is None else str(archive_dataset_dir)
+                ),
                 "fee_pct": config.fee_pct,
                 "slippage_pct": config.slippage_pct,
                 "funding_pct": config.funding_pct,
@@ -874,6 +1008,97 @@ def _anchor_displaced_bars(
     return math.ceil((fetch_time - anchor_time) / timeframe_delta(timeframe)) + 2
 
 
+def _archive_campaign_series(
+    *,
+    archive_dataset_dir: Path,
+    symbol: str,
+    timeframes: tuple[str, ...],
+    anchor_time: datetime | None,
+) -> tuple[HistoricalCandleSeries, ...]:
+    source = tuple(
+        candle
+        for candle in read_verified_campaign_klines(
+            archive_dataset_dir,
+            symbol=symbol,
+            timeframe="1m",
+        )
+        if anchor_time is None or candle.close_time <= anchor_time
+    )
+    if not source:
+        raise ValueError("campaign archive contains no candles in the requested window")
+
+    series: list[HistoricalCandleSeries] = []
+    for timeframe in timeframes:
+        candles = (
+            source
+            if timeframe == "1m"
+            else tuple(
+                candle
+                for candle in resample_candles(
+                    source,
+                    target_timeframe=timeframe,
+                    source_timeframe="1m",
+                )
+                if candle.is_closed
+            )
+        )
+        series.append(
+            HistoricalCandleSeries(
+                symbol=symbol,
+                timeframe=timeframe,
+                candles=tuple(candles),
+            )
+        )
+    return tuple(series)
+
+
+def _campaign_decision_times(
+    *,
+    series: tuple[HistoricalCandleSeries, ...],
+    replay_series: HistoricalCandleSeries,
+    candle_limit: int,
+    replay_candles: int,
+    decision_points: int,
+    sample_full_range: bool,
+) -> tuple[datetime, ...]:
+    if not sample_full_range:
+        return tuple(
+            replay_series.candles[
+                len(replay_series.candles) - replay_candles * (decision_points - index) - 1
+            ].close_time
+            for index in range(decision_points)
+        )
+
+    if any(len(item.candles) < candle_limit for item in series):
+        missing = tuple(item.timeframe for item in series if len(item.candles) < candle_limit)
+        raise ValueError(
+            "campaign archive lacks the required analysis prefix for: " + ", ".join(missing)
+        )
+    earliest_analysis_time = max(item.candles[candle_limit - 1].close_time for item in series)
+    first_index = next(
+        (
+            index
+            for index, candle in enumerate(replay_series.candles)
+            if candle.close_time >= earliest_analysis_time
+        ),
+        None,
+    )
+    if first_index is None:
+        raise ValueError("campaign replay timeframe never reaches the analysis prefix")
+    last_index = len(replay_series.candles) - replay_candles - 1
+    if last_index < first_index:
+        raise ValueError("campaign archive leaves no complete forward replay window")
+    if decision_points == 1:
+        return (replay_series.candles[last_index].close_time,)
+    span = last_index - first_index
+    if span < decision_points - 1:
+        raise ValueError("campaign archive cannot provide distinct full-range decisions")
+    indexes = tuple(
+        first_index + (span * index) // (decision_points - 1) for index in range(decision_points)
+    )
+    return tuple(replay_series.candles[index].close_time for index in indexes)
+
+
 def _campaign_source_limit(
     *,
     timeframe: str,
@@ -959,6 +1184,7 @@ def _calibration_record(
         "methodology_version": serialized.get("methodology_version"),
         "snapshot_identity": serialized.get("snapshot_identity"),
         "market_profile": serialized.get("market_profile"),
+        "precision_gate": serialized.get("precision_gate"),
         "no_trade_reasons": serialized.get("reasons"),
         "zero_trade_diagnostics": zero_trade,
         "layered_state": None if setup is None else setup.layered_state.to_dict(),

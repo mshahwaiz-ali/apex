@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from apex.application.opportunity_portfolio import SymbolOpportunityPortfolio
+    from apex.research.precision import CandidateFeatureSnapshot
 
 from apex.application.candidate_ranking import CandidateRankingSnapshot
 from apex.application.methodology_auxiliary_evidence import MethodologyAuxiliaryEvidence
@@ -450,6 +451,8 @@ class SymbolAnalysis:
     methodology_gate: Mapping[str, Any] | None = None
     market_intelligence: Mapping[str, Any] | None = None
     historical_edge: Mapping[str, Any] | None = None
+    precision_gate: Mapping[str, Any] | None = None
+    candidate_feature_snapshots: tuple[CandidateFeatureSnapshot, ...] = ()
     outcome_candles: tuple[Candle, ...] = ()
     opportunity_portfolio: SymbolOpportunityPortfolio | None = None
     market_snapshot: CanonicalMarketSnapshot | None = None

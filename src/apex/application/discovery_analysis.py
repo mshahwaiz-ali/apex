@@ -128,14 +128,23 @@ from apex.application.quality_contracts import (
     canonical_market_snapshot_payload,
     market_behavior_profile_payload,
 )
+from apex.application.runtime_precision import (
+    apply_runtime_precision_gate,
+    load_runtime_precision_artifact,
+)
 from apex.application.strategy_routing import (
     apply_strategy_routing,
     build_strategy_routing_payload,
 )
 from apex.config.methodology import MethodologySettings
-from apex.config.settings import TimeframeIndicatorSettings
+from apex.config.settings import PrecisionGateSettings, TimeframeIndicatorSettings
 from apex.data.providers.base import MarketDataProvider
 from apex.domain.decision_volatility import build_decision_volatility_profile
+from apex.research.precision import (
+    build_candidate_feature_snapshot,
+    candidate_feature_snapshot_payload,
+    deduplicate_feature_snapshots,
+)
 from apex.scoring.contracts import CandidateSelectionResult
 from apex.strategies import (
     StrategyContext,
@@ -210,6 +219,7 @@ def analyze_symbol(
     futures_evidence_enabled: bool = True,
     analysis_mode: AnalysisMode = AnalysisMode.ANALYZE_FULL,
     previous_market_regime: str | None = None,
+    precision_gate_settings: PrecisionGateSettings | None = None,
 ) -> SymbolAnalysis:
     """Run candidate discovery from market evidence and trade geometry."""
 
@@ -297,6 +307,19 @@ def analyze_symbol(
         regime=str(intelligence_regime["state"]),
         archetype=str(market_intelligence["archetype"]),
     )
+    canonical_research_selection = selection
+    resolved_precision_settings = precision_gate_settings or PrecisionGateSettings()
+    precision_artifact, precision_reasons = load_runtime_precision_artifact(
+        resolved_precision_settings.trusted_artifact_path
+    )
+    selection, precision_gate = apply_runtime_precision_gate(
+        selection,
+        precision_artifact,
+        resolved_precision_settings,
+        regime=str(intelligence_regime["state"]),
+        cohort=market_profile.cohort,
+        artifact_reasons=precision_reasons,
+    )
     selection = _apply_geometry_no_trade_reason(selection, geometry_enforcement)
     historical_edge = {**historical_edge, "reason": historical_edge.get("reason", edge_reason)}
     counterfactual_mode = "enforce" if methodology_routing.mode.value == "shadow" else "shadow"
@@ -315,10 +338,41 @@ def analyze_symbol(
         regime=str(intelligence_regime["state"]),
         archetype=str(market_intelligence["archetype"]),
     )
+    shadow_research_selection = counterfactual_selection
+    counterfactual_selection, _ = apply_runtime_precision_gate(
+        counterfactual_selection,
+        precision_artifact,
+        resolved_precision_settings,
+        regime=str(intelligence_regime["state"]),
+        cohort=market_profile.cohort,
+        artifact_reasons=precision_reasons,
+    )
     methodology_selection_parity = _methodology_selection_parity_diagnostics(
         live_mode=methodology_routing.mode.value,
         live_selection=selection,
         counterfactual_selection=counterfactual_selection,
+    )
+    identity = methodology_identity_payload()
+    feature_code_hash = str(
+        identity.get("authority_sha256") or f"version:{METHODOLOGY_VERSION}"
+    )
+    candidate_feature_snapshots = deduplicate_feature_snapshots(
+        tuple(
+            build_candidate_feature_snapshot(
+                ranked,
+                configuration_hash=source.configuration_id,
+                dataset_fingerprint=market_snapshot.snapshot_id,
+                code_hash=feature_code_hash,
+                market_snapshot=market_snapshot,
+                market_profile=market_profile,
+                population=population,
+            )
+            for population, source in (
+                ("canonical", canonical_research_selection),
+                ("shadow_counterfactual", shadow_research_selection),
+            )
+            for ranked in source.ranked_candidates
+        )
     )
     assessment = build_discovery_assessment(selection)
     portfolio_cmp = (
@@ -461,6 +515,8 @@ def analyze_symbol(
         },
         market_intelligence=market_intelligence,
         historical_edge=historical_edge,
+        precision_gate=precision_gate,
+        candidate_feature_snapshots=candidate_feature_snapshots,
         outcome_candles=context.decision_frame.recent_candles,
         opportunity_portfolio=opportunity_portfolio,
         market_snapshot=market_snapshot,
@@ -779,6 +835,11 @@ def serialize_symbol_analysis(analysis: SymbolAnalysis) -> dict[str, Any]:
         "phase5_diagnostics": analysis.phase5_diagnostics,
         "market_intelligence": analysis.market_intelligence,
         "historical_edge": analysis.historical_edge,
+        "precision_gate": getattr(analysis, "precision_gate", None),
+        "candidate_feature_snapshots": [
+            candidate_feature_snapshot_payload(snapshot)
+            for snapshot in getattr(analysis, "candidate_feature_snapshots", ())
+        ],
         "snapshot_identity": (
             None if market_snapshot is None else canonical_market_snapshot_payload(market_snapshot)
         ),

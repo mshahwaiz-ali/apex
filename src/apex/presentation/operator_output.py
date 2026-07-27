@@ -2011,6 +2011,7 @@ def _signal_snapshot(payload: Mapping[str, object]) -> str:
     intelligence = _mapping(payload.get("market_intelligence"))
     warning = _mapping(intelligence.get("early_warning"))
     edge = _mapping(payload.get("historical_edge"))
+    precision = _mapping(payload.get("precision_gate"))
     fields: list[tuple[str, object]] = []
     if warning:
         evidence = _clean_many(warning.get("evidence"))
@@ -2033,6 +2034,19 @@ def _signal_snapshot(payload: Mapping[str, object]) -> str:
                     f"{float(expected_r):+.2f}R"
                     if isinstance(expected_r, int | float)
                     else UNAVAILABLE,
+                ),
+            )
+        )
+    if precision:
+        decision = _mapping(precision.get("selected_candidate_decision"))
+        reason_codes = _clean_many(decision.get("reason_codes"))
+        fields.extend(
+            (
+                ("Precision mode", humanize_code(precision.get("mode"))),
+                ("Precision state", humanize_code(decision.get("state"))),
+                (
+                    "Precision reason",
+                    humanize_code(reason_codes[0]) if reason_codes else UNAVAILABLE,
                 ),
             )
         )

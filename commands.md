@@ -310,6 +310,13 @@ apex backtest BTCUSDT --funding-pct 0.01
 apex backtest BTCUSDT \
   --funding-archive data/research/binance_um/fundingRate/BTCUSDT-fundingRate-2026-06.zip
 
+# Replay checksum-verified campaign archives across their usable full range
+apex backtest BTCUSDT \
+  --archive-dataset-dir data/research/calibration_2025_2026 \
+  --sample-full-range \
+  --decision-points 200 \
+  --report-file data/reports/btc_archive_backtest.json
+
 # Increase historical analysis depth
 apex backtest BTCUSDT --candles 400 --replay-candles 50
 
@@ -329,6 +336,8 @@ apex backtest BTCUSDT \
 | `--decision-points INTEGER` | `5` | Number of non-overlapping chronological decisions. |
 | `--funding-pct FLOAT` | `0.0` | Optional manual funding stress override, reported separately from history. |
 | `--funding-archive FILE` | live history when available | Verified Binance monthly funding ZIP used for event-level holding-period costs. |
+| `--archive-dataset-dir DIRECTORY` | none | Reads manifest-listed, checksum-verified 1m kline and funding archives instead of a live candle tail. |
+| `--sample-full-range` | off | Distributes decisions over the usable archive after all analysis-prefix and forward-replay requirements are satisfied. |
 | `--as-of TIMESTAMP` | none | Anchors the latest visible candle to a timezone-aware ISO-8601 cutoff. |
 | `--report-file PATH` | none | Writes the complete structured backtest payload to JSON. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
@@ -369,6 +378,18 @@ python3 tools/run_anchored_backtest_campaign.py
 
 Use `--workers 1` for fully sequential execution or `--workers 4` when the provider and machine
 can safely sustain more concurrent requests.
+
+### Fixed archive calibration campaign
+
+`tools/run_archive_calibration_campaign.py` runs schema-v6 full-range reports
+for a fixed multi-symbol panel. `tools/calibrate_shadow_precision.py` evaluates
+predeclared selective rules, and `tools/evaluate_point_in_time_reclaims.py`
+audits reclaim entries without future eligibility facts. These tools write
+research evidence only; they do not alter production configuration.
+
+See
+[`docs/apex_calibration_campaign_report.md`](docs/apex_calibration_campaign_report.md)
+for the exact commands and interpretation.
 
 The command does not model:
 
@@ -445,6 +466,13 @@ apex research campaign \
   --symbols-file data/research/binance_um/universe_by_month.json \
   --train-model
 
+# Join decision-time replay features to separately stored future outcomes,
+# then train the two precision model families
+apex research campaign \
+  --feature-snapshots-file data/research/candidate_feature_snapshots.jsonl \
+  --candidate-outcomes-file data/research/candidate_outcomes.jsonl \
+  --train-model
+
 # Produce JSON terminal output
 apex research campaign --output json
 
@@ -474,6 +502,8 @@ apex research campaign \
 | `--include-daily-metrics` | off | Includes checksum-verified daily OI and ratio archives. |
 | `--experiment-spec FILE` | generated default | Uses a predeclared versioned experiment manifest. |
 | `--outcomes-file FILE` | none | Evaluates JSON/JSONL canonical and shadow outcome populations. |
+| `--feature-snapshots-file FILE` | none | Decision-time `CandidateFeatureSnapshot` JSONL from archive replay. |
+| `--candidate-outcomes-file FILE` | none | Separate resolved `CandidateOutcomeLabel` JSONL; required with feature snapshots. |
 | `--report-file PATH` | none | Writes the complete structured campaign payload to JSON. |
 | `--output`, `-o` | `text` | Selects readable text or complete JSON. |
 | `--config-dir DIRECTORY` | `config` | Loads another Apex configuration directory. |
@@ -496,9 +526,15 @@ The campaign renderer includes:
 - Missing historical files remain explicit.
 - Missing OI or other unavailable evidence is never converted to zero.
 - Canonical decisions and shadow experiments remain separate populations.
+- Candidate geometry is deduplicated and symbol/decision-time groups cannot
+  cross train, calibration, or untouched-final partitions.
+- The abstention threshold is selected from the purged calibration partition,
+  never from the final test.
 - Final-test promotion counts executed canonical outcomes, not no-trade rows.
 - PBO remains unavailable without multiple varying configuration-fold vectors.
 - Model authority remains withheld until all promotion gates pass.
+- `precision_gate.mode` defaults to `observe_only`; `paper` records hypothetical
+  decisions, while `enforce` requires historical and paper promotion.
 - `--report-file` preserves complete campaign details even when terminal output is concise.
 
 ---

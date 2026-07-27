@@ -113,6 +113,7 @@ def register_analysis_commands(app: typer.Typer) -> None:
                         geometry_execution_costs=geometry_execution_costs_from_settings(
                             context.settings.geometry_execution
                         ),
+                        precision_gate_settings=context.settings.precision_gate,
                         market_environment_config=context.settings.market_environment,
                         futures_evidence_enabled=context.settings.futures_evidence_enabled,
                         previous_market_regime=previous_regime,

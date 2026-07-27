@@ -18,7 +18,7 @@ from apex.application.methodology_identity import (
 )
 
 ANALYSIS_RECORD_SCHEMA_VERSION = 1
-ANALYSIS_RECORD_DB_SCHEMA_VERSION = 4
+ANALYSIS_RECORD_DB_SCHEMA_VERSION = 5
 
 
 def build_analysis_record(
@@ -302,6 +302,11 @@ def _ensure_sqlite_schema(connection: sqlite3.Connection) -> None:
             target_basis_json TEXT,
             runner_qualified INTEGER,
             runner_qualification_reason TEXT,
+            precision_gate_state TEXT,
+            precision_positive_net_probability REAL,
+            precision_expected_r REAL,
+            precision_reason_codes_json TEXT,
+            precision_artifact_version TEXT,
             FOREIGN KEY(analysis_id) REFERENCES analysis_records(analysis_id)
         )
         """
@@ -369,6 +374,11 @@ def _ensure_opportunity_outcome_columns(connection: sqlite3.Connection) -> None:
         "target_basis_json": "TEXT",
         "runner_qualified": "INTEGER",
         "runner_qualification_reason": "TEXT",
+        "precision_gate_state": "TEXT",
+        "precision_positive_net_probability": "REAL",
+        "precision_expected_r": "REAL",
+        "precision_reason_codes_json": "TEXT",
+        "precision_artifact_version": "TEXT",
     }
     for name, declaration in additions.items():
         if name not in columns:
@@ -463,6 +473,7 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                 for target in targets
                 if isinstance(target, Mapping) and target.get("target_basis") is not None
             ]
+            precision_decision = _precision_decision(analysis, candidate_id)
             connection.execute(
                 """
                 INSERT INTO opportunity_outcomes (
@@ -472,10 +483,12 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                     actionability_state, methodology_status, setup_expiry_seconds,
                     methodology_version, opportunity_lane, layered_state_json,
                     score_components_json, continuation_state, target_basis_json,
-                    runner_qualified, runner_qualification_reason
+                    runner_qualified, runner_qualification_reason, precision_gate_state,
+                    precision_positive_net_probability, precision_expected_r,
+                    precision_reason_codes_json, precision_artifact_version
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting_entry',
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 ON CONFLICT(opportunity_id) DO UPDATE SET
                     candidate_id=excluded.candidate_id,
@@ -537,6 +550,26 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                     runner_qualification_reason=COALESCE(
                         excluded.runner_qualification_reason,
                         opportunity_outcomes.runner_qualification_reason
+                    ),
+                    precision_gate_state=COALESCE(
+                        excluded.precision_gate_state,
+                        opportunity_outcomes.precision_gate_state
+                    ),
+                    precision_positive_net_probability=COALESCE(
+                        excluded.precision_positive_net_probability,
+                        opportunity_outcomes.precision_positive_net_probability
+                    ),
+                    precision_expected_r=COALESCE(
+                        excluded.precision_expected_r,
+                        opportunity_outcomes.precision_expected_r
+                    ),
+                    precision_reason_codes_json=COALESCE(
+                        excluded.precision_reason_codes_json,
+                        opportunity_outcomes.precision_reason_codes_json
+                    ),
+                    precision_artifact_version=COALESCE(
+                        excluded.precision_artifact_version,
+                        opportunity_outcomes.precision_artifact_version
                     )
                 """,
                 (
@@ -582,8 +615,35 @@ def _register_opportunities(connection: sqlite3.Connection, record: Mapping[str,
                     json.dumps(target_basis, sort_keys=True),
                     int(bool(setup.get("runner_qualified"))),
                     _optional_text(setup.get("runner_qualification_reason")),
+                    _optional_text(precision_decision.get("state")),
+                    _optional_float(
+                        precision_decision.get("calibrated_positive_net_probability")
+                    ),
+                    _optional_float(precision_decision.get("expected_r")),
+                    json.dumps(precision_decision.get("reason_codes") or [], sort_keys=True),
+                    _optional_text(precision_decision.get("artifact_version")),
                 ),
             )
+
+
+def _precision_decision(
+    analysis: Mapping[str, Any], candidate_id: str
+) -> Mapping[str, Any]:
+    precision = analysis.get("precision_gate")
+    if not isinstance(precision, Mapping):
+        return {}
+    decisions = precision.get("candidate_decisions")
+    if not isinstance(decisions, list):
+        return {}
+    return next(
+        (
+            decision
+            for decision in decisions
+            if isinstance(decision, Mapping)
+            and str(decision.get("candidate_id")) == candidate_id
+        ),
+        {},
+    )
 
 
 def _record_analyses(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
@@ -667,6 +727,15 @@ def _optional_text(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _evaluate_opportunity_row(
